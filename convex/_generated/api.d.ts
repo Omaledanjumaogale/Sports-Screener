@@ -1,63 +1,49 @@
 /* eslint-disable */
 /**
- * Generated code for Convex.
+ * Generated `api` utility.
  *
- * If you're using `convex dev` this file should be written within a few
- * seconds of saving Convex functions. If not, or if you have any other
- * trouble with this file, run `npx convex codegen`.
+ * THIS CODE IS AUTOMATICALLY GENERATED.
+ *
+ * To regenerate, run `npx convex dev`.
+ * @module
  */
+
+import type * as savedScreeners from "../savedScreeners.js";
+
 import type {
-  ActionBuilderForAPI,
-  MutationBuilderForAPI,
-  QueryBuilderForAPI,
-  GenericActionCtx,
-  GenericMutationCtx,
-  GenericQueryCtx,
-  FunctionVisibility,
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
 } from "convex/server";
 
-/**
- * The type of the Convex functions in this module.
- */
-export type API = {
-  savedScreeners: {
-    list: {
-      args: { sportId?: "football" | "basketball" | "tennis" | "rally"; sessionId: string };
-      returns: { _id: any; sportId: "football" | "basketball" | "tennis" | "rally"; title: string; notes?: string; scopes: any; verdict?: any; sessionId: string; createdAt: number; updatedAt: number }[];
-      visibility: FunctionVisibility;
-    };
-    save: {
-      args: { sportId: "football" | "basketball" | "tennis" | "rally"; title: string; notes?: string; scopes: any; verdict?: any; sessionId: string; _id?: any };
-      returns: any;
-      visibility: FunctionVisibility;
-    };
-    remove: {
-      args: { id: any; sessionId: string };
-      returns: null;
-      visibility: FunctionVisibility;
-    };
-    update: {
-      args: { id: any; sessionId: string; title?: string; notes?: string; scopes?: any; verdict?: any };
-      returns: null;
-      visibility: FunctionVisibility;
-    };
-    get: {
-      args: { id: any };
-      returns: { _id: any; sportId: "football" | "basketball" | "tennis" | "rally"; title: string; notes?: string; scopes: any; verdict?: any; sessionId: string; createdAt: number; updatedAt: number } | null;
-      visibility: FunctionVisibility;
-    };
-  };
-};
+declare const fullApi: ApiFromModules<{
+  savedScreeners: typeof savedScreeners;
+}>;
 
 /**
- * Get a typesafe Convex client to use in components.
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
  */
-export declare const api: {
-  savedScreeners: {
-    list: ((args: { sportId?: "football" | "basketball" | "tennis" | "rally"; sessionId: string }) => any) & { isConvexQuery: true; exportPath: string };
-    save: ((args: { sportId: "football" | "basketball" | "tennis" | "rally"; title: string; notes?: string; scopes: any; verdict?: any; sessionId: string; _id?: any }) => any) & { isConvexMutation: true; exportPath: string };
-    remove: ((args: { id: any; sessionId: string }) => any) & { isConvexMutation: true; exportPath: string };
-    update: ((args: { id: any; sessionId: string; title?: string; notes?: string; scopes?: any; verdict?: any }) => any) & { isConvexMutation: true; exportPath: string };
-    get: ((args: { id: any }) => any) & { isConvexQuery: true; exportPath: string };
-  };
-};
+export declare const api: FilterApi<
+  typeof fullApi,
+  FunctionReference<any, "public">
+>;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
+export declare const internal: FilterApi<
+  typeof fullApi,
+  FunctionReference<any, "internal">
+>;
+
+export declare const components: {};

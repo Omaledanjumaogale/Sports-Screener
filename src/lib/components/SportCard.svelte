@@ -1,43 +1,43 @@
 <script lang="ts">
   import { ChevronRight, type LucideIcon } from '@lucide/svelte';
 
-  let {
-    icon,
-    short,
-    title,
-    description,
-    accent,
-    onClick = () => {}
-  }: {
+  const props = $props<{
     icon: LucideIcon;
     short: string;
     title: string;
     description: string;
     accent: string;
     onClick?: () => void;
-  } = $props();
-  const Icon = icon;
+    path?: string;
+  }>();
+  const Icon = $derived(props.icon);
 </script>
 
 <button
   class="sport-card"
-  style={`--accent:${accent}`}
-  onclick={onClick}
-  aria-label={`Open ${title}`}
+  style={`--accent:${props.accent}`}
+  aria-label={`Open ${props.title}`}
   type="button"
+  onclick={() => {
+    if (typeof props.onClick === 'function') {
+      try { props.onClick(); } catch (_) { /* swallow callback errors */ }
+    } else if (props.path && typeof window !== 'undefined') {
+      window.location.assign(props.path);
+    }
+  }}
 >
   <div class="icon-wrap" aria-hidden="true">
     <Icon size={26} stroke-width={2.2} />
   </div>
   <div class="card-text">
     <div class="card-toprow">
-      <span class="card-short">{short}</span>
+      <span class="card-short">{props.short}</span>
       <span class="arrow-wrap" aria-hidden="true">
         <ChevronRight size={20} stroke-width={2.5} />
       </span>
     </div>
-    <h2 class="card-title">{title}</h2>
-    <p class="card-desc">{description}</p>
+    <h2 class="card-title">{props.title}</h2>
+    <p class="card-desc">{props.description}</p>
   </div>
 </button>
 
@@ -56,7 +56,11 @@
     background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.00));
     border: 1px solid #223047;
     overflow: hidden;
-    transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+    font: inherit;
   }
   .sport-card::before {
     content: '';
@@ -77,8 +81,13 @@
     transform: translateY(-2px);
     border-color: color-mix(in srgb, var(--accent) 55%, #223047);
     background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, #111c2f), rgba(255,255,255,0.00));
+    box-shadow: 0 10px 30px -12px color-mix(in srgb, var(--accent) 50%, transparent);
   }
   .sport-card:active { transform: translateY(0); }
+  .sport-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 
   .icon-wrap {
     position: relative;
@@ -92,8 +101,10 @@
     color: var(--accent);
     background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 35%, #0f1726), color-mix(in srgb, var(--accent) 14%, #0f1726));
     border: 1px solid color-mix(in srgb, var(--accent) 40%, #1a2944);
+    pointer-events: none;
   }
-  .card-text { position: relative; z-index: 1; display: grid; align-content: center; gap: 6px; min-width: 0; }
+  .card-text { position: relative; z-index: 1; display: grid; align-content: center; gap: 6px; min-width: 0; pointer-events: none; }
+  .card-text > * { pointer-events: none; }
   .card-toprow {
     display: flex; align-items: center; justify-content: space-between;
   }
@@ -121,10 +132,12 @@
     font-size: 16px;
     font-weight: 800;
     color: #eaf3ff;
+    margin: 0;
   }
   .card-desc {
     color: #9fb2cc;
     font-size: 12.5px;
     line-height: 1.45;
+    margin: 0;
   }
 </style>
