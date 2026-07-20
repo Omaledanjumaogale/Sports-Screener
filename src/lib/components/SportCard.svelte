@@ -16,6 +16,7 @@
     accent: string;
     onClick?: () => void;
   } = $props();
+  const Icon = icon;
 </script>
 
 <button
@@ -26,7 +27,7 @@
   type="button"
 >
   <div class="icon-wrap" aria-hidden="true">
-    <svelte:component this={icon} size={26} stroke-width={2.2} />
+    <Icon size={26} stroke-width={2.2} />
   </div>
   <div class="card-text">
     <div class="card-toprow">

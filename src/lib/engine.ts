@@ -715,22 +715,23 @@ function finishAnalysis(scope: ScopeState, profiles: Profile[], picks: Pick[], r
 
 /* ========================= SCOPE FACTORIES ========================= */
 
-const footballLines = [0.5, 1.5, 2.5, 3.5, 4.5];
+const OU_LINE_COUNT = 11;
+
+const footballLines = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5];
+const footballHomeAwayLines = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5];
 
 export function createFootballScope(id: 'h1' | 'h2' | 'ft', title: string): ScopeState {
-  const totalCount = id === 'ft' ? 7 : 5;
-  const totalLines = id === 'ft' ? [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5] : footballLines;
   const state: ScopeState = {
     id,
     title,
     leaguePreset: 'balanced',
     markets: {
-      mainTotal: market('mainTotal', 'Match Total Goals', 'ou', { primary: true, pairs: emptyPairs(totalCount, totalLines) }),
-      homeTotal: market('homeTotal', 'Home Team Total Goals', 'ou', { pairs: emptyPairs(5, [0.5, 1.5, 2.5, 3.5, 4.5]) }),
-      awayTotal: market('awayTotal', 'Away Team Total Goals', 'ou', { pairs: emptyPairs(5, [0.5, 1.5, 2.5, 3.5, 4.5]) }),
+      mainTotal: market('mainTotal', 'Match Total Goals', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, footballLines) }),
+      homeTotal: market('homeTotal', 'Home Team Total Goals', 'ou', { pairs: emptyPairs(OU_LINE_COUNT, footballHomeAwayLines) }),
+      awayTotal: market('awayTotal', 'Away Team Total Goals', 'ou', { pairs: emptyPairs(OU_LINE_COUNT, footballHomeAwayLines) }),
       result: market('result', '1X2 Result', 'threeway', { primary: true, odds: oddsMap(['home', 'draw', 'away']) }),
       doubleChance: market('doubleChance', 'Double Chance', 'threeway', { odds: oddsMap(['hd', 'ha', 'da']) }),
-      handicap: market('handicap', 'Asian Handicap', 'handicap', { handicapPairs: emptyHandicaps(5, [-1.5, -0.5, 0, 0.5, 1.5]) }),
+      handicap: market('handicap', 'Asian Handicap', 'handicap', { handicapPairs: emptyHandicaps(7, [-2.5, -1.5, -0.5, 0, 0.5, 1.5, 2.5]) }),
       correctScore: market('correctScore', 'Correct Score Grid (9 cells)', 'correctScore', { odds: oddsMap(FOOTBALL_SCORES) })
     }
   };
@@ -755,11 +756,26 @@ export function createMetScope(id: string, title: string, sport: 'basketball' | 
   let mainLines: number[];
   let playerLines: number[];
   if (isTennis) {
-    mainLines = id === 's1' ? range(7.5, 13.5, 0.5) : range(19.5, 35.5, 0.5);
-    playerLines = id === 's1' ? range(3.5, 8.5, 0.5) : range(8.5, 18.5, 0.5);
+    mainLines = id === 's1' ? range(5.5, 15.5, 1) : range(16.5, 40.5, 2.5);
+    playerLines = id === 's1' ? range(2.5, 12.5, 1) : range(5.5, 25.5, 2);
   } else {
-    mainLines = id === 'q1' ? range(35.5, 59.5, 2) : id === 'h1' ? range(78.5, 114.5, 4) : range(155.5, 227.5, 8);
-    playerLines = id === 'q1' ? range(8.5, 24.5, 2) : id === 'h1' ? range(36.5, 64.5, 4) : range(72.5, 124.5, 6);
+    mainLines = id === 'q1' ? range(30.5, 60.5, 3) : id === 'h1' ? range(72.5, 122.5, 5) : range(140.5, 240.5, 10);
+    playerLines = id === 'q1' ? range(6.5, 28.5, 2.2) : id === 'h1' ? range(30.5, 66.5, 3.6) : range(60.5, 126.5, 6.6);
+  }
+  const mainLines11 = mainLines.slice(0, OU_LINE_COUNT);
+  while (mainLines11.length < OU_LINE_COUNT) {
+    const last = mainLines11.length ? mainLines11[mainLines11.length - 1] : 10;
+    mainLines11.push(round(last + (isTennis ? 1 : 5), 1));
+  }
+  const playerLines11 = playerLines.slice(0, OU_LINE_COUNT);
+  while (playerLines11.length < OU_LINE_COUNT) {
+    const last = playerLines11.length ? playerLines11[playerLines11.length - 1] : 10;
+    playerLines11.push(round(last + (isTennis ? 0.5 : 2), 1));
+  }
+  const playerLines11offset = playerLines.slice(Math.max(0, Math.floor(playerLines.length / 2) - 5), Math.max(0, Math.floor(playerLines.length / 2) - 5 + OU_LINE_COUNT));
+  while (playerLines11offset.length < OU_LINE_COUNT) {
+    const last = playerLines11offset.length ? playerLines11offset[playerLines11offset.length - 1] : 10;
+    playerLines11offset.push(round(last + (isTennis ? 0.5 : 2), 1));
   }
   const csKeys = isTennis
     ? (id === 's1' ? TENNIS_SET_SCORES : (id === 'rt' ? TENNIS_MATCH_SCORES_BO3 : TENNIS_MATCH_SCORES_BO5))
@@ -769,10 +785,10 @@ export function createMetScope(id: string, title: string, sport: 'basketball' | 
     title,
     ...(isTennis ? { surface: 'hard', format: 'bo3' } : {}),
     markets: {
-      mainTotal: market('mainTotal', isTennis ? 'Total Games' : 'Game Total Points', 'ou', { primary: true, pairs: emptyPairs(7, mainLines.slice(0, 7)) }),
-      homeTotal: market('homeTotal', isTennis ? 'Player 1 Total Games' : 'Team 1 Total Points', 'ou', { primary: true, pairs: emptyPairs(5, playerLines.slice(0, 5)) }),
-      awayTotal: market('awayTotal', isTennis ? 'Player 2 Total Games' : 'Team 2 Total Points', 'ou', { primary: true, pairs: emptyPairs(5, playerLines.slice(2, 7)) }),
-      handicap: market('handicap', isTennis ? 'Game Handicap' : 'Spread / Handicap', 'handicap', { handicapPairs: emptyHandicaps(5, isTennis ? [-3.5, -1.5, 0.5, 1.5, 3.5] : [-9.5, -4.5, 0.5, 4.5, 9.5]) }),
+      mainTotal: market('mainTotal', isTennis ? 'Total Games' : 'Game Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, mainLines11) }),
+      homeTotal: market('homeTotal', isTennis ? 'Player 1 Total Games' : 'Team 1 Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, playerLines11) }),
+      awayTotal: market('awayTotal', isTennis ? 'Player 2 Total Games' : 'Team 2 Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, playerLines11offset) }),
+      handicap: market('handicap', isTennis ? 'Game Handicap' : 'Spread / Handicap', 'handicap', { handicapPairs: emptyHandicaps(7, isTennis ? [-5.5, -3.5, -1.5, 0.5, 1.5, 3.5, 5.5] : [-15.5, -8.5, -2.5, 0.5, 4.5, 9.5, 15.5]) }),
       winner: market('winner', isTennis ? 'Match / Set Winner' : 'Moneyline Winner', 'winner', { primary: true, odds: oddsMap(['a', 'b']) })
     }
   };
@@ -802,24 +818,48 @@ export function createTennisScopes(): ScopeState[] {
 }
 
 export function createRallyScope(): ScopeState {
+  const gameLines = range(56.5, 86.5, 3);
+  const gameLines11 = gameLines.slice(0, OU_LINE_COUNT);
+  while (gameLines11.length < OU_LINE_COUNT) {
+    const last = gameLines11.length ? gameLines11[gameLines11.length - 1] : 72.5;
+    gameLines11.push(round(last + 3, 1));
+  }
+  const playerLines = range(22.5, 48.5, 2.5);
+  const playerLines11 = playerLines.slice(0, OU_LINE_COUNT);
+  while (playerLines11.length < OU_LINE_COUNT) {
+    const last = playerLines11.length ? playerLines11[playerLines11.length - 1] : 34.5;
+    playerLines11.push(round(last + 2.5, 1));
+  }
+  const setTotalLines = range(12.5, 28.5, 1.5);
+  const setTotal11 = setTotalLines.slice(0, OU_LINE_COUNT);
+  while (setTotal11.length < OU_LINE_COUNT) {
+    const last = setTotal11.length ? setTotal11[setTotal11.length - 1] : 20.5;
+    setTotal11.push(round(last + 1.5, 1));
+  }
+  const setPlayerLines = range(4.5, 18.5, 1.5);
+  const setPlayer11 = setPlayerLines.slice(0, OU_LINE_COUNT);
+  while (setPlayer11.length < OU_LINE_COUNT) {
+    const last = setPlayer11.length ? setPlayer11[setPlayer11.length - 1] : 10.5;
+    setPlayer11.push(round(last + 1.5, 1));
+  }
   return {
     id: 'fm',
     title: 'Full Match + 1st Set',
     markets: {
       matchWinner: market('matchWinner', 'Match Winner', 'winner', { primary: true, odds: oddsMap(['a', 'b']) }),
-      gameTotal: market('gameTotal', 'Full Match Total Points', 'ou', { primary: true, pairs: emptyPairs(5, [66.5, 69.5, 72.5, 75.5, 78.5]) }),
-      playerATotal: market('playerATotal', 'Player A Total Points', 'ou', { primary: true, pairs: emptyPairs(5, [28.5, 31.5, 34.5, 37.5, 40.5]) }),
-      playerBTotal: market('playerBTotal', 'Player B Total Points', 'ou', { primary: true, pairs: emptyPairs(5, [28.5, 31.5, 34.5, 37.5, 40.5]) }),
-      pointsHandicap: market('pointsHandicap', 'Points Handicap', 'handicap', { handicapPairs: emptyHandicaps(5, [-8.5, -4.5, 0.5, 4.5, 8.5]) }),
+      gameTotal: market('gameTotal', 'Full Match Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, gameLines11) }),
+      playerATotal: market('playerATotal', 'Player A Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, playerLines11) }),
+      playerBTotal: market('playerBTotal', 'Player B Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, playerLines11.slice().reverse()) }),
+      pointsHandicap: market('pointsHandicap', 'Points Handicap', 'handicap', { handicapPairs: emptyHandicaps(7, [-12.5, -8.5, -4.5, 0.5, 4.5, 8.5, 12.5]) }),
       setsHandicap: market('setsHandicap', 'Sets Handicap', 'handicap', { handicapPairs: emptyHandicaps(5, [-2.5, -1.5, 0.5, 1.5, 2.5]) }),
-      totalSets: market('totalSets', 'Total Sets Played', 'ou', { pairs: emptyPairs(5, [3.5, 4.5, 5.5, 6.5, 7.5]) }),
+      totalSets: market('totalSets', 'Total Sets Played', 'ou', { pairs: emptyPairs(OU_LINE_COUNT, [2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5]) }),
       oddEven: market('oddEven', 'Total Sets Odd / Even', 'yesno', { odds: oddsMap(['yes', 'no']) }),
       correctScore: market('correctScore', 'Correct Score by Sets', 'correctScore', { odds: oddsMap(RALLY_SCORES) }),
       setWinner: market('setWinner', '1st Set Winner', 'winner', { primary: true, odds: oddsMap(['a', 'b']) }),
-      setTotal: market('setTotal', '1st Set Total Points', 'ou', { primary: true, pairs: emptyPairs(5, [16.5, 18.5, 20.5, 22.5, 24.5]) }),
-      setPlayerA: market('setPlayerA', '1st Set Player A Points', 'ou', { primary: true, pairs: emptyPairs(5, [6.5, 8.5, 10.5, 12.5, 14.5]) }),
-      setPlayerB: market('setPlayerB', '1st Set Player B Points', 'ou', { primary: true, pairs: emptyPairs(5, [6.5, 8.5, 10.5, 12.5, 14.5]) }),
-      setHandicap: market('setHandicap', '1st Set Points Handicap', 'handicap', { handicapPairs: emptyHandicaps(5, [-4.5, -2.5, 0.5, 2.5, 4.5]) })
+      setTotal: market('setTotal', '1st Set Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, setTotal11) }),
+      setPlayerA: market('setPlayerA', '1st Set Player A Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, setPlayer11) }),
+      setPlayerB: market('setPlayerB', '1st Set Player B Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, setPlayer11.slice().reverse()) }),
+      setHandicap: market('setHandicap', '1st Set Points Handicap', 'handicap', { handicapPairs: emptyHandicaps(7, [-6.5, -4.5, -2.5, 0.5, 2.5, 4.5, 6.5]) })
     }
   };
 }
@@ -837,42 +877,42 @@ export function lineOptionsFor(
 ): number[] {
   if (sportId === 'football') {
     if (marketId === 'mainTotal' || marketId === 'homeTotal' || marketId === 'awayTotal') {
-      return [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5];
+      return [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5];
     }
-    if (marketId === 'handicap') return [-2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5];
+    if (marketId === 'handicap') return [-3.5, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3.5];
     return [];
   }
   if (sportId === 'tennis') {
     if (marketId === 'mainTotal') {
-      return scopeId === 's1' ? range(5.5, 15.5, 0.5) : range(16.5, 40.5, 0.5);
+      return scopeId === 's1' ? range(4.5, 18.5, 0.5) : range(14.5, 48.5, 0.5);
     }
     if (marketId === 'homeTotal' || marketId === 'awayTotal') {
-      return scopeId === 's1' ? range(2.5, 10.5, 0.5) : range(6.5, 22.5, 0.5);
+      return scopeId === 's1' ? range(1.5, 14.5, 0.5) : range(3.5, 28.5, 0.5);
     }
-    if (marketId === 'handicap') return range(-6.5, 6.5, 0.5);
+    if (marketId === 'handicap') return range(-8.5, 8.5, 0.5);
     return [];
   }
   if (sportId === 'basketball') {
     if (marketId === 'mainTotal') {
-      if (scopeId === 'q1') return range(30.5, 64.5, 1);
-      if (scopeId === 'h1') return range(70.5, 124.5, 1);
-      return range(140.5, 248.5, 1);
+      if (scopeId === 'q1') return range(26.5, 70.5, 1);
+      if (scopeId === 'h1') return range(60.5, 130.5, 1);
+      return range(120.5, 260.5, 1);
     }
     if (marketId === 'homeTotal' || marketId === 'awayTotal') {
-      if (scopeId === 'q1') return range(6.5, 36.5, 1);
-      if (scopeId === 'h1') return range(30.5, 74.5, 1);
-      return range(60.5, 134.5, 1);
+      if (scopeId === 'q1') return range(4.5, 40.5, 1);
+      if (scopeId === 'h1') return range(24.5, 80.5, 1);
+      return range(50.5, 144.5, 1);
     }
-    if (marketId === 'handicap') return range(-22.5, 22.5, 1);
+    if (marketId === 'handicap') return range(-28.5, 28.5, 1);
     return [];
   }
   // rally
-  if (['gameTotal', 'playerATotal', 'playerBTotal'].includes(marketId)) return range(20.5, 100.5, 1);
-  if (['setTotal', 'setPlayerA', 'setPlayerB'].includes(marketId)) return range(10.5, 32.5, 1);
-  if (marketId === 'pointsHandicap') return range(-16.5, 16.5, 1);
+  if (['gameTotal', 'playerATotal', 'playerBTotal'].includes(marketId)) return range(12.5, 120.5, 1);
+  if (['setTotal', 'setPlayerA', 'setPlayerB'].includes(marketId)) return range(6.5, 38.5, 0.5);
+  if (marketId === 'pointsHandicap') return range(-20.5, 20.5, 1);
   if (marketId === 'setsHandicap') return range(-3.5, 3.5, 0.5);
-  if (marketId === 'totalSets') return range(2.5, 8.5, 1);
-  if (marketId === 'setHandicap') return range(-8.5, 8.5, 1);
+  if (marketId === 'totalSets') return range(2.5, 14.5, 1);
+  if (marketId === 'setHandicap') return range(-10.5, 10.5, 1);
   return [];
 }
 
@@ -893,13 +933,74 @@ export function saveScopes(sportId: SportId, scopes: ScopeState[]): void {
   }
 }
 
+function deepMergeMarket(targetMarket: MarketInput, srcMarket: MarketInput | undefined): void {
+  if (!srcMarket) return;
+  if (srcMarket.pairs && targetMarket.pairs) {
+    for (let i = 0; i < targetMarket.pairs.length; i += 1) {
+      const dst = targetMarket.pairs[i];
+      const src = srcMarket.pairs[i];
+      if (!src) continue;
+      if (src.line !== null && src.line !== undefined) dst.line = src.line;
+      if (src.over !== null && src.over !== undefined) dst.over = src.over;
+      if (src.under !== null && src.under !== undefined) dst.under = src.under;
+    }
+  }
+  if (srcMarket.handicapPairs && targetMarket.handicapPairs) {
+    for (let i = 0; i < targetMarket.handicapPairs.length; i += 1) {
+      const dst = targetMarket.handicapPairs[i];
+      const src = srcMarket.handicapPairs[i];
+      if (!src) continue;
+      if (src.line !== null && src.line !== undefined) dst.line = src.line;
+      if (src.sideA !== null && src.sideA !== undefined) dst.sideA = src.sideA;
+      if (src.sideB !== null && src.sideB !== undefined) dst.sideB = src.sideB;
+    }
+  }
+  if (srcMarket.odds && targetMarket.odds) {
+    Object.keys(targetMarket.odds).forEach((k) => {
+      const v = srcMarket.odds?.[k];
+      if (v !== undefined && v !== null) targetMarket.odds![k] = v;
+    });
+  }
+}
+
+export function mergeScopeOnto(dst: ScopeState, src: any): void {
+  if (!src) return;
+  if (typeof src.teamA === 'string' && src.teamA) dst.teamA = src.teamA;
+  if (typeof src.teamB === 'string' && src.teamB) dst.teamB = src.teamB;
+  if (typeof src.leaguePreset === 'string' && src.leaguePreset) dst.leaguePreset = src.leaguePreset;
+  if (typeof src.surface === 'string' && src.surface) dst.surface = src.surface;
+  if (typeof src.format === 'string' && src.format) dst.format = src.format;
+  if (src.markets && dst.markets) {
+    Object.keys(dst.markets).forEach((mKey) => {
+      deepMergeMarket(dst.markets[mKey], src.markets?.[mKey]);
+    });
+  }
+}
+
 export function loadScopes(sportId: SportId, fallback: ScopeState[]): ScopeState[] {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return fallback;
     const raw = localStorage.getItem(storageKey(sportId));
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length === fallback.length) return parsed as ScopeState[];
+    if (!Array.isArray(parsed) || !parsed.length) return fallback;
+    if (parsed.length === fallback.length) {
+      for (let i = 0; i < fallback.length; i += 1) {
+        if (fallback[i] && parsed[i] && fallback[i].id === parsed[i].id) {
+          mergeScopeOnto(fallback[i], parsed[i]);
+        }
+      }
+      return fallback;
+    }
+    // length mismatch — try to match by scope id
+    const byId = new Map<string, any>();
+    parsed.forEach((s: any) => { if (s?.id) byId.set(s.id, s); });
+    fallback.forEach((dst) => {
+      const src = byId.get(dst.id);
+      if (src) mergeScopeOnto(dst, src);
+    });
+    // Persist the merged state so next load is consistent
+    saveScopes(sportId, fallback);
     return fallback;
   } catch (_e) {
     return fallback;

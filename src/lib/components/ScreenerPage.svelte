@@ -12,6 +12,7 @@
   import LineRowHandicap from './LineRowHandicap.svelte';
   import OddsGrid from './OddsGrid.svelte';
   import TeamInputs from './TeamInputs.svelte';
+  import SaveHistory from './SaveHistory.svelte';
   import {
     analyzeFootball,
     analyzeMetSport,
@@ -21,10 +22,12 @@
     lineOptionsFor,
     loadScopes,
     saveScopes,
+    mergeScopeOnto,
     type Analysis,
     type ScopeState,
     type SportId
   } from '../engine';
+  import type { SavedScreenerDoc, ConvexSportId } from '../convexClient';
 
   let {
     sportId,
@@ -44,6 +47,7 @@
   let selectedScopeIndex: number = $state(0);
   let refreshTick: number = $state(0);
   let mounted: boolean = $state(false);
+  let loadBanner: string | null = $state(null);
 
   let scope: ScopeState | null = $derived(scopes[selectedScopeIndex] ?? null);
   let analysis: Analysis | null = $derived(scope && mounted ? runAnalysis(sportId, scope, refreshTick) : null);
@@ -63,12 +67,15 @@
   function clearCurrent() {
     if (!scope) return;
     clearScopeState(scope);
+    saveScopes(sportId, scopes);
+    loadBanner = null;
     refresh();
   }
 
   function clearAll() {
     scopes.forEach(clearScopeState);
     clearScopes(sportId);
+    loadBanner = null;
     refresh();
   }
 
@@ -77,6 +84,21 @@
   }
 
   function onChangeAny() {
+    refresh();
+  }
+
+  function onLoadFromHistory(e: { detail: { scopes: any[]; doc: SavedScreenerDoc } }) {
+    const { scopes: loadedScopes, doc } = e.detail;
+    if (!Array.isArray(loadedScopes) || !loadedScopes.length) return;
+    const freshScopes = factory();
+    for (let i = 0; i < freshScopes.length; i += 1) {
+      const dst = freshScopes[i];
+      const src = loadedScopes[i] ?? loadedScopes.find((s: any) => s?.id === dst.id);
+      if (src) mergeScopeOnto(dst, src);
+    }
+    scopes = freshScopes;
+    saveScopes(sportId, scopes);
+    loadBanner = `Loaded from history: ${doc.title}`;
     refresh();
   }
 
@@ -127,6 +149,14 @@
       >
         Clear {scope.title} odds
       </button>
+
+      {#if loadBanner}
+        <div class="load-banner" role="status">
+          <span class="tick">✓</span>
+          {loadBanner}
+          <button type="button" class="dismiss" onclick={() => { loadBanner = null; }} aria-label="Dismiss">×</button>
+        </div>
+      {/if}
 
       <ScopeTabs
         tabs={scopes.map((s) => ({ id: s.id, title: s.title }))}
@@ -224,9 +254,20 @@
 
       <RankingPanel picks={analysis.picks} limit={12} {accent} />
 
+      <div class="spacer"></div>
+
+      <SaveHistory
+        sportId={sportId as ConvexSportId}
+        sportTitle={sportTitle}
+        scopes={scopes}
+        analysis={analysis}
+        {accent}
+        on:load={onLoadFromHistory}
+      />
+
       <footer class="foot" aria-label="App metadata">
         <div>
-          <strong>{sportShort} Screener</strong> · Offline-first · Decimal odds · All odds stored locally per sport.
+          <strong>{sportShort} Screener</strong> · Convex-backed history · Decimal odds · Auto-cache until Clear.
         </div>
         <div>
           <button type="button" class="linkish" onclick={clearAll}>Reset all scopes</button>
@@ -264,6 +305,34 @@
     transition: border-color 120ms, color 120ms;
   }
   .clear-scope-btn:hover { border-color: var(--accent); color: #eaf3ff; }
+
+  .load-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+    color: #eaf3ff;
+    font-size: 13px;
+    margin: 4px 0 10px;
+  }
+  .load-banner .tick {
+    font-weight: 900;
+    color: var(--accent);
+    width: 18px;
+    text-align: center;
+  }
+  .load-banner .dismiss {
+    margin-left: auto;
+    background: transparent;
+    border: 0;
+    color: #c7d7ee;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+  }
 
   .profiles-grid {
     display: grid;
