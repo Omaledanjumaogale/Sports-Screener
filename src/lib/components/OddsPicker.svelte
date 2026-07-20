@@ -19,13 +19,45 @@
     onChange?: (v: number | null) => void;
   } = $props();
 
+  let isCustom = $state(false);
+  let customValue = $state('');
+
+  $effect(() => {
+    if (value !== null) {
+      if (value > 10 || !oddsOptions.includes(value)) {
+        isCustom = true;
+        customValue = String(value);
+      }
+    }
+  });
+
   function setOdds(v: string) {
+    if (v === 'custom') {
+      isCustom = true;
+      if (value !== null) customValue = String(value);
+      return;
+    }
+    isCustom = false;
     onChange(v === '' ? null : Number(v));
   }
 
+  function handleCustomInput(val: string) {
+    customValue = val;
+    const num = parseFloat(val);
+    if (!isNaN(num) && num > 1) {
+      onChange(Math.round(num * 100) / 100);
+    } else if (val === '') {
+      onChange(null);
+    }
+  }
+
   function nudge(delta: number) {
-    const current = Number(value ?? 2);
+    const current = Number(value ?? 2.0);
     const next = Math.max(1.01, Math.round((current + delta) * 100) / 100);
+    if (next > 10 || isCustom) {
+      isCustom = true;
+      customValue = String(next);
+    }
     onChange(next);
   }
 
@@ -44,17 +76,38 @@
       onclick={() => nudge(-step)}
       {disabled}
     >−</button>
-    <select
-      {disabled}
-      aria-label={`Select ${label}`}
-      value={value ?? ''}
-      onchange={(e) => setOdds(e.currentTarget.value)}
-    >
-      <option value="">{formatVal(value)}</option>
-      {#each oddsOptions as odd}
-        <option value={odd}>{odd.toFixed(2)}</option>
-      {/each}
-    </select>
+    {#if isCustom}
+      <div class="custom-wrap">
+        <input
+          type="number"
+          step="0.01"
+          min="1.01"
+          placeholder="Odds (>10)"
+          value={customValue}
+          {disabled}
+          oninput={(e) => handleCustomInput(e.currentTarget.value)}
+        />
+        <button
+          type="button"
+          class="reset-custom"
+          title="Back to dropdown list"
+          onclick={() => { isCustom = false; onChange(null); }}
+        >×</button>
+      </div>
+    {:else}
+      <select
+        {disabled}
+        aria-label={`Select ${label}`}
+        value={value ?? ''}
+        onchange={(e) => setOdds(e.currentTarget.value)}
+      >
+        <option value="">{formatVal(value)}</option>
+        {#each oddsOptions as odd}
+          <option value={odd}>{odd.toFixed(2)}</option>
+        {/each}
+        <option value="custom">Custom (&gt;10.00)...</option>
+      </select>
+    {/if}
     <button
       type="button"
       class="nudge plus"
@@ -124,4 +177,33 @@
     background-size: 14px;
   }
   select:disabled { opacity: 0.4; }
+
+  .custom-wrap {
+    display: flex;
+    align-items: center;
+    position: relative;
+    width: 100%;
+  }
+  .custom-wrap input {
+    width: 100%;
+    min-height: 42px;
+    color: #f7fbff;
+    background: #111c2f;
+    border: 1px solid #3b82f6;
+    border-radius: 8px;
+    padding: 0 28px 0 10px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .reset-custom {
+    position: absolute;
+    right: 8px;
+    background: transparent;
+    border: none;
+    color: #9fb2cc;
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .reset-custom:hover { color: #f7fbff; }
 </style>

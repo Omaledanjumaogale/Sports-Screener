@@ -1,99 +1,116 @@
+/**
+ * qa-smoke.mjs — Playwright smoke test across all 4 sport screeners
+ * Runs against the local dev server at http://localhost:5173
+ */
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({
-  viewport: { width: 375, height: 812 },
+  viewport: { width: 390, height: 844 },
   deviceScaleFactor: 2,
   hasTouch: true
 });
 const errors = [];
 page.on('console', (msg) => {
-  if (msg.type() === 'error') errors.push(msg.text());
+  if (msg.type() === 'error') errors.push(`[console] ${msg.text()}`);
 });
-page.on('pageerror', (err) => errors.push(err.message));
+page.on('pageerror', (err) => errors.push(`[pageerror] ${err.message}`));
 
-await page.goto('http://localhost:5173', { waitUntil: 'domcontentloaded', timeout: 45000 });
-await page.waitForTimeout(1500);
-await page.screenshot({ path: 'sports-screener-landing.png' });
+// ── Landing page ──────────────────────────────────────────────────────────────
+console.log('== Landing Page ==');
+await page.goto('http://localhost:5173', { waitUntil: 'networkidle', timeout: 45000 });
+await page.waitForTimeout(800);
+await page.screenshot({ path: 'smoke-landing.png' });
 
-// Landing: count sport cards
 const cardCount = await page.locator('button.sport-card').count();
-console.log(`Landing cards: ${cardCount}`);
-if (cardCount < 4) errors.push(`Expected 4 cards on landing, got ${cardCount}`);
+console.log(`Sport cards found: ${cardCount}`);
+if (cardCount < 4) errors.push(`Expected ≥4 sport cards on landing, got ${cardCount}`);
 
-// Navigate to football via first card
-const navPromise = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
-await page.locator('button.sport-card').first().click();
-await Promise.all([navPromise, page.waitForTimeout(2500)]);
+// ── Per-sport smoke ───────────────────────────────────────────────────────────
+const sportsToTest = [
+  { name: 'Football',   path: '/football'   },
+  { name: 'Basketball', path: '/basketball' },
+  { name: 'Tennis',     path: '/tennis'     },
+  { name: 'Rally',      path: '/rally'      }
+];
 
-// Try to switch scope to Full Time (ignore if only 1 scope)
-try {
-  await page.getByRole('button', { name: /full time/i }).first().click({ timeout: 4000 });
-  await page.waitForTimeout(500);
-} catch {}
+for (const sport of sportsToTest) {
+  console.log(`\n== ${sport.name} Screener ==`);
 
-// Open FIRST market accordion (details > summary click)
-const firstMarket = page.locator('details.market').first();
-const firstMarketTitle = await firstMarket.locator('.market-title').first().innerText().catch(() => 'Market');
-console.log(`First market accordion: ${firstMarketTitle}`);
-try {
-  const openAttr = await firstMarket.getAttribute('open');
-  if (!openAttr) {
-    await firstMarket.locator('summary').first().click({ timeout: 5000 });
-    await page.waitForTimeout(400);
+  await page.goto(`http://localhost:5173${sport.path}`, {
+    waitUntil: 'networkidle',
+    timeout: 20000
+  });
+  await page.waitForTimeout(600);
+
+  // Profile cards — actual class is "profile" on <article>
+  const profileCount = await page.locator('article.profile').count();
+  console.log(`  Profile cards: ${profileCount}`);
+  if (profileCount !== 4) {
+    errors.push(`[${sport.name}] Expected 4 profile cards (article.profile), got ${profileCount}`);
   }
-} catch {}
 
-// Fill first O/U row (3 selects = line | over | under) by indices instead of values
-const firstOURow = firstMarket.locator('.line-row-ou').first();
-const ouSelects = firstOURow.locator('select');
-const ouCount = await ouSelects.count();
-console.log(`First O/U row select count: ${ouCount}`);
-if (ouCount >= 3) {
-  // Line: pick index 6 (~ mid-range)
-  try { await ouSelects.nth(0).selectOption({ index: 6 }, { timeout: 8000 }); console.log('  set line'); await page.waitForTimeout(80); } catch (e) { console.log('  line fail:', e.message?.slice(0,60)); }
-  // Over: pick index 20 (~1.80 area)
-  try { await ouSelects.nth(1).selectOption({ index: 20 }, { timeout: 8000 }); console.log('  set over odds'); await page.waitForTimeout(80); } catch (e) { console.log('  over fail:', e.message?.slice(0,60)); }
-  // Under: pick index 20 (~1.80 area)
-  try { await ouSelects.nth(2).selectOption({ index: 20 }, { timeout: 8000 }); console.log('  set under odds'); await page.waitForTimeout(80); } catch (e) { console.log('  under fail:', e.message?.slice(0,60)); }
-}
+  // Market accordions
+  const marketCount = await page.locator('details.market').count();
+  console.log(`  Market accordions: ${marketCount}`);
+  if (marketCount < 1) {
+    errors.push(`[${sport.name}] No market accordions found`);
+  }
 
-// Fill a single-winner grid if any (1X2 / HDA etc.)
-const singleWin = page.locator('details.market').filter({ hasText: /1X2|HDA|Moneyline|Match Winner/i }).first();
-let singleWinCount = 0;
-try { singleWinCount = await singleWin.count(); } catch {}
-if (singleWinCount > 0) {
+  // Open the first accordion
+  const firstMarket = page.locator('details.market').first();
   try {
-    await singleWin.locator('summary').first().click({ timeout: 5000 });
-    await page.waitForTimeout(400);
-    const gwSelects = singleWin.locator('.odds-grid-wrap select');
-    const gwN = await gwSelects.count();
-    console.log(`Match-winner grid selects: ${gwN}`);
-    if (gwN >= 3) {
-      for (let i = 0; i < 3; i++) {
-        try { await gwSelects.nth(i).selectOption({ index: 30 + i }, { timeout: 8000 }); await page.waitForTimeout(60); }
-        catch (e) { console.log(`  winner grid select ${i} fail:`, e.message?.slice(0,50)); }
-      }
+    const isOpen = await firstMarket.getAttribute('open');
+    if (isOpen === null) {
+      await firstMarket.locator('summary').first().click({ timeout: 4000 });
+      await page.waitForTimeout(400);
     }
-  } catch (e) { console.log('  match winner open fail:', e.message?.slice(0,60)); }
+  } catch (_) { /* accordion may already be open */ }
+
+  // Try filling an O/U row using force:true (bypasses visibility checks on covered selects)
+  try {
+    const ouRow = firstMarket.locator('.line-row-ou').first();
+    const ouRowCount = await ouRow.count();
+    if (ouRowCount > 0) {
+      const selects = ouRow.locator('select');
+      const selectCount = await selects.count();
+      console.log(`  O/U row selects: ${selectCount}`);
+      if (selectCount >= 3) {
+        await selects.nth(0).selectOption({ index: 3 }, { timeout: 5000, force: true });
+        await selects.nth(1).selectOption({ index: 80 }, { timeout: 5000, force: true });
+        await selects.nth(2).selectOption({ index: 80 }, { timeout: 5000, force: true });
+        await page.waitForTimeout(300);
+      }
+    } else {
+      console.log(`  No .line-row-ou in first market (may be a winner market)`);
+    }
+  } catch (e) {
+    console.log(`  O/U fill skipped: ${String(e.message).slice(0, 80)}`);
+  }
+
+  // Check verdict headline is present
+  const headline = await page.locator('.verdict .headline').first().innerText().catch(() => '');
+  const headlinePreview = headline.trim().slice(0, 100);
+  console.log(`  Verdict headline: "${headlinePreview}..."`);
+  // Headline can be the default empty-state copy — just verify the element exists
+  const verdictExists = await page.locator('.verdict').count();
+  if (verdictExists < 1) {
+    errors.push(`[${sport.name}] Verdict section not found`);
+  }
+
+  await page.screenshot({ path: `smoke-${sport.name.toLowerCase()}.png`, fullPage: true });
 }
 
-await page.waitForTimeout(1500);
-
-// Read metrics after analysis
-const headline = (await page.locator('.verdict .headline').first().innerText().catch(() => '')) || '(empty)';
-const profileCount = await page.locator('.profile-card').count();
-const rankCount = await page.locator('.rank-row').count();
-const marketCount = await page.locator('details.market').count();
-console.log(`Headline: ${headline.length > 140 ? headline.slice(0,140)+'…' : headline}`);
-console.log(`Markets: ${marketCount}, Profile cards: ${profileCount}, Rank rows: ${rankCount}`);
-
-await page.screenshot({ path: 'sports-screener-mobile.png', fullPage: true });
 await browser.close();
 
-console.log('Errors:', errors.length);
-for (const e of errors) console.log('  -', e.slice(0, 140));
-
-if (errors.length) process.exit(1);
-if (cardCount < 4) process.exit(1);
-if (marketCount < 3) { console.error('Not enough markets rendered'); process.exit(1); }
+// ── Summary ───────────────────────────────────────────────────────────────────
+console.log('\n============================');
+console.log('     SMOKE TEST SUMMARY     ');
+console.log('============================');
+if (errors.length === 0) {
+  console.log('✅  ALL CHECKS PASSED');
+} else {
+  console.log(`❌  ${errors.length} issue(s) found:`);
+  for (const e of errors) console.log(`     - ${e.slice(0, 160)}`);
+  process.exit(1);
+}

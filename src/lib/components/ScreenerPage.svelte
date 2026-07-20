@@ -16,7 +16,8 @@
   import SaveHistory from './SaveHistory.svelte';
   import {
     analyzeFootball,
-    analyzeMetSport,
+    analyzeBasketball,
+    analyzeTennis,
     analyzeRally,
     clearScopes,
     clearScopeState,
@@ -55,8 +56,8 @@
 
   function runAnalysis(sid: SportId, s: ScopeState, _t: number): Analysis {
     if (sid === 'football') return analyzeFootball(s);
-    if (sid === 'basketball') return analyzeMetSport(s, 'basketball');
-    if (sid === 'tennis') return analyzeMetSport(s, 'tennis');
+    if (sid === 'basketball') return analyzeBasketball(s);
+    if (sid === 'tennis') return analyzeTennis(s);
     return analyzeRally(s);
   }
 

@@ -4,9 +4,6 @@
   import { Activity, BarChart3, Dumbbell, Goal } from '@lucide/svelte';
   import SportCard from '$lib/components/SportCard.svelte';
 
-  export const ssr = false;
-  export const prerender = false;
-
   const sports = [
     {
       id: 'football' as const,

@@ -72,14 +72,17 @@ export interface Analysis {
   metrics: { label: string; value: string; note?: string; status?: Status }[];
 }
 
-export const oddsOptions = [
-  1.01, 1.03, 1.05, 1.07, 1.1, 1.12, 1.14, 1.16, 1.18, 1.2,
-  1.22, 1.25, 1.28, 1.3, 1.33, 1.36, 1.4, 1.44, 1.48, 1.52,
-  1.57, 1.62, 1.67, 1.72, 1.78, 1.83, 1.9, 1.95, 2.0, 2.05,
-  2.1, 2.15, 2.2, 2.3, 2.45, 2.6, 2.75, 2.9, 3.1, 3.25,
-  3.5, 3.75, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5,
-  8.0, 9.0, 10.0, 12.0, 15.0, 20.0, 30.0, 50.0
-];
+export const oddsOptions: number[] = (() => {
+  const opts: number[] = [];
+  for (let o = 1.01; o <= 5.00 + 1e-9; o += 0.01) {
+    opts.push(round(o, 2));
+  }
+  for (let o = 5.50; o <= 10.00 + 1e-9; o += 0.50) {
+    opts.push(round(o, 2));
+  }
+  return opts;
+})();
+
 
 export const FOOTBALL_SCORES = ['0-0', '1-0', '0-1', '1-1', '2-0', '0-2', '2-1', '1-2', '2-2'];
 export const TENNIS_SET_SCORES = ['6-0', '6-1', '6-2', '6-3', '6-4', '7-5', '7-6', '0-6', '1-6', '2-6', '3-6', '4-6', '5-7', '6-7'];
@@ -372,7 +375,7 @@ export function analyzeFootball(scope: ScopeState): Analysis {
   const mainTotal = scope.markets.mainTotal;
   const totalPicks = analyzeLines(mainTotal);
   const targetLine = scope.id === 'ft' ? 2.5 : 1.5;
-  const primaryLine = mainTotal.pairs?.find((row) => row.line === targetLine) ?? totalPicks.length ? mainTotal.pairs?.find((row) => row.over && row.under) : undefined;
+  const primaryLine = mainTotal.pairs?.find((row) => row.line === targetLine) ?? (totalPicks.length ? mainTotal.pairs?.find((row) => row.over && row.under) : undefined);
   const norm = primaryLine ? normalizeTwo(primaryLine.over, primaryLine.under) : null;
   const underProb = norm?.b ?? null;
   const overProb = norm?.a ?? null;
@@ -396,6 +399,12 @@ export function analyzeFootball(scope: ScopeState): Analysis {
     ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' }),
     ...(scope.id === 'ft' ? analyzeOddsMarket(scope.markets.btts ?? { id: 'btts', kind: 'yesno', title: '' }, { yes: 'BTTS Yes (GG)', no: 'BTTS No (NG)' }) : [])
   ].map(withEv).sort((a, b) => b.probability - a.probability);
+
+  const allFootballPicks = [...rankPicks, ...goalLinePicks].sort((a, b) => b.probability - a.probability);
+  const primaryPicks = allFootballPicks.filter((p) => p.marketId === 'mainTotal' || p.marketId === 'result');
+  const safestPick = topPick(primaryPicks) ?? topPick(allFootballPicks);
+  const bestValuePick = primaryPicks.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allFootballPicks);
+  const shapePick = topPick(grid.length ? grid : goalLinePicks);
 
   const aChecks: Check[] = [
     {
@@ -459,28 +468,32 @@ export function analyzeFootball(scope: ScopeState): Analysis {
     }
   ];
 
-  const cTop = topPick(rankPicks);
-  const dTop = topPick(goalLinePicks);
-
   const profiles = [
-    profileFromChecks('A', scope.id === 'ft' ? 'Under 2.5 fit' : 'Under 1.5 fit', aChecks, cfg.strong, cfg.borderline, undefined, scope.id === 'ft' ? 'Under 2.5' : 'Under 1.5'),
-    profileFromChecks('B', scope.id === 'ft' ? 'Over 2.5 fit' : 'Over 0.5 fit', bChecks, cfg.strong, cfg.borderline, undefined, scope.id === 'ft' ? 'Over 2.5' : 'Over 0.5'),
-    profileFromChecks('C', 'Result & Handicap Ranking', [], cfg.strong, cfg.borderline, cTop, 'Profile C'),
-    profileFromChecks('D', scope.id === 'ft' ? 'Goal-line & BTTS Ranking' : 'Goal-line Ranking', [], cfg.strong, cfg.borderline, dTop, 'Profile D')
+    profileFromChecks('A', 'Safest Selection — lowest margin read', aChecks, cfg.strong, cfg.borderline, safestPick, 'Final Verdict'),
+    profileFromChecks('B', 'Best Value — margin-cost ranking', bChecks, cfg.strong, cfg.borderline, bestValuePick, 'Margin Rank'),
+    profileFromChecks('C', 'Match-Shape Intelligence (Score-shape)', [], cfg.strong, cfg.borderline, shapePick, 'Shape Read'),
+    profileFromChecks('D', 'All Markets Ranking', [], cfg.strong, cfg.borderline, topPick(allFootballPicks), 'All Markets')
   ];
 
-  return finishAnalysis(scope, profiles, [...rankPicks, ...goalLinePicks], cfg.cGreen, cfg.cAmber);
+  return {
+    ...finishAnalysis(scope, profiles, allFootballPicks, cfg.cGreen, cfg.cAmber),
+    metrics: [
+      { label: 'Low-score cluster', value: grid.length ? pct(lowScores, 1) : '-', note: '0-0 / 1-0 / 0-1 / 1-1', status: grid.length ? statusFromPct(lowScores, cfg.a2.green, cfg.a2.amber) : 'empty' },
+      { label: scope.id === 'ft' ? '0-0 resistance' : 'None odds prob', value: scope.id === 'ft' ? (nilNil !== undefined ? pct(nilNil, 1) : '-') : (noneProb !== null ? pct(noneProb, 1) : '-'), note: scope.id === 'ft' ? 'Nil-nil probability' : 'No goal in half', status: scope.id === 'ft' ? (nilNil !== undefined ? statusFromPct(nilNil, cfg.a5.green, cfg.a5.amber) : 'empty') : (noneProb !== null ? statusFromPct(noneProb, 30, 20) : 'empty') },
+      { label: 'Ranked picks', value: String(allFootballPicks.length), note: 'Across 1X2, DC, AH & Totals' },
+      { label: 'Best-value EV', value: bestValuePick?.ev !== undefined ? `${round(bestValuePick.ev * 100, 1)}%` : '-', note: 'Margin read, not profit forecast' }
+    ]
+  };
 }
 
-/* ========================= BASKETBALL / TENNIS (MET/MEG) ========================= */
+/* ========================= BASKETBALL (MET) ========================= */
 
-export function analyzeMetSport(scope: ScopeState, sport: 'basketball' | 'tennis'): Analysis {
-  const isTennis = sport === 'tennis';
-  const zone = isTennis ? 2.5 : 5;
-  const strongSignal = isTennis ? 61 : 62;
-  const modSignal = isTennis ? 55 : 56;
-  const teamSumTight = isTennis ? 1.5 : 3;
-  const teamSumStrong = isTennis ? 3 : 7;
+export function analyzeBasketball(scope: ScopeState): Analysis {
+  const zone = 5;
+  const strongSignal = 62;
+  const modSignal = 56;
+  const teamSumTight = 3;
+  const teamSumStrong = 7;
 
   const total = bestExpectedLine(scope.markets.mainTotal?.pairs ?? [], zone);
   const p1 = bestExpectedLine(scope.markets.homeTotal?.pairs ?? [], zone);
@@ -489,27 +502,135 @@ export function analyzeMetSport(scope: ScopeState, sport: 'basketball' | 'tennis
   const ouPicks = [
     ...analyzeLines(scope.markets.mainTotal ?? { id: 'mainTotal', kind: 'ou', title: '' }),
     ...analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' }),
-    ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' }),
-    ...(scope.markets.player3Total ? analyzeLines(scope.markets.player3Total) : []),
-    ...(scope.markets.player4Total ? analyzeLines(scope.markets.player4Total) : [])
+    ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' })
+  ].map(withEv).sort((a, b) => b.probability - a.probability);
+
+  const hdp = scope.markets.handicap;
+  const rankPicks = [
+    ...(hdp ? analyzeHandicap(hdp, 'Team 1', 'Team 2') : []),
+    ...analyzeOddsMarket(scope.markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, { a: 'Team 1 Wins', b: 'Team 2 Wins' })
+  ].map(withEv).sort((a, b) => b.probability - a.probability);
+
+  const allBasketballPicks = [...ouPicks, ...rankPicks].sort((a, b) => b.probability - a.probability);
+  const primaryPicks = allBasketballPicks.filter((p) => p.marketId === 'mainTotal' || p.marketId === 'winner' || p.marketId === 'homeTotal' || p.marketId === 'awayTotal');
+  const safestPick = topPick(primaryPicks) ?? topPick(allBasketballPicks);
+  const bestValuePick = primaryPicks.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allBasketballPicks);
+
+  const combinedDiff = total && p1 && p2 ? round(p1.expected + p2.expected - total.expected, 1) : null;
+  const paceProj = total ? round(scope.id === 'q1' ? total.expected * 4 : scope.id === 'h1' ? total.expected * 2 : total.expected, 1) : null;
+
+  const underProb = total?.bestUnder ? (total.bestUnder as any).normUnder * 100 : null;
+  const overProb = total?.bestOver ? (total.bestOver as any).normOver * 100 : null;
+
+  const aChecks: Check[] = [
+    {
+      title: 'Best value-zone Under',
+      detail: underProb === null ? 'Add lines around expected points mark' : `Under ${(total?.bestUnder as any)?.line} @ ${pct(underProb, 1)}`,
+      status: underProb === null ? 'empty' : statusFromPct(underProb, strongSignal, modSignal)
+    },
+    {
+      title: 'Team total sum consistency (TTC)',
+      detail: combinedDiff === null ? 'Enter game + both team totals' : `Team sum diff: ${combinedDiff > 0 ? '+' : ''}${combinedDiff} pts`,
+      status: combinedDiff === null ? 'empty' : combinedDiff < -teamSumStrong ? 'green' : combinedDiff < -teamSumTight ? 'amber' : 'red'
+    },
+    {
+      title: 'Market expected points (MET)',
+      detail: total ? `MET ${total.expected}${total.approx ? ' approx' : ''}` : 'Enter at least 1 complete O/U row',
+      status: total ? 'green' : 'empty'
+    },
+    {
+      title: 'Moneyline / Spread balance',
+      detail: rankPicks[0] ? `${rankPicks[0].label} @ ${pct(rankPicks[0].probability, 1)}` : 'Add moneyline or spread',
+      status: rankPicks[0] ? (rankPicks[0].probability >= 68 ? 'green' : rankPicks[0].probability >= 58 ? 'amber' : 'red') : 'empty'
+    },
+    {
+      title: 'Specific line rank',
+      detail: ouPicks[0] ? `${ouPicks[0].label} leads all O/U lines` : 'Add more line rows',
+      status: ouPicks[0] ? statusFromPct(ouPicks[0].probability, 76, 60) : 'empty'
+    }
+  ];
+
+  const bChecks: Check[] = [
+    {
+      title: 'Best value-zone Over',
+      detail: overProb === null ? 'Add lines below expected points' : `Over ${(total?.bestOver as any)?.line} @ ${pct(overProb, 1)}`,
+      status: overProb === null ? 'empty' : statusFromPct(overProb, strongSignal, modSignal)
+    },
+    {
+      title: 'Team total sum consistency (TTC Over)',
+      detail: combinedDiff === null ? 'Enter game + both team totals' : `Team sum diff: ${combinedDiff > 0 ? '+' : ''}${combinedDiff} pts`,
+      status: combinedDiff === null ? 'empty' : combinedDiff > teamSumStrong ? 'green' : combinedDiff > teamSumTight ? 'amber' : 'red'
+    },
+    {
+      title: 'Expected-line coverage',
+      detail: `${ouPicks.length} O/U candidate sides ranked`,
+      status: ouPicks.length >= 15 ? 'green' : ouPicks.length >= 9 ? 'amber' : ouPicks.length ? 'red' : 'empty'
+    },
+    {
+      title: 'Result pressure (favourite check)',
+      detail: rankPicks[0] ? `${rankPicks[0].label} @ ${pct(rankPicks[0].probability, 1)}` : 'Favourite pressure supports Over',
+      status: rankPicks[0] ? statusFromPct(rankPicks[0].probability, 68, 58) : 'empty'
+    },
+    {
+      title: 'Line-rank fallback',
+      detail: ouPicks[0] ? `${ouPicks[0].label} @ ${pct(ouPicks[0].probability, 1)}` : 'Add more O/U lines',
+      status: ouPicks[0] ? statusFromPct(ouPicks[0].probability, 76, 60) : 'empty'
+    }
+  ];
+
+  const profiles = [
+    profileFromChecks('A', 'Safest Selection — lowest margin read', aChecks, 0.72, 0.45, safestPick, 'Final Verdict'),
+    profileFromChecks('B', 'Best Value — margin-cost ranking', bChecks, 0.72, 0.45, bestValuePick, 'Margin Rank'),
+    profileFromChecks('C', 'Match-Shape Intelligence (Pace & Score-shape)', [], 0.72, 0.45, topPick(rankPicks), 'Shape Read'),
+    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topPick(allBasketballPicks), 'All Markets')
+  ];
+
+  return {
+    ...finishAnalysis(scope, profiles, allBasketballPicks, 76, 62),
+    metrics: [
+      { label: 'MET', value: total ? `${total.expected}${total.approx ? ' approx' : ''}` : '-', note: 'Market Expected Total Points', status: total ? 'green' as Status : 'empty' as Status },
+      { label: 'Team sum diff (TTC)', value: combinedDiff === null ? '-' : `${combinedDiff > 0 ? '+' : ''}${combinedDiff}`, note: 'T1 MET + T2 MET vs Game MET', status: combinedDiff === null ? 'empty' as Status : Math.abs(combinedDiff) <= teamSumTight ? 'green' as Status : 'amber' as Status },
+      { label: 'Pace projection', value: paceProj ? `${paceProj} pts` : '-', note: scope.id === 'ft' ? 'Full time MET' : scope.id === 'h1' ? '1H MET × 2' : 'Q1 MET × 4', status: paceProj ? 'green' as Status : 'empty' as Status },
+      { label: 'Ranked picks', value: String(allBasketballPicks.length), note: 'Across Moneyline, Spread & Totals' },
+      { label: 'Best-value EV', value: bestValuePick?.ev !== undefined ? `${round(bestValuePick.ev * 100, 1)}%` : '-', note: 'Margin read, not profit forecast' }
+    ]
+  };
+}
+
+/* ========================= TENNIS (MEG & CSI) ========================= */
+
+export function analyzeTennis(scope: ScopeState): Analysis {
+  const zone = 2.5;
+  const strongSignal = 61;
+  const modSignal = 55;
+  const teamSumTight = 1.5;
+  const teamSumStrong = 3;
+
+  const total = bestExpectedLine(scope.markets.mainTotal?.pairs ?? [], zone);
+  const p1 = bestExpectedLine(scope.markets.homeTotal?.pairs ?? [], zone);
+  const p2 = bestExpectedLine(scope.markets.awayTotal?.pairs ?? [], zone);
+
+  const ouPicks = [
+    ...analyzeLines(scope.markets.mainTotal ?? { id: 'mainTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' })
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
   const hdp1 = scope.markets.handicap;
   const hdp2 = scope.markets.setHandicap;
   const rankPicks = [
-    ...(hdp1 ? analyzeHandicap(hdp1, isTennis ? 'P1' : 'Team 1', isTennis ? 'P2' : 'Team 2') : []),
-    ...(hdp2 ? analyzeHandicap(hdp2, isTennis ? 'P1' : 'T1', isTennis ? 'P2' : 'T2') : []),
-    ...analyzeOddsMarket(scope.markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, { a: isTennis ? 'Player 1 Wins' : 'Team 1 Wins', b: isTennis ? 'Player 2 Wins' : 'Team 2 Wins' })
+    ...(hdp1 ? analyzeHandicap(hdp1, 'Player 1', 'Player 2') : []),
+    ...(hdp2 ? analyzeHandicap(hdp2, 'P1', 'P2') : []),
+    ...analyzeOddsMarket(scope.markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, { a: 'Player 1 Wins', b: 'Player 2 Wins' })
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
   const combinedDiff = total && p1 && p2 ? round(p1.expected + p2.expected - total.expected, 1) : null;
 
-  const tennisScores = isTennis
-    ? (scope.id === 's1'
-        ? [...TENNIS_SET_SCORES]
-        : (scope.format === 'bo5' ? [...TENNIS_MATCH_SCORES_BO5] : [...TENNIS_MATCH_SCORES_BO3]))
-    : [];
-  const csPicks = isTennis ? analyzeOddsMarket(scope.markets.correctScore ?? { id: 'correctScore', kind: 'correctScore', title: '' }, Object.fromEntries(tennisScores.map((s) => [s, s]))) : [];
+  const tennisScores = scope.id === 's1'
+    ? [...TENNIS_SET_SCORES]
+    : (scope.format === 'bo5' ? [...TENNIS_MATCH_SCORES_BO5] : [...TENNIS_MATCH_SCORES_BO3]);
+  const csPicks = analyzeOddsMarket(scope.markets.correctScore ?? { id: 'correctScore', kind: 'correctScore', title: '' }, Object.fromEntries(tennisScores.map((s) => [s, s])));
+  
   const decisive = csPicks.filter((p) => ['2-0', '0-2', '3-0', '0-3', '6-0', '6-1', '6-2', '6-3', '0-6', '1-6', '2-6', '3-6'].includes(p.label)).reduce((s, p) => s + p.probability, 0);
   const competitive = csPicks.filter((p) => ['2-1', '1-2', '3-2', '2-3', '7-5', '5-7', '7-6', '6-7'].includes(p.label)).reduce((s, p) => s + p.probability, 0);
   const tiebreakCS = csPicks.filter((p) => ['7-6', '6-7'].includes(p.label)).reduce((s, p) => s + p.probability, 0);
@@ -521,32 +642,38 @@ export function analyzeMetSport(scope: ScopeState, sport: 'basketball' | 'tennis
   const tbNorm = tbDirect ? normalizeTwo(tbDirect.odds?.yes, tbDirect.odds?.no) : null;
   const tbYesProb = tbNorm ? tbNorm.a : null;
 
+  const allTennisPicks = [...ouPicks, ...rankPicks, ...csPicks].sort((a, b) => b.probability - a.probability);
+  const primaryPicks = allTennisPicks.filter((p) => p.marketId === 'mainTotal' || p.marketId === 'winner' || p.marketId === 'homeTotal' || p.marketId === 'awayTotal');
+  const safestPick = topPick(primaryPicks) ?? topPick(allTennisPicks);
+  const bestValuePick = primaryPicks.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allTennisPicks);
+  const shapePick = topPick(csPicks.length ? csPicks : rankPicks);
+
   const underProb = total?.bestUnder ? (total.bestUnder as any).normUnder * 100 : null;
   const overProb = total?.bestOver ? (total.bestOver as any).normOver * 100 : null;
 
   const aChecks: Check[] = [
     {
-      title: `Best value-zone Under`,
-      detail: underProb === null ? `Add lines around expected ${isTennis ? 'games' : 'points'} mark` : `Under ${(total?.bestUnder as any)?.line} @ ${pct(underProb, 1)}`,
+      title: 'Best value-zone Under',
+      detail: underProb === null ? 'Add lines around expected games mark' : `Under ${(total?.bestUnder as any)?.line} @ ${pct(underProb, 1)}`,
       status: underProb === null ? 'empty' : statusFromPct(underProb, strongSignal, modSignal)
     },
     {
-      title: isTennis ? 'Correct-score decisiveness' : 'Team total sum consistency',
-      detail: isTennis ? (csPicks.length ? `Decisive outcomes: ${pct(decisive, 1)}` : 'Add correct score for CSI') : (combinedDiff === null ? 'Enter game + both team totals' : `Team sum diff: ${combinedDiff}`),
-      status: isTennis ? (csPicks.length ? statusFromPct(decisive, 55, 40) : 'empty') : (combinedDiff === null ? 'empty' : combinedDiff < -teamSumStrong ? 'green' : combinedDiff < -teamSumTight ? 'amber' : 'red')
+      title: 'Correct-score decisiveness (CSI)',
+      detail: csPicks.length ? `Decisive outcomes: ${pct(decisive, 1)}` : 'Add correct score for CSI read',
+      status: csPicks.length ? statusFromPct(decisive, 55, 40) : 'empty'
     },
     {
-      title: `Market expected ${isTennis ? 'games' : 'points'}`,
-      detail: total ? `${isTennis ? 'MEG' : 'MET'} ${total.expected}${total.approx ? ' approx' : ''}` : 'Enter at least 1 complete O/U row',
+      title: 'Market expected games (MEG)',
+      detail: total ? `MEG ${total.expected}${total.approx ? ' approx' : ''}` : 'Enter at least 1 complete O/U row',
       status: total ? 'green' : 'empty'
     },
     {
       title: 'Result balance (tightness check)',
       detail: rankPicks[0] ? `${rankPicks[0].label} @ ${pct(rankPicks[0].probability, 1)}` : 'Add winner or handicap',
-      status: rankPicks[0] ? (rankPicks[0].probability >= (isTennis ? 65 : 68) ? 'green' : rankPicks[0].probability >= 58 ? 'amber' : 'red') : 'empty'
+      status: rankPicks[0] ? (rankPicks[0].probability >= 65 ? 'green' : rankPicks[0].probability >= 58 ? 'amber' : 'red') : 'empty'
     },
     {
-      title: 'Specific-line fallback',
+      title: 'Specific line fallback',
       detail: ouPicks[0] ? `${ouPicks[0].label} leads all O/U lines` : 'Add more line rows',
       status: ouPicks[0] ? statusFromPct(ouPicks[0].probability, 76, 60) : 'empty'
     }
@@ -554,14 +681,14 @@ export function analyzeMetSport(scope: ScopeState, sport: 'basketball' | 'tennis
 
   const bChecks: Check[] = [
     {
-      title: `Best value-zone Over`,
-      detail: overProb === null ? `Add lines below expected ${isTennis ? 'games' : 'points'}` : `Over ${(total?.bestOver as any)?.line} @ ${pct(overProb, 1)}`,
+      title: 'Best value-zone Over',
+      detail: overProb === null ? 'Add lines below expected games' : `Over ${(total?.bestOver as any)?.line} @ ${pct(overProb, 1)}`,
       status: overProb === null ? 'empty' : statusFromPct(overProb, strongSignal, modSignal)
     },
     {
-      title: isTennis ? 'Competitive / tiebreak read' : 'Team total sum consistency',
-      detail: isTennis ? (csPicks.length ? `Competitive ${pct(competitive, 1)} · tiebreak ${pct(tiebreakCS, 1)}` : 'Add correct score for CSI') : (combinedDiff === null ? 'Enter game + both team totals' : `Team sum diff: ${combinedDiff}`),
-      status: isTennis ? (csPicks.length ? (competitive >= 45 || tiebreakCS >= 22 ? 'green' : competitive >= 30 || tiebreakCS >= 14 ? 'amber' : 'red') : 'empty') : (combinedDiff === null ? 'empty' : combinedDiff > teamSumStrong ? 'green' : combinedDiff > teamSumTight ? 'amber' : 'red')
+      title: 'Competitive / tiebreak read',
+      detail: csPicks.length ? `Competitive ${pct(competitive, 1)} · tiebreak ${pct(tiebreakCS, 1)}` : 'Add correct score for CSI read',
+      status: csPicks.length ? (competitive >= 45 || tiebreakCS >= 22 ? 'green' : competitive >= 30 || tiebreakCS >= 14 ? 'amber' : 'red') : 'empty'
     },
     {
       title: 'Expected-line coverage',
@@ -571,23 +698,23 @@ export function analyzeMetSport(scope: ScopeState, sport: 'basketball' | 'tennis
     {
       title: 'Result pressure (favourite check)',
       detail: rankPicks[0] ? `${rankPicks[0].label} @ ${pct(rankPicks[0].probability, 1)}` : 'Favourite pressure supports Over',
-      status: rankPicks[0] ? (isTennis ? (rankPicks[0].probability <= 58 ? 'green' : rankPicks[0].probability <= 65 ? 'amber' : 'red') : statusFromPct(rankPicks[0].probability, 68, 58)) : 'empty'
+      status: rankPicks[0] ? (rankPicks[0].probability <= 58 ? 'green' : rankPicks[0].probability <= 65 ? 'amber' : 'red') : 'empty'
     },
     {
-      title: isTennis ? 'Direct tiebreak market' : 'Line-rank fallback',
-      detail: isTennis ? (tbYesProb !== null ? `Direct TB Yes: ${pct(tbYesProb, 1)}` : 'Add tiebreak Yes/No odds') : (ouPicks[0] ? `${ouPicks[0].label} @ ${pct(ouPicks[0].probability, 1)}` : 'Add more O/U lines'),
-      status: isTennis ? (tbYesProb !== null ? statusFromPct(tbYesProb, 22, 14) : 'empty') : (ouPicks[0] ? statusFromPct(ouPicks[0].probability, 76, 60) : 'empty')
+      title: 'Direct tiebreak market',
+      detail: tbYesProb !== null ? `Direct TB Yes: ${pct(tbYesProb, 1)}` : 'Add tiebreak Yes/No odds',
+      status: tbYesProb !== null ? statusFromPct(tbYesProb, 22, 14) : 'empty'
     }
   ];
 
   const profiles = [
-    profileFromChecks('A', isTennis ? 'Under / Decisive Fit' : 'Under Evidence', aChecks, 0.72, 0.45, undefined, isTennis ? 'Under (Decisive)' : 'Under'),
-    profileFromChecks('B', isTennis ? 'Over / Competitive Fit' : 'Over Evidence', bChecks, 0.72, 0.45, undefined, isTennis ? 'Over (Competitive)' : 'Over'),
-    profileFromChecks('C', isTennis ? 'Handicap & Winner' : 'Spread & Winner', [], 0.72, 0.45, topPick(rankPicks), 'Profile C'),
-    profileFromChecks('D', 'Best Specific Line Finder', [], 0.72, 0.45, topPick(ouPicks), 'Profile D')
+    profileFromChecks('A', 'Safest Selection — lowest margin read', aChecks, 0.72, 0.45, safestPick, 'Final Verdict'),
+    profileFromChecks('B', 'Best Value — margin-cost ranking', bChecks, 0.72, 0.45, bestValuePick, 'Margin Rank'),
+    profileFromChecks('C', 'Match-Shape Intelligence (CSI & Set-shape)', [], 0.72, 0.45, shapePick, 'Shape Read'),
+    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topPick(allTennisPicks), 'All Markets')
   ];
 
-  const extraMetrics = isTennis && csPicks.length ? [
+  const extraMetrics = csPicks.length ? [
     { label: 'CSI sweep', value: pct(sweep, 1), note: 'Match ends 2-0/0-2 or 3-0/0-3', status: statusFromPct(sweep, 40, 25) as Status },
     { label: 'CSI 4-set', value: pct(fourSet, 1), note: 'Bo5 only: 3-1/1-3', status: (fourSet > 0 ? 'green' : 'empty') as Status },
     { label: 'CSI 5-set', value: pct(fiveSet, 1), note: 'Bo5 only: 3-2/2-3', status: (fiveSet > 0 ? 'green' : 'empty') as Status },
@@ -595,10 +722,10 @@ export function analyzeMetSport(scope: ScopeState, sport: 'basketball' | 'tennis
   ] : [];
 
   return {
-    ...finishAnalysis(scope, profiles, [...rankPicks, ...ouPicks], 76, 62),
+    ...finishAnalysis(scope, profiles, allTennisPicks, 76, 62),
     metrics: [
-      { label: isTennis ? 'MEG' : 'MET', value: total ? `${total.expected}${total.approx ? ' approx' : ''}` : '-', note: isTennis ? 'Market Expected Games' : 'Market Expected Total', status: total ? 'green' as Status : 'empty' as Status },
-      { label: isTennis ? 'P1+P2 diff' : 'Team sum diff', value: combinedDiff === null ? '-' : `${combinedDiff}`, note: 'Cross-market consistency', status: combinedDiff === null ? 'empty' as Status : Math.abs(combinedDiff) <= teamSumTight ? 'green' as Status : 'amber' as Status },
+      { label: 'MEG', value: total ? `${total.expected}${total.approx ? ' approx' : ''}` : '-', note: 'Market Expected Games', status: total ? 'green' as Status : 'empty' as Status },
+      { label: 'P1+P2 diff (PGD)', value: combinedDiff === null ? '-' : `${combinedDiff > 0 ? '+' : ''}${combinedDiff}`, note: 'P1 MEG + P2 MEG vs Match MEG', status: combinedDiff === null ? 'empty' as Status : Math.abs(combinedDiff) <= teamSumTight ? 'green' as Status : 'amber' as Status },
       ...extraMetrics
     ]
   };
@@ -618,8 +745,8 @@ export function analyzeRally(scope: ScopeState): Analysis {
   }).map(withEv).sort((a, b) => b.probability - a.probability);
 
   const primary = allPicks.filter((pick) => scope.markets[pick.marketId]?.primary);
-  const safest = topPick(primary);
-  const bestValue = primary.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0];
+  const safest = topPick(primary) ?? topPick(allPicks);
+  const bestValue = primary.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allPicks);
 
   const cs = analyzeOddsMarket(scope.markets.correctScore ?? { id: 'correctScore', kind: 'correctScore', title: '' }, Object.fromEntries(RALLY_SCORES.map((s) => [s, s])));
   const sweep = cs.filter((p) => p.label === '3-0' || p.label === '0-3').reduce((s, p) => s + p.probability, 0);
@@ -628,7 +755,7 @@ export function analyzeRally(scope: ScopeState): Analysis {
 
   const tsPicks = analyzeLines(scope.markets.totalSets ?? { id: 'totalSets', kind: 'ou', title: '' });
   const tsU35 = tsPicks.find((p) => p.label === 'Under 3.5');
-  const setsLean = topPick(tsPicks);
+  const setsLean = topPick(tsPicks) ?? topPick(cs);
 
   const checks: Check[] = [
     {
