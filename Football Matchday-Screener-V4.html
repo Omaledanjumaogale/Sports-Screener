@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matchday Screener v4 — 1H / 2H / Full Time</title>
+<style>
+  :root{
+    --bg:#0E1512; --bg-glow: radial-gradient(120% 140% at 50% -10%, #1B2A22 0%, #0E1512 55%);
+    --panel:#161F1A; --panel-alt:#1C2620; --panel-alt2:#212F27;
+    --line:#2A3B32; --ink:#ECEAE0; --muted:#93A199; --gold:#F2A93B;
+    --green:#3FB27F; --green-bg:rgba(63,178,127,0.14);
+    --red:#E1615A; --red-bg:rgba(225,97,90,0.14);
+    --amber:#F2A93B; --amber-bg:rgba(242,169,59,0.14);
+    --empty:#4A5750; --empty-bg:rgba(74,87,80,0.14);
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg-glow), var(--bg);background-attachment:fixed;color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1080px;margin:0 auto;padding:20px 16px 60px;}
+
+  header{padding:18px 4px 22px;border-bottom:1px solid var(--line);margin-bottom:18px;}
+  .eyebrow{font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--gold);font-weight:700;margin:0 0 6px;}
+  h1{font-size:clamp(22px,5vw,32px);font-weight:800;letter-spacing:-0.01em;margin:0 0 8px;line-height:1.1;}
+  .sub{color:var(--muted);font-size:14px;line-height:1.5;max-width:70ch;margin:0;}
+
+  /* Tabs */
+  .tabbar{display:flex;gap:6px;margin:20px 0 18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:5px;}
+  .tab-btn{flex:1;background:transparent;border:none;color:var(--muted);font-size:13px;font-weight:700;text-transform:uppercase;
+    letter-spacing:0.04em;padding:10px 8px;border-radius:8px;cursor:pointer;font-family:inherit;}
+  .tab-btn.active{background:var(--panel-alt2);color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold);}
+  .tab-btn:hover:not(.active){color:var(--ink);}
+
+  .global-actions{display:flex;justify-content:flex-end;margin-bottom:18px;}
+  .btn{background:var(--panel-alt);border:1px solid var(--line);color:var(--ink);font-size:12px;font-weight:700;
+    padding:8px 14px;border-radius:8px;cursor:pointer;font-family:inherit;}
+  .btn:hover{border-color:var(--gold);color:var(--gold);}
+  .btn.primary{background:var(--panel-alt2);border-color:var(--gold);color:var(--gold);}
+  .btn.danger:hover{border-color:var(--red);color:var(--red);}
+  .file-btn{position:relative;overflow:hidden;}
+  .file-btn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
+
+  .scope-section{display:none;}
+  .scope-section.active{display:block;}
+
+  .teamstrip{display:flex;align-items:center;gap:10px;margin:0 0 12px;flex-wrap:wrap;}
+  .team-input{flex:1;min-width:120px;}
+  .team-input input{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);color:var(--ink);
+    padding:10px 12px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;}
+  .team-input input::placeholder{color:var(--muted);text-transform:none;font-weight:500;letter-spacing:normal;}
+  .vs{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:0.1em;padding:0 2px;}
+
+  .presetrow{display:flex;align-items:center;gap:10px;margin:0 0 22px;flex-wrap:wrap;background:var(--panel);
+    border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;}
+  .presetrow label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;}
+  .presetrow select{width:auto;min-width:220px;flex:1;}
+  .preset-note{font-size:11px;color:var(--muted);width:100%;line-height:1.4;}
+
+  .master{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:26px;}
+  .master-label{font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:8px;}
+  .master-headline{font-size:17px;font-weight:800;line-height:1.35;margin-bottom:14px;}
+  .master-headline .hl-green{color:var(--green);} .master-headline .hl-amber{color:var(--amber);} .master-headline .hl-red{color:var(--red);}
+  .chip-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .chip{background:var(--panel-alt);border:1px solid var(--line);border-radius:100px;padding:6px 12px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;}
+  .chip .dot{width:7px;height:7px;border-radius:50%;}
+  .chip .dot.green{background:var(--green);} .chip .dot.amber{background:var(--amber);} .chip .dot.red{background:var(--red);} .chip .dot.empty{background:var(--empty);}
+
+  .scoreboard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:26px;
+    display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:560px){ .scoreboard{grid-template-columns:1fr;} }
+  .board-col{background:var(--panel-alt);border:1px solid var(--line);border-radius:10px;padding:14px;}
+  .board-label{font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;}
+  .lamps{display:flex;gap:5px;margin-bottom:10px;}
+  .lamp{flex:1;height:9px;border-radius:3px;background:var(--empty-bg);border:1px solid var(--line);transition:background .25s ease, box-shadow .25s ease;}
+  .lamp.green{background:var(--green);box-shadow:0 0 8px rgba(63,178,127,.55);border-color:transparent;}
+  .lamp.amber{background:var(--amber);box-shadow:0 0 8px rgba(242,169,59,.5);border-color:transparent;}
+  .lamp.red{background:var(--red);box-shadow:0 0 8px rgba(225,97,90,.5);border-color:transparent;}
+  .board-verdict{font-size:15px;font-weight:800;letter-spacing:-0.01em;}
+  .board-verdict.green{color:var(--green);} .board-verdict.amber{color:var(--amber);} .board-verdict.red{color:var(--red);} .board-verdict.empty{color:var(--muted);}
+
+  .section-title{font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--gold);font-weight:700;
+    margin:26px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;}
+  .section-title .st-hint{color:var(--muted);text-transform:none;letter-spacing:normal;font-weight:400;font-size:11px;}
+  .field-grid{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:6px;}
+  .field-row{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;
+    display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;}
+  .field-row.wide{grid-template-columns:1fr;}
+  .field-row .flabel{font-size:13px;color:var(--ink);font-weight:600;}
+  .field-row .fhint{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:2px;}
+  .finputs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+  .finputs.grid10{justify-content:flex-start;margin-top:8px;}
+  .finputs label{display:flex;flex-direction:column;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;gap:3px;}
+  input[type=number], input[type=text], select{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;
+    background:var(--panel-alt);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:7px 8px;width:64px;font-size:13.5px;}
+  select{width:auto;min-width:64px;font-family:inherit;}
+  input[type=number]:focus, select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(242,169,59,0.25);}
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button{margin:0;}
+
+  .profiles{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:30px;}
+  @media(max-width:700px){ .profiles{grid-template-columns:1fr;} }
+  .profile-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;}
+  .profile-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;}
+  .profile-name{font-size:15px;font-weight:800;letter-spacing:-0.01em;}
+  .profile-tag{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;}
+  .profile-desc{font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.4;}
+  .check{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line);}
+  .check:first-of-type{border-top:none;}
+  .check-num{font-size:10px;color:var(--muted);font-weight:700;width:16px;}
+  .check-text{font-size:12.5px;line-height:1.35;}
+  .check-text .ct-label{font-weight:600;color:var(--ink);}
+  .check-text .ct-detail{display:block;color:var(--muted);font-size:11px;margin-top:1px;}
+  .pill{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:4px 9px;border-radius:100px;white-space:nowrap;}
+  .pill.green{background:var(--green-bg);color:var(--green);} .pill.amber{background:var(--amber-bg);color:var(--amber);}
+  .pill.red{background:var(--red-bg);color:var(--red);} .pill.empty{background:var(--empty-bg);color:var(--empty);}
+
+  .ranking-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:16px;}
+  .ranking-top{background:var(--panel-alt2);border:1px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:10px;
+    display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .rt-label{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:3px;}
+  .rt-name{font-size:15px;font-weight:800;}
+  .rt-prob{font-size:22px;font-weight:800;font-family:ui-monospace,monospace;}
+  .ev-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel-alt);border:1px solid var(--line);
+    border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--muted);}
+  .ev-row label{font-weight:700;color:var(--ink);text-transform:uppercase;font-size:10px;letter-spacing:0.05em;}
+  .ev-row input{width:60px;}
+  .ev-badge{font-family:ui-monospace,monospace;font-weight:800;padding:4px 10px;border-radius:100px;font-size:12px;}
+  .ev-badge.pos{background:var(--green-bg);color:var(--green);}
+  .ev-badge.neg{background:var(--red-bg);color:var(--red);}
+  .ev-badge.empty{background:var(--empty-bg);color:var(--empty);}
+  .rank-row{display:grid;grid-template-columns:1fr 50px 1fr 70px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;}
+  .rank-row:first-of-type{border-top:none;}
+  .rank-row .rk-label{font-weight:600;}
+  .rank-row .rk-odds{font-family:ui-monospace,monospace;color:var(--muted);text-align:right;}
+  .prob-bar-wrap{background:var(--panel-alt);border-radius:100px;height:8px;overflow:hidden;}
+  .prob-bar{height:100%;border-radius:100px;transition:width .25s ease, background .25s ease;}
+  .prob-bar.green{background:var(--green);} .prob-bar.amber{background:var(--amber);} .prob-bar.red{background:var(--red);}
+  .rk-pct{font-family:ui-monospace,monospace;font-weight:700;text-align:right;}
+  .rank-empty-note{font-size:12px;color:var(--muted);padding:10px 0;}
+
+  .history-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:30px;}
+  .history-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  table.history-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  table.history-table th{text-align:left;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-size:10px;
+    padding:6px 8px;border-bottom:1px solid var(--line);}
+  table.history-table td{padding:7px 8px;border-bottom:1px solid var(--line);}
+  .history-empty{font-size:12px;color:var(--muted);padding:8px 0;}
+  .rm-btn{background:none;border:none;color:var(--red);cursor:pointer;font-size:11px;font-weight:700;}
+  .scope-tag{font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:100px;background:var(--panel-alt2);color:var(--gold);}
+
+  .reset-btn{background:transparent;border:1px solid var(--line);color:var(--muted);font-size:12px;padding:8px 14px;border-radius:8px;cursor:pointer;margin-top:14px;font-family:inherit;}
+  .reset-btn:hover{border-color:var(--red);color:var(--red);}
+  footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Pre-match odds screener · v4 · unified</p>
+    <h1>Matchday Screener</h1>
+    <p class="sub">Three independent screening engines — 1st Half, 2nd Half, and Full Time — in one offline app. Each tab keeps its own entered odds until you clear it. Switch freely; nothing is lost.</p>
+  </header>
+
+  <div class="tabbar">
+    <button class="tab-btn active" id="tabBtn_h1" onclick="switchScope('h1')">1st Half</button>
+    <button class="tab-btn" id="tabBtn_h2" onclick="switchScope('h2')">2nd Half</button>
+    <button class="tab-btn" id="tabBtn_ft" onclick="switchScope('ft')">Full Time</button>
+  </div>
+
+  <div class="global-actions">
+    <button class="btn danger" onclick="clearScopeFields(currentScope)">Clear this tab's fields</button>
+  </div>
+
+  <!-- ================= 1ST HALF ================= -->
+  <section class="scope-section active" id="scope_h1">
+    <div class="teamstrip">
+      <div class="team-input"><input id="h1_homeTeam" type="text" placeholder="Home team"></div>
+      <span class="vs">VS</span>
+      <div class="team-input"><input id="h1_awayTeam" type="text" placeholder="Away team"></div>
+    </div>
+    <div class="presetrow">
+      <label>League / competition profile</label>
+      <select id="h1_leaguePreset">
+        <option value="balanced">Balanced (default)</option>
+        <option value="lowScoring">Low-scoring / defensive league</option>
+        <option value="highScoring">High-scoring / attacking league</option>
+        <option value="cup">Cup / knockout (motivation variance)</option>
+      </select>
+      <div class="preset-note" id="h1_presetNote"></div>
+    </div>
+
+    <div class="master">
+      <div class="master-label">Overall recommendation — 1st Half</div>
+      <div class="master-headline" id="h1_masterHeadline">Enter odds below — a recommendation will build here.</div>
+      <div class="chip-row" id="h1_chipRow"></div>
+    </div>
+
+    <div class="scoreboard">
+      <div class="board-col">
+        <div class="board-label"><span>Profile A — Under 1.5</span><span id="h1_aScoreText">0/0</span></div>
+        <div class="lamps" id="h1_aLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+        <div class="board-verdict empty" id="h1_aVerdict">Enter odds to screen</div>
+      </div>
+      <div class="board-col">
+        <div class="board-label"><span>Profile B — Over 0.5</span><span id="h1_bScoreText">0/0</span></div>
+        <div class="lamps" id="h1_bLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+        <div class="board-verdict empty" id="h1_bVerdict">Enter odds to screen</div>
+      </div>
+    </div>
+
+    <div class="section-title">Over / Under Goals</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">O/U 0.5 goals<span class="fhint">feeds Profile B</span></div>
+        <div class="finputs"><label>Under <input type="number" step="0.01" min="1" id="h1_ou05u"></label><label>Over <input type="number" step="0.01" min="1" id="h1_ou05o"></label></div></div>
+      <div class="field-row"><div class="flabel">O/U 1.5 goals<span class="fhint">feeds Profile A</span></div>
+        <div class="finputs"><label>Under <input type="number" step="0.01" min="1" id="h1_ou15u"></label><label>Over <input type="number" step="0.01" min="1" id="h1_ou15o"></label></div></div>
+    </div>
+
+    <div class="section-title">Correct Score <span class="st-hint">5+ of 10 cells = normalized read</span></div>
+    <div class="field-grid">
+      <div class="field-row wide"><div class="flabel">Scoreline grid<span class="fhint">0:0 / 1:0 / 0:1 / 1:1 / 2:0 / 0:2 / 2:1 / 1:2 / 2:2 / Other</span></div>
+        <div class="finputs grid10">
+          <label>0:0 <input type="number" step="0.01" min="1" id="h1_cs00"></label>
+          <label>1:0 <input type="number" step="0.01" min="1" id="h1_cs10"></label>
+          <label>0:1 <input type="number" step="0.01" min="1" id="h1_cs01"></label>
+          <label>1:1 <input type="number" step="0.01" min="1" id="h1_cs11"></label>
+          <label>2:0 <input type="number" step="0.01" min="1" id="h1_cs20"></label>
+          <label>0:2 <input type="number" step="0.01" min="1" id="h1_cs02"></label>
+          <label>2:1 <input type="number" step="0.01" min="1" id="h1_cs21"></label>
+          <label>1:2 <input type="number" step="0.01" min="1" id="h1_cs12"></label>
+          <label>2:2 <input type="number" step="0.01" min="1" id="h1_cs22"></label>
+          <label>Other <input type="number" step="0.01" min="1" id="h1_csOther"></label>
+        </div></div>
+    </div>
+
+    <div class="section-title">First Goal</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">"None" odds<span class="fhint">no goal in the half</span></div>
+        <div class="finputs"><label>None <input type="number" step="0.01" min="1" id="h1_noneOdds"></label></div></div>
+    </div>
+
+    <div class="section-title">Match Result (1X2)</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">1X2 odds<span class="fhint">feeds Profile A &amp; Profile C</span></div>
+        <div class="finputs">
+          <label>Home <input type="number" step="0.01" min="1" id="h1_x2Home"></label>
+          <label>Draw <input type="number" step="0.01" min="1" id="h1_drawOdds"></label>
+          <label>Away <input type="number" step="0.01" min="1" id="h1_x2Away"></label>
+        </div></div>
+    </div>
+
+    <div class="section-title">Double Chance</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">Double Chance odds<span class="fhint">feeds Profile C</span></div>
+        <div class="finputs">
+          <label>Home/Draw <input type="number" step="0.01" min="1" id="h1_dcHD"></label>
+          <label>Draw/Away <input type="number" step="0.01" min="1" id="h1_dcDA"></label>
+          <label>Home/Away <input type="number" step="0.01" min="1" id="h1_dcHA"></label>
+        </div></div>
+    </div>
+
+    <div class="section-title">Asian Handicap</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">Handicap line + odds<span class="fhint">line feeds A &amp; B · odds feed Profile C</span></div>
+        <div class="finputs">
+          <label>Line <select id="h1_ahLine">
+            <option value="">—</option><option value="0">0</option><option value="0.25">0.25</option><option value="0.5">0.5</option>
+            <option value="0.75">0.75</option><option value="1">1.0</option><option value="1.25">1.25</option><option value="1.5">1.5</option>
+            <option value="1.75">1.75</option><option value="2">2.0</option><option value="2.5">2.5</option><option value="3">3.0+</option>
+          </select></label>
+          <label>Home <input type="number" step="0.01" min="1" id="h1_ahHomeOdds"></label>
+          <label>Away <input type="number" step="0.01" min="1" id="h1_ahAwayOdds"></label>
+        </div></div>
+    </div>
+
+    <div class="profiles">
+      <div class="profile-card"><div class="profile-head"><span class="profile-name">Profile A</span><span class="profile-tag">Under 1.5 · 1H</span></div>
+        <p class="profile-desc">Fits cagey, evenly matched, low-tempo first halves.</p><div id="h1_aChecks"></div></div>
+      <div class="profile-card"><div class="profile-head"><span class="profile-name">Profile B</span><span class="profile-tag">Over 0.5 · 1H</span></div>
+        <p class="profile-desc">Fits mismatches — a favourite likely to break through by half-time.</p><div id="h1_bChecks"></div></div>
+    </div>
+
+    <div class="section-title">Profile C — Result &amp; Handicap Ranking</div>
+    <div class="ranking-card">
+      <p class="profile-desc" style="margin-bottom:14px;">Ranks every 1X2 / Double Chance / Handicap option entered by implied probability.</p>
+      <div id="h1_cTop"></div>
+      <div class="ev-row"><label>Your estimate for the top pick</label><input type="number" step="0.1" min="0" max="100" id="h1_c_userProb" placeholder="%"><span>→</span><span id="h1_c_evBadge" class="ev-badge empty">Enter your % to compare against the price</span></div>
+      <div id="h1_cList"></div>
+    </div>
+
+    <button class="reset-btn" onclick="clearScopeFields('h1')">Clear 1st Half fields</button>
+  </section>
+
+  <!-- ================= 2ND HALF ================= -->
+  <section class="scope-section" id="scope_h2">
+    <div class="teamstrip">
+      <div class="team-input"><input id="h2_homeTeam" type="text" placeholder="Home team"></div>
+      <span class="vs">VS</span>
+      <div class="team-input"><input id="h2_awayTeam" type="text" placeholder="Away team"></div>
+    </div>
+    <div class="presetrow">
+      <label>League / competition profile</label>
+      <select id="h2_leaguePreset">
+        <option value="balanced">Balanced (default)</option>
+        <option value="lowScoring">Low-scoring / defensive league</option>
+        <option value="highScoring">High-scoring / attacking league</option>
+        <option value="cup">Cup / knockout (motivation variance)</option>
+      </select>
+      <div class="preset-note" id="h2_presetNote"></div>
+    </div>
+    <p class="fhint" style="margin:-8px 0 18px;">2nd-half thresholds start stricter on Under and looser on Over than 1st-half defaults, reflecting that second halves tend to produce more goals (fatigue, substitutions, teams chasing the game).</p>
+
+    <div class="master">
+      <div class="master-label">Overall recommendation — 2nd Half</div>
+      <div class="master-headline" id="h2_masterHeadline">Enter odds below — a recommendation will build here.</div>
+      <div class="chip-row" id="h2_chipRow"></div>
+    </div>
+
+    <div class="scoreboard">
+      <div class="board-col">
+        <div class="board-label"><span>Profile A — Under 1.5</span><span id="h2_aScoreText">0/0</span></div>
+        <div class="lamps" id="h2_aLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+        <div class="board-verdict empty" id="h2_aVerdict">Enter odds to screen</div>
+      </div>
+      <div class="board-col">
+        <div class="board-label"><span>Profile B — Over 0.5</span><span id="h2_bScoreText">0/0</span></div>
+        <div class="lamps" id="h2_bLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+        <div class="board-verdict empty" id="h2_bVerdict">Enter odds to screen</div>
+      </div>
+    </div>
+
+    <div class="section-title">Over / Under Goals</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">O/U 0.5 goals<span class="fhint">feeds Profile B</span></div>
+        <div class="finputs"><label>Under <input type="number" step="0.01" min="1" id="h2_ou05u"></label><label>Over <input type="number" step="0.01" min="1" id="h2_ou05o"></label></div></div>
+      <div class="field-row"><div class="flabel">O/U 1.5 goals<span class="fhint">feeds Profile A</span></div>
+        <div class="finputs"><label>Under <input type="number" step="0.01" min="1" id="h2_ou15u"></label><label>Over <input type="number" step="0.01" min="1" id="h2_ou15o"></label></div></div>
+    </div>
+
+    <div class="section-title">Correct Score <span class="st-hint">5+ of 10 cells = normalized read</span></div>
+    <div class="field-grid">
+      <div class="field-row wide"><div class="flabel">Scoreline grid<span class="fhint">0:0 / 1:0 / 0:1 / 1:1 / 2:0 / 0:2 / 2:1 / 1:2 / 2:2 / Other</span></div>
+        <div class="finputs grid10">
+          <label>0:0 <input type="number" step="0.01" min="1" id="h2_cs00"></label>
+          <label>1:0 <input type="number" step="0.01" min="1" id="h2_cs10"></label>
+          <label>0:1 <input type="number" step="0.01" min="1" id="h2_cs01"></label>
+          <label>1:1 <input type="number" step="0.01" min="1" id="h2_cs11"></label>
+          <label>2:0 <input type="number" step="0.01" min="1" id="h2_cs20"></label>
+          <label>0:2 <input type="number" step="0.01" min="1" id="h2_cs02"></label>
+          <label>2:1 <input type="number" step="0.01" min="1" id="h2_cs21"></label>
+          <label>1:2 <input type="number" step="0.01" min="1" id="h2_cs12"></label>
+          <label>2:2 <input type="number" step="0.01" min="1" id="h2_cs22"></label>
+          <label>Other <input type="number" step="0.01" min="1" id="h2_csOther"></label>
+        </div></div>
+    </div>
+
+    <div class="section-title">First Goal</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">"None" odds<span class="fhint">no goal in the half</span></div>
+        <div class="finputs"><label>None <input type="number" step="0.01" min="1" id="h2_noneOdds"></label></div></div>
+    </div>
+
+    <div class="section-title">Match Result (1X2)</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">1X2 odds<span class="fhint">feeds Profile A &amp; Profile C</span></div>
+        <div class="finputs">
+          <label>Home <input type="number" step="0.01" min="1" id="h2_x2Home"></label>
+          <label>Draw <input type="number" step="0.01" min="1" id="h2_drawOdds"></label>
+          <label>Away <input type="number" step="0.01" min="1" id="h2_x2Away"></label>
+        </div></div>
+    </div>
+
+    <div class="section-title">Double Chance</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">Double Chance odds<span class="fhint">feeds Profile C</span></div>
+        <div class="finputs">
+          <label>Home/Draw <input type="number" step="0.01" min="1" id="h2_dcHD"></label>
+          <label>Draw/Away <input type="number" step="0.01" min="1" id="h2_dcDA"></label>
+          <label>Home/Away <input type="number" step="0.01" min="1" id="h2_dcHA"></label>
+        </div></div>
+    </div>
+
+    <div class="section-title">Asian Handicap</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">Handicap line + odds<span class="fhint">line feeds A &amp; B · odds feed Profile C</span></div>
+        <div class="finputs">
+          <label>Line <select id="h2_ahLine">
+            <option value="">—</option><option value="0">0</option><option value="0.25">0.25</option><option value="0.5">0.5</option>
+            <option value="0.75">0.75</option><option value="1">1.0</option><option value="1.25">1.25</option><option value="1.5">1.5</option>
+            <option value="1.75">1.75</option><option value="2">2.0</option><option value="2.5">2.5</option><option value="3">3.0+</option>
+          </select></label>
+          <label>Home <input type="number" step="0.01" min="1" id="h2_ahHomeOdds"></label>
+          <label>Away <input type="number" step="0.01" min="1" id="h2_ahAwayOdds"></label>
+        </div></div>
+    </div>
+
+    <div class="profiles">
+      <div class="profile-card"><div class="profile-head"><span class="profile-name">Profile A</span><span class="profile-tag">Under 1.5 · 2H</span></div>
+        <p class="profile-desc">Fits games that have stayed cagey and are running down the clock.</p><div id="h2_aChecks"></div></div>
+      <div class="profile-card"><div class="profile-head"><span class="profile-name">Profile B</span><span class="profile-tag">Over 0.5 · 2H</span></div>
+        <p class="profile-desc">Fits games where fatigue, subs, or a chasing team open things up.</p><div id="h2_bChecks"></div></div>
+    </div>
+
+    <div class="section-title">Profile C — Result &amp; Handicap Ranking</div>
+    <div class="ranking-card">
+      <p class="profile-desc" style="margin-bottom:14px;">Ranks every 1X2 / Double Chance / Handicap option entered by implied probability.</p>
+      <div id="h2_cTop"></div>
+      <div class="ev-row"><label>Your estimate for the top pick</label><input type="number" step="0.1" min="0" max="100" id="h2_c_userProb" placeholder="%"><span>→</span><span id="h2_c_evBadge" class="ev-badge empty">Enter your % to compare against the price</span></div>
+      <div id="h2_cList"></div>
+    </div>
+
+    <button class="reset-btn" onclick="clearScopeFields('h2')">Clear 2nd Half fields</button>
+  </section>
+
+  <!-- ================= FULL TIME ================= -->
+  <section class="scope-section" id="scope_ft">
+    <div class="teamstrip">
+      <div class="team-input"><input id="ft_homeTeam" type="text" placeholder="Home team"></div>
+      <span class="vs">VS</span>
+      <div class="team-input"><input id="ft_awayTeam" type="text" placeholder="Away team"></div>
+    </div>
+    <div class="presetrow">
+      <label>League / competition profile</label>
+      <select id="ft_leaguePreset">
+        <option value="balanced">Balanced (default)</option>
+        <option value="lowScoring">Low-scoring / defensive league</option>
+        <option value="highScoring">High-scoring / attacking league</option>
+        <option value="cup">Cup / knockout (motivation variance)</option>
+      </select>
+      <div class="preset-note" id="ft_presetNote"></div>
+    </div>
+
+    <div class="master">
+      <div class="master-label">Overall recommendation — Full Time</div>
+      <div class="master-headline" id="ft_masterHeadline">Enter odds below — a recommendation will build here.</div>
+      <div class="chip-row" id="ft_chipRow"></div>
+    </div>
+
+    <div class="scoreboard">
+      <div class="board-col">
+        <div class="board-label"><span>Profile A — Under 2.5</span><span id="ft_aScoreText">0/0</span></div>
+        <div class="lamps" id="ft_aLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+        <div class="board-verdict empty" id="ft_aVerdict">Enter odds to screen</div>
+      </div>
+      <div class="board-col">
+        <div class="board-label"><span>Profile B — Over 2.5</span><span id="ft_bScoreText">0/0</span></div>
+        <div class="lamps" id="ft_bLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+        <div class="board-verdict empty" id="ft_bVerdict">Enter odds to screen</div>
+      </div>
+    </div>
+
+    <div class="section-title">Match Total Goals — Over / Under</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">0.5 goals</div><div class="finputs"><label>Under <input type="number" step="0.01" min="1" id="ft_mt05u"></label><label>Over <input type="number" step="0.01" min="1" id="ft_mt05o"></label></div></div>
+      <div class="field-row"><div class="flabel">1.5 goals</div><div class="finputs"><label>Under <input type="number" step="0.01" min="1" id="ft_mt15u"></label><label>Over <input type="number" step="0.01" min="1" id="ft_mt15o"></label></div></div>
+      <div class="field-row"><div class="flabel">2.5 goals<span class="fhint">feeds Profile A &amp; B</span></div><div class="finputs"><label>Under <input type="number" step="0.01" min="1" id="ft_mt25u"></label><label>Over <input type="number" step="0.01" min="1" id="ft_mt25o"></label></div></div>
+      <div class="field-row"><div class="flabel">3.5 goals</div><div class="finputs"><label>Under <input type="number" step="0.01" min="1" id="ft_mt35u"></label><label>Over <input type="number" step="0.01" min="1" id="ft_mt35o"></label></div></div>
+    </div>
+
+    <div class="section-title">Team Total Goals — Over / Under</div>
+    <div class="field-grid">
+      <div class="field-row wide"><div class="flabel">Home team</div>
+        <div class="finputs">
+          <label>0.5 U <input type="number" step="0.01" min="1" id="ft_h05u"></label><label>0.5 O <input type="number" step="0.01" min="1" id="ft_h05o"></label>
+          <label>1.5 U <input type="number" step="0.01" min="1" id="ft_h15u"></label><label>1.5 O <input type="number" step="0.01" min="1" id="ft_h15o"></label>
+          <label>2.5 U <input type="number" step="0.01" min="1" id="ft_h25u"></label><label>2.5 O <input type="number" step="0.01" min="1" id="ft_h25o"></label>
+        </div></div>
+      <div class="field-row wide"><div class="flabel">Away team</div>
+        <div class="finputs">
+          <label>0.5 U <input type="number" step="0.01" min="1" id="ft_a05u"></label><label>0.5 O <input type="number" step="0.01" min="1" id="ft_a05o"></label>
+          <label>1.5 U <input type="number" step="0.01" min="1" id="ft_a15u"></label><label>1.5 O <input type="number" step="0.01" min="1" id="ft_a15o"></label>
+          <label>2.5 U <input type="number" step="0.01" min="1" id="ft_a25u"></label><label>2.5 O <input type="number" step="0.01" min="1" id="ft_a25o"></label>
+        </div></div>
+    </div>
+
+    <div class="section-title">Both Teams To Score (GG/NG)</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">BTTS odds<span class="fhint">feeds Profile A, B &amp; D</span></div>
+        <div class="finputs"><label>Yes (GG) <input type="number" step="0.01" min="1" id="ft_bttsY"></label><label>No (NG) <input type="number" step="0.01" min="1" id="ft_bttsN"></label></div></div>
+    </div>
+
+    <div class="section-title">Correct Score <span class="st-hint">5+ of 10 cells = normalized read</span></div>
+    <div class="field-grid">
+      <div class="field-row wide"><div class="flabel">Scoreline grid<span class="fhint">0:0 / 1:0 / 0:1 / 1:1 / 2:0 / 0:2 / 2:1 / 1:2 / 2:2 / Other</span></div>
+        <div class="finputs grid10">
+          <label>0:0 <input type="number" step="0.01" min="1" id="ft_cs00"></label>
+          <label>1:0 <input type="number" step="0.01" min="1" id="ft_cs10"></label>
+          <label>0:1 <input type="number" step="0.01" min="1" id="ft_cs01"></label>
+          <label>1:1 <input type="number" step="0.01" min="1" id="ft_cs11"></label>
+          <label>2:0 <input type="number" step="0.01" min="1" id="ft_cs20"></label>
+          <label>0:2 <input type="number" step="0.01" min="1" id="ft_cs02"></label>
+          <label>2:1 <input type="number" step="0.01" min="1" id="ft_cs21"></label>
+          <label>1:2 <input type="number" step="0.01" min="1" id="ft_cs12"></label>
+          <label>2:2 <input type="number" step="0.01" min="1" id="ft_cs22"></label>
+          <label>Other <input type="number" step="0.01" min="1" id="ft_csOther"></label>
+        </div></div>
+    </div>
+
+    <div class="section-title">Match Result (1X2)</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">1X2 odds<span class="fhint">feeds Profile A &amp; Profile C</span></div>
+        <div class="finputs">
+          <label>Home <input type="number" step="0.01" min="1" id="ft_x2Home"></label>
+          <label>Draw <input type="number" step="0.01" min="1" id="ft_drawOdds"></label>
+          <label>Away <input type="number" step="0.01" min="1" id="ft_x2Away"></label>
+        </div></div>
+    </div>
+
+    <div class="section-title">Double Chance</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">Double Chance odds<span class="fhint">feeds Profile C</span></div>
+        <div class="finputs">
+          <label>Home/Draw <input type="number" step="0.01" min="1" id="ft_dcHD"></label>
+          <label>Draw/Away <input type="number" step="0.01" min="1" id="ft_dcDA"></label>
+          <label>Home/Away <input type="number" step="0.01" min="1" id="ft_dcHA"></label>
+        </div></div>
+    </div>
+
+    <div class="section-title">Asian Handicap</div>
+    <div class="field-grid">
+      <div class="field-row"><div class="flabel">Handicap line + odds<span class="fhint">line feeds A &amp; B · odds feed Profile C</span></div>
+        <div class="finputs">
+          <label>Line <select id="ft_ahLine">
+            <option value="">—</option><option value="0">0</option><option value="0.25">0.25</option><option value="0.5">0.5</option>
+            <option value="0.75">0.75</option><option value="1">1.0</option><option value="1.25">1.25</option><option value="1.5">1.5</option>
+            <option value="1.75">1.75</option><option value="2">2.0</option><option value="2.5">2.5</option><option value="3">3.0</option><option value="3.5">3.5+</option>
+          </select></label>
+          <label>Home <input type="number" step="0.01" min="1" id="ft_ahHomeOdds"></label>
+          <label>Away <input type="number" step="0.01" min="1" id="ft_ahAwayOdds"></label>
+        </div></div>
+    </div>
+
+    <div class="profiles">
+      <div class="profile-card"><div class="profile-head"><span class="profile-name">Profile A</span><span class="profile-tag">Under 2.5 · FT</span></div>
+        <p class="profile-desc">Fits tight, low-scoring, cagey matches over 90 minutes.</p><div id="ft_aChecks"></div></div>
+      <div class="profile-card"><div class="profile-head"><span class="profile-name">Profile B</span><span class="profile-tag">Over 2.5 · FT</span></div>
+        <p class="profile-desc">Fits open, high-scoring, or mismatched matches.</p><div id="ft_bChecks"></div></div>
+    </div>
+
+    <div class="section-title">Profile C — Result &amp; Handicap Ranking</div>
+    <div class="ranking-card">
+      <p class="profile-desc" style="margin-bottom:14px;">Ranks every 1X2 / Double Chance / Handicap option entered by implied probability.</p>
+      <div id="ft_cTop"></div>
+      <div class="ev-row"><label>Your estimate for the top pick</label><input type="number" step="0.1" min="0" max="100" id="ft_c_userProb" placeholder="%"><span>→</span><span id="ft_c_evBadge" class="ev-badge empty">Enter your % to compare against the price</span></div>
+      <div id="ft_cList"></div>
+    </div>
+
+    <div class="section-title">Profile D — Goal-Line &amp; BTTS Ranking</div>
+    <div class="ranking-card">
+      <p class="profile-desc" style="margin-bottom:14px;">Ranks every match-total, team-total, and BTTS option entered by implied probability — use this when neither Profile A nor B fits cleanly.</p>
+      <div id="ft_dTop"></div>
+      <div class="ev-row"><label>Your estimate for the top pick</label><input type="number" step="0.1" min="0" max="100" id="ft_d_userProb" placeholder="%"><span>→</span><span id="ft_d_evBadge" class="ev-badge empty">Enter your % to compare against the price</span></div>
+      <div id="ft_dList"></div>
+    </div>
+
+    <button class="reset-btn" onclick="clearScopeFields('ft')">Clear Full Time fields</button>
+  </section>
+
+  <!-- ================= SHARED SCREENING LOG ================= -->
+  <div class="section-title">Screening Log <span class="st-hint">shared across all three tabs — saved in this session only</span></div>
+  <div class="history-card">
+    <div class="history-actions">
+      <button class="btn primary" onclick="saveScreening(currentScope)">Save current tab's screening</button>
+      <button class="btn" onclick="exportJSON()">Export JSON</button>
+      <button class="btn" onclick="exportCSV()">Export CSV</button>
+      <span class="btn file-btn">Import JSON<input type="file" accept="application/json" onchange="importJSON(event)"></span>
+      <button class="btn danger" onclick="clearHistory()">Clear log</button>
+    </div>
+    <div id="historyTableWrap"></div>
+  </div>
+
+  <footer>
+    Screening tool only — ranks and flags options based on the odds and league context you provide, using thresholds calibrated from general football knowledge and a small number of real sample matches rather than a backtested dataset. It does not raise win probability beyond what the market already prices in. Nothing here guarantees "beating the bookmaker" — it only helps you prioritize which matches are worth a closer look and which aren't. The Screening Log lives only in this browser tab's memory unless exported; this file uses no browser storage APIs and makes no network calls, to preserve full offline operation. Not financial advice.
+  </footer>
+
+</div>
+
+<script>
+/* =========================================================
+   V4 CONFIG SYSTEM
+   Each scope (h1, h2, ft) has its own base threshold set,
+   calibrated to that scope's own goal-scoring baseline.
+   A shared LEAGUE_DELTA layer nudges the same named checks
+   (a1,a2,a4,a5,b1,b2,b3,b5) by consistent relative amounts
+   regardless of scope, avoiding a combinatorial explosion of
+   fully separate tables per scope x league combination.
+   ========================================================= */
+const SCOPE_BASE = {
+  h1: {
+    a1:{green:69,amber:60}, a2:{green:55,amber:45}, a3:{green:0.75,amber:1.5},
+    a4:{green:2.20,amber:2.60}, a5:{green:3.00,amber:3.50},
+    b1:{green:75,amber:65}, b3:{green:26,amber:33},
+    b4:{gLow:1,gHigh:2,aLow:0.5,aHigh:2.5}, b5:{green:12,amber:8},
+    strong:0.75, borderline:0.45, cGreen:80, cAmber:65
+  },
+  h2: {
+    /* 2nd-half base intentionally mirrors what v3 reserved for a
+       "high-scoring league" context, since second halves structurally
+       behave like a higher-goal-expectation context relative to first
+       halves (fatigue, substitutions, teams chasing the game). */
+    a1:{green:74,amber:65}, a2:{green:60,amber:50}, a3:{green:0.75,amber:1.5},
+    a4:{green:2.05,amber:2.45}, a5:{green:3.20,amber:3.70},
+    b1:{green:70,amber:60}, b3:{green:32,amber:38},
+    b4:{gLow:1,gHigh:2,aLow:0.5,aHigh:2.5}, b5:{green:14,amber:10},
+    strong:0.75, borderline:0.45, cGreen:80, cAmber:65
+  },
+  ft: {
+    /* Full-time base is centered on Over/Under 2.5, which sits much
+       closer to a genuine coinflip across an average match than the
+       half-goal lines do, so Profile A and B start from similar bars
+       rather than the asymmetric split used in the half scopes. */
+    a1:{green:58,amber:50}, a2:{green:50,amber:40}, a3:{green:1.0,amber:2.0},
+    a4:{green:3.00,amber:3.60}, a5:{green:1.90,amber:2.20},
+    b1:{green:58,amber:50}, b2:{green:1.85,amber:2.15}, b3:{green:12,amber:18},
+    b4:{gLow:1.0,gHigh:2.5,aLow:0.5,aHigh:3.5}, b5:{green:14,amber:9},
+    strong:0.75, borderline:0.45, cGreen:80, cAmber:65
+  }
+};
+
+const LEAGUE_DELTA = {
+  balanced: { note:'No league adjustment applied — thresholds as originally calibrated for this scope.' },
+  lowScoring: {
+    note:'No-goal / low-goal outcomes are common baseline here, so Under-side bars are eased and Over-side bars are raised — the market needs to show a stronger-than-usual signal to justify the Over side.',
+    a1:{g:-5,a:-5}, a2:{g:-5,a:-5}, a4:{g:0.15,a:0.15}, a5:{g:-0.20,a:-0.20},
+    b1:{g:5,a:5}, b2:{g:-0.15,a:-0.15}, b3:{g:-2,a:-2}, b5:{g:-2,a:-2}
+  },
+  highScoring: {
+    note:'Goals are common baseline here, so Over-side bars are eased and Under-side bars are raised — the market needs to show a stronger-than-usual signal to justify the Under side.',
+    a1:{g:5,a:5}, a2:{g:5,a:5}, a4:{g:-0.15,a:-0.15}, a5:{g:0.20,a:0.20},
+    b1:{g:-5,a:-5}, b2:{g:0.15,a:0.15}, b3:{g:6,a:6}, b5:{g:2,a:2}
+  },
+  cup: {
+    note:'Per-check bars are unchanged, but the bar for an overall "Strong candidate" verdict is raised, since knockout/dead-rubber motivation swings add variance a per-market checklist cannot fully see.',
+    strong:0.10, cGreen:5
+  }
+};
+
+function round2(n){ return Math.round(n*100)/100; }
+
+function buildCFG(scope, presetKey){
+  const base = SCOPE_BASE[scope];
+  const cfg = JSON.parse(JSON.stringify(base));
+  const delta = LEAGUE_DELTA[presetKey] || {};
+  ['a1','a2','a4','a5','b1','b2','b3','b5'].forEach(function(k){
+    if(delta[k] && cfg[k]){
+      if(typeof delta[k].g === 'number') cfg[k].green = round2(cfg[k].green + delta[k].g);
+      if(typeof delta[k].a === 'number') cfg[k].amber = round2(cfg[k].amber + delta[k].a);
+    }
+  });
+  if(typeof delta.strong === 'number') cfg.strong = Math.min(0.95, cfg.strong + delta.strong);
+  if(typeof delta.cGreen === 'number') cfg.cGreen = Math.min(95, cfg.cGreen + delta.cGreen);
+  cfg.note = delta.note || '';
+  return cfg;
+}
+
+/* =========================================================
+   SHARED PRIMITIVES
+   ========================================================= */
+function num(id){ const el=document.getElementById(id); if(!el||el.value==='') return null; const v=parseFloat(el.value); return isNaN(v)?null:v; }
+function sel(id){ const el=document.getElementById(id); if(!el||el.value==='') return null; return parseFloat(el.value); }
+function implied(o){ return o?1/o:0; }
+function tier3(v,g,a,lowIsGreen){
+  if(lowIsGreen) return v<=g?'green':(v<=a?'amber':'red');
+  return v>=g?'green':(v>=a?'amber':'red');
+}
+/* Derive a raw-odds fallback cutoff from a percentage threshold, so the
+   "not enough grid coverage" fallback path stays in sync with the cfg
+   percentage thresholds instead of using separately hardcoded numbers. */
+function percentToOdds(pct){ return pct>0 ? round2(100/pct) : Infinity; }
+
+function renderChecks(containerId, checks){
+  const c=document.getElementById(containerId); c.innerHTML='';
+  checks.forEach(function(chk,i){
+    const row=document.createElement('div'); row.className='check';
+    row.innerHTML='<div class="check-num">'+(i+1)+'</div><div class="check-text"><span class="ct-label">'+chk.title+'</span><span class="ct-detail">'+chk.detail+'</span></div><div class="pill '+chk.status+'">'+chk.pillText+'</div>';
+    c.appendChild(row);
+  });
+}
+
+function updateBoard(lampsId, scoreTextId, verdictId, results, cfg){
+  const completed=results.filter(function(r){return r.status!=='empty';});
+  const greens=results.filter(function(r){return r.status==='green';}).length;
+  const ambers=results.filter(function(r){return r.status==='amber';}).length;
+  const score=greens+ambers*0.5;
+  document.getElementById(scoreTextId).textContent=completed.length+'/5 checked';
+  const lampEls=document.querySelectorAll('#'+lampsId+' .lamp');
+  results.forEach(function(r,i){ lampEls[i].className='lamp'+(r.status!=='empty'?' '+r.status:''); });
+  const verdictEl=document.getElementById(verdictId);
+  if(completed.length===0){ verdictEl.className='board-verdict empty'; verdictEl.textContent='Enter odds to screen'; return {score:0,completed:0,ratio:0}; }
+  let text,cls; const ratio=score/completed.length;
+  if(completed.length<3){ text='Add more odds for a reliable read'; cls='amber'; }
+  else if(ratio>=cfg.strong){ text='Strong candidate'; cls='green'; }
+  else if(ratio>=cfg.borderline){ text='Borderline — worth a closer look'; cls='amber'; }
+  else{ text='Poor fit — consider skipping'; cls='red'; }
+  verdictEl.className='board-verdict '+cls; verdictEl.textContent=text;
+  return {score:score,completed:completed.length,ratio:ratio};
+}
+
+function tierPct(p,cfg){ return p>=cfg.cGreen?'green':(p>=cfg.cAmber?'amber':'red'); }
+
+/* Generic 10-cell correct-score grid reader, namespaced by scope prefix. */
+function gridSnapshot(prefix){
+  const ids={'00':'cs00','10':'cs10','01':'cs01','11':'cs11','20':'cs20','02':'cs02','21':'cs21','12':'cs12','22':'cs22','other':'csOther'};
+  const vals={}; let denom=0, coverage=0;
+  for(const k in ids){ const v=num(prefix+'_'+ids[k]); vals[k]=v; if(v){ denom+=implied(v); coverage++; } }
+  return {vals:vals, denom:denom, coverage:coverage};
+}
+const GRID_TRUST_THRESHOLD = 5;
+
+/* =========================================================
+   GENERIC RESULT/HANDICAP RANKING (Profile C)
+   Shared across h1, h2, and ft — all three collect the same
+   shape of market (1X2, Double Chance, Asian Handicap).
+   ========================================================= */
+function buildResultRanking(prefix, cfg){
+  const x2Home=num(prefix+'_x2Home'), drawOdds=num(prefix+'_drawOdds'), x2Away=num(prefix+'_x2Away');
+  const dcHD=num(prefix+'_dcHD'), dcDA=num(prefix+'_dcDA'), dcHA=num(prefix+'_dcHA');
+  const ahLine=sel(prefix+'_ahLine'), ahHomeOdds=num(prefix+'_ahHomeOdds'), ahAwayOdds=num(prefix+'_ahAwayOdds');
+
+  const options=[];
+  if(x2Home&&drawOdds&&x2Away){
+    const ih=implied(x2Home), id=implied(drawOdds), ia=implied(x2Away), sum=ih+id+ia;
+    options.push({label:'Home Win (1X2)',odds:x2Home,prob:ih/sum*100});
+    options.push({label:'Draw (1X2)',odds:drawOdds,prob:id/sum*100});
+    options.push({label:'Away Win (1X2)',odds:x2Away,prob:ia/sum*100});
+  }
+  if(dcHD) options.push({label:'Double Chance: Home or Draw',odds:dcHD,prob:implied(dcHD)*100});
+  if(dcDA) options.push({label:'Double Chance: Draw or Away',odds:dcDA,prob:implied(dcDA)*100});
+  if(dcHA) options.push({label:'Double Chance: Home or Away',odds:dcHA,prob:implied(dcHA)*100});
+  if(ahHomeOdds&&ahAwayOdds){
+    const ih=implied(ahHomeOdds), ia=implied(ahAwayOdds), sum=ih+ia;
+    const lineTxt = ahLine!==null ? ' (±'+ahLine+')' : '';
+    options.push({label:'Asian Handicap — Home'+lineTxt,odds:ahHomeOdds,prob:ih/sum*100});
+    options.push({label:'Asian Handicap — Away'+lineTxt,odds:ahAwayOdds,prob:ia/sum*100});
+  }
+  return renderRanking(prefix+'_cTop', prefix+'_cList', options, cfg);
+}
+
+/* Generic renderer shared by Profile C (all scopes) and Profile D (FT). */
+function renderRanking(topId, listId, options, cfg){
+  const topEl=document.getElementById(topId), listEl=document.getElementById(listId);
+  if(options.length===0){
+    topEl.innerHTML='';
+    listEl.innerHTML='<div class="rank-empty-note">Enter odds above to rank options here.</div>';
+    return {topLabel:null, topOdds:null, topProb:0};
+  }
+  options.sort(function(a,b){ return b.prob-a.prob; });
+  const top=options[0];
+  const t=tierPct(top.prob,cfg);
+  topEl.innerHTML='<div class="ranking-top"><div><div class="rt-label">Highest-probability option</div><div class="rt-name">'+top.label+' <span style="color:var(--muted);font-weight:600;font-size:13px;">@ '+top.odds.toFixed(2)+'</span></div></div><div class="rt-prob" style="color:var(--'+t+')">'+top.prob.toFixed(1)+'%</div></div>';
+  listEl.innerHTML = options.map(function(o){
+    const tt=tierPct(o.prob,cfg);
+    return '<div class="rank-row"><div class="rk-label">'+o.label+'</div><div class="rk-odds">'+o.odds.toFixed(2)+'</div><div class="prob-bar-wrap"><div class="prob-bar '+tt+'" style="width:'+o.prob.toFixed(1)+'%"></div></div><div class="rk-pct" style="color:var(--'+tt+');">'+o.prob.toFixed(1)+'%</div></div>';
+  }).join('');
+  return {topLabel:top.label, topOdds:top.odds, topProb:top.prob};
+}
+
+/* EV badge shared by every ranking panel across all scopes/profiles. */
+function renderEV(userProbId, badgeId, topLabel, topOdds){
+  const badge=document.getElementById(badgeId);
+  const userProb=num(userProbId);
+  if(topLabel && userProb!==null){
+    const ev=(userProb/100*topOdds)-1;
+    const pct=(ev*100).toFixed(1);
+    badge.className='ev-badge '+(ev>=0?'pos':'neg');
+    badge.textContent='EV on "'+topLabel+'": '+(ev>=0?'+':'')+pct+'% (your '+userProb+'% vs price '+topOdds.toFixed(2)+')';
+  } else if(topLabel){
+    badge.className='ev-badge empty';
+    badge.textContent='Enter your own probability estimate to compare against "'+topLabel+'" @ '+topOdds.toFixed(2);
+  } else {
+    badge.className='ev-badge empty';
+    badge.textContent='Enter your % to compare against the price';
+  }
+}
+
+/* =========================================================
+   H1 / H2 SHARED ENGINE
+   1st half and 2nd half collect identical market shapes and
+   run identical check logic — only SCOPE_BASE numbers differ,
+   which is exactly what buildCFG(scope, preset) already
+   parameterizes. One function serves both scopes.
+   ========================================================= */
+function calcHalfScope(scope){
+  const presetKey = document.getElementById(scope+'_leaguePreset').value;
+  const cfg = buildCFG(scope, presetKey);
+  document.getElementById(scope+'_presetNote').textContent = cfg.note;
+
+  const ou05u=num(scope+'_ou05u'), ou05o=num(scope+'_ou05o');
+  const ou15u=num(scope+'_ou15u'), ou15o=num(scope+'_ou15o');
+  const ahLine=sel(scope+'_ahLine');
+  const drawOdds=num(scope+'_drawOdds');
+  const noneOdds=num(scope+'_noneOdds');
+  const grid=gridSnapshot(scope);
+  const trusted=grid.coverage>=GRID_TRUST_THRESHOLD;
+
+  /* Profile A */
+  const aChecks=[];
+  if(ou15u&&ou15o){ const iu=implied(ou15u),io=implied(ou15o); const n=iu/(iu+io)*100;
+    aChecks.push({title:'O/U 1.5 — Under normalized',detail:n.toFixed(1)+'% implied',status:tier3(n,cfg.a1.green,cfg.a1.amber,false),pillText:n.toFixed(0)+'%'});
+  } else aChecks.push({title:'O/U 1.5 — Under normalized',detail:'enter both Under & Over odds',status:'empty',pillText:'—'});
+
+  if(grid.vals['00']&&grid.vals['10']&&grid.vals['01']){
+    const numer=implied(grid.vals['00'])+implied(grid.vals['10'])+implied(grid.vals['01']);
+    if(trusted){ const pct=numer/grid.denom*100;
+      aChecks.push({title:'0:0+1:0+0:1 combined (normalized)',detail:pct.toFixed(1)+'% of '+grid.coverage+'/10 scorelines entered',status:tier3(pct,cfg.a2.green,cfg.a2.amber,false),pillText:pct.toFixed(0)+'%'});
+    } else { const pct=numer*100;
+      aChecks.push({title:'0:0+1:0+0:1 combined (raw)',detail:pct.toFixed(1)+'% raw sum — only '+grid.coverage+'/10 scorelines entered',status:tier3(pct,cfg.a2.green,cfg.a2.amber,false),pillText:pct.toFixed(0)+'%'});
+    }
+  } else aChecks.push({title:'0:0+1:0+0:1 combined',detail:'enter at least 0:0, 1:0 and 0:1 odds',status:'empty',pillText:'—'});
+
+  if(ahLine!==null) aChecks.push({title:'Asian Handicap line',detail:'±'+ahLine+' — smaller favours an even game',status:tier3(ahLine,cfg.a3.green,cfg.a3.amber,true),pillText:'±'+ahLine});
+  else aChecks.push({title:'Asian Handicap line',detail:'select the main handicap line',status:'empty',pillText:'—'});
+
+  if(drawOdds) aChecks.push({title:'1X2 Draw odds',detail:'shorter draw odds support Under 1.5',status:tier3(drawOdds,cfg.a4.green,cfg.a4.amber,true),pillText:drawOdds.toFixed(2)});
+  else aChecks.push({title:'1X2 Draw odds',detail:'enter the draw price',status:'empty',pillText:'—'});
+
+  if(noneOdds) aChecks.push({title:'First Goal — "None" odds',detail:'shorter odds on no goal support Under 1.5',status:tier3(noneOdds,cfg.a5.green,cfg.a5.amber,true),pillText:noneOdds.toFixed(2)});
+  else aChecks.push({title:'First Goal — "None" odds',detail:'enter the "None" price',status:'empty',pillText:'—'});
+
+  renderChecks(scope+'_aChecks',aChecks);
+  const aResult=updateBoard(scope+'_aLamps',scope+'_aScoreText',scope+'_aVerdict',aChecks,cfg);
+
+  /* Profile B */
+  const bChecks=[];
+  if(ou05u&&ou05o){ const iu=implied(ou05u),io=implied(ou05o); const n=io/(iu+io)*100;
+    bChecks.push({title:'O/U 0.5 — Over normalized',detail:n.toFixed(1)+'% implied',status:tier3(n,cfg.b1.green,cfg.b1.amber,false),pillText:n.toFixed(0)+'%'});
+  } else bChecks.push({title:'O/U 0.5 — Over normalized',detail:'enter both Under & Over odds',status:'empty',pillText:'—'});
+
+  if(noneOdds){
+    const st = noneOdds>=cfg.a5.amber?'green':(noneOdds>=cfg.a5.green?'amber':'red');
+    bChecks.push({title:'First Goal — "None" odds',detail:'longer odds on no goal support Over 0.5',status:st,pillText:noneOdds.toFixed(2)});
+  } else bChecks.push({title:'First Goal — "None" odds',detail:'enter the "None" price',status:'empty',pillText:'—'});
+
+  if(grid.vals['00']){
+    if(trusted){ const pct=implied(grid.vals['00'])/grid.denom*100;
+      bChecks.push({title:'Correct Score 0:0 (normalized)',detail:pct.toFixed(1)+'% of '+grid.coverage+'/10 scorelines entered',status:tier3(pct,cfg.b3.green,cfg.b3.amber,true),pillText:pct.toFixed(0)+'%'});
+    } else {
+      const gOdds=percentToOdds(cfg.b3.green), aOdds=percentToOdds(cfg.b3.amber);
+      const st = grid.vals['00']>=gOdds?'green':(grid.vals['00']>=aOdds?'amber':'red');
+      bChecks.push({title:'Correct Score 0:0 (raw odds)',detail:'only '+grid.coverage+'/10 scorelines entered',status:st,pillText:grid.vals['00'].toFixed(2)});
+    }
+  } else bChecks.push({title:'Correct Score 0:0',detail:'enter the 0:0 price',status:'empty',pillText:'—'});
+
+  if(ahLine!==null){
+    const st=(ahLine>=cfg.b4.gLow&&ahLine<=cfg.b4.gHigh)?'green':(((ahLine>=cfg.b4.aLow&&ahLine<cfg.b4.gLow)||(ahLine>cfg.b4.gHigh&&ahLine<=cfg.b4.aHigh))?'amber':'red');
+    bChecks.push({title:'Asian Handicap line',detail:'±'+ahLine+' — a clear favourite is more likely to score',status:st,pillText:'±'+ahLine});
+  } else bChecks.push({title:'Asian Handicap line',detail:'select the main handicap line',status:'empty',pillText:'—'});
+
+  if(grid.vals['11']){ const p=implied(grid.vals['11'])*100;
+    bChecks.push({title:'Correct Score 1:1',detail:p.toFixed(1)+'% implied — higher signals an open game',status:tier3(p,cfg.b5.green,cfg.b5.amber,false),pillText:p.toFixed(0)+'%'});
+  } else bChecks.push({title:'Correct Score 1:1',detail:'enter the 1:1 price',status:'empty',pillText:'—'});
+
+  renderChecks(scope+'_bChecks',bChecks);
+  const bResult=updateBoard(scope+'_bLamps',scope+'_bScoreText',scope+'_bVerdict',bChecks,cfg);
+
+  /* Profile C */
+  const cResult=buildResultRanking(scope,cfg);
+  renderEV(scope+'_c_userProb', scope+'_c_evBadge', cResult.topLabel, cResult.topOdds);
+
+  writeMasterBanner(scope, cfg, aResult, bResult, cResult, null);
+}
+
+/* =========================================================
+   FULL TIME ENGINE (dedicated — different market shape,
+   4 profiles instead of 3)
+   ========================================================= */
+function calcFT(){
+  const scope='ft';
+  const presetKey=document.getElementById('ft_leaguePreset').value;
+  const cfg=buildCFG('ft',presetKey);
+  document.getElementById('ft_presetNote').textContent=cfg.note;
+
+  const mt25u=num('ft_mt25u'), mt25o=num('ft_mt25o');
+  const ahLine=sel('ft_ahLine');
+  const drawOdds=num('ft_drawOdds');
+  const bttsY=num('ft_bttsY'), bttsN=num('ft_bttsN');
+  const grid=gridSnapshot('ft');
+  const trusted=grid.coverage>=GRID_TRUST_THRESHOLD;
+
+  /* Profile A — Under 2.5 */
+  const aChecks=[];
+  if(mt25u&&mt25o){ const iu=implied(mt25u),io=implied(mt25o); const n=iu/(iu+io)*100;
+    aChecks.push({title:'O/U 2.5 — Under normalized',detail:n.toFixed(1)+'% implied',status:tier3(n,cfg.a1.green,cfg.a1.amber,false),pillText:n.toFixed(0)+'%'});
+  } else aChecks.push({title:'O/U 2.5 — Under normalized',detail:'enter both Under & Over 2.5 odds',status:'empty',pillText:'—'});
+
+  const lowGoalKeys=['00','10','01','11','20','02'];
+  const lowGoalVals=lowGoalKeys.map(function(k){return grid.vals[k];});
+  if(lowGoalVals.filter(Boolean).length>=3){
+    const numer=lowGoalVals.reduce(function(s,v){return s+(v?implied(v):0);},0);
+    if(trusted){ const pct=numer/grid.denom*100;
+      aChecks.push({title:'≤2-goal scorelines combined (normalized)',detail:pct.toFixed(1)+'% of '+grid.coverage+'/10 scorelines entered',status:tier3(pct,cfg.a2.green,cfg.a2.amber,false),pillText:pct.toFixed(0)+'%'});
+    } else { const pct=numer*100;
+      aChecks.push({title:'≤2-goal scorelines combined (raw)',detail:pct.toFixed(1)+'% raw sum — only '+grid.coverage+'/10 scorelines entered',status:tier3(pct,cfg.a2.green,cfg.a2.amber,false),pillText:pct.toFixed(0)+'%'});
+    }
+  } else aChecks.push({title:'≤2-goal scorelines combined',detail:'enter at least 3 of: 0:0, 1:0, 0:1, 1:1, 2:0, 0:2',status:'empty',pillText:'—'});
+
+  if(ahLine!==null) aChecks.push({title:'Asian Handicap line',detail:'±'+ahLine+' — smaller favours an even, low-scoring match',status:tier3(ahLine,cfg.a3.green,cfg.a3.amber,true),pillText:'±'+ahLine});
+  else aChecks.push({title:'Asian Handicap line',detail:'select the main handicap line',status:'empty',pillText:'—'});
+
+  if(drawOdds) aChecks.push({title:'1X2 Draw odds',detail:'shorter draw odds support Under 2.5',status:tier3(drawOdds,cfg.a4.green,cfg.a4.amber,true),pillText:drawOdds.toFixed(2)});
+  else aChecks.push({title:'1X2 Draw odds',detail:'enter the draw price',status:'empty',pillText:'—'});
+
+  if(bttsN) aChecks.push({title:'BTTS "No" (NG) odds',detail:'shorter NG odds support Under 2.5',status:tier3(bttsN,cfg.a5.green,cfg.a5.amber,true),pillText:bttsN.toFixed(2)});
+  else aChecks.push({title:'BTTS "No" (NG) odds',detail:'enter the NG price',status:'empty',pillText:'—'});
+
+  renderChecks('ft_aChecks',aChecks);
+  const aResult=updateBoard('ft_aLamps','ft_aScoreText','ft_aVerdict',aChecks,cfg);
+
+  /* Profile B — Over 2.5 */
+  const bChecks=[];
+  if(mt25u&&mt25o){ const iu=implied(mt25u),io=implied(mt25o); const n=io/(iu+io)*100;
+    bChecks.push({title:'O/U 2.5 — Over normalized',detail:n.toFixed(1)+'% implied',status:tier3(n,cfg.b1.green,cfg.b1.amber,false),pillText:n.toFixed(0)+'%'});
+  } else bChecks.push({title:'O/U 2.5 — Over normalized',detail:'enter both Under & Over 2.5 odds',status:'empty',pillText:'—'});
+
+  if(bttsY) bChecks.push({title:'BTTS "Yes" (GG) odds',detail:'shorter GG odds support Over 2.5',status:tier3(bttsY,cfg.b2.green,cfg.b2.amber,true),pillText:bttsY.toFixed(2)});
+  else bChecks.push({title:'BTTS "Yes" (GG) odds',detail:'enter the GG price',status:'empty',pillText:'—'});
+
+  if(grid.vals['00']){
+    if(trusted){ const pct=implied(grid.vals['00'])/grid.denom*100;
+      bChecks.push({title:'Correct Score 0:0 (normalized)',detail:pct.toFixed(1)+'% of '+grid.coverage+'/10 scorelines entered',status:tier3(pct,cfg.b3.green,cfg.b3.amber,true),pillText:pct.toFixed(0)+'%'});
+    } else {
+      const gOdds=percentToOdds(cfg.b3.green), aOdds=percentToOdds(cfg.b3.amber);
+      const st=grid.vals['00']>=gOdds?'green':(grid.vals['00']>=aOdds?'amber':'red');
+      bChecks.push({title:'Correct Score 0:0 (raw odds)',detail:'only '+grid.coverage+'/10 scorelines entered',status:st,pillText:grid.vals['00'].toFixed(2)});
+    }
+  } else bChecks.push({title:'Correct Score 0:0',detail:'enter the 0:0 price',status:'empty',pillText:'—'});
+
+  if(ahLine!==null){
+    const st=(ahLine>=cfg.b4.gLow&&ahLine<=cfg.b4.gHigh)?'green':(((ahLine>=cfg.b4.aLow&&ahLine<cfg.b4.gLow)||(ahLine>cfg.b4.gHigh&&ahLine<=cfg.b4.aHigh))?'amber':'red');
+    bChecks.push({title:'Asian Handicap line',detail:'±'+ahLine+' — a bigger gap raises the chance of 3+ goals',status:st,pillText:'±'+ahLine});
+  } else bChecks.push({title:'Asian Handicap line',detail:'select the main handicap line',status:'empty',pillText:'—'});
+
+  const openVals=[grid.vals['21'],grid.vals['12']];
+  if(openVals.filter(Boolean).length>0){
+    const numer=openVals.reduce(function(s,v){return s+(v?implied(v):0);},0);
+    if(trusted){ const pct=numer/grid.denom*100;
+      bChecks.push({title:'2:1 + 1:2 combined (normalized)',detail:pct.toFixed(1)+'% — higher signals an open, high-scoring game',status:tier3(pct,cfg.b5.green,cfg.b5.amber,false),pillText:pct.toFixed(0)+'%'});
+    } else { const pct=numer*100;
+      bChecks.push({title:'2:1 + 1:2 combined (raw)',detail:pct.toFixed(1)+'% raw — higher signals an open game',status:tier3(pct,cfg.b5.green,cfg.b5.amber,false),pillText:pct.toFixed(0)+'%'});
+    }
+  } else bChecks.push({title:'2:1 + 1:2 combined',detail:'enter the 2:1 and/or 1:2 price',status:'empty',pillText:'—'});
+
+  renderChecks('ft_bChecks',bChecks);
+  const bResult=updateBoard('ft_bLamps','ft_bScoreText','ft_bVerdict',bChecks,cfg);
+
+  /* Profile C — Result & Handicap Ranking (shared builder) */
+  const cResult=buildResultRanking('ft',cfg);
+  renderEV('ft_c_userProb','ft_c_evBadge',cResult.topLabel,cResult.topOdds);
+
+  /* Profile D — Goal-Line & BTTS Ranking (FT-only) */
+  const dOptions=[];
+  const lineDefs=[['0.5','ft_mt05u','ft_mt05o'],['1.5','ft_mt15u','ft_mt15o'],['2.5','ft_mt25u','ft_mt25o'],['3.5','ft_mt35u','ft_mt35o']];
+  lineDefs.forEach(function(ld){
+    const u=num(ld[1]), o=num(ld[2]);
+    if(u) dOptions.push({label:'Match Under '+ld[0],odds:u,prob:implied(u)*100});
+    if(o) dOptions.push({label:'Match Over '+ld[0],odds:o,prob:implied(o)*100});
+  });
+  const teamLineDefs=[
+    ['Home 0.5','ft_h05u','ft_h05o'],['Home 1.5','ft_h15u','ft_h15o'],['Home 2.5','ft_h25u','ft_h25o'],
+    ['Away 0.5','ft_a05u','ft_a05o'],['Away 1.5','ft_a15u','ft_a15o'],['Away 2.5','ft_a25u','ft_a25o']
+  ];
+  teamLineDefs.forEach(function(ld){
+    const u=num(ld[1]), o=num(ld[2]);
+    if(u) dOptions.push({label:ld[0]+' Under',odds:u,prob:implied(u)*100});
+    if(o) dOptions.push({label:ld[0]+' Over',odds:o,prob:implied(o)*100});
+  });
+  if(bttsY&&bttsN){
+    const iy=implied(bttsY), ing=implied(bttsN), sum=iy+ing;
+    dOptions.push({label:'BTTS: Yes (GG)',odds:bttsY,prob:iy/sum*100});
+    dOptions.push({label:'BTTS: No (NG)',odds:bttsN,prob:ing/sum*100});
+  } else {
+    if(bttsY) dOptions.push({label:'BTTS: Yes (GG)',odds:bttsY,prob:implied(bttsY)*100});
+    if(bttsN) dOptions.push({label:'BTTS: No (NG)',odds:bttsN,prob:implied(bttsN)*100});
+  }
+  const dResult=renderRanking('ft_dTop','ft_dList',dOptions,cfg);
+  renderEV('ft_d_userProb','ft_d_evBadge',dResult.topLabel,dResult.topOdds);
+
+  writeMasterBanner('ft', cfg, aResult, bResult, cResult, dResult);
+}
+
+/* =========================================================
+   MASTER BANNER — shared logic across all scopes.
+   Priority: strong goals-market profile (A or B) > Profile D
+   (FT only, goal-line safety) > Profile C (win/handicap safety)
+   > no standout selection.
+   ========================================================= */
+function writeMasterBanner(scope, cfg, aResult, bResult, cResult, dResult){
+  const home=(document.getElementById(scope+'_homeTeam').value||'').trim();
+  const away=(document.getElementById(scope+'_awayTeam').value||'').trim();
+  const label=(home&&away)?(home+' vs '+away):'This match';
+  const mh=document.getElementById(scope+'_masterHeadline');
+  const chipRow=document.getElementById(scope+'_chipRow');
+
+  const enoughA=aResult.completed>=3, enoughB=bResult.completed>=3;
+  const aRatio=aResult.completed?aResult.score/aResult.completed:0;
+  const bRatio=bResult.completed?bResult.score/bResult.completed:0;
+  const aPctTxt=enoughA?(aRatio*100).toFixed(0)+'%':'—';
+  const bPctTxt=enoughB?(bRatio*100).toFixed(0)+'%':'—';
+  const cPctTxt=cResult.topLabel?cResult.topProb.toFixed(0)+'%':'—';
+  const dPctTxt=dResult&&dResult.topLabel?dResult.topProb.toFixed(0)+'%':'—';
+
+  const aDot=!enoughA?'empty':(aRatio>=cfg.strong?'green':(aRatio>=cfg.borderline?'amber':'red'));
+  const bDot=!enoughB?'empty':(bRatio>=cfg.strong?'green':(bRatio>=cfg.borderline?'amber':'red'));
+  const cDot=cResult.topLabel?tierPct(cResult.topProb,cfg):'empty';
+  const dDot=dResult?(dResult.topLabel?tierPct(dResult.topProb,cfg):'empty'):null;
+
+  let chips = '<span class="chip"><span class="dot '+aDot+'"></span>Profile A — '+aPctTxt+'</span>'
+            + '<span class="chip"><span class="dot '+bDot+'"></span>Profile B — '+bPctTxt+'</span>'
+            + '<span class="chip"><span class="dot '+cDot+'"></span>Profile C — '+cPctTxt+(cResult.topLabel?' · '+cResult.topLabel:'')+'</span>';
+  if(dResult) chips += '<span class="chip"><span class="dot '+dDot+'"></span>Profile D — '+dPctTxt+(dResult.topLabel?' · '+dResult.topLabel:'')+'</span>';
+  chipRow.innerHTML = chips;
+
+  const abLabel = scope==='ft' ? {A:'Under 2.5',B:'Over 2.5'} : {A:'Under 1.5',B:'Over 0.5'};
+  let recommendation=null;
+  const nothingYet = !enoughA && !enoughB && !cResult.topLabel && !(dResult&&dResult.topLabel);
+
+  if(nothingYet){
+    mh.innerHTML='Enter odds below — a recommendation will build here.';
+  } else if((enoughA&&aRatio>=cfg.strong)||(enoughB&&bRatio>=cfg.strong)){
+    if(aRatio>=bRatio){ mh.innerHTML='<strong>'+label+'</strong>: goals market favours <span class="hl-green">Profile A — '+abLabel.A+'</span> ('+(aRatio*100).toFixed(0)+'% of checks support it).'; recommendation='Profile A — '+abLabel.A+' ('+(aRatio*100).toFixed(0)+'%)'; }
+    else { mh.innerHTML='<strong>'+label+'</strong>: goals market favours <span class="hl-green">Profile B — '+abLabel.B+'</span> ('+(bRatio*100).toFixed(0)+'% of checks support it).'; recommendation='Profile B — '+abLabel.B+' ('+(bRatio*100).toFixed(0)+'%)'; }
+  } else if(dResult && dResult.topLabel && dResult.topProb>=cfg.cGreen){
+    mh.innerHTML='<strong>'+label+'</strong>: no clean Over/Under fit, but <span class="hl-amber">'+dResult.topLabel+'</span> stands out at '+dResult.topProb.toFixed(1)+'% implied (@ '+dResult.topOdds.toFixed(2)+').';
+    recommendation=dResult.topLabel+' ('+dResult.topProb.toFixed(1)+'% @ '+dResult.topOdds.toFixed(2)+')';
+  } else if(cResult.topLabel && cResult.topProb>=cfg.cGreen){
+    mh.innerHTML='<strong>'+label+'</strong>: no clean goals-market fit, but <span class="hl-amber">'+cResult.topLabel+'</span> stands out as a safety pick at '+cResult.topProb.toFixed(1)+'% implied (@ '+cResult.topOdds.toFixed(2)+').';
+    recommendation=cResult.topLabel+' ('+cResult.topProb.toFixed(1)+'% @ '+cResult.topOdds.toFixed(2)+')';
+  } else if(enoughA||enoughB||cResult.topLabel||(dResult&&dResult.topLabel)){
+    mh.innerHTML='<strong>'+label+'</strong>: <span class="hl-red">no standout selection</span> across the markets entered yet — add more odds or consider skipping.';
+    recommendation='No standout selection';
+  } else {
+    mh.innerHTML='Enter odds below — a recommendation will build here.';
+  }
+
+  window['_lastState_'+scope] = {label:label, aPctTxt:aPctTxt, bPctTxt:bPctTxt, cPctTxt:cPctTxt+(cResult.topLabel?' ('+cResult.topLabel+')':''), dPctTxt:dResult?(dPctTxt+(dResult.topLabel?' ('+dResult.topLabel+')':'')):null, recommendation:recommendation, presetLabel:presetLabelFor(scope)};
+}
+
+function presetLabelFor(scope){
+  const el=document.getElementById(scope+'_leaguePreset');
+  return el.options[el.selectedIndex].text;
+}
+
+/* =========================================================
+   TAB SWITCHING
+   ========================================================= */
+let currentScope='h1';
+function switchScope(scope){
+  currentScope=scope;
+  ['h1','h2','ft'].forEach(function(s){
+    document.getElementById('scope_'+s).classList.toggle('active', s===scope);
+    document.getElementById('tabBtn_'+s).classList.toggle('active', s===scope);
+  });
+}
+
+/* =========================================================
+   CLEAR FIELDS (per scope) — history log is cleared separately
+   ========================================================= */
+function clearScopeFields(scope){
+  const section=document.getElementById('scope_'+scope);
+  section.querySelectorAll('input[type=number], input[type=text]').forEach(function(el){ el.value=''; });
+  section.querySelectorAll('select').forEach(function(el){ el.value = el.id.indexOf('leaguePreset')>-1 ? 'balanced' : ''; });
+  runCalc(scope);
+}
+
+function runCalc(scope){
+  if(scope==='ft') calcFT(); else calcHalfScope(scope);
+}
+
+/* =========================================================
+   SHARED SCREENING LOG
+   ========================================================= */
+var historyLog=[];
+
+function saveScreening(scope){
+  const s=window['_lastState_'+scope];
+  if(!s||!s.recommendation){ alert('Enter some odds first so there is something to save.'); return; }
+  historyLog.push({
+    timestamp:new Date().toISOString(), scope:scope.toUpperCase(), match:s.label, league_profile:s.presetLabel,
+    profile_a:s.aPctTxt, profile_b:s.bPctTxt, profile_c:s.cPctTxt, profile_d:s.dPctTxt||'', recommendation:s.recommendation
+  });
+  renderHistory();
+}
+function renderHistory(){
+  const wrap=document.getElementById('historyTableWrap');
+  if(historyLog.length===0){ wrap.innerHTML='<div class="history-empty">No screenings saved yet this session.</div>'; return; }
+  const rows=historyLog.map(function(h,i){
+    return '<tr><td><span class="scope-tag">'+h.scope+'</span></td><td>'+h.match+'</td><td>'+h.league_profile+'</td><td>'+h.profile_a+'</td><td>'+h.profile_b+'</td><td>'+h.profile_c+'</td><td>'+h.profile_d+'</td><td>'+h.recommendation+'</td><td><button class="rm-btn" onclick="removeHistory('+i+')">remove</button></td></tr>';
+  }).join('');
+  wrap.innerHTML='<table class="history-table"><thead><tr><th>Scope</th><th>Match</th><th>League</th><th>A</th><th>B</th><th>C</th><th>D</th><th>Recommendation</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+function removeHistory(i){ historyLog.splice(i,1); renderHistory(); }
+function clearHistory(){ if(historyLog.length && !confirm('Clear the entire session log?')) return; historyLog=[]; renderHistory(); }
+
+function downloadBlob(content, filename, mime){
+  const blob=new Blob([content],{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportJSON(){ if(historyLog.length===0){ alert('Nothing to export yet.'); return; } downloadBlob(JSON.stringify(historyLog,null,2),'screening-log.json','application/json'); }
+function exportCSV(){
+  if(historyLog.length===0){ alert('Nothing to export yet.'); return; }
+  const headers=['timestamp','scope','match','league_profile','profile_a','profile_b','profile_c','profile_d','recommendation'];
+  const rows=historyLog.map(function(h){ return headers.map(function(k){ return '"'+(h[k]||'').toString().replace(/"/g,'""')+'"'; }).join(','); });
+  const NL=String.fromCharCode(10);
+  downloadBlob([headers.join(','),].concat(rows).join(NL),'screening-log.csv','text/csv');
+}
+function importJSON(evt){
+  const file=evt.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{ const parsed=JSON.parse(e.target.result); if(!Array.isArray(parsed)) throw new Error('not an array'); historyLog=historyLog.concat(parsed); renderHistory(); }
+    catch(err){ alert('Could not read that file as a screening log export.'); }
+  };
+  reader.readAsText(file);
+  evt.target.value='';
+}
+
+/* =========================================================
+   WIRE UP EVENTS + INITIAL RENDER
+   ========================================================= */
+function initApp(){
+  document.querySelectorAll('#scope_h1 input, #scope_h1 select').forEach(function(el){ el.addEventListener('input',function(){calcHalfScope('h1');}); el.addEventListener('change',function(){calcHalfScope('h1');}); });
+  document.querySelectorAll('#scope_h2 input, #scope_h2 select').forEach(function(el){ el.addEventListener('input',function(){calcHalfScope('h2');}); el.addEventListener('change',function(){calcHalfScope('h2');}); });
+  document.querySelectorAll('#scope_ft input, #scope_ft select').forEach(function(el){ el.addEventListener('input',calcFT); el.addEventListener('change',calcFT); });
+  calcHalfScope('h1'); calcHalfScope('h2'); calcFT(); renderHistory();
+}
+if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', initApp); } else { initApp(); }
+
+</script>
+</body>
+</html>

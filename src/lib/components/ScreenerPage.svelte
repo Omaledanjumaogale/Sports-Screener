@@ -1,0 +1,316 @@
+<script lang="ts">
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+  import Header from './Header.svelte';
+  import ScopeTabs from './ScopeTabs.svelte';
+  import VerdictHero from './VerdictHero.svelte';
+  import MetricStrip from './MetricStrip.svelte';
+  import ProfileCard from './ProfileCard.svelte';
+  import RankingPanel from './RankingPanel.svelte';
+  import MarketAccordion from './MarketAccordion.svelte';
+  import LineRowOu from './LineRowOu.svelte';
+  import LineRowHandicap from './LineRowHandicap.svelte';
+  import OddsGrid from './OddsGrid.svelte';
+  import TeamInputs from './TeamInputs.svelte';
+  import {
+    analyzeFootball,
+    analyzeMetSport,
+    analyzeRally,
+    clearScopes,
+    clearScopeState,
+    lineOptionsFor,
+    loadScopes,
+    saveScopes,
+    type Analysis,
+    type ScopeState,
+    type SportId
+  } from '../engine';
+
+  let {
+    sportId,
+    sportShort,
+    sportTitle,
+    accent,
+    factory
+  }: {
+    sportId: SportId;
+    sportShort: string;
+    sportTitle: string;
+    accent: string;
+    factory: () => ScopeState[];
+  } = $props();
+
+  let scopes: ScopeState[] = $state([]);
+  let selectedScopeIndex: number = $state(0);
+  let refreshTick: number = $state(0);
+  let mounted: boolean = $state(false);
+
+  let scope: ScopeState | null = $derived(scopes[selectedScopeIndex] ?? null);
+  let analysis: Analysis | null = $derived(scope && mounted ? runAnalysis(sportId, scope, refreshTick) : null);
+
+  function runAnalysis(sid: SportId, s: ScopeState, _t: number): Analysis {
+    if (sid === 'football') return analyzeFootball(s);
+    if (sid === 'basketball') return analyzeMetSport(s, 'basketball');
+    if (sid === 'tennis') return analyzeMetSport(s, 'tennis');
+    return analyzeRally(s);
+  }
+
+  function refresh() {
+    refreshTick += 1;
+    if (mounted) saveScopes(sportId, scopes);
+  }
+
+  function clearCurrent() {
+    if (!scope) return;
+    clearScopeState(scope);
+    refresh();
+  }
+
+  function clearAll() {
+    scopes.forEach(clearScopeState);
+    clearScopes(sportId);
+    refresh();
+  }
+
+  function backHome() {
+    void goto('/');
+  }
+
+  function onChangeAny() {
+    refresh();
+  }
+
+  onMount(() => {
+    scopes = loadScopes(sportId, factory());
+    if (!scopes.length) scopes = factory();
+    mounted = true;
+  });
+
+  const threewayLabels: Record<string, Record<string, string>> = {
+    result: { home: 'Home Win', draw: 'Draw', away: 'Away Win' },
+    doubleChance: { hd: 'Home / Draw', ha: 'Home / Away', da: 'Draw / Away' }
+  };
+  const yesNoLabels: Record<string, Record<string, string>> = {
+    btts: { yes: 'BTTS Yes (GG)', no: 'BTTS No (NG)' },
+    tiebreak: { yes: 'Tiebreak Yes', no: 'Tiebreak No' },
+    oddEven: { yes: 'Odd', no: 'Even' },
+    noneOdds: { none: 'None (No Goal)', goal: 'Goal in Half' }
+  };
+  const winnerLabels: Record<string, Record<string, string>> = {
+    winner: { a: 'Side A', b: 'Side B' },
+    matchWinner: { a: 'Player A Wins', b: 'Player B Wins' },
+    setWinner: { a: 'Player A (Set)', b: 'Player B (Set)' }
+  };
+  const handicapLabels: Record<string, [string, string]> = {
+    football: ['Home', 'Away'],
+    basketball: ['Team 1', 'Team 2'],
+    tennis: ['Player 1', 'Player 2'],
+    rally: ['Player A', 'Player B']
+  };
+</script>
+
+{#if scope && analysis}
+  <div class="page-root" style={`--accent:${accent}`}>
+    <div class="page-inner">
+      <Header
+        title={sportTitle}
+        short={sportShort}
+        {accent}
+        onBack={backHome}
+        onClear={clearAll}
+      />
+
+      <button
+        class="clear-scope-btn"
+        type="button"
+        onclick={clearCurrent}
+      >
+        Clear {scope.title} odds
+      </button>
+
+      <ScopeTabs
+        tabs={scopes.map((s) => ({ id: s.id, title: s.title }))}
+        selectedIndex={selectedScopeIndex}
+        onSelect={(i) => { selectedScopeIndex = i; refresh(); }}
+      />
+
+      <VerdictHero headline={analysis.headline} chips={analysis.chips} />
+
+      <div class="spacer"></div>
+
+      <TeamInputs scope={scope} sportId={sportId} onChange={onChangeAny} />
+
+      <div class="spacer"></div>
+
+      <MetricStrip metrics={analysis.metrics} />
+
+      <div class="spacer"></div>
+
+      <section class="profiles-grid" aria-label="Screening profiles">
+        {#each analysis.profiles as profile}
+          <ProfileCard profile={profile} {accent} />
+        {/each}
+      </section>
+
+      <div class="spacer"></div>
+
+      <section class="markets" aria-label="Market inputs">
+        {#each Object.values(scope.markets) as m}
+          {#if !(sportId === 'basketball' && (m.id === 'correctScore' || m.id === 'tiebreak'))}
+            {#if !(sportId === 'football' && scope.id !== 'ft' && ['homeTotal', 'awayTotal', 'btts'].includes(m.id))}
+              <MarketAccordion title={m.title} primary={!!m.primary} open={!!m.primary} {accent}>
+                {#if m.kind === 'ou' && m.pairs}
+                  <div class="line-list">
+                    {#each m.pairs as pair, index}
+                      <LineRowOu
+                        pair={pair}
+                        lineOptions={lineOptionsFor(sportId, scope.id, m.id)}
+                        index={index}
+                        onChange={onChangeAny}
+                      />
+                    {/each}
+                  </div>
+                {:else if m.kind === 'handicap' && m.handicapPairs}
+                  <div class="line-list">
+                    {#each m.handicapPairs as pair, index}
+                      <LineRowHandicap
+                        pair={pair}
+                        lineOptions={lineOptionsFor(sportId, scope.id, m.id)}
+                        sideALabel={handicapLabels[sportId]?.[0] ?? 'A'}
+                        sideBLabel={handicapLabels[sportId]?.[1] ?? 'B'}
+                        index={index}
+                        onChange={onChangeAny}
+                      />
+                    {/each}
+                  </div>
+                {:else if m.odds && Object.keys(m.odds).length}
+                  {#if m.kind === 'threeway'}
+                    <OddsGrid
+                      odds={m.odds}
+                      labels={threewayLabels[m.id] ?? {}}
+                      columns={3}
+                      onChange={onChangeAny}
+                    />
+                  {:else if m.kind === 'yesno'}
+                    <OddsGrid
+                      odds={m.odds}
+                      labels={yesNoLabels[m.id] ?? { yes: 'Yes', no: 'No' }}
+                      columns={2}
+                      onChange={onChangeAny}
+                    />
+                  {:else if m.kind === 'winner'}
+                    <OddsGrid
+                      odds={m.odds}
+                      labels={winnerLabels[m.id] ?? { a: 'Side A', b: 'Side B' }}
+                      columns={2}
+                      onChange={onChangeAny}
+                    />
+                  {:else if m.kind === 'correctScore'}
+                    <OddsGrid
+                      odds={m.odds}
+                      labels={Object.fromEntries(Object.keys(m.odds).map((k) => [k, k]))}
+                      columns="auto"
+                      onChange={onChangeAny}
+                    />
+                  {/if}
+                {/if}
+              </MarketAccordion>
+            {/if}
+          {/if}
+        {/each}
+      </section>
+
+      <div class="spacer"></div>
+
+      <RankingPanel picks={analysis.picks} limit={12} {accent} />
+
+      <footer class="foot" aria-label="App metadata">
+        <div>
+          <strong>{sportShort} Screener</strong> · Offline-first · Decimal odds · All odds stored locally per sport.
+        </div>
+        <div>
+          <button type="button" class="linkish" onclick={clearAll}>Reset all scopes</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+{/if}
+
+<style>
+  .page-root {
+    width: 100%;
+    min-height: 100vh;
+    background: radial-gradient(1200px 600px at 80% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%), #080b12;
+  }
+  .page-inner {
+    width: min(100%, 960px);
+    margin: 0 auto;
+    padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 40px max(14px, env(safe-area-inset-left));
+    min-height: 100vh;
+    min-width: 320px;
+  }
+  .spacer { height: 14px; }
+
+  .clear-scope-btn {
+    margin: -2px 0 10px auto;
+    display: block;
+    border: 1px solid #27344a;
+    background: #101827;
+    color: #c7d7ee;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    transition: border-color 120ms, color 120ms;
+  }
+  .clear-scope-btn:hover { border-color: var(--accent); color: #eaf3ff; }
+
+  .profiles-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+
+  .markets {
+    display: grid;
+    gap: 10px;
+  }
+  .line-list {
+    display: grid;
+    gap: 10px;
+    padding-top: 10px;
+  }
+
+  .foot {
+    margin-top: 28px;
+    padding: 18px 6px 4px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+    color: #6f84a5;
+    font-size: 12px;
+    border-top: 1px solid #1a253b;
+  }
+  .foot strong { color: #9fb2cc; font-weight: 800; letter-spacing: 0.02em; }
+  .linkish {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: color-mix(in srgb, var(--accent) 85%, #fff);
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+  }
+  .linkish:hover { color: #fff; }
+
+  @media (max-width: 380px) {
+    .page-inner { padding-left: 10px; padding-right: 10px; }
+  }
+  @media (min-width: 1400px) {
+    .page-inner { width: min(100%, 1100px); }
+  }
+  @media (min-width: 2000px) {
+    .page-inner { width: min(100%, 1280px); }
+  }
+</style>

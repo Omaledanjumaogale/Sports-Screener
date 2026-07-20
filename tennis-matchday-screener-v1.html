@@ -1,0 +1,1501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tennis Matchday Screener v1</title>
+<style>
+:root{
+  --bg:#120A0D; --bg-glow:radial-gradient(120% 140% at 50% -10%, #1E0F16 0%, #120A0D 55%);
+  --panel:#1C1018; --panel-alt:#261520; --panel-alt2:#30182A;
+  --line:#3D2235; --ink:#F0EBE0; --muted:#9A7D8F;
+  --gold:#E07B39; --gold-dim:#7A3A18;
+  --green:#4ADE80; --green-bg:rgba(74,222,128,0.13);
+  --red:#F87171; --red-bg:rgba(248,113,113,0.13);
+  --amber:#FBBF24; --amber-bg:rgba(251,191,36,0.13);
+  --over:#E07B39; --over-bg:rgba(224,123,57,0.15);
+  --under:#818CF8; --under-bg:rgba(129,140,248,0.15);
+  --empty:#4A3545; --empty-bg:rgba(74,53,69,0.13);
+  --radius:10px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg-glow),var(--bg);background-attachment:fixed;
+  color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px;}
+header{padding:18px 4px 20px;border-bottom:1px solid var(--line);margin-bottom:18px;}
+.eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);font-weight:700;margin:0 0 6px;}
+h1{font-size:clamp(22px,5vw,32px);font-weight:900;letter-spacing:-.02em;margin:0 0 8px;line-height:1.1;}
+h1 span{color:var(--gold);}
+.sub{color:var(--muted);font-size:14px;line-height:1.55;max-width:70ch;margin:0;}
+.tabbar{display:flex;gap:6px;margin:20px 0 18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:5px;}
+.tab-btn{flex:1;background:transparent;border:none;color:var(--muted);font-size:13px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;padding:10px 8px;border-radius:8px;cursor:pointer;font-family:inherit;}
+.tab-btn.active{background:var(--panel-alt2);color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold);}
+.tab-btn:hover:not(.active){color:var(--ink);}
+.global-actions{display:flex;justify-content:flex-end;margin-bottom:14px;}
+.scope-section{display:none;} .scope-section.active{display:block;}
+.playerstrip{display:flex;align-items:center;gap:10px;margin:0 0 12px;flex-wrap:wrap;}
+.player-input{flex:1;min-width:130px;}
+.player-input input{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  color:var(--ink);padding:10px 12px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
+.player-input input::placeholder{color:var(--muted);text-transform:none;font-weight:500;letter-spacing:normal;}
+.vs-badge{background:var(--gold);color:#000;font-size:11px;font-weight:900;padding:4px 10px;border-radius:100px;letter-spacing:.08em;}
+.context-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;align-items:center;}
+.context-row label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;}
+.context-row select{font-family:inherit;background:var(--panel-alt);border:1px solid var(--line);border-radius:6px;
+  color:var(--ink);padding:6px 8px;font-size:13px;}
+.context-note{font-size:11px;color:var(--muted);line-height:1.4;flex:1;min-width:200px;}
+.master{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:24px;}
+.master-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:8px;}
+.master-headline{font-size:16px;font-weight:800;line-height:1.4;margin-bottom:14px;}
+.hl-over{color:var(--over);} .hl-under{color:var(--under);} .hl-amber{color:var(--amber);} .hl-red{color:var(--red);}
+.chip-row{display:flex;gap:8px;flex-wrap:wrap;}
+.chip{background:var(--panel-alt);border:1px solid var(--line);border-radius:100px;padding:6px 12px;
+  font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;}
+.chip .dot{width:7px;height:7px;border-radius:50%;}
+.chip .dot.green{background:var(--green);} .chip .dot.amber{background:var(--amber);}
+.chip .dot.red{background:var(--red);} .chip .dot.empty{background:var(--empty);}
+.scoreboard{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px;}
+@media(max-width:560px){.scoreboard{grid-template-columns:1fr;}}
+.board-col{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;}
+.board-col.board-under{border-top:2px solid var(--under);}
+.board-col.board-over{border-top:2px solid var(--over);}
+.board-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;
+  margin-bottom:8px;display:flex;justify-content:space-between;}
+.lamps{display:flex;gap:5px;margin-bottom:10px;}
+.lamp{flex:1;height:9px;border-radius:3px;background:var(--empty-bg);border:1px solid var(--line);transition:background .2s,box-shadow .2s;}
+.lamp.green{background:var(--green);box-shadow:0 0 8px rgba(74,222,128,.5);border-color:transparent;}
+.lamp.amber{background:var(--amber);box-shadow:0 0 8px rgba(251,191,36,.5);border-color:transparent;}
+.lamp.red{background:var(--red);box-shadow:0 0 8px rgba(248,113,113,.5);border-color:transparent;}
+.board-verdict{font-size:15px;font-weight:800;}
+.board-verdict.green{color:var(--green);} .board-verdict.amber{color:var(--amber);}
+.board-verdict.red{color:var(--red);} .board-verdict.empty{color:var(--muted);}
+.section-title{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);font-weight:700;
+  margin:26px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;}
+.st-hint{color:var(--muted);text-transform:none;letter-spacing:normal;font-weight:400;font-size:11px;}
+.met-display{background:var(--panel-alt2);border:1px solid var(--gold-dim);border-radius:8px;
+  padding:8px 12px;margin-bottom:10px;font-size:12px;line-height:1.5;}
+.met-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--gold);font-weight:700;margin-bottom:3px;}
+.met-value{font-size:16px;font-weight:900;font-family:ui-monospace,monospace;color:var(--gold);}
+.met-approx{font-size:10px;color:var(--muted);font-weight:400;}
+.met-tag{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:100px;margin:2px 4px 2px 0;}
+.met-tag.over{background:var(--over-bg);color:var(--over);}
+.met-tag.under{background:var(--under-bg);color:var(--under);}
+.met-empty{color:var(--muted);font-size:12px;}
+.line-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:6px;}
+.line-entry{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:9px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.line-num{font-size:10px;color:var(--muted);font-weight:700;width:14px;flex-shrink:0;}
+.line-fields{display:flex;gap:8px;flex-wrap:wrap;flex:1;}
+.line-fields label{display:flex;flex-direction:column;font-size:10px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;gap:3px;}
+input[type=number],input[type=text]{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-variant-numeric:tabular-nums;background:var(--panel-alt);border:1px solid var(--line);
+  border-radius:6px;color:var(--ink);padding:7px 8px;width:70px;font-size:13.5px;}
+input[type=text]{width:auto;font-family:inherit;}
+input[type=number]:focus,input[type=text]:focus,select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(224,123,57,.22);}
+input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{margin:0;}
+.line-prob{font-family:ui-monospace,monospace;font-size:10.5px;font-weight:700;
+  padding:3px 8px;border-radius:100px;white-space:nowrap;margin-left:auto;}
+.line-prob.over-lead{background:var(--over-bg);color:var(--over);}
+.line-prob.under-lead{background:var(--under-bg);color:var(--under);}
+.line-prob.neutral{background:var(--empty-bg);color:var(--muted);}
+.win-row{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:10px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.win-row label{display:flex;flex-direction:column;font-size:10px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;gap:3px;}
+/* Correct score grid */
+.cs-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;}
+.cs-entry{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:8px 10px;display:flex;align-items:center;gap:8px;}
+.cs-label{font-size:11px;font-weight:700;color:var(--muted);width:36px;flex-shrink:0;}
+.cs-entry label{display:flex;flex-direction:column;font-size:10px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;gap:2px;flex:1;}
+/* CSI Panel */
+.csi-panel{background:var(--panel);border:1px solid var(--gold-dim);border-radius:14px;padding:16px;margin-top:16px;border-top:2px solid var(--gold);}
+.csi-title{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:10px;}
+.csi-empty{font-size:12px;color:var(--muted);}
+.csi-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:14px;}
+.csi-stat{background:var(--panel-alt);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+  font-size:12px;display:flex;justify-content:space-between;align-items:center;}
+.csi-stat strong{font-family:ui-monospace,monospace;font-size:14px;}
+.csi-vs{border-color:var(--gold-dim);}
+.csi-detail{font-size:11px;color:var(--muted);margin-top:-4px;margin-bottom:10px;padding:0 4px;}
+.csi-scores{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;}
+.csi-score{display:flex;align-items:center;gap:6px;background:var(--panel-alt);border-radius:6px;padding:5px 8px;}
+.csi-score.csi-top{background:var(--panel-alt2);border:1px solid var(--gold-dim);}
+.csi-sc{font-weight:800;font-size:12px;width:30px;flex-shrink:0;color:var(--ink);}
+.csi-bar-wrap{flex:1;background:var(--line);border-radius:100px;height:6px;overflow:hidden;}
+.csi-bar{height:100%;border-radius:100px;background:var(--muted);}
+.csi-pct{font-family:ui-monospace,monospace;font-size:10px;font-weight:700;width:30px;text-align:right;color:var(--muted);}
+/* Profiles */
+.profiles{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px;}
+@media(max-width:700px){.profiles{grid-template-columns:1fr;}}
+.profile-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;}
+.profile-card.card-under{border-top:2px solid var(--under);}
+.profile-card.card-over{border-top:2px solid var(--over);}
+.profile-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;}
+.profile-name{font-size:15px;font-weight:800;letter-spacing:-.01em;}
+.profile-tag{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+.profile-desc{font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.4;}
+.check{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line);}
+.check:first-of-type{border-top:none;}
+.check-num{font-size:10px;color:var(--muted);font-weight:700;width:16px;}
+.check-text{font-size:12.5px;line-height:1.35;}
+.check-text .ct-label{font-weight:600;color:var(--ink);}
+.check-text .ct-detail{display:block;color:var(--muted);font-size:11px;margin-top:1px;}
+.pill{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 9px;border-radius:100px;white-space:nowrap;}
+.pill.green{background:var(--green-bg);color:var(--green);} .pill.amber{background:var(--amber-bg);color:var(--amber);}
+.pill.red{background:var(--red-bg);color:var(--red);} .pill.empty{background:var(--empty-bg);color:var(--empty);}
+.ranking-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:16px;}
+.ranking-top{background:var(--panel-alt2);border:1px solid var(--gold);border-radius:10px;padding:12px 14px;
+  margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+.rt-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:3px;}
+.rt-name{font-size:15px;font-weight:800;}
+.rt-prob{font-size:22px;font-weight:900;font-family:ui-monospace,monospace;}
+.ev-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel-alt);border:1px solid var(--line);
+  border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--muted);}
+.ev-row label{font-weight:700;color:var(--ink);text-transform:uppercase;font-size:10px;letter-spacing:.05em;}
+.ev-row input{width:62px;}
+.ev-badge{font-family:ui-monospace,monospace;font-weight:800;padding:4px 10px;border-radius:100px;font-size:12px;}
+.ev-badge.pos{background:var(--green-bg);color:var(--green);}
+.ev-badge.neg{background:var(--red-bg);color:var(--red);}
+.ev-badge.empty{background:var(--empty-bg);color:var(--empty);}
+.rank-row{display:grid;grid-template-columns:1fr 52px 1fr 72px;gap:10px;align-items:center;
+  padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;}
+.rank-row:first-of-type{border-top:none;}
+.rk-label{font-weight:600;} .rk-odds{font-family:ui-monospace,monospace;color:var(--muted);text-align:right;}
+.prob-bar-wrap{background:var(--panel-alt);border-radius:100px;height:8px;overflow:hidden;}
+.prob-bar{height:100%;border-radius:100px;transition:width .25s,background .25s;}
+.prob-bar.green{background:var(--green);} .prob-bar.amber{background:var(--amber);} .prob-bar.red{background:var(--red);}
+.rk-pct{font-family:ui-monospace,monospace;font-weight:700;text-align:right;}
+.rank-empty-note{font-size:12px;color:var(--muted);padding:10px 0;}
+/* History */
+.history-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:28px;}
+.history-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.btn{background:var(--panel-alt);border:1px solid var(--line);color:var(--ink);font-size:12px;font-weight:700;
+  padding:8px 14px;border-radius:8px;cursor:pointer;font-family:inherit;}
+.btn:hover{border-color:var(--gold);color:var(--gold);}
+.btn.primary{background:var(--panel-alt2);border-color:var(--gold);color:var(--gold);}
+.btn.danger:hover{border-color:var(--red);color:var(--red);}
+.file-btn{position:relative;overflow:hidden;}
+.file-btn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
+table.history-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+table.history-table th{text-align:left;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;
+  font-size:10px;padding:6px 8px;border-bottom:1px solid var(--line);}
+table.history-table td{padding:7px 8px;border-bottom:1px solid var(--line);}
+.history-empty{font-size:12px;color:var(--muted);padding:8px 0;}
+.rm-btn{background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;font-weight:700;}
+.scope-tag{font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:100px;background:var(--panel-alt2);color:var(--gold);}
+footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.6;}
+.reset-btn{background:transparent;border:1px solid var(--line);color:var(--muted);font-size:12px;
+  padding:8px 14px;border-radius:8px;cursor:pointer;margin-top:14px;font-family:inherit;}
+.reset-btn:hover{border-color:var(--red);color:var(--red);}
+
+/* ---- Tiebreak Card ---- */
+.tb-card{background:var(--panel);border:1px solid var(--gold-dim);border-radius:14px;
+  padding:18px;margin-bottom:6px;border-top:2px solid var(--gold);}
+.tb-inputs{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px;}
+.tb-field{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:120px;
+  background:var(--panel-alt);border-radius:10px;padding:12px;border:1px solid var(--line);}
+.tb-btn-yes{background:var(--over-bg);color:var(--over);font-weight:900;font-size:15px;
+  padding:6px 20px;border-radius:100px;letter-spacing:.06em;}
+.tb-btn-no{background:var(--under-bg);color:var(--under);font-weight:900;font-size:15px;
+  padding:6px 20px;border-radius:100px;letter-spacing:.06em;}
+.tb-sub{font-size:11px;color:var(--muted);text-align:center;}
+.tb-label{display:flex;flex-direction:column;font-size:10px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;gap:3px;width:100%;}
+.tb-label input{width:100%;}
+.tb-vs{font-size:11px;color:var(--muted);font-weight:800;letter-spacing:.08em;padding:0 4px;}
+.tb-result{background:var(--panel-alt);border-radius:10px;padding:12px 14px;}
+.tb-result-empty{font-size:12px;color:var(--muted);}
+.tb-bars{display:grid;gap:8px;}
+.tb-bar-row{display:grid;grid-template-columns:60px 1fr 55px;align-items:center;gap:10px;font-size:12.5px;}
+.tb-bar-label{font-weight:700;}
+.tb-bar-wrap{background:var(--line);border-radius:100px;height:10px;overflow:hidden;}
+.tb-bar-fill{height:100%;border-radius:100px;transition:width .35s ease;}
+.tb-bar-fill.yes{background:var(--over);}
+.tb-bar-fill.no{background:var(--under);}
+.tb-bar-pct{font-family:ui-monospace,monospace;font-weight:700;text-align:right;}
+.tb-signal{margin-top:10px;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;line-height:1.5;}
+.tb-signal.sig-high{background:var(--over-bg);color:var(--over);}
+.tb-signal.sig-mod{background:var(--amber-bg);color:var(--amber);}
+.tb-signal.sig-low{background:var(--green-bg);color:var(--green);}
+</style>
+</head>
+<body>
+
+<datalist id="dl-mt"><option value="19.5"><option value="20.0"><option value="20.5"><option value="21.0"><option value="21.5"><option value="22.0"><option value="22.5"><option value="23.0"><option value="23.5"><option value="24.0"><option value="24.5"><option value="25.0"><option value="25.5"><option value="26.0"><option value="26.5"><option value="27.0"><option value="27.5"><option value="28.0"><option value="28.5"><option value="29.0"><option value="29.5"><option value="30.0"><option value="30.5"><option value="31.0"><option value="31.5"><option value="32.0"><option value="32.5"><option value="33.0"><option value="33.5"><option value="34.0"><option value="34.5"><option value="35.0"><option value="35.5"></datalist>
+<datalist id="dl-pr"><option value="8.5"><option value="9.0"><option value="9.5"><option value="10.0"><option value="10.5"><option value="11.0"><option value="11.5"><option value="12.0"><option value="12.5"><option value="13.0"><option value="13.5"><option value="14.0"><option value="14.5"><option value="15.0"><option value="15.5"><option value="16.0"><option value="16.5"><option value="17.0"><option value="17.5"><option value="18.0"><option value="18.5"></datalist>
+<datalist id="dl-st"><option value="7.5"><option value="8.0"><option value="8.5"><option value="9.0"><option value="9.5"><option value="10.0"><option value="10.5"><option value="11.0"><option value="11.5"><option value="12.0"><option value="12.5"><option value="13.0"><option value="13.5"></datalist>
+<datalist id="dl-ps"><option value="3.5"><option value="4.0"><option value="4.5"><option value="5.0"><option value="5.5"><option value="6.0"><option value="6.5"><option value="7.0"></datalist>
+<datalist id="dl-gh"><option value="-5.5"><option value="-5.0"><option value="-4.5"><option value="-4.0"><option value="-3.5"><option value="-3.0"><option value="-2.5"><option value="-2.0"><option value="-1.5"><option value="-1.0"><option value="-0.5"><option value="0.0"><option value="0.5"><option value="1.0"><option value="1.5"><option value="2.0"><option value="2.5"><option value="3.0"><option value="3.5"><option value="4.0"><option value="4.5"><option value="5.0"><option value="5.5"></datalist>
+<datalist id="dl-sh"><option value="-2.5"><option value="-1.5"><option value="-0.5"><option value="0.5"><option value="1.5"><option value="2.5"></datalist>
+<datalist id="dl-s1h"><option value="-2.5"><option value="-2.0"><option value="-1.5"><option value="-1.0"><option value="-0.5"><option value="0.0"><option value="0.5"><option value="1.0"><option value="1.5"><option value="2.0"><option value="2.5"></datalist>
+<div class="wrap">
+<header>
+  <p class="eyebrow">Pre-match odds screener · tennis · v1</p>
+  <h1>Tennis <span>Matchday</span> Screener</h1>
+  <p class="sub">Enter bookmaker odds for Regular Time or 1st Set markets. The engine auto-computes the Market Expected Games (MEG), cross-checks player totals, scales the 1st set to full-match projection, and — uniquely in tennis — decodes Correct Score odds into match-structure probabilities to find hidden inconsistencies the bookmaker has priced differently across markets. Fully offline.</p>
+</header>
+<div class="tabbar">
+  <button class="tab-btn active" id="tabBtn_rt" onclick="switchScope('rt')">Regular Time</button>
+  <button class="tab-btn" id="tabBtn_s1" onclick="switchScope('s1')">1st Set</button>
+</div>
+<div class="global-actions">
+  <button class="btn danger" onclick="clearScopeFields(currentScope)">Clear this tab</button>
+</div>
+
+<!-- ===================== REGULAR TIME ===================== -->
+<section class="scope-section active" id="scope_rt">
+  <div class="playerstrip">
+    <div class="player-input"><input id="rt_p1Name" type="text" placeholder="Player 1 (Home / Higher seed)"></div>
+    <span class="vs-badge">VS</span>
+    <div class="player-input"><input id="rt_p2Name" type="text" placeholder="Player 2 (Away)"></div>
+  </div>
+  <div class="context-row">
+    <label>Surface <select id="rt_surface"><option value="hard">Hard</option><option value="clay" selected>Clay</option><option value="grass">Grass</option><option value="carpet">Carpet</option></select></label>
+    <label>Format <select id="rt_format"><option value="bo3" selected>Best of 3</option><option value="bo5">Best of 5</option></select></label>
+    <div class="context-note">Surface adjusts Under/Over signal thresholds (clay → more games, grass → fewer). Format affects 1st-set scale factor and correct score structure.</div>
+  </div>
+  <div class="master">
+    <div class="master-label">Overall recommendation — Regular Time</div>
+    <div class="master-headline" id="rt_masterHeadline">Enter odds below — a recommendation will build here.</div>
+    <div class="chip-row" id="rt_chipRow"></div>
+  </div>
+  <div class="scoreboard">
+    <div class="board-col board-under">
+      <div class="board-label"><span>Profile A — Under (Decisive)</span><span id="rt_aScoreText">0/0</span></div>
+      <div class="lamps" id="rt_aLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+      <div class="board-verdict empty" id="rt_aVerdict">Enter odds to screen</div>
+    </div>
+    <div class="board-col board-over">
+      <div class="board-label"><span>Profile B — Over (Competitive)</span><span id="rt_bScoreText">0/0</span></div>
+      <div class="lamps" id="rt_bLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+      <div class="board-verdict empty" id="rt_bVerdict">Enter odds to screen</div>
+    </div>
+  </div>
+
+  <div class="section-title">Match Total Games — Over / Under <span class="st-hint">enter 4–6 lines · MEG auto-computed below</span></div>
+  <div class="met-display"><div class="met-label">Market Expected Games (MEG)</div><div id="rt_gt_meg"><span class="met-empty">— enter lines above</span></div></div>
+  <div class="line-grid">
+    <div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_gt_L1" placeholder="22" list="dl-mt"></label><label>Over<input type="number" step="0.01" id="rt_gt_O1"></label><label>Under<input type="number" step="0.01" id="rt_gt_U1"></label></div><span class="line-prob neutral" id="rt_gt_P1">—</span></div>
+    <div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_gt_L2" placeholder="23" list="dl-mt"></label><label>Over<input type="number" step="0.01" id="rt_gt_O2"></label><label>Under<input type="number" step="0.01" id="rt_gt_U2"></label></div><span class="line-prob neutral" id="rt_gt_P2">—</span></div>
+    <div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_gt_L3" placeholder="24.5" list="dl-mt"></label><label>Over<input type="number" step="0.01" id="rt_gt_O3"></label><label>Under<input type="number" step="0.01" id="rt_gt_U3"></label></div><span class="line-prob neutral" id="rt_gt_P3">—</span></div>
+    <div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_gt_L4" placeholder="26" list="dl-mt"></label><label>Over<input type="number" step="0.01" id="rt_gt_O4"></label><label>Under<input type="number" step="0.01" id="rt_gt_U4"></label></div><span class="line-prob neutral" id="rt_gt_P4">—</span></div>
+    <div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_gt_L5" list="dl-mt"></label><label>Over<input type="number" step="0.01" id="rt_gt_O5"></label><label>Under<input type="number" step="0.01" id="rt_gt_U5"></label></div><span class="line-prob neutral" id="rt_gt_P5">—</span></div>
+    <div class="line-entry"><span class="line-num">6</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_gt_L6" list="dl-mt"></label><label>Over<input type="number" step="0.01" id="rt_gt_O6"></label><label>Under<input type="number" step="0.01" id="rt_gt_U6"></label></div><span class="line-prob neutral" id="rt_gt_P6">—</span></div>
+  </div>
+
+  <div class="section-title">Player 1 Total Games — Over / Under <span class="st-hint">P1 individual game count</span></div>
+  <div class="met-display"><div class="met-label">P1 MEG</div><div id="rt_p1_meg"><span class="met-empty">—</span></div></div>
+  <div class="line-grid">
+    <div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_p1_L1" list="dl-pr"></label><label>Over<input type="number" step="0.01" id="rt_p1_O1"></label><label>Under<input type="number" step="0.01" id="rt_p1_U1"></label></div><span class="line-prob neutral" id="rt_p1_P1">—</span></div>
+    <div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_p1_L2" list="dl-pr"></label><label>Over<input type="number" step="0.01" id="rt_p1_O2"></label><label>Under<input type="number" step="0.01" id="rt_p1_U2"></label></div><span class="line-prob neutral" id="rt_p1_P2">—</span></div>
+    <div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_p1_L3" list="dl-pr"></label><label>Over<input type="number" step="0.01" id="rt_p1_O3"></label><label>Under<input type="number" step="0.01" id="rt_p1_U3"></label></div><span class="line-prob neutral" id="rt_p1_P3">—</span></div>
+    <div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_p1_L4" list="dl-pr"></label><label>Over<input type="number" step="0.01" id="rt_p1_O4"></label><label>Under<input type="number" step="0.01" id="rt_p1_U4"></label></div><span class="line-prob neutral" id="rt_p1_P4">—</span></div>
+    <div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_p1_L5" list="dl-pr"></label><label>Over<input type="number" step="0.01" id="rt_p1_O5"></label><label>Under<input type="number" step="0.01" id="rt_p1_U5"></label></div><span class="line-prob neutral" id="rt_p1_P5">—</span></div>
+  </div>
+
+  <div class="section-title">Player 2 Total Games — Over / Under</div>
+  <div class="met-display"><div class="met-label">P2 MEG</div><div id="rt_p2_meg"><span class="met-empty">—</span></div></div>
+  <div class="line-grid">
+    <div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_p2_L1" list="dl-pr"></label><label>Over<input type="number" step="0.01" id="rt_p2_O1"></label><label>Under<input type="number" step="0.01" id="rt_p2_U1"></label></div><span class="line-prob neutral" id="rt_p2_P1">—</span></div>
+    <div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_p2_L2" list="dl-pr"></label><label>Over<input type="number" step="0.01" id="rt_p2_O2"></label><label>Under<input type="number" step="0.01" id="rt_p2_U2"></label></div><span class="line-prob neutral" id="rt_p2_P2">—</span></div>
+    <div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_p2_L3" list="dl-pr"></label><label>Over<input type="number" step="0.01" id="rt_p2_O3"></label><label>Under<input type="number" step="0.01" id="rt_p2_U3"></label></div><span class="line-prob neutral" id="rt_p2_P3">—</span></div>
+    <div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_p2_L4" list="dl-pr"></label><label>Over<input type="number" step="0.01" id="rt_p2_O4"></label><label>Under<input type="number" step="0.01" id="rt_p2_U4"></label></div><span class="line-prob neutral" id="rt_p2_P4">—</span></div>
+    <div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_p2_L5" list="dl-pr"></label><label>Over<input type="number" step="0.01" id="rt_p2_O5"></label><label>Under<input type="number" step="0.01" id="rt_p2_U5"></label></div><span class="line-prob neutral" id="rt_p2_P5">—</span></div>
+  </div>
+
+  <div class="section-title">Game Handicap <span class="st-hint">positive = P1 gives games · negative = P1 gets games</span></div>
+  <div class="line-grid">
+    <div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Hdp<input type="number" step="0.5" id="rt_ghdp_HL1" style="width:80px" list="dl-gh"></label><label>P1 odds<input type="number" step="0.01" id="rt_ghdp_HT1_1"></label><label>P2 odds<input type="number" step="0.01" id="rt_ghdp_HT2_1"></label></div></div>
+    <div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Hdp<input type="number" step="0.5" id="rt_ghdp_HL2" style="width:80px" list="dl-gh"></label><label>P1 odds<input type="number" step="0.01" id="rt_ghdp_HT1_2"></label><label>P2 odds<input type="number" step="0.01" id="rt_ghdp_HT2_2"></label></div></div>
+    <div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Hdp<input type="number" step="0.5" id="rt_ghdp_HL3" style="width:80px" list="dl-gh"></label><label>P1 odds<input type="number" step="0.01" id="rt_ghdp_HT1_3"></label><label>P2 odds<input type="number" step="0.01" id="rt_ghdp_HT2_3"></label></div></div>
+    <div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Hdp<input type="number" step="0.5" id="rt_ghdp_HL4" style="width:80px" list="dl-gh"></label><label>P1 odds<input type="number" step="0.01" id="rt_ghdp_HT1_4"></label><label>P2 odds<input type="number" step="0.01" id="rt_ghdp_HT2_4"></label></div></div>
+    <div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Hdp<input type="number" step="0.5" id="rt_ghdp_HL5" style="width:80px" list="dl-gh"></label><label>P1 odds<input type="number" step="0.01" id="rt_ghdp_HT1_5"></label><label>P2 odds<input type="number" step="0.01" id="rt_ghdp_HT2_5"></label></div></div>
+  </div>
+
+  <div class="section-title">Set Handicap <span class="st-hint">e.g. P1(-1.5) must win 2-0 · P2(1.5) must avoid 0-2</span></div>
+  <div class="line-grid">
+    <div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Sets Hdp<input type="number" step="0.5" id="rt_shdp_HL1" style="width:80px" list="dl-sh"></label><label>P1 odds<input type="number" step="0.01" id="rt_shdp_HT1_1"></label><label>P2 odds<input type="number" step="0.01" id="rt_shdp_HT2_1"></label></div></div>
+    <div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Sets Hdp<input type="number" step="0.5" id="rt_shdp_HL2" style="width:80px" list="dl-sh"></label><label>P1 odds<input type="number" step="0.01" id="rt_shdp_HT1_2"></label><label>P2 odds<input type="number" step="0.01" id="rt_shdp_HT2_2"></label></div></div>
+    <div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Sets Hdp<input type="number" step="0.5" id="rt_shdp_HL3" style="width:80px" list="dl-sh"></label><label>P1 odds<input type="number" step="0.01" id="rt_shdp_HT1_3"></label><label>P2 odds<input type="number" step="0.01" id="rt_shdp_HT2_3"></label></div></div>
+  </div>
+
+  <div class="section-title">Match Winner</div>
+  <div class="win-row">
+    <label>W1 (P1 wins)<input type="number" step="0.01" id="rt_w1"></label>
+    <label>W2 (P2 wins)<input type="number" step="0.01" id="rt_w2"></label>
+  </div>
+
+  <div class="section-title">Correct Score (Match) <span class="st-hint">Best of 3: 2-0, 2-1, 0-2, 1-2 · Best of 5: also 3-0, 3-1 etc.</span></div>
+  <div class="cs-grid">
+    <div class="cs-entry"><span class="cs-label">2-0</span><label>Odds<input type="number" step="0.01" id="rt_cs_2_0"></label></div>
+    <div class="cs-entry"><span class="cs-label">0-2</span><label>Odds<input type="number" step="0.01" id="rt_cs_0_2"></label></div>
+    <div class="cs-entry"><span class="cs-label">2-1</span><label>Odds<input type="number" step="0.01" id="rt_cs_2_1"></label></div>
+    <div class="cs-entry"><span class="cs-label">1-2</span><label>Odds<input type="number" step="0.01" id="rt_cs_1_2"></label></div>
+    <div class="cs-entry"><span class="cs-label">3-0</span><label>Odds (Bo5)<input type="number" step="0.01" id="rt_cs_3_0"></label></div>
+    <div class="cs-entry"><span class="cs-label">0-3</span><label>Odds (Bo5)<input type="number" step="0.01" id="rt_cs_0_3"></label></div>
+    <div class="cs-entry"><span class="cs-label">3-1</span><label>Odds (Bo5)<input type="number" step="0.01" id="rt_cs_3_1"></label></div>
+    <div class="cs-entry"><span class="cs-label">1-3</span><label>Odds (Bo5)<input type="number" step="0.01" id="rt_cs_1_3"></label></div>
+    <div class="cs-entry"><span class="cs-label">3-2</span><label>Odds (Bo5)<input type="number" step="0.01" id="rt_cs_3_2"></label></div>
+    <div class="cs-entry"><span class="cs-label">2-3</span><label>Odds (Bo5)<input type="number" step="0.01" id="rt_cs_2_3"></label></div>
+  </div>
+
+  <div class="section-title">🎾 Correct Score Intelligence Panel <span class="st-hint">auto-derived from entered CS odds — unique to tennis</span></div>
+  <div class="csi-panel">
+    <div class="csi-title">Correct Score Intelligence — Match Structure Analysis</div>
+    <div id="rt_csi_panel"><div class="csi-empty">Enter correct score odds above to unlock this panel.</div></div>
+  </div>
+
+  <div class="profiles">
+    <div class="profile-card card-under"><div class="profile-head"><span class="profile-name">Profile A</span><span class="profile-tag">Under · RT</span></div>
+      <p class="profile-desc">Evidence for a decisive match — one player dominates, fewer total games. Checks value-zone Under, CS decisiveness, player game differential, 1st-set scale, and set structure.</p><div id="rt_aChecks"></div></div>
+    <div class="profile-card card-over"><div class="profile-head"><span class="profile-name">Profile B</span><span class="profile-tag">Over · RT</span></div>
+      <p class="profile-desc">Evidence for a competitive match — close games, 3 sets likely, tiebreaks possible. Checks value-zone Over, CS competitiveness, PGD, scale, and handicap tightness.</p><div id="rt_bChecks"></div></div>
+  </div>
+
+  <div class="section-title">Profile C — Handicap &amp; Winner Ranking</div>
+  <div class="ranking-card">
+    <p class="profile-desc" style="margin-bottom:14px;">Ranks every game handicap, set handicap, and match winner option by normalized implied probability.</p>
+    <div id="rt_cTop"></div>
+    <div class="ev-row"><label>Your probability estimate for top pick</label><input type="number" step="0.1" id="rt_c_userProb" placeholder="%"><span>→</span><span id="rt_c_evBadge" class="ev-badge empty">Enter your % to compute EV</span></div>
+    <div id="rt_cList"></div>
+  </div>
+
+  <div class="section-title">Profile D — Best Specific Line Finder</div>
+  <div class="ranking-card">
+    <p class="profile-desc" style="margin-bottom:14px;">Ranks every individual Over/Under option across match total, P1 total, and P2 total by directional probability signal strength.</p>
+    <div id="rt_dTop"></div>
+    <div class="ev-row"><label>Your probability estimate for top pick</label><input type="number" step="0.1" id="rt_d_userProb" placeholder="%"><span>→</span><span id="rt_d_evBadge" class="ev-badge empty">Enter your % to compute EV</span></div>
+    <div id="rt_dList"></div>
+  </div>
+  <button class="reset-btn" onclick="clearScopeFields('rt')">Clear Regular Time fields</button>
+</section>
+
+<!-- ===================== 1ST SET ===================== -->
+<section class="scope-section" id="scope_s1">
+  <div class="playerstrip">
+    <div class="player-input"><input id="s1_p1Name" type="text" placeholder="Player 1"></div>
+    <span class="vs-badge">VS</span>
+    <div class="player-input"><input id="s1_p2Name" type="text" placeholder="Player 2"></div>
+  </div>
+  <div class="context-row">
+    <label>Surface <select id="s1_surface"><option value="hard">Hard</option><option value="clay" selected>Clay</option><option value="grass">Grass</option><option value="carpet">Carpet</option></select></label>
+    <label>Format <select id="s1_format"><option value="bo3" selected>Best of 3</option><option value="bo5">Best of 5</option></select></label>
+    <div class="context-note">1st Set MEG × 2.4 (Bo3) or × 4.1 (Bo5) is auto-compared against Regular Time MEG when both tabs contain data.</div>
+  </div>
+  <div class="master">
+    <div class="master-label">Overall recommendation — 1st Set</div>
+    <div class="master-headline" id="s1_masterHeadline">Enter odds below — a recommendation will build here.</div>
+    <div class="chip-row" id="s1_chipRow"></div>
+  </div>
+  <div class="scoreboard">
+    <div class="board-col board-under">
+      <div class="board-label"><span>Profile A — Under (Decisive set)</span><span id="s1_aScoreText">0/0</span></div>
+      <div class="lamps" id="s1_aLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+      <div class="board-verdict empty" id="s1_aVerdict">Enter odds to screen</div>
+    </div>
+    <div class="board-col board-over">
+      <div class="board-label"><span>Profile B — Over (Competitive set)</span><span id="s1_bScoreText">0/0</span></div>
+      <div class="lamps" id="s1_bLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+      <div class="board-verdict empty" id="s1_bVerdict">Enter odds to screen</div>
+    </div>
+  </div>
+
+  <div class="section-title">1st Set Total Games — Over / Under <span class="st-hint">5 line entries · MEG auto-computed</span></div>
+  <div class="met-display"><div class="met-label">1st Set MEG</div><div id="s1_gt_meg"><span class="met-empty">—</span></div></div>
+  <div class="line-grid">
+    <div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_gt_L1" placeholder="8.5" list="dl-st"></label><label>Over<input type="number" step="0.01" id="s1_gt_O1"></label><label>Under<input type="number" step="0.01" id="s1_gt_U1"></label></div><span class="line-prob neutral" id="s1_gt_P1">—</span></div>
+    <div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_gt_L2" placeholder="9.5" list="dl-st"></label><label>Over<input type="number" step="0.01" id="s1_gt_O2"></label><label>Under<input type="number" step="0.01" id="s1_gt_U2"></label></div><span class="line-prob neutral" id="s1_gt_P2">—</span></div>
+    <div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_gt_L3" placeholder="10.5" list="dl-st"></label><label>Over<input type="number" step="0.01" id="s1_gt_O3"></label><label>Under<input type="number" step="0.01" id="s1_gt_U3"></label></div><span class="line-prob neutral" id="s1_gt_P3">—</span></div>
+    <div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_gt_L4" placeholder="12.5" list="dl-st"></label><label>Over<input type="number" step="0.01" id="s1_gt_O4"></label><label>Under<input type="number" step="0.01" id="s1_gt_U4"></label></div><span class="line-prob neutral" id="s1_gt_P4">—</span></div>
+    <div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_gt_L5" list="dl-st"></label><label>Over<input type="number" step="0.01" id="s1_gt_O5"></label><label>Under<input type="number" step="0.01" id="s1_gt_U5"></label></div><span class="line-prob neutral" id="s1_gt_P5">—</span></div>
+    <div class="line-entry"><span class="line-num">6</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_gt_L6" list="dl-st"></label><label>Over<input type="number" step="0.01" id="s1_gt_O6"></label><label>Under<input type="number" step="0.01" id="s1_gt_U6"></label></div><span class="line-prob neutral" id="s1_gt_P6">—</span></div>
+  </div>
+
+  <div class="section-title">P1 Games in 1st Set — Over / Under</div>
+  <div class="met-display"><div class="met-label">P1 1st Set MEG</div><div id="s1_p1_meg"><span class="met-empty">—</span></div></div>
+  <div class="line-grid">
+    <div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_p1_L1" list="dl-ps"></label><label>Over<input type="number" step="0.01" id="s1_p1_O1"></label><label>Under<input type="number" step="0.01" id="s1_p1_U1"></label></div><span class="line-prob neutral" id="s1_p1_P1">—</span></div>
+    <div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_p1_L2" list="dl-ps"></label><label>Over<input type="number" step="0.01" id="s1_p1_O2"></label><label>Under<input type="number" step="0.01" id="s1_p1_U2"></label></div><span class="line-prob neutral" id="s1_p1_P2">—</span></div>
+    <div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_p1_L3" list="dl-ps"></label><label>Over<input type="number" step="0.01" id="s1_p1_O3"></label><label>Under<input type="number" step="0.01" id="s1_p1_U3"></label></div><span class="line-prob neutral" id="s1_p1_P3">—</span></div>
+    <div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_p1_L4" list="dl-ps"></label><label>Over<input type="number" step="0.01" id="s1_p1_O4"></label><label>Under<input type="number" step="0.01" id="s1_p1_U4"></label></div><span class="line-prob neutral" id="s1_p1_P4">—</span></div>
+    <div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_p1_L5" list="dl-ps"></label><label>Over<input type="number" step="0.01" id="s1_p1_O5"></label><label>Under<input type="number" step="0.01" id="s1_p1_U5"></label></div><span class="line-prob neutral" id="s1_p1_P5">—</span></div>
+  </div>
+
+  <div class="section-title">P2 Games in 1st Set — Over / Under</div>
+  <div class="met-display"><div class="met-label">P2 1st Set MEG</div><div id="s1_p2_meg"><span class="met-empty">—</span></div></div>
+  <div class="line-grid">
+    <div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_p2_L1" list="dl-ps"></label><label>Over<input type="number" step="0.01" id="s1_p2_O1"></label><label>Under<input type="number" step="0.01" id="s1_p2_U1"></label></div><span class="line-prob neutral" id="s1_p2_P1">—</span></div>
+    <div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_p2_L2" list="dl-ps"></label><label>Over<input type="number" step="0.01" id="s1_p2_O2"></label><label>Under<input type="number" step="0.01" id="s1_p2_U2"></label></div><span class="line-prob neutral" id="s1_p2_P2">—</span></div>
+    <div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_p2_L3" list="dl-ps"></label><label>Over<input type="number" step="0.01" id="s1_p2_O3"></label><label>Under<input type="number" step="0.01" id="s1_p2_U3"></label></div><span class="line-prob neutral" id="s1_p2_P3">—</span></div>
+    <div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_p2_L4" list="dl-ps"></label><label>Over<input type="number" step="0.01" id="s1_p2_O4"></label><label>Under<input type="number" step="0.01" id="s1_p2_U4"></label></div><span class="line-prob neutral" id="s1_p2_P4">—</span></div>
+    <div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="s1_p2_L5" list="dl-ps"></label><label>Over<input type="number" step="0.01" id="s1_p2_O5"></label><label>Under<input type="number" step="0.01" id="s1_p2_U5"></label></div><span class="line-prob neutral" id="s1_p2_P5">—</span></div>
+  </div>
+
+  <div class="section-title">1st Set Game Handicap</div>
+  <div class="line-grid">
+    <div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Hdp<input type="number" step="0.5" id="s1_ghdp_HL1" style="width:80px" list="dl-s1h"></label><label>P1 odds<input type="number" step="0.01" id="s1_ghdp_HT1_1"></label><label>P2 odds<input type="number" step="0.01" id="s1_ghdp_HT2_1"></label></div></div>
+    <div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Hdp<input type="number" step="0.5" id="s1_ghdp_HL2" style="width:80px" list="dl-s1h"></label><label>P1 odds<input type="number" step="0.01" id="s1_ghdp_HT1_2"></label><label>P2 odds<input type="number" step="0.01" id="s1_ghdp_HT2_2"></label></div></div>
+    <div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Hdp<input type="number" step="0.5" id="s1_ghdp_HL3" style="width:80px" list="dl-s1h"></label><label>P1 odds<input type="number" step="0.01" id="s1_ghdp_HT1_3"></label><label>P2 odds<input type="number" step="0.01" id="s1_ghdp_HT2_3"></label></div></div>
+    <div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Hdp<input type="number" step="0.5" id="s1_ghdp_HL4" style="width:80px" list="dl-s1h"></label><label>P1 odds<input type="number" step="0.01" id="s1_ghdp_HT1_4"></label><label>P2 odds<input type="number" step="0.01" id="s1_ghdp_HT2_4"></label></div></div>
+    <div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Hdp<input type="number" step="0.5" id="s1_ghdp_HL5" style="width:80px" list="dl-s1h"></label><label>P1 odds<input type="number" step="0.01" id="s1_ghdp_HT1_5"></label><label>P2 odds<input type="number" step="0.01" id="s1_ghdp_HT2_5"></label></div></div>
+  </div>
+
+  <div class="section-title">1st Set Winner (1X2)</div>
+  <div class="win-row">
+    <label>W1 (P1 wins set)<input type="number" step="0.01" id="s1_w1"></label>
+    <label>W2 (P2 wins set)<input type="number" step="0.01" id="s1_w2"></label>
+  </div>
+
+
+  <div class="section-title">🎾 Tiebreak Market <span class="st-hint">Will the 1st set go to 7-6 / 6-7?</span></div>
+  <div class="tb-card">
+    <div class="tb-inputs">
+      <div class="tb-field">
+        <div class="tb-btn-yes">YES</div>
+        <div class="tb-sub">Tiebreak will happen</div>
+        <label class="tb-label">Odds<input type="number" step="0.01" id="s1_tb_yes" placeholder="e.g. 2.10"></label>
+      </div>
+      <div class="tb-vs">VS</div>
+      <div class="tb-field">
+        <div class="tb-btn-no">NO</div>
+        <div class="tb-sub">Set decided before tiebreak</div>
+        <label class="tb-label">Odds<input type="number" step="0.01" id="s1_tb_no" placeholder="e.g. 1.75"></label>
+      </div>
+    </div>
+    <div class="tb-result" id="s1_tb_result">
+      <div class="tb-result-empty">Enter both YES and NO odds above to see tiebreak probability and match signal</div>
+    </div>
+  </div>
+  <div class="section-title">1st Set Correct Score <span class="st-hint">all 14 possible set scores</span></div>
+  <div class="cs-grid">
+    <div class="cs-entry"><span class="cs-label">6-0</span><label>Odds<input type="number" step="0.01" id="s1_cs_6_0"></label></div>
+    <div class="cs-entry"><span class="cs-label">0-6</span><label>Odds<input type="number" step="0.01" id="s1_cs_0_6"></label></div>
+    <div class="cs-entry"><span class="cs-label">6-1</span><label>Odds<input type="number" step="0.01" id="s1_cs_6_1"></label></div>
+    <div class="cs-entry"><span class="cs-label">1-6</span><label>Odds<input type="number" step="0.01" id="s1_cs_1_6"></label></div>
+    <div class="cs-entry"><span class="cs-label">6-2</span><label>Odds<input type="number" step="0.01" id="s1_cs_6_2"></label></div>
+    <div class="cs-entry"><span class="cs-label">2-6</span><label>Odds<input type="number" step="0.01" id="s1_cs_2_6"></label></div>
+    <div class="cs-entry"><span class="cs-label">6-3</span><label>Odds<input type="number" step="0.01" id="s1_cs_6_3"></label></div>
+    <div class="cs-entry"><span class="cs-label">3-6</span><label>Odds<input type="number" step="0.01" id="s1_cs_3_6"></label></div>
+    <div class="cs-entry"><span class="cs-label">6-4</span><label>Odds<input type="number" step="0.01" id="s1_cs_6_4"></label></div>
+    <div class="cs-entry"><span class="cs-label">4-6</span><label>Odds<input type="number" step="0.01" id="s1_cs_4_6"></label></div>
+    <div class="cs-entry"><span class="cs-label">7-5</span><label>Odds<input type="number" step="0.01" id="s1_cs_7_5"></label></div>
+    <div class="cs-entry"><span class="cs-label">5-7</span><label>Odds<input type="number" step="0.01" id="s1_cs_5_7"></label></div>
+    <div class="cs-entry"><span class="cs-label">7-6</span><label>Odds<input type="number" step="0.01" id="s1_cs_7_6"></label></div>
+    <div class="cs-entry"><span class="cs-label">6-7</span><label>Odds<input type="number" step="0.01" id="s1_cs_6_7"></label></div>
+  </div>
+
+  <div class="section-title">🎾 Correct Score Intelligence Panel — 1st Set</div>
+  <div class="csi-panel">
+    <div class="csi-title">1st Set Structure Analysis (Decisiveness · Competitiveness · Tiebreak Signal)</div>
+    <div id="s1_csi_panel"><div class="csi-empty">Enter correct score odds above to unlock this panel.</div></div>
+  </div>
+
+  <div class="profiles">
+    <div class="profile-card card-under"><div class="profile-head"><span class="profile-name">Profile A</span><span class="profile-tag">Under · 1st Set</span></div>
+      <p class="profile-desc">Evidence for a decisive 1st set — one player dominates games early. Checks value-zone Under, CS decisiveness, player game differential, and set handicap width.</p><div id="s1_aChecks"></div></div>
+    <div class="profile-card card-over"><div class="profile-head"><span class="profile-name">Profile B</span><span class="profile-tag">Over · 1st Set</span></div>
+      <p class="profile-desc">Evidence for a competitive 1st set — tiebreak likely (13 games!). Checks value-zone Over, tiebreak probability, player game differential, and balance of handicap.</p><div id="s1_bChecks"></div></div>
+  </div>
+
+  <div class="section-title">Profile C — Handicap &amp; Winner Ranking</div>
+  <div class="ranking-card">
+    <div id="s1_cTop"></div>
+    <div class="ev-row"><label>Your probability estimate for top pick</label><input type="number" step="0.1" id="s1_c_userProb" placeholder="%"><span>→</span><span id="s1_c_evBadge" class="ev-badge empty">Enter your % to compute EV</span></div>
+    <div id="s1_cList"></div>
+  </div>
+
+  <div class="section-title">Profile D — Best Specific Line Finder</div>
+  <div class="ranking-card">
+    <div id="s1_dTop"></div>
+    <div class="ev-row"><label>Your probability estimate for top pick</label><input type="number" step="0.1" id="s1_d_userProb" placeholder="%"><span>→</span><span id="s1_d_evBadge" class="ev-badge empty">Enter your % to compute EV</span></div>
+    <div id="s1_dList"></div>
+  </div>
+  <button class="reset-btn" onclick="clearScopeFields('s1')">Clear 1st Set fields</button>
+</section>
+
+<!-- ===================== SHARED LOG ===================== -->
+<div class="section-title" style="margin-top:34px;">Screening Log <span class="st-hint">shared across both tabs · session only — export to keep</span></div>
+<div class="history-card">
+  <div class="history-actions">
+    <button class="btn primary" onclick="saveScreening(currentScope)">Save current tab</button>
+    <button class="btn" onclick="exportJSON()">Export JSON</button>
+    <button class="btn" onclick="exportCSV()">Export CSV</button>
+    <span class="btn file-btn">Import JSON<input type="file" accept="application/json" onchange="importJSON(event)"></span>
+    <button class="btn danger" onclick="clearHistory()">Clear log</button>
+  </div>
+  <div id="historyTableWrap"></div>
+</div>
+<footer>
+  Screening tool only. The Market Expected Games (MEG) and Correct Score Intelligence are derived mathematically from odds you enter. No model guarantees outcomes or produces positive EV against a bookmaker independently. Not financial advice. Fully offline — no data leaves this page.
+</footer>
+</div>
+<script>
+/* =========================================================
+   TENNIS MATCHDAY SCREENER — LOGIC ENGINE v1
+   Core innovation vs basketball: tennis offers a CORRECT SCORE
+   market that gives an independent, market-derived probability
+   distribution over match structures. This lets us cross-check
+   the totals MET against the implied expected games from
+   correct score odds — a second independent signal available
+   in no other sport at this level of detail.
+   =========================================================
+
+   KEY TENNIS CONCEPTS:
+   MEG  = Market Expected Games (the totals balance point, same
+          algorithm as basketball MET but in games not points)
+   PGD  = Player Game Differential (P1_MEG + P2_MEG vs Match_MEG)
+   CSI  = Correct Score Intelligence (derived from CS odds)
+   TB%  = Tiebreak probability (7-6 + 6-7 combined normalized %)
+   ========================================================= */
+
+/* =========================================================
+   SECTION 1 — CONFIG
+   ========================================================= */
+var TNS = {
+  STRONG_SIGNAL:  0.61,
+  MOD_SIGNAL:     0.55,
+  VALUE_ZONE:     2.5,    /* games from MEG for value zone */
+  PGD_TIGHT:      1.5,    /* player game diff tolerance */
+  PGD_STRONG:     3.0,
+  SCALE_TIGHT:    2.0,    /* 1st-set scale check tolerance */
+  SCALE_STRONG:   5.0,
+  TB_HIGH:        0.22,   /* >22% tiebreak probability = significant */
+  TB_MOD:         0.14,
+  STRONG:         0.72,
+  BORDERLINE:     0.45,
+  C_GREEN:        76,
+  C_AMBER:        60,
+  /* Surface modifier applied to Over/Under signal thresholds (% points) */
+  SURFACE_MOD: { clay:-2, grass:2, hard:0, carpet:-1 },
+  /* Scale factors: 1st set MEG × factor ≈ Full Match MEG */
+  SCALE_FACTOR: { bo3:2.4, bo5:4.1 },
+  /* Expected games per 1st set correct score */
+  SET_GAMES: {
+    "6-0":6,"6-1":7,"6-2":8,"6-3":9,"6-4":10,"7-5":12,"7-6":13,
+    "0-6":6,"1-6":7,"2-6":8,"3-6":9,"4-6":10,"5-7":12,"6-7":13
+  },
+  /* Approximate expected games per full-match correct score (best of 3) */
+  MATCH_GAMES_BO3: { "2-0":19,"0-2":19,"2-1":29,"1-2":29 },
+  /* Best of 5 */
+  MATCH_GAMES_BO5: { "3-0":28,"0-3":28,"3-1":37,"1-3":37,"3-2":46,"2-3":46 }
+};
+
+/* =========================================================
+   SECTION 2 — PRIMITIVES
+   ========================================================= */
+function tNum(id){
+  var el=document.getElementById(id);
+  if(!el||el.value==="") return null;
+  var v=parseFloat(el.value);
+  return isNaN(v)||v<=0?null:v;
+}
+function tNumSigned(id){
+  var el=document.getElementById(id);
+  if(!el||el.value==="") return null;
+  var v=parseFloat(el.value);
+  return isNaN(v)?null:v;
+}
+function tImplied(o){ return o?1/o:0; }
+function tRound(n,dp){ var m=Math.pow(10,dp||1); return Math.round(n*m)/m; }
+function tTierPct(p){ return p>=TNS.C_GREEN?"green":(p>=TNS.C_AMBER?"amber":"red"); }
+function tSignalTier(normProb, surfaceMod){
+  var strong = TNS.STRONG_SIGNAL + (surfaceMod||0)/100;
+  var mod    = TNS.MOD_SIGNAL    + (surfaceMod||0)/100;
+  if(normProb>=strong) return "green";
+  if(normProb>=mod)    return "amber";
+  return "red";
+}
+function getSurface(scope){
+  var el=document.getElementById(scope+"_surface");
+  return el?el.value:"hard";
+}
+function getFormat(scope){
+  var el=document.getElementById(scope+"_format");
+  return el?el.value:"bo3";
+}
+
+/* =========================================================
+   SECTION 3 — LINE PARSERS
+   ========================================================= */
+function parseOULines(prefix, count){
+  var lines=[];
+  for(var i=1;i<=count;i++){
+    var line=tNum(prefix+"_L"+i);
+    var over=tNum(prefix+"_O"+i);
+    var under=tNum(prefix+"_U"+i);
+    if(line!==null&&over!==null&&under!==null){
+      var io=tImplied(over), iu=tImplied(under), s=io+iu;
+      lines.push({line:line,over:over,under:under,normOver:io/s,normUnder:iu/s,margin:tRound((s-1)*100,1)});
+    }
+  }
+  lines.sort(function(a,b){return a.line-b.line;});
+  return lines;
+}
+function parseHDPLines(prefix, count){
+  var lines=[];
+  for(var i=1;i<=count;i++){
+    var line=tNumSigned(prefix+"_HL"+i);
+    var t1=tNum(prefix+"_HT1_"+i);
+    var t2=tNum(prefix+"_HT2_"+i);
+    if(line!==null&&t1!==null&&t2!==null){
+      var i1=tImplied(t1),i2=tImplied(t2),s=i1+i2;
+      lines.push({line:line,t1:t1,t2:t2,normT1:i1/s,normT2:i2/s});
+    }
+  }
+  return lines;
+}
+
+/* =========================================================
+   SECTION 4 — MEG (MARKET EXPECTED GAMES) ALGORITHM
+   Identical to basketball MET — finds 50% crossover point.
+   ========================================================= */
+function computeMEG(lines){
+  if(!lines||lines.length===0) return null;
+  if(lines.length===1){
+    return {meg:lines[0].line,approx:true,analyzed:lines,valueZone:{bestOver:null,bestUnder:null}};
+  }
+  var megLine=null;
+  for(var i=0;i<lines.length-1;i++){
+    var a=lines[i], b=lines[i+1];
+    if(a.normOver>=0.50&&b.normOver<=0.50){
+      var span=b.line-a.line;
+      var ratio=(a.normOver-0.50)/(a.normOver-b.normOver);
+      megLine=a.line+ratio*span;
+      break;
+    }
+  }
+  if(megLine===null){
+    var closest=lines.reduce(function(best,cur){
+      return Math.abs(cur.normOver-0.50)<Math.abs(best.normOver-0.50)?cur:best;
+    });
+    megLine=closest.line;
+  }
+  megLine=tRound(megLine,1);
+  var Z=TNS.VALUE_ZONE;
+  var underCands=lines.filter(function(l){return l.line>megLine&&l.line<=megLine+Z;})
+    .sort(function(a,b){return b.normUnder-a.normUnder;});
+  var overCands=lines.filter(function(l){return l.line<megLine&&l.line>=megLine-Z;})
+    .sort(function(a,b){return b.normOver-a.normOver;});
+  return {
+    meg:megLine, approx:false, analyzed:lines,
+    valueZone:{bestUnder:underCands[0]||null, bestOver:overCands[0]||null}
+  };
+}
+
+/* =========================================================
+   SECTION 5 — CROSS-MARKET CHECKS
+   ========================================================= */
+function playerGameDifferential(p1Meg, p2Meg, matchMeg){
+  if(p1Meg===null||p2Meg===null||matchMeg===null) return null;
+  var combined=tRound(p1Meg+p2Meg,1);
+  var diff=tRound(combined-matchMeg,1);
+  var signal=Math.abs(diff)<=TNS.PGD_TIGHT?"consistent":(diff>0?"overSum":"underSum");
+  var strength=Math.abs(diff)>=TNS.PGD_STRONG?"strong":"moderate";
+  return {p1Meg:p1Meg, p2Meg:p2Meg, matchMeg:matchMeg, combined:combined, diff:diff, signal:signal, strength:strength};
+}
+
+function setScaleCheck(s1Meg, format, matchMeg){
+  if(s1Meg===null||matchMeg===null) return null;
+  var factor=TNS.SCALE_FACTOR[format]||TNS.SCALE_FACTOR.bo3;
+  var projected=tRound(s1Meg*factor,1);
+  var diff=tRound(projected-matchMeg,1);
+  var signal;
+  if(Math.abs(diff)<=TNS.SCALE_TIGHT)         signal="consistent";
+  else if(diff>TNS.SCALE_STRONG)               signal="fastPace";
+  else if(diff>TNS.SCALE_TIGHT)                signal="slightlyFast";
+  else if(diff<-TNS.SCALE_STRONG)              signal="slowPace";
+  else                                         signal="slightlySlow";
+  return {projected:projected, matchMeg:matchMeg, diff:diff, signal:signal, factor:factor};
+}
+
+function analyzeHDP(lines){
+  if(!lines||lines.length===0) return null;
+  var sorted=lines.slice().sort(function(a,b){return a.line-b.line;});
+  var megLine=null;
+  for(var i=0;i<sorted.length-1;i++){
+    var a=sorted[i], b=sorted[i+1];
+    if(a.normT1>=0.50&&b.normT1<=0.50){
+      var span=b.line-a.line;
+      var ratio=(a.normT1-0.50)/(a.normT1-b.normT1);
+      megLine=tRound(a.line+ratio*span,1);
+      break;
+    }
+  }
+  if(megLine===null){
+    megLine=sorted.reduce(function(best,cur){
+      return Math.abs(cur.normT1-0.50)<Math.abs(best.normT1-0.50)?cur:best;
+    }).line;
+  }
+  var bestLine=sorted.reduce(function(best,cur){
+    return Math.abs(cur.normT1-0.50)<Math.abs(best.normT1-0.50)?cur:best;
+  });
+  return {balanceLine:megLine, all:sorted, bestLine:bestLine};
+}
+
+/* =========================================================
+   SECTION 6 — CORRECT SCORE INTELLIGENCE (CSI)
+   The unique tennis innovation: parse correct score odds to
+   derive match-structure probabilities independent of the
+   totals market, then cross-check against MEG.
+   ========================================================= */
+function correctScoreIntelligence(scope, marketType){
+  /*
+   * marketType = "match" (2-0, 2-1, 0-2, 1-2 or 3-0...2-3)
+   *            = "set"   (6-0, 6-1...7-6 and mirrors)
+   * Reads input fields, normalizes, computes:
+   *   decisive%, competitive%, tiebreak%, expectedGames, mostLikelyScore
+   */
+  var prefix=scope+"_cs";
+  var format=getFormat(scope);
+
+  if(marketType==="set"){
+    var setScores=["6-0","6-1","6-2","6-3","6-4","7-5","7-6","0-6","1-6","2-6","3-6","4-6","5-7","6-7"];
+    var raw=[];
+    setScores.forEach(function(sc){
+      var elId=prefix+"_"+sc.replace("-","_");
+      var o=tNum(elId);
+      if(o!==null) raw.push({score:sc, odds:o, implied:tImplied(o)});
+    });
+    if(raw.length===0) return null;
+    var totalImplied=raw.reduce(function(s,r){return s+r.implied;},0);
+    raw.forEach(function(r){r.normProb=tRound(r.implied/totalImplied*100,1);});
+    var decisive=0,competitive=0,tiebreak=0;
+    var expectedGames=0, maxProb=0, mostLikely=null;
+    raw.forEach(function(r){
+      var gm=TNS.SET_GAMES[r.score]||0;
+      expectedGames+=r.normProb/100*gm;
+      if(r.normProb>maxProb){maxProb=r.normProb;mostLikely=r;}
+      if(r.score==="7-6"||r.score==="6-7") tiebreak+=r.normProb/100;
+      if(gm<=8) decisive+=r.normProb/100;
+      else competitive+=r.normProb/100;
+    });
+    expectedGames=tRound(expectedGames,1);
+    return {type:"set",scores:raw,decisive:tRound(decisive*100,1),
+      competitive:tRound(competitive*100,1),tiebreak:tRound(tiebreak*100,1),
+      expectedGames:expectedGames,mostLikely:mostLikely,totalImplied:totalImplied};
+  } else {
+    var matchScores=format==="bo3"?["2-0","2-1","0-2","1-2"]:["3-0","3-1","3-2","0-3","1-3","2-3"];
+    var gameLookup=format==="bo3"?TNS.MATCH_GAMES_BO3:TNS.MATCH_GAMES_BO5;
+    var raw2=[];
+    matchScores.forEach(function(sc){
+      var elId=prefix+"_"+sc.replace("-","_");
+      var o=tNum(elId);
+      if(o!==null) raw2.push({score:sc, odds:o, implied:tImplied(o)});
+    });
+    if(raw2.length===0) return null;
+    var totalImplied2=raw2.reduce(function(s,r){return s+r.implied;},0);
+    raw2.forEach(function(r){r.normProb=tRound(r.implied/totalImplied2*100,1);});
+    var decisive2=0,competitive2=0,expectedGames2=0,maxProb2=0,mostLikely2=null;
+    raw2.forEach(function(r){
+      var gm=gameLookup[r.score]||25;
+      expectedGames2+=r.normProb/100*gm;
+      if(r.normProb>maxProb2){maxProb2=r.normProb;mostLikely2=r;}
+      /* Decisive = straight sets (2-0 or 0-2) */
+      if(r.score==="2-0"||r.score==="0-2"||r.score==="3-0"||r.score==="0-3") decisive2+=r.normProb/100;
+      else competitive2+=r.normProb/100;
+    });
+    expectedGames2=tRound(expectedGames2,1);
+    return {type:"match",scores:raw2,decisive:tRound(decisive2*100,1),
+      competitive:tRound(competitive2*100,1),tiebreak:0,
+      expectedGames:expectedGames2,mostLikely:mostLikely2,totalImplied:totalImplied2};
+  }
+}
+
+function renderCSIPanel(containerId, csi, meg){
+  var el=document.getElementById(containerId);
+  if(!el) return;
+  if(!csi){el.innerHTML="<div class=\"csi-empty\">Enter correct score odds above to unlock this panel.</div>";return;}
+
+  var vsSignal="", vsColor="", vsDetail="";
+  if(csi.expectedGames&&meg){
+    var diff=tRound(csi.expectedGames-meg,1);
+    if(Math.abs(diff)<=1.5){vsSignal="Consistent";vsColor="var(--muted)";}
+    else if(diff>1.5){vsSignal="CS implies MORE games (+"+diff+")";vsColor="var(--over)";}
+    else{vsSignal="CS implies FEWER games ("+diff+")";vsColor="var(--under)";}
+    vsDetail="CS expected games: "+csi.expectedGames+" vs MEG: "+meg+" (diff: "+(diff>0?"+":"")+diff+")";
+  }
+
+  var scoresHTML=csi.scores.map(function(s){
+    var bar=Math.min(s.normProb*3,100);
+    var isMostLikely=csi.mostLikely&&s.score===csi.mostLikely.score;
+    return "<div class=\"csi-score"+(isMostLikely?" csi-top":"")+"\">"
+      +"<span class=\"csi-sc\">"+s.score+"</span>"
+      +"<div class=\"csi-bar-wrap\"><div class=\"csi-bar\" style=\"width:"+bar+"%;background:"+(isMostLikely?"var(--gold)":"var(--muted)")+"\"></div></div>"
+      +"<span class=\"csi-pct\">"+s.normProb+"%</span>"
+      +"</div>";
+  }).join("");
+
+  var tbHTML=csi.type==="set"?"<div class=\"csi-stat\"><span>🎾 Tiebreak probability:</span><strong style=\"color:"+(csi.tiebreak>=22?"var(--over)":csi.tiebreak>=14?"var(--amber)":"var(--muted)")+"\">"+(csi.tiebreak||0)+"%</strong></div>":"";
+
+  el.innerHTML="<div class=\"csi-stats\">"
+    +"<div class=\"csi-stat\"><span>Decisive outcome:</span><strong style=\"color:var(--under)\">"+csi.decisive+"%</strong></div>"
+    +"<div class=\"csi-stat\"><span>Competitive outcome:</span><strong style=\"color:var(--over)\">"+csi.competitive+"%</strong></div>"
+    +tbHTML
+    +"<div class=\"csi-stat\"><span>CS expected games:</span><strong>"+csi.expectedGames+"</strong></div>"
+    +(csi.mostLikely?"<div class=\"csi-stat\"><span>Most likely score:</span><strong style=\"color:var(--gold)\">"+csi.mostLikely.score+" ("+csi.mostLikely.normProb+"%)</strong></div>":"")
+    +(vsSignal?"<div class=\"csi-stat csi-vs\"><span>vs Totals MEG:</span><strong style=\"color:"+vsColor+"\">"+vsSignal+"</strong></div>":"")
+    +(vsDetail?"<div class=\"csi-detail\">"+vsDetail+"</div>":"")
+    +"</div>"
+    +"<div class=\"csi-scores\">"+scoresHTML+"</div>";
+}
+
+/* =========================================================
+   SECTION 7 — RENDER HELPERS
+   ========================================================= */
+function renderChecks(containerId, checks){
+  var c=document.getElementById(containerId);
+  if(!c) return;
+  c.innerHTML="";
+  checks.forEach(function(chk,i){
+    var row=document.createElement("div");
+    row.className="check";
+    row.innerHTML="<div class=\"check-num\">"+(i+1)+"</div>"
+      +"<div class=\"check-text\"><span class=\"ct-label\">"+chk.title+"</span>"
+      +"<span class=\"ct-detail\">"+chk.detail+"</span></div>"
+      +"<div class=\"pill "+chk.status+"\">"+chk.pillText+"</div>";
+    c.appendChild(row);
+  });
+}
+function pushCheck(arr,title,detail,status,pill){
+  arr.push({title:title,detail:detail,status:status,pillText:pill});
+}
+
+function updateBoard(lampsId, scoreId, verdictId, checks){
+  var completed=checks.filter(function(c){return c.status!=="empty";});
+  var greens=checks.filter(function(c){return c.status==="green";}).length;
+  var ambers=checks.filter(function(c){return c.status==="amber";}).length;
+  var score=greens+ambers*0.5;
+  var el=document.getElementById(scoreId);
+  if(el) el.textContent=completed.length+"/5 checked";
+  var lamps=document.querySelectorAll("#"+lampsId+" .lamp");
+  checks.forEach(function(c,i){if(lamps[i])lamps[i].className="lamp"+(c.status!=="empty"?" "+c.status:"");});
+  var v=document.getElementById(verdictId);
+  if(!v) return{score:score,completed:completed.length,ratio:0};
+  if(completed.length===0){v.className="board-verdict empty";v.textContent="Enter odds to screen";return{score:0,completed:0,ratio:0};}
+  var ratio=score/completed.length, text,cls;
+  if(completed.length<2){text="Enter more odds for a read";cls="amber";}
+  else if(ratio>=TNS.STRONG){text="Strong candidate";cls="green";}
+  else if(ratio>=TNS.BORDERLINE){text="Borderline — closer look needed";cls="amber";}
+  else{text="Poor fit — consider skipping";cls="red";}
+  v.className="board-verdict "+cls; v.textContent=text;
+  return{score:score,completed:completed.length,ratio:ratio};
+}
+
+function renderMEGDisplay(elId, megResult){
+  var el=document.getElementById(elId);
+  if(!el) return;
+  if(!megResult){el.innerHTML="<span class=\"met-empty\">— enter lines above</span>";return;}
+  var vz=megResult.valueZone;
+  var html="<span class=\"met-value\">"+megResult.meg+(megResult.approx?" <span class=\"met-approx\">(1 line — approx)</span>":"")+"</span>";
+  if(vz&&vz.bestOver) html+=" <span class=\"met-tag over\">Best Over: "+vz.bestOver.line+" @ "+vz.bestOver.over.toFixed(2)+" ("+tRound(vz.bestOver.normOver*100,1)+"%)</span>";
+  if(vz&&vz.bestUnder) html+=" <span class=\"met-tag under\">Best Under: "+vz.bestUnder.line+" @ "+vz.bestUnder.under.toFixed(2)+" ("+tRound(vz.bestUnder.normUnder*100,1)+"%)</span>";
+  el.innerHTML=html;
+}
+
+function renderRanking(topId, listId, options){
+  var topEl=document.getElementById(topId), listEl=document.getElementById(listId);
+  if(!topEl||!listEl) return{topLabel:null,topOdds:null,topProb:0};
+  if(!options||options.length===0){
+    topEl.innerHTML="";
+    listEl.innerHTML="<div class=\"rank-empty-note\">Enter odds above to rank options here.</div>";
+    return{topLabel:null,topOdds:null,topProb:0};
+  }
+  options.sort(function(a,b){return b.prob-a.prob;});
+  var top=options[0];
+  var t=tTierPct(top.prob);
+  topEl.innerHTML="<div class=\"ranking-top\"><div><div class=\"rt-label\">Highest-probability option</div><div class=\"rt-name\">"+top.label+" <span style=\"color:var(--muted);font-size:13px;\">@ "+top.odds.toFixed(2)+"</span></div></div><div class=\"rt-prob\" style=\"color:var(--"+t+")\">"+top.prob.toFixed(1)+"%</div></div>";
+  listEl.innerHTML=options.map(function(o){
+    var tt=tTierPct(o.prob);
+    return "<div class=\"rank-row\"><div class=\"rk-label\">"+o.label+"</div><div class=\"rk-odds\">"+o.odds.toFixed(2)+"</div><div class=\"prob-bar-wrap\"><div class=\"prob-bar "+tt+"\" style=\"width:"+Math.min(o.prob,100).toFixed(1)+"%\"></div></div><div class=\"rk-pct\" style=\"color:var(--"+tt+");\">"+o.prob.toFixed(1)+"%</div></div>";
+  }).join("");
+  return{topLabel:top.label,topOdds:top.odds,topProb:top.prob};
+}
+
+function renderEV(userProbId, badgeId, topLabel, topOdds){
+  var badge=document.getElementById(badgeId);
+  if(!badge) return;
+  var up=tNum(userProbId);
+  if(topLabel&&up!==null){
+    var ev=(up/100*topOdds)-1, pct=tRound(ev*100,1);
+    badge.className="ev-badge "+(ev>=0?"pos":"neg");
+    badge.textContent="EV on \""+topLabel+"\": "+(ev>=0?"+":"")+pct+"% (your "+up+"% vs price "+topOdds.toFixed(2)+")";
+  } else if(topLabel){
+    badge.className="ev-badge empty";
+    badge.textContent="Enter your probability % to compute EV on \""+topLabel+"\" @ "+topOdds.toFixed(2);
+  } else {
+    badge.className="ev-badge empty";
+    badge.textContent="Enter your % to compare against the price";
+  }
+}
+
+function updateLineBadges(scope, market, count){
+  for(var i=1;i<=count;i++){
+    var badge=document.getElementById(scope+"_"+market+"_P"+i);
+    if(!badge) continue;
+    var over=tNum(scope+"_"+market+"_O"+i);
+    var under=tNum(scope+"_"+market+"_U"+i);
+    if(over===null||under===null){badge.className="line-prob neutral";badge.textContent="—";continue;}
+    var io=tImplied(over),iu=tImplied(under),s=io+iu;
+    var nO=io/s, nU=iu/s;
+    if(nO>nU){badge.className="line-prob over-lead";badge.textContent="Over "+tRound(nO*100,1)+"%";}
+    else{badge.className="line-prob under-lead";badge.textContent="Under "+tRound(nU*100,1)+"%";}
+  }
+}
+
+/* =========================================================
+   SECTION 8 — PROFILE BUILDERS
+   ========================================================= */
+function buildProfileA(megResult, pgd, scaleRes, hdpRes, sHdpRes, csi, w1, w2, surface){
+  /* Under evidence — fewer games (decisive match) */
+  var checks=[], sm=TNS.SURFACE_MOD[surface]||0;
+
+  /* A1: Value-zone Under line */
+  if(megResult&&megResult.valueZone&&megResult.valueZone.bestUnder){
+    var bu=megResult.valueZone.bestUnder;
+    var prob=tRound(bu.normUnder*100,1);
+    var st=tSignalTier(bu.normUnder, -sm);
+    pushCheck(checks,"Best Under in value zone",
+      "Line "+bu.line+" is "+tRound(bu.line-megResult.meg,1)+" games above MEG ("+megResult.meg+"). Norm Under: "+prob+"%"+
+      (sm!==0?" ["+surface+" surface adj applied]":""),st,prob+"%");
+  } else if(megResult&&megResult.analyzed&&megResult.analyzed.length>0){
+    var bestU=megResult.analyzed.slice().sort(function(a,b){return b.normUnder-a.normUnder;})[0];
+    var p2=tRound(bestU.normUnder*100,1);
+    pushCheck(checks,"Best Under from entered lines",
+      "Line "+bestU.line+". Norm Under: "+p2+"% — no line in value zone (±"+TNS.VALUE_ZONE+" games of MEG "+megResult.meg+")",
+      tSignalTier(bestU.normUnder,-sm),p2+"%");
+  } else {
+    pushCheck(checks,"Game total lines","Enter at least one Over/Under line pair","empty","—");
+  }
+
+  /* A2: Correct Score decisiveness */
+  if(csi){
+    var dec=csi.decisive, st2;
+    if(dec>=55) st2="green";
+    else if(dec>=40) st2="amber";
+    else st2="red";
+    var csDetail="Decisive outcome prob: "+dec+"% | Competitive: "+csi.competitive+"%";
+    if(csi.tiebreak>0) csDetail+=" | Tiebreak: "+csi.tiebreak+"%";
+    if(csi.mostLikely) csDetail+=" | Most likely: "+csi.mostLikely.score+" ("+csi.mostLikely.normProb+"%)";
+    pushCheck(checks,"Correct Score — decisive probability",csDetail,st2,dec+"%");
+  } else {
+    pushCheck(checks,"Correct Score decisiveness","Enter correct score odds to unlock this check","empty","—");
+  }
+
+  /* A3: Player Game Differential */
+  if(pgd){
+    var st3, detail3, pill3;
+    if(pgd.signal==="underSum"){
+      st3=Math.abs(pgd.diff)>=TNS.PGD_STRONG?"green":"amber";
+      detail3="P1 MEG ("+pgd.p1Meg+") + P2 MEG ("+pgd.p2Meg+") = "+pgd.combined+" vs Match MEG "+pgd.matchMeg+" ("+pgd.diff+" games low) — teams expected to play fewer games → Under signal";
+      pill3=pgd.diff+" games";
+    } else if(pgd.signal==="overSum"){
+      st3="red";
+      detail3="P1+P2 MEG sum ("+pgd.combined+") is "+pgd.diff+" games above Match MEG ("+pgd.matchMeg+") — more games expected → works against Under";
+      pill3="+"+pgd.diff+" games";
+    } else {
+      st3="amber";
+      detail3="P1+P2 MEG ("+pgd.combined+") consistent with Match MEG ("+pgd.matchMeg+", diff:"+pgd.diff+") — neutral signal";
+      pill3="Neutral";
+    }
+    pushCheck(checks,"Player Game Differential",detail3,st3,pill3);
+  } else {
+    pushCheck(checks,"Player Game Differential","Enter P1 and P2 total game lines AND match total lines","empty","—");
+  }
+
+  /* A4: 1st set scale check */
+  if(scaleRes){
+    var st4,detail4,pill4;
+    if(scaleRes.signal==="slowPace"||scaleRes.signal==="slightlySlow"){
+      st4=scaleRes.signal==="slowPace"?"green":"amber";
+      detail4="1st set MEG × "+scaleRes.factor+" projects "+scaleRes.projected+" games vs Match MEG "+scaleRes.matchMeg+" ("+scaleRes.diff+" games low). Decisive start → supports Under.";
+      pill4=scaleRes.diff+" games";
+    } else if(scaleRes.signal==="fastPace"||scaleRes.signal==="slightlyFast"){
+      st4="red";
+      detail4="1st set projects "+scaleRes.projected+" games vs Match MEG "+scaleRes.matchMeg+" (+"+scaleRes.diff+" games). Long match pace expected → works against Under.";
+      pill4="+"+scaleRes.diff+" games";
+    } else {
+      st4="amber";
+      detail4="1st set scale consistent. Projects "+scaleRes.projected+" vs Match MEG "+scaleRes.matchMeg+" (diff: "+scaleRes.diff+")";
+      pill4="Consistent";
+    }
+    pushCheck(checks,"1st Set → Match scale check",detail4,st4,pill4);
+  } else {
+    pushCheck(checks,"1st Set → Match scale","Fill 1st Set tab to enable this cross-scope check","empty","—");
+  }
+
+  /* A5: Set handicap and match structure */
+  if(sHdpRes){
+    var abs=Math.abs(sHdpRes.balanceLine);
+    var st5, detail5, pill5;
+    if(abs>=1.5){
+      /* One player expected to win by ≥ 1.5 sets → likely straight sets → Under */
+      st5="green";
+      detail5="Set handicap balance at ±"+abs+" sets — strong lean suggests straight-sets outcome → supports Under total games.";
+      pill5="±"+abs+" sets";
+    } else {
+      st5="amber";
+      detail5="Set handicap balance at ±"+tRound(abs,1)+" sets — match likely contested ("+(abs<0.5?"very close":"slight lean")+"). Neutral Under signal.";
+      pill5="±"+abs+" sets";
+    }
+    pushCheck(checks,"Set handicap structure",detail5,st5,pill5);
+  } else if(w1&&w2){
+    var io=tImplied(w1), i2=tImplied(w2), s=io+i2;
+    var favProb=tRound(Math.max(io,i2)/s*100,1);
+    var st5b=(favProb>=65?"green":favProb>=58?"amber":"red");
+    var d5b="Match winner: favourite at "+favProb+"%. "+(favProb>=65?"Heavy favourite likely to win straight sets → supports Under.":favProb>=58?"Moderate favourite — match could go to 3 sets.":"Even match likely to go distance.");
+    pushCheck(checks,"Match winner strength",d5b,st5b,favProb+"% fav");
+  } else {
+    pushCheck(checks,"Set handicap / Match structure","Enter set handicap or match winner odds","empty","—");
+  }
+
+  return checks;
+}
+
+function buildProfileB(megResult, pgd, scaleRes, hdpRes, sHdpRes, csi, w1, w2, surface){
+  /* Over evidence — more games (competitive match) */
+  var checks=[], sm=TNS.SURFACE_MOD[surface]||0;
+
+  /* B1: Value-zone Over line */
+  if(megResult&&megResult.valueZone&&megResult.valueZone.bestOver){
+    var bo=megResult.valueZone.bestOver;
+    var prob=tRound(bo.normOver*100,1);
+    var st=tSignalTier(bo.normOver, sm);
+    pushCheck(checks,"Best Over in value zone",
+      "Line "+bo.line+" is "+tRound(megResult.meg-bo.line,1)+" games below MEG ("+megResult.meg+"). Norm Over: "+prob+"%"+
+      (sm!==0?" ["+surface+" surface adj applied]":""),st,prob+"%");
+  } else if(megResult&&megResult.analyzed&&megResult.analyzed.length>0){
+    var bestO=megResult.analyzed.slice().sort(function(a,b){return b.normOver-a.normOver;})[0];
+    var p2=tRound(bestO.normOver*100,1);
+    pushCheck(checks,"Best Over from entered lines",
+      "Line "+bestO.line+". Norm Over: "+p2+"% — no line in value zone (±"+TNS.VALUE_ZONE+" games of MEG)",
+      tSignalTier(bestO.normOver,sm),p2+"%");
+  } else {
+    pushCheck(checks,"Game total lines","Enter at least one Over/Under line pair","empty","—");
+  }
+
+  /* B2: Correct Score competitiveness + tiebreak */
+  if(csi){
+    var comp=csi.competitive, tb=csi.tiebreak||0;
+    var st2=(comp>=45||tb>=TNS.TB_HIGH*100)?"green":(comp>=30||tb>=TNS.TB_MOD*100)?"amber":"red";
+    var csDetail="Competitive outcome prob: "+comp+"% | Decisive: "+csi.decisive+"%";
+    if(tb>0) csDetail+=" | 🎾 Tiebreak: "+tb+"%"+(tb>=TNS.TB_HIGH*100?" (SIGNIFICANT)":"");
+    if(csi.mostLikely) csDetail+=" | Most likely: "+csi.mostLikely.score+" ("+csi.mostLikely.normProb+"%)";
+    /* Extra tiebreak signal for 1st set */
+    if(tb>=TNS.TB_HIGH*100) csDetail+=" — Tiebreak (13 games) signals Over";
+    pushCheck(checks,"Correct Score — competitive probability",csDetail,st2,comp+"% + "+tb+"% TB");
+  } else {
+    pushCheck(checks,"Correct Score competitiveness","Enter correct score odds to unlock this check","empty","—");
+  }
+
+  /* B3: Player Game Differential */
+  if(pgd){
+    var st3, detail3, pill3;
+    if(pgd.signal==="overSum"){
+      st3=Math.abs(pgd.diff)>=TNS.PGD_STRONG?"green":"amber";
+      detail3="P1 MEG ("+pgd.p1Meg+") + P2 MEG ("+pgd.p2Meg+") = "+pgd.combined+" vs Match MEG "+pgd.matchMeg+" (+"+pgd.diff+" games) — both players expected to score well → Over signal";
+      pill3="+"+pgd.diff+" games";
+    } else if(pgd.signal==="underSum"){
+      st3="red";
+      detail3="P1+P2 sum ("+pgd.combined+") is "+Math.abs(pgd.diff)+" games below Match MEG ("+pgd.matchMeg+") → works against Over";
+      pill3=pgd.diff+" games";
+    } else {
+      st3="amber";
+      detail3="P1+P2 MEG ("+pgd.combined+") consistent with Match MEG ("+pgd.matchMeg+"). Neutral.";
+      pill3="Neutral";
+    }
+    pushCheck(checks,"Player Game Differential",detail3,st3,pill3);
+  } else {
+    pushCheck(checks,"Player Game Differential","Enter P1 and P2 total game lines AND match total lines","empty","—");
+  }
+
+  /* B4: Scale check — fast pace = more games */
+  if(scaleRes){
+    var st4,detail4,pill4;
+    if(scaleRes.signal==="fastPace"||scaleRes.signal==="slightlyFast"){
+      st4=scaleRes.signal==="fastPace"?"green":"amber";
+      detail4="1st set projects "+scaleRes.projected+" games vs Match MEG "+scaleRes.matchMeg+" (+"+scaleRes.diff+" games). Long match expected → supports Over.";
+      pill4="+"+scaleRes.diff+" games";
+    } else if(scaleRes.signal==="slowPace"||scaleRes.signal==="slightlySlow"){
+      st4="red";
+      detail4="1st set projects "+scaleRes.projected+" vs Match MEG "+scaleRes.matchMeg+" ("+scaleRes.diff+" games). Decisive start → works against Over.";
+      pill4=scaleRes.diff+" games";
+    } else {
+      st4="amber";
+      detail4="1st set scale consistent. Neutral Over signal.";
+      pill4="Consistent";
+    }
+    pushCheck(checks,"1st Set → Match scale check",detail4,st4,pill4);
+  } else {
+    pushCheck(checks,"1st Set → Match scale","Fill 1st Set tab to enable this cross-scope check","empty","—");
+  }
+
+  /* B5: Tight handicap / Even match */
+  if(hdpRes){
+    var abs=Math.abs(hdpRes.balanceLine);
+    var st5=(abs<=1.5?"green":abs<=3?"amber":"red");
+    var detail5="Game handicap balance at ±"+tRound(abs,1)+" games. "+(abs<=1.5?"Very even — contested game expected, more total games → supports Over.":abs<=3?"Moderate lean — match could be close.":"Significant lean — dominant winner possible.");
+    pushCheck(checks,"Game handicap spread (closeness)",detail5,st5,"±"+abs+" games");
+  } else if(w1&&w2){
+    var io=tImplied(w1), i2=tImplied(w2), s=io+i2;
+    var favProb=tRound(Math.max(io,i2)/s*100,1);
+    var st5b=(favProb<=58?"green":favProb<=65?"amber":"red");
+    var d5b="Favourite at "+favProb+"%. "+(favProb<=58?"Even match — likely 3 sets, more total games → supports Over.":favProb<=65?"Moderate favourite.":"Heavy favourite — straight sets possible.");
+    pushCheck(checks,"Match balance (winner odds)",d5b,st5b,favProb+"% fav");
+  } else {
+    pushCheck(checks,"Game handicap / Match balance","Enter game handicap or match winner odds","empty","—");
+  }
+
+  return checks;
+}
+
+function buildProfileC(gHdpRes, sHdpRes, w1, w2){
+  var options=[];
+  if(gHdpRes&&gHdpRes.all){
+    gHdpRes.all.forEach(function(l){
+      var sign=l.line>=0?"+":"";
+      options.push({label:"P1 ("+sign+l.line+") game hdp",odds:l.t1,prob:l.normT1*100});
+      options.push({label:"P2 ("+(l.line>=0?"-":"+")+Math.abs(l.line)+") game hdp",odds:l.t2,prob:l.normT2*100});
+    });
+  }
+  if(sHdpRes&&sHdpRes.all){
+    sHdpRes.all.forEach(function(l){
+      var sign=l.line>=0?"+":"";
+      options.push({label:"P1 ("+sign+l.line+") set hdp",odds:l.t1,prob:l.normT1*100});
+      options.push({label:"P2 ("+(l.line>=0?"-":"+")+Math.abs(l.line)+") set hdp",odds:l.t2,prob:l.normT2*100});
+    });
+  }
+  if(w1&&w2){
+    var io=tImplied(w1),i2=tImplied(w2),s=io+i2;
+    options.push({label:"P1 Match Win (W1)",odds:w1,prob:io/s*100});
+    options.push({label:"P2 Match Win (W2)",odds:w2,prob:i2/s*100});
+  }
+  return options;
+}
+
+function buildProfileD(gtLines, p1Lines, p2Lines){
+  var options=[];
+  function addLines(lines, label){
+    if(!lines) return;
+    lines.forEach(function(l){
+      var op=l.normOver>l.normUnder;
+      options.push({
+        label:label+(op?" Over ":" Under ")+l.line,
+        odds:op?l.over:l.under,
+        prob:(op?l.normOver:l.normUnder)*100
+      });
+    });
+  }
+  addLines(gtLines,"Match Total");
+  addLines(p1Lines,"P1 Total");
+  addLines(p2Lines,"P2 Total");
+  return options;
+}
+
+/* =========================================================
+   SECTION 9 — MASTER BANNER
+   ========================================================= */
+function writeMasterBanner(scope, aRes, bRes, cRank, dRank, p1Name, p2Name){
+  var label=(p1Name&&p2Name)?(p1Name+" vs "+p2Name):"This match";
+  var mh=document.getElementById(scope+"_masterHeadline");
+  var cr=document.getElementById(scope+"_chipRow");
+  if(!mh||!cr) return;
+
+  var scopeLabel=scope==="rt"?"Regular Time":"1st Set";
+  var aRatio=aRes.completed?aRes.score/aRes.completed:0;
+  var bRatio=bRes.completed?bRes.score/bRes.completed:0;
+  var aPct=aRes.completed>=2?tRound(aRatio*100,0)+"%":"—";
+  var bPct=bRes.completed>=2?tRound(bRatio*100,0)+"%":"—";
+  var cPct=cRank.topLabel?tRound(cRank.topProb,0)+"%":"—";
+  var dPct=dRank.topLabel?tRound(dRank.topProb,0)+"%":"—";
+
+  var aDot=aRes.completed<2?"empty":(aRatio>=TNS.STRONG?"green":aRatio>=TNS.BORDERLINE?"amber":"red");
+  var bDot=bRes.completed<2?"empty":(bRatio>=TNS.STRONG?"green":bRatio>=TNS.BORDERLINE?"amber":"red");
+  var cDot=cRank.topLabel?tTierPct(cRank.topProb):"empty";
+  var dDot=dRank.topLabel?tTierPct(dRank.topProb):"empty";
+
+  cr.innerHTML="<span class=\"chip\"><span class=\"dot "+aDot+"\"></span>A (Under) — "+aPct+"</span>"
+    +"<span class=\"chip\"><span class=\"dot "+bDot+"\"></span>B (Over) — "+bPct+"</span>"
+    +"<span class=\"chip\"><span class=\"dot "+cDot+"\"></span>C (Hdp) — "+cPct+(cRank.topLabel?" · "+cRank.topLabel:"")+"</span>"
+    +"<span class=\"chip\"><span class=\"dot "+dDot+"\"></span>D (Line) — "+dPct+(dRank.topLabel?" · "+dRank.topLabel:"")+"</span>";
+
+  var enoughA=aRes.completed>=2, enoughB=bRes.completed>=2;
+  var nothingYet=!enoughA&&!enoughB&&!cRank.topLabel&&!dRank.topLabel;
+  var headline;
+  if(nothingYet){
+    headline="Enter "+scopeLabel+" odds below — a recommendation will build here.";
+  } else if((enoughA&&aRatio>=TNS.STRONG)||(enoughB&&bRatio>=TNS.STRONG)){
+    if(aRatio>=bRatio){
+      headline="<strong>"+label+" ("+scopeLabel+")</strong>: market favours <span class=\"hl-under\">Under</span> — decisive match expected ("+aPct+" checks support it).";
+    } else {
+      headline="<strong>"+label+" ("+scopeLabel+")</strong>: market favours <span class=\"hl-over\">Over</span> — competitive, longer match expected ("+bPct+" checks support it).";
+    }
+  } else if(dRank.topLabel&&dRank.topProb>=TNS.C_GREEN){
+    headline="<strong>"+label+" ("+scopeLabel+")</strong>: no clean O/U signal — best specific line: <span class=\"hl-amber\">"+dRank.topLabel+"</span> at "+tRound(dRank.topProb,1)+"% (@ "+dRank.topOdds.toFixed(2)+").";
+  } else if(cRank.topLabel&&cRank.topProb>=TNS.C_GREEN){
+    headline="<strong>"+label+" ("+scopeLabel+")</strong>: no clean O/U signal — handicap pick: <span class=\"hl-amber\">"+cRank.topLabel+"</span> at "+tRound(cRank.topProb,1)+"% (@ "+cRank.topOdds.toFixed(2)+").";
+  } else {
+    headline="<strong>"+label+" ("+scopeLabel+")</strong>: <span class=\"hl-red\">no standout selection</span> — add more odds or consider skipping.";
+  }
+  mh.innerHTML=headline;
+
+  window["_tnsState_"+scope]={
+    label:label, scope:scope.toUpperCase(), scopeLabel:scopeLabel,
+    aPct:aPct, bPct:bPct, cPct:cPct+(cRank.topLabel?" ("+cRank.topLabel+")":""),
+    dPct:dPct+(dRank.topLabel?" ("+dRank.topLabel+")":""),
+    recommendation:nothingYet?null:(aRatio>=bRatio&&enoughA?"Under (A "+aPct+")":(enoughB?"Over (B "+bPct+")":(dRank.topLabel?dRank.topLabel:(cRank.topLabel?cRank.topLabel:"No standout"))))
+  };
+}
+
+/* =========================================================
+   SECTION 10 — SCOPE CALCULATOR
+   ========================================================= */
+function calcScope(scope){
+  var p1Name=(document.getElementById(scope+"_p1Name")||{}).value||"";
+  var p2Name=(document.getElementById(scope+"_p2Name")||{}).value||"";
+  var surface=getSurface(scope);
+  var format=getFormat(scope);
+
+  /* Parse lines */
+  var gtLines=parseOULines(scope+"_gt",6);
+  var p1Lines=parseOULines(scope+"_p1",5);
+  var p2Lines=parseOULines(scope+"_p2",5);
+  var gHdpLines=parseHDPLines(scope+"_ghdp",5);
+  var sHdpLines=scope==="rt"?parseHDPLines(scope+"_shdp",3):[];
+
+  var w1=tNum(scope+"_w1"), w2=tNum(scope+"_w2");
+
+  /* Update badges */
+  updateLineBadges(scope,"gt",6);
+  updateLineBadges(scope,"p1",5);
+  updateLineBadges(scope,"p2",5);
+
+  /* Compute MEGs */
+  var gtMEG=computeMEG(gtLines);
+  var p1MEG=computeMEG(p1Lines);
+  var p2MEG=computeMEG(p2Lines);
+
+  /* Display MEGs */
+  renderMEGDisplay(scope+"_gt_meg",gtMEG);
+  renderMEGDisplay(scope+"_p1_meg",p1MEG);
+  renderMEGDisplay(scope+"_p2_meg",p2MEG);
+
+  /* PGD */
+  var pgd=playerGameDifferential(
+    p1MEG?p1MEG.meg:null,
+    p2MEG?p2MEG.meg:null,
+    gtMEG?gtMEG.meg:null
+  );
+
+  /* 1st set scale check — only on RT tab using s1 data */
+  var scaleRes=null;
+  if(scope==="rt"){
+    var s1GtLines=parseOULines("s1_gt",6);
+    var s1MEG=computeMEG(s1GtLines);
+    if(s1MEG) scaleRes=setScaleCheck(s1MEG.meg, format, gtMEG?gtMEG.meg:null);
+  }
+
+  /* Handicap analysis */
+  var gHdpRes=analyzeHDP(gHdpLines);
+  var sHdpRes=scope==="rt"?analyzeHDP(sHdpLines):null;
+
+  /* Correct Score Intelligence */
+  var csiType=scope==="rt"?"match":"set";
+  var csi=correctScoreIntelligence(scope, csiType);
+  renderCSIPanel(scope+"_csi_panel", csi, gtMEG?gtMEG.meg:null);
+
+  /* Profiles */
+  var aChecks=buildProfileA(gtMEG,pgd,scaleRes,gHdpRes,sHdpRes||sHdpRes,csi,w1,w2,surface);
+  var bChecks=buildProfileB(gtMEG,pgd,scaleRes,gHdpRes,sHdpRes,csi,w1,w2,surface);
+  renderChecks(scope+"_aChecks",aChecks);
+  renderChecks(scope+"_bChecks",bChecks);
+  var aRes=updateBoard(scope+"_aLamps",scope+"_aScoreText",scope+"_aVerdict",aChecks);
+  var bRes=updateBoard(scope+"_bLamps",scope+"_bScoreText",scope+"_bVerdict",bChecks);
+
+  /* Profile C */
+  var cOptions=buildProfileC(gHdpRes, sHdpRes, w1, w2);
+  var cRank=renderRanking(scope+"_cTop",scope+"_cList",cOptions);
+  renderEV(scope+"_c_userProb",scope+"_c_evBadge",cRank.topLabel,cRank.topOdds);
+
+  /* Profile D */
+  var dOptions=buildProfileD(gtMEG?gtMEG.analyzed:null, p1MEG?p1MEG.analyzed:null, p2MEG?p2MEG.analyzed:null);
+  var dRank=renderRanking(scope+"_dTop",scope+"_dList",dOptions);
+  renderEV(scope+"_d_userProb",scope+"_d_evBadge",dRank.topLabel,dRank.topOdds);
+
+  writeMasterBanner(scope,aRes,bRes,cRank,dRank,p1Name.trim(),p2Name.trim());
+}
+
+/* =========================================================
+   SECTION 11 — TAB + CLEAR
+   ========================================================= */
+var currentScope="rt";
+function switchScope(scope){
+  currentScope=scope;
+  ["rt","s1"].forEach(function(s){
+    var sec=document.getElementById("scope_"+s);
+    var btn=document.getElementById("tabBtn_"+s);
+    if(sec) sec.classList.toggle("active",s===scope);
+    if(btn) btn.classList.toggle("active",s===scope);
+  });
+}
+function clearScopeFields(scope){
+  var sec=document.getElementById("scope_"+scope);
+  if(!sec) return;
+  sec.querySelectorAll("input[type=number],input[type=text]").forEach(function(el){el.value="";});
+  sec.querySelectorAll("select").forEach(function(el){
+    if(el.id.indexOf("surface")>-1) el.value="hard";
+    else if(el.id.indexOf("format")>-1) el.value="bo3";
+    else el.value="";
+  });
+  calcScope(scope);
+}
+
+/* =========================================================
+   SECTION 12 — HISTORY LOG
+   ========================================================= */
+var tnsHistory=[];
+function saveScreening(scope){
+  var s=window["_tnsState_"+scope];
+  if(!s||!s.recommendation){alert("Enter some odds first so there is something to save.");return;}
+  tnsHistory.push({
+    timestamp:new Date().toISOString(), scope:s.scope, scopeLabel:s.scopeLabel,
+    match:s.label, profileA:s.aPct, profileB:s.bPct, profileC:s.cPct, profileD:s.dPct,
+    recommendation:s.recommendation
+  });
+  renderHistory();
+}
+function renderHistory(){
+  var wrap=document.getElementById("historyTableWrap");
+  if(!wrap) return;
+  if(tnsHistory.length===0){wrap.innerHTML="<div class=\"history-empty\">No screenings saved yet this session.</div>";return;}
+  var rows=tnsHistory.map(function(h,i){
+    return "<tr><td><span class=\"scope-tag\">"+h.scope+"</span></td><td>"+h.match+"</td><td>"+h.profileA+"</td><td>"+h.profileB+"</td><td>"+h.profileC+"</td><td>"+h.profileD+"</td><td>"+h.recommendation+"</td><td><button class=\"rm-btn\" onclick=\"removeHistory("+i+")\">✕</button></td></tr>";
+  }).join("");
+  wrap.innerHTML="<table class=\"history-table\"><thead><tr><th>Scope</th><th>Match</th><th>A(Under)</th><th>B(Over)</th><th>C(Hdp)</th><th>D(Line)</th><th>Recommendation</th><th></th></tr></thead><tbody>"+rows+"</tbody></table>";
+}
+function removeHistory(i){tnsHistory.splice(i,1);renderHistory();}
+function clearHistory(){if(tnsHistory.length&&!confirm("Clear the entire session log?"))return;tnsHistory=[];renderHistory();}
+function downloadBlob(content,filename,mime){
+  var blob=new Blob([content],{type:mime});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+function exportJSON(){if(!tnsHistory.length){alert("Nothing to export.");return;}downloadBlob(JSON.stringify(tnsHistory,null,2),"tennis-log.json","application/json");}
+function exportCSV(){
+  if(!tnsHistory.length){alert("Nothing to export.");return;}
+  var hdr=["timestamp","scope","match","profileA","profileB","profileC","profileD","recommendation"];
+  var NL=String.fromCharCode(10);
+  var rows=tnsHistory.map(function(h){return hdr.map(function(k){return "\""+((h[k]||"").toString().replace(/"/g,"\"\""))+"\"";}).join(",");});
+  downloadBlob([hdr.join(",")].concat(rows).join(NL),"tennis-log.csv","text/csv");
+}
+function importJSON(evt){
+  var file=evt.target.files[0];if(!file)return;
+  var r=new FileReader();
+  r.onload=function(e){try{var p=JSON.parse(e.target.result);if(!Array.isArray(p))throw new Error("bad");tnsHistory=tnsHistory.concat(p);renderHistory();}catch(err){alert("Could not read that file.");}};
+  r.readAsText(file);evt.target.value="";
+}
+
+/* =========================================================
+   SECTION 13 — INIT
+   ========================================================= */
+function initTNS(){
+  ["rt","s1"].forEach(function(scope){
+    var sec=document.getElementById("scope_"+scope);
+    if(!sec) return;
+    sec.querySelectorAll("input, select").forEach(function(el){
+      el.addEventListener("input",function(){calcScope(scope);});
+      el.addEventListener("change",function(){calcScope(scope);});
+    });
+    calcScope(scope);
+  });
+  renderHistory();
+}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",initTNS);}else{initTNS();}
+
+
+/* =========================================================
+   TIEBREAK MARKET HANDLER
+   ========================================================= */
+function updateTiebrkDisplay(scope){
+  var el=document.getElementById(scope+"_tb_result");
+  if(!el) return {tbYesPct:null};
+  var yOdds=tNum(scope+"_tb_yes"), nOdds=tNum(scope+"_tb_no");
+  if(!yOdds||!nOdds){
+    el.innerHTML="<div class=\"tb-result-empty\">Enter both YES and NO odds above to see tiebreak probability and match signal</div>";
+    return {tbYesPct:null};
+  }
+  var iy=tImplied(yOdds), iNo=tImplied(nOdds), sum=iy+iNo;
+  var yPct=tRound(iy/sum*100,1), nPct=tRound(iNo/sum*100,1);
+  var sigClass, sigText;
+  if(yPct>=TNS.TB_HIGH*100){
+    sigClass="sig-high";
+    sigText="\u26a1 HIGH TIEBREAK PROBABILITY ("+yPct+"%) \u2192 OVER signal for 1st set games. A tiebreak set = 13 games, above most MEGs. Supports Profile B.";
+  } else if(yPct>=TNS.TB_MOD*100){
+    sigClass="sig-mod";
+    sigText="\u26a0 MODERATE TIEBREAK PROBABILITY ("+yPct+"%) \u2192 Mild Over signal. Tiebreak is a real possibility.";
+  } else {
+    sigClass="sig-low";
+    sigText="\u2714 LOW TIEBREAK PROBABILITY ("+yPct+"%) \u2192 UNDER signal. Market expects a decisive set without tiebreak.";
+  }
+  el.innerHTML="<div class=\"tb-bars\">"
+    +"<div class=\"tb-bar-row\"><div class=\"tb-bar-label\" style=\"color:var(--over)\">YES</div><div class=\"tb-bar-wrap\"><div class=\"tb-bar-fill yes\" style=\"width:"+yPct+"%\"></div></div><div class=\"tb-bar-pct\" style=\"color:var(--over)\">"+yPct+"%</div></div>"
+    +"<div class=\"tb-bar-row\"><div class=\"tb-bar-label\" style=\"color:var(--under)\">NO</div><div class=\"tb-bar-wrap\"><div class=\"tb-bar-fill no\" style=\"width:"+nPct+"%\"></div></div><div class=\"tb-bar-pct\" style=\"color:var(--under)\">"+nPct+"%</div></div>"
+    +"</div>"
+    +"<div class=\"tb-signal "+sigClass+"\">"+sigText+"</div>";
+  return {tbYesPct:yPct};
+}
+
+/* Patch calcScope to call tiebreak updater and pass result to profiles */
+var _origCalcScope=calcScope;
+calcScope=function(scope){
+  /* call tiebreak display first — only s1 has it */
+  var tbResult={tbYesPct:null};
+  if(scope==="s1") tbResult=updateTiebrkDisplay(scope);
+  window["_tbResult_"+scope]=tbResult;
+  _origCalcScope(scope);
+};
+
+
+/* =========================================================
+   INJECT TIEBREAK MARKET CHECK INTO PROFILE B (s1 scope only)
+   Called after _origCalcScope sets _bbkState
+   ========================================================= */
+function injectTiebrkCheck(scope){
+  if(scope!=="s1") return;
+  var tbRes=window["_tbResult_"+scope];
+  if(!tbRes||tbRes.tbYesPct===null) return;
+  var tbPct=tbRes.tbYesPct;
+  var st=tbPct>=TNS.TB_HIGH*100?"green":tbPct>=TNS.TB_MOD*100?"amber":"red";
+  var detail="Market Tiebreak YES: "+tbPct+"%. "
+    +(tbPct>=TNS.TB_HIGH*100?"HIGH — tiebreak set = 13 games, well above typical set MEG. Strong Over evidence.":
+      tbPct>=TNS.TB_MOD*100?"MODERATE — tiebreak is a real possibility. Mild Over lean.":
+      "LOW — market expects decisive set. Supports Under total games.");
+  /* Append as an extra check row below Profile B card */
+  var bCard=document.getElementById(scope+"_bChecks");
+  if(!bCard) return;
+  var existingTB=bCard.querySelector(".tb-check");
+  if(existingTB) existingTB.parentNode.removeChild(existingTB);
+  var row=document.createElement("div");
+  row.className="check tb-check";
+  row.innerHTML="<div class=\"check-num\">+</div>"
+    +"<div class=\"check-text\"><span class=\"ct-label\">🎾 Tiebreak Market (direct odds)</span><span class=\"ct-detail\">"+detail+"</span></div>"
+    +"<div class=\"pill "+st+"\">"+tbPct+"%</div>";
+  bCard.appendChild(row);
+}
+
+var _origCalcScope2=calcScope;
+calcScope=function(scope){
+  _origCalcScope2(scope);
+  injectTiebrkCheck(scope);
+};
+
+</script>
+</body>
+</html>
