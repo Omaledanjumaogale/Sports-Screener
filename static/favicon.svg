@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a3e635"/>
+      <stop offset="100%" stop-color="#4ade80"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="48" fill="url(#bg)"/>
+  <!-- Inner glow ring -->
+  <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+  <!-- P letter -->
+  <text x="26" y="67" font-family="'Outfit', 'Arial Black', sans-serif" font-weight="900" font-size="52" fill="white" opacity="0.95">P</text>
+  <!-- Lightning bolt -->
+  <polygon points="62,20 48,50 58,50 44,82 72,44 60,44 72,20" fill="url(#bolt)" opacity="0.95"/>
+</svg>

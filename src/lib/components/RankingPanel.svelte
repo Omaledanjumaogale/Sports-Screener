@@ -4,42 +4,79 @@
   let {
     picks = [] as Pick[],
     limit = 12,
-    accent = '#22c55e'
+    accent = '#6366f1'
   }: {
     picks?: Pick[];
     limit?: number;
     accent?: string;
   } = $props();
+
+  const medalColors = [
+    { bg: 'linear-gradient(135deg,#ffd700,#f59e0b)', shadow: 'rgba(245,158,11,0.5)' },
+    { bg: 'linear-gradient(135deg,#e2e8f0,#94a3b8)', shadow: 'rgba(148,163,184,0.4)' },
+    { bg: 'linear-gradient(135deg,#cd7f32,#92400e)', shadow: 'rgba(146,64,14,0.4)' }
+  ];
 </script>
 
 {#if picks.length}
   <section class="ranking" style={`--accent:${accent}`} aria-label="Live picks ranking">
-    <header class="ranking-header">
-      <h2>Live Ranking</h2>
-      <span class="count">{Math.min(picks.length, limit)} / {picks.length}</span>
+    <header class="rank-header">
+      <h2>
+        <span class="trophy-icon" aria-hidden="true">🏆</span>
+        Top Picks
+      </h2>
+      <span class="count-badge">{Math.min(picks.length, limit)} / {picks.length}</span>
     </header>
+
     <ol class="rank-list" role="list">
       {#each picks.slice(0, limit) as pick, i}
-        <li class="rank-row" style={`--row-accent:${i < 3 ? accent : 'transparent'}`} aria-label={`Rank ${i + 1}: ${pick.label}, probability ${pick.probability.toFixed(1)}%`}>
-          <div class="rank-index" aria-hidden="true">{i + 1}</div>
+        <li
+          class="rank-row"
+          class:top-3={i < 3}
+          aria-label={`Rank ${i + 1}: ${pick.label}, probability ${pick.probability.toFixed(1)}%`}
+        >
+          <!-- Rank badge -->
+          {#if i < 3}
+            <div
+              class="rank-badge medal"
+              style={`background:${medalColors[i].bg}; box-shadow: 0 0 12px ${medalColors[i].shadow}`}
+              aria-hidden="true"
+            >
+              {i + 1}
+            </div>
+          {:else}
+            <div class="rank-badge" aria-hidden="true">{i + 1}</div>
+          {/if}
+
+          <!-- Info -->
           <div class="rank-info">
-            <div class="rank-title">
-              <b>{pick.label}</b>
+            <div class="rank-title-row">
+              <b class="rank-label">{pick.label}</b>
               {#if pick.ev !== undefined}
-                <span class={`ev-tag ${pick.ev > 0 ? 'pos' : pick.ev < -0.08 ? 'neg' : ''}`}>
+                <span class={`ev-pill ${pick.ev > 0 ? 'ev-pos' : pick.ev < -0.08 ? 'ev-neg' : ''}`}>
                   {pick.ev > 0 ? '+' : ''}{(pick.ev * 100).toFixed(1)}% EV
                 </span>
               {/if}
             </div>
             <small class="rank-meta">
-              {pick.marketTitle} · odds {pick.odds.toFixed(2)}
-              {#if pick.margin !== undefined} · vig {pick.margin.toFixed(1)}%{/if}
+              {pick.marketTitle}
+              <span class="meta-sep">·</span>
+              <span class="mono">{pick.odds.toFixed(2)}</span>
+              {#if pick.margin !== undefined}
+                <span class="meta-sep">·</span>
+                vig {pick.margin.toFixed(1)}%
+              {/if}
             </small>
           </div>
+
+          <!-- Probability -->
           <div class="rank-prob">
-            <strong>{pick.probability.toFixed(1)}%</strong>
+            <strong class="prob-pct mono">{pick.probability.toFixed(1)}%</strong>
             <div class="prob-bar" role="presentation">
-              <div class="prob-fill" style={`width:${Math.min(100, pick.probability)}%`}></div>
+              <div
+                class="prob-fill"
+                style={`width:${Math.min(100, pick.probability)}%`}
+              ></div>
             </div>
           </div>
         </li>
@@ -50,123 +87,153 @@
 
 <style>
   .ranking {
-    margin-top: 14px;
-    padding: 16px;
-    border: 1px solid #223047;
-    background: #0f1726;
-    border-radius: 14px;
+    padding: 18px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    animation: slide-up 0.4s ease both;
   }
-  .ranking-header {
+
+  .rank-header {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 12px;
+    align-items: center;
+    margin-bottom: 14px;
   }
-  .ranking-header h2 {
+  .rank-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 15px;
+    font-weight: 800;
+    color: var(--c-text, #f1f5ff);
     margin: 0;
-    color: #eaf3ff;
-    letter-spacing: -0.005em;
+    letter-spacing: -0.01em;
   }
-  .count {
+  .trophy-icon {
+    font-size: 17px;
+    filter: drop-shadow(0 0 6px rgba(245,158,11,0.6));
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+  .count-badge {
     font-size: 11px;
     font-weight: 700;
-    color: #8ea3c3;
-    background: #111c2f;
-    padding: 3px 9px;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, rgba(255,255,255,0.04));
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    padding: 3px 10px;
     border-radius: 999px;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
   }
+
   .rank-list {
     list-style: none;
     padding: 0;
     margin: 0;
     display: grid;
-    gap: 2px;
+    gap: 3px;
   }
+
   .rank-row {
     display: grid;
-    grid-template-columns: 28px 1fr auto;
+    grid-template-columns: 32px 1fr auto;
     gap: 12px;
     align-items: center;
-    padding: 10px 10px 10px 8px;
-    border-radius: 10px;
-    background: linear-gradient(90deg, color-mix(in srgb, var(--row-accent) 8%, transparent), transparent 40%);
-    border-top: 1px solid #1b2840;
-    transition: background 120ms;
+    padding: 10px 8px;
+    border-radius: 12px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    transition: background var(--t-base, 180ms ease);
   }
-  .rank-row:hover { background: #111c2f; }
-  .rank-index {
-    width: 26px;
-    height: 26px;
+  .rank-row:hover { background: rgba(255,255,255,0.05); }
+  .rank-row.top-3 {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 6%, transparent) 0%, transparent 60%);
+  }
+
+  /* Rank badge */
+  .rank-badge {
+    width: 30px; height: 30px;
+    border-radius: 9px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
-    background: #1a2944;
-    color: #8ea3c3;
     font-size: 12px;
     font-weight: 800;
-    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    background: rgba(255,255,255,0.07);
+    color: var(--c-muted, #8899bb);
+    border: 1px solid rgba(255,255,255,0.07);
+    flex-shrink: 0;
   }
-  .rank-row:nth-child(1) .rank-index { background: color-mix(in srgb, var(--accent) 28%, #1a2944); color: #fff; }
-  .rank-row:nth-child(2) .rank-index { background: color-mix(in srgb, var(--accent) 18%, #1a2944); color: #eaf3ff; }
-  .rank-row:nth-child(3) .rank-index { background: color-mix(in srgb, var(--accent) 10%, #1a2944); color: #eaf3ff; }
+  .medal {
+    color: #000;
+    border: none;
+    font-weight: 900;
+    font-size: 11px;
+  }
 
+  /* Info */
   .rank-info { min-width: 0; }
-  .rank-title {
+  .rank-title-row {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
   }
-  .rank-title b {
+  .rank-label {
     font-size: 13.5px;
-    color: #eaf3ff;
-    font-weight: 750;
+    color: var(--c-text, #f1f5ff);
+    font-weight: 700;
+    line-height: 1.2;
   }
-  .ev-tag {
-    font-size: 10px;
+  .ev-pill {
+    font-size: 9.5px;
     font-weight: 800;
     padding: 2px 7px;
     border-radius: 999px;
-    background: #1a2944;
-    color: #c7d7ee;
-    letter-spacing: 0.02em;
+    background: rgba(255,255,255,0.06);
+    color: var(--c-muted, #8899bb);
+    letter-spacing: 0.04em;
+    border: 1px solid rgba(255,255,255,0.07);
   }
-  .ev-tag.pos { color: #7ef0b2; background: #0d3324; }
-  .ev-tag.neg { color: #ff99a3; background: #35131a; }
+  .ev-pos { color: #86efac; background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.2); }
+  .ev-neg { color: #fecdd3; background: rgba(251,113,133,0.1); border-color: rgba(251,113,133,0.2); }
+
   .rank-meta {
     display: block;
-    color: #9fb2cc;
+    color: var(--c-muted, #8899bb);
     margin-top: 3px;
     line-height: 1.4;
     font-size: 11.5px;
+    font-weight: 500;
   }
-  .rank-prob {
-    text-align: right;
-    min-width: 72px;
-  }
-  .rank-prob strong {
+  .meta-sep { color: var(--c-faint, #5a6e8a); margin: 0 3px; }
+  .mono { font-family: var(--font-mono, 'JetBrains Mono', monospace); }
+
+  /* Probability */
+  .rank-prob { text-align: right; min-width: 68px; }
+  .prob-pct {
     display: block;
     color: var(--accent);
     font-size: 15px;
-    font-variant-numeric: tabular-nums;
-    font-weight: 800;
+    font-weight: 700;
     line-height: 1;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
   }
   .prob-bar {
-    height: 4px;
-    width: 68px;
-    background: #1a2944;
-    border-radius: 4px;
+    height: 3px;
+    width: 64px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
     overflow: hidden;
-    margin-top: 5px;
+    margin-top: 6px;
     margin-left: auto;
   }
   .prob-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 50%, #38bdf8));
-    border-radius: 4px;
-    transition: width 200ms ease;
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #a3e635));
+    border-radius: 3px;
+    transition: width 400ms ease;
   }
 </style>

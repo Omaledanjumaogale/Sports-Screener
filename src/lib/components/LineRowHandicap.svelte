@@ -50,10 +50,15 @@
     display: grid;
     grid-template-columns: minmax(130px, 0.9fr) 1fr;
     gap: 10px;
-    padding: 12px;
-    background: #111c2f;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
     border-radius: 12px;
-    border: 1px solid #1a2944;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    transition: border-color var(--t-base, 180ms ease);
+  }
+  .line-row-hdp:focus-within {
+    border-color: color-mix(in srgb, var(--accent, #6366f1) 30%, rgba(255,255,255,0.07));
   }
   .odds-cols {
     display: grid;

@@ -14,6 +14,8 @@
   import OddsGrid from './OddsGrid.svelte';
   import TeamInputs from './TeamInputs.svelte';
   import SaveHistory from './SaveHistory.svelte';
+  import BottomNav from './BottomNav.svelte';
+  import SportSvgIcon from './SportSvgIcon.svelte';
   import {
     analyzeFootball,
     analyzeBasketball,
@@ -44,6 +46,10 @@
     accent: string;
     factory: () => ScopeState[];
   } = $props();
+
+  // Derive the SportId union for SVG icon
+  type SportIconId = 'football' | 'basketball' | 'tennis' | 'rally';
+  const iconId = $derived(sportId as SportIconId);
 
   let scopes: ScopeState[] = $state([]);
   let selectedScopeIndex: number = $state(0);
@@ -143,23 +149,33 @@
         title={sportTitle}
         short={sportShort}
         {accent}
+        sportId={iconId}
         onBack={backHome}
         onClear={clearAll}
       />
 
-      <button
-        class="clear-scope-btn"
-        type="button"
-        onclick={clearCurrent}
-      >
-        Clear {scope.title} odds
-      </button>
+      <div class="scope-toolbar">
+        <button
+          class="clear-scope-btn"
+          type="button"
+          onclick={clearCurrent}
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Clear {scope.title}
+        </button>
+      </div>
 
       {#if loadBanner}
         <div class="load-banner" role="status">
-          <span class="tick">✓</span>
+          <span class="tick" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
           {loadBanner}
-          <button type="button" class="dismiss" onclick={() => { loadBanner = null; }} aria-label="Dismiss">×</button>
+          <button type="button" class="dismiss" onclick={() => { loadBanner = null; }} aria-label="Dismiss">&times;</button>
         </div>
       {/if}
 
@@ -270,116 +286,173 @@
         on:load={onLoadFromHistory}
       />
 
-      <footer class="foot" aria-label="App metadata">
-        <div>
-          <strong>{sportShort} Screener</strong> · Convex-backed history · Decimal odds · Auto-cache until Clear.
+      <footer class="foot" aria-label="App info">
+        <div class="foot-brand">
+          <span aria-hidden="true">⚡</span>
+          <strong>PulseOdds</strong>
+          <span class="foot-sep">·</span>
+          <span>{sportShort} Screener</span>
         </div>
-        <div>
-          <button type="button" class="linkish" onclick={clearAll}>Reset all scopes</button>
-        </div>
+        <button type="button" class="reset-link" onclick={clearAll}>Reset all</button>
       </footer>
     </div>
   </div>
+  <BottomNav />
 {/if}
 
 <style>
   .page-root {
     width: 100%;
-    min-height: 100vh;
-    background: radial-gradient(1200px 600px at 80% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%), #080b12;
+    min-height: 100dvh;
   }
   .page-inner {
     width: min(100%, 960px);
     margin: 0 auto;
-    padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 40px max(14px, env(safe-area-inset-left));
-    min-height: 100vh;
+    padding:
+      max(14px, env(safe-area-inset-top))
+      max(14px, env(safe-area-inset-right))
+      max(100px, calc(env(safe-area-inset-bottom) + 88px))
+      max(14px, env(safe-area-inset-left));
+    min-height: 100dvh;
     min-width: 320px;
   }
   .spacer { height: 14px; }
 
+  /* Scope toolbar */
+  .scope-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin: 8px 0 2px;
+  }
+
   .clear-scope-btn {
-    margin: -2px 0 10px auto;
-    display: block;
-    border: 1px solid #27344a;
-    background: #101827;
-    color: #c7d7ee;
-    padding: 6px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(8px);
+    color: var(--c-muted, #8899bb);
+    padding: 7px 14px;
     border-radius: 999px;
     font-size: 12px;
     font-weight: 700;
-    transition: border-color 120ms, color 120ms;
+    font-family: var(--font-brand, 'Outfit', system-ui);
+    cursor: pointer;
+    transition:
+      border-color var(--t-base, 180ms ease),
+      color var(--t-base, 180ms ease),
+      background var(--t-base, 180ms ease),
+      box-shadow var(--t-base, 180ms ease);
+    touch-action: manipulation;
   }
-  .clear-scope-btn:hover { border-color: var(--accent); color: #eaf3ff; }
+  .clear-scope-btn:hover {
+    border-color: color-mix(in srgb, var(--accent) 40%, rgba(255,255,255,0.08));
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, rgba(255,255,255,0.04));
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .clear-scope-btn:active { transform: scale(0.96); }
 
+  /* Load banner */
   .load-banner {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 14px;
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--accent) 16%, transparent);
-    border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
-    color: #eaf3ff;
+    padding: 11px 14px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent) 12%, rgba(255,255,255,0.04));
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    color: var(--c-text, #f1f5ff);
     font-size: 13px;
+    font-weight: 600;
     margin: 4px 0 10px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 10%, transparent);
+    animation: slide-up 0.3s ease both;
   }
   .load-banner .tick {
     font-weight: 900;
     color: var(--accent);
-    width: 18px;
-    text-align: center;
+    width: 20px; height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--accent) 15%, rgba(255,255,255,0.05));
+    border-radius: 50%;
+    flex-shrink: 0;
   }
   .load-banner .dismiss {
     margin-left: auto;
     background: transparent;
     border: 0;
-    color: #c7d7ee;
+    color: var(--c-muted, #8899bb);
     cursor: pointer;
-    font-size: 18px;
+    font-size: 20px;
     line-height: 1;
+    width: 26px; height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: color var(--t-fast), background var(--t-fast);
+  }
+  .load-banner .dismiss:hover {
+    color: #fb7185;
+    background: rgba(251,113,133,0.12);
   }
 
+  /* Profiles */
   .profiles-grid {
     display: grid;
     gap: 12px;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
 
-  .markets {
-    display: grid;
-    gap: 10px;
-  }
-  .line-list {
-    display: grid;
-    gap: 10px;
-    padding-top: 10px;
-  }
+  /* Markets */
+  .markets { display: grid; gap: 10px; }
+  .line-list { display: grid; gap: 10px; padding-top: 10px; }
 
+  /* Footer */
   .foot {
-    margin-top: 28px;
-    padding: 18px 6px 4px;
+    margin-top: 36px;
+    padding: 18px 0 4px;
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
+    align-items: center;
     gap: 10px;
-    color: #6f84a5;
-    font-size: 12px;
-    border-top: 1px solid #1a253b;
+    color: var(--c-faint, #5a6e8a);
+    font-size: 12.5px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
   }
-  .foot strong { color: #9fb2cc; font-weight: 800; letter-spacing: 0.02em; }
-  .linkish {
+  .foot-brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--c-muted, #8899bb);
+  }
+  .foot-brand strong { color: var(--c-text, #f1f5ff); font-weight: 800; }
+  .foot-sep { color: var(--c-faint, #5a6e8a); }
+  .reset-link {
     background: transparent;
     border: 0;
     padding: 0;
-    color: color-mix(in srgb, var(--accent) 85%, #fff);
+    color: color-mix(in srgb, var(--accent) 80%, #fff);
     text-decoration: underline;
     cursor: pointer;
     font: inherit;
+    font-size: 12px;
+    transition: color var(--t-fast);
   }
-  .linkish:hover { color: #fff; }
+  .reset-link:hover { color: #fff; }
 
   @media (max-width: 380px) {
     .page-inner { padding-left: 10px; padding-right: 10px; }
+  }
+  @media (min-width: 768px) {
+    .page-inner { padding-bottom: max(40px, env(safe-area-inset-bottom)); }
   }
   @media (min-width: 1400px) {
     .page-inner { width: min(100%, 1100px); }

@@ -14,7 +14,11 @@
   } = $props();
 
   let keys = $derived(Object.keys(odds));
-  let colNum = $derived(typeof columns === 'number' ? columns : Math.max(1, Math.min(3, Math.ceil(Math.sqrt(Math.max(1, Object.keys(odds).length))))));
+  let colNum = $derived(
+    typeof columns === 'number'
+      ? columns
+      : Math.max(1, Math.min(3, Math.ceil(Math.sqrt(Math.max(1, Object.keys(odds).length)))))
+  );
 </script>
 
 <div class="odds-grid-wrap" style={`--cols:${colNum}`}>

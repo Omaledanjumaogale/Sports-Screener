@@ -10,54 +10,102 @@
   } = $props();
 </script>
 
-<div class="scope-tabs" aria-label="Match scope tabs" role="tablist">
-  {#each tabs as tab, index}
-    <button
-      role="tab"
-      aria-selected={index === selectedIndex}
-      aria-controls={`scope-${tab.id}`}
-      id={`tab-${tab.id}`}
-      class:active={index === selectedIndex}
-      onclick={() => onSelect(index)}
-      tabindex={index === selectedIndex ? 0 : -1}
-      onkeydown={(e) => {
-        if (e.key === 'ArrowRight') onSelect((index + 1) % tabs.length);
-        if (e.key === 'ArrowLeft') onSelect((index - 1 + tabs.length) % tabs.length);
-      }}
-    >
-      {tab.title}
-    </button>
-  {/each}
+<div class="tabs-rail" aria-label="Match time scope" role="tablist">
+  <div class="tabs-track">
+    {#each tabs as tab, index}
+      <button
+        role="tab"
+        aria-selected={index === selectedIndex}
+        aria-controls={`scope-${tab.id}`}
+        id={`tab-${tab.id}`}
+        class="tab-pill"
+        class:active={index === selectedIndex}
+        onclick={() => onSelect(index)}
+        tabindex={index === selectedIndex ? 0 : -1}
+        onkeydown={(e) => {
+          if (e.key === 'ArrowRight') onSelect((index + 1) % tabs.length);
+          if (e.key === 'ArrowLeft')  onSelect((index - 1 + tabs.length) % tabs.length);
+        }}
+      >
+        {#if index === selectedIndex}
+          <span class="active-dot" aria-hidden="true"></span>
+        {/if}
+        {tab.title}
+      </button>
+    {/each}
+  </div>
 </div>
 
 <style>
-  .scope-tabs {
+  .tabs-rail {
+    padding: 12px 0 16px;
+    overflow: hidden;
+  }
+
+  .tabs-track {
     display: flex;
     gap: 8px;
     overflow-x: auto;
-    padding: 10px 0 16px;
+    padding-bottom: 2px;
     scrollbar-width: none;
     scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
   }
-  .scope-tabs::-webkit-scrollbar { display: none; }
-  .scope-tabs button {
+  .tabs-track::-webkit-scrollbar { display: none; }
+
+  .tab-pill {
     flex: 0 0 auto;
     scroll-snap-align: start;
-    border: 1px solid #27344a;
-    color: #dbe8f9;
-    background: #101827;
-    border-radius: 10px;
-    min-height: 44px;
-    padding: 0 16px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    min-height: 40px;
+    padding: 0 18px;
+    font-size: 13px;
     font-weight: 700;
-    font-size: 13.5px;
-    transition: background 120ms, border-color 120ms, color 120ms;
+    font-family: var(--font-brand, 'Outfit', system-ui);
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background var(--t-base, 180ms ease),
+      border-color var(--t-base, 180ms ease),
+      color var(--t-base, 180ms ease),
+      box-shadow var(--t-base, 180ms ease),
+      transform 80ms ease;
+
+    /* Default glass state */
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    color: var(--c-muted, #8899bb);
+    backdrop-filter: blur(10px);
   }
-  .scope-tabs button:hover { border-color: #465a7e; }
-  .scope-tabs button.active {
-    border-color: var(--accent, #22c55e);
-    background: color-mix(in srgb, var(--accent, #22c55e) 20%, #101827);
+
+  .tab-pill:hover {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: var(--c-text-2, #c8d6ee);
+  }
+
+  .tab-pill:active { transform: scale(0.96); }
+
+  .tab-pill.active {
+    background: color-mix(in srgb, var(--accent, #6366f1) 18%, rgba(255,255,255,0.04));
+    border-color: color-mix(in srgb, var(--accent, #6366f1) 55%, transparent);
     color: #ffffff;
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #22c55e) 40%, transparent) inset;
+    box-shadow:
+      0 0 16px color-mix(in srgb, var(--accent, #6366f1) 25%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--accent, #6366f1) 30%, transparent) inset;
+  }
+
+  .active-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent, #6366f1);
+    box-shadow: 0 0 8px var(--accent, #6366f1);
+    animation: dot-pulse 2s ease-in-out infinite;
+    flex-shrink: 0;
   }
 </style>

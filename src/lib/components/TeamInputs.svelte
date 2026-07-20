@@ -12,53 +12,65 @@
   } = $props();
 
   const footballPresets = [
-    { v: 'balanced', l: 'Balanced League' },
-    { v: 'lowScoring', l: 'Low-Scoring League' },
+    { v: 'balanced',    l: 'Balanced League' },
+    { v: 'lowScoring',  l: 'Low-Scoring League' },
     { v: 'highScoring', l: 'High-Scoring League' },
-    { v: 'cup', l: 'Cup / Knockout' }
+    { v: 'cup',         l: 'Cup / Knockout' }
   ];
   const tennisSurfaces = [
-    { v: 'hard', l: 'Hard Court' },
-    { v: 'clay', l: 'Clay' },
-    { v: 'grass', l: 'Grass' },
+    { v: 'hard',   l: 'Hard Court' },
+    { v: 'clay',   l: 'Clay' },
+    { v: 'grass',  l: 'Grass' },
     { v: 'carpet', l: 'Carpet / Indoor' }
   ];
   const tennisFormats = [
     { v: 'bo3', l: 'Best of 3 Sets' },
     { v: 'bo5', l: 'Best of 5 Sets (Grand Slam)' }
   ];
+
+  const isRacket = $derived(sportId === 'tennis' || sportId === 'rally');
 </script>
 
-<section class="team-inputs" aria-label="Match context">
+<section class="team-inputs" aria-label="Match context" style={`--accent:var(--c-${sportId}, #6366f1)`}>
+
+  <!-- VS row -->
   <div class="name-fields">
-    <label>
-      <span>{sportId === 'tennis' || sportId === 'rally' ? 'Player A' : 'Home / Team 1'}</span>
+    <label class="field-label">
+      <span>{isRacket ? 'Player A' : 'Home / Team 1'}</span>
       <input
         type="text"
         autocomplete="off"
-        placeholder={sportId === 'tennis' ? 'e.g. Djokovic' : sportId === 'rally' ? 'Player A name' : 'Home team'}
+        placeholder={sportId === 'tennis' ? 'e.g. Djokovic' : sportId === 'rally' ? 'Player A' : 'Home team'}
         bind:value={scope.teamA}
         oninput={onChange}
-        aria-label={sportId === 'tennis' || sportId === 'rally' ? 'Player A name' : 'Home team name'}
+        aria-label={isRacket ? 'Player A name' : 'Home team name'}
+        class="text-input"
       />
     </label>
-    <div class="vs" aria-hidden="true">VS</div>
-    <label>
-      <span>{sportId === 'tennis' || sportId === 'rally' ? 'Player B' : 'Away / Team 2'}</span>
+
+    <div class="vs-chip" aria-hidden="true">
+      <span>VS</span>
+      <span class="vs-dot" aria-hidden="true"></span>
+    </div>
+
+    <label class="field-label">
+      <span>{isRacket ? 'Player B' : 'Away / Team 2'}</span>
       <input
         type="text"
         autocomplete="off"
-        placeholder={sportId === 'tennis' ? 'e.g. Alcaraz' : sportId === 'rally' ? 'Player B name' : 'Away team'}
+        placeholder={sportId === 'tennis' ? 'e.g. Alcaraz' : sportId === 'rally' ? 'Player B' : 'Away team'}
         bind:value={scope.teamB}
         oninput={onChange}
-        aria-label={sportId === 'tennis' || sportId === 'rally' ? 'Player B name' : 'Away team name'}
+        aria-label={isRacket ? 'Player B name' : 'Away team name'}
+        class="text-input"
       />
     </label>
   </div>
 
+  <!-- Context selects -->
   {#if sportId === 'football'}
     <div class="context-fields">
-      <label>
+      <label class="field-label">
         <span>League profile</span>
         <select bind:value={scope.leaguePreset} onchange={onChange} aria-label="League profile preset">
           {#each footballPresets as p}
@@ -69,15 +81,15 @@
     </div>
   {:else if sportId === 'tennis'}
     <div class="context-fields">
-      <label>
-        <span>Surface</span>
+      <label class="field-label">
+        <span>Court surface</span>
         <select bind:value={scope.surface} onchange={onChange} aria-label="Court surface">
           {#each tennisSurfaces as s}
             <option value={s.v}>{s.l}</option>
           {/each}
         </select>
       </label>
-      <label>
+      <label class="field-label">
         <span>Match format</span>
         <select bind:value={scope.format} onchange={onChange} aria-label="Match format">
           {#each tennisFormats as f}
@@ -91,95 +103,135 @@
 
 <style>
   .team-inputs {
-    padding: 14px;
-    border: 1px solid #223047;
-    background: #0f1726;
-    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border-radius: 16px;
     display: grid;
-    gap: 12px;
+    gap: 14px;
+    transition: border-color var(--t-base, 180ms ease);
   }
+  .team-inputs:focus-within {
+    border-color: color-mix(in srgb, var(--accent, #6366f1) 28%, rgba(255,255,255,0.08));
+  }
+
+  /* Name row */
   .name-fields {
     display: grid;
-    grid-template-columns: 1fr 32px 1fr;
-    gap: 8px;
+    grid-template-columns: 1fr 44px 1fr;
+    gap: 10px;
     align-items: end;
   }
-  .name-fields label {
+
+  .field-label {
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    color: #9fb2cc;
-    font-size: 11.5px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
+    gap: 6px;
+    font-size: 10.5px;
+    font-weight: 800;
+    color: var(--c-muted, #8899bb);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
-  .name-fields input {
+
+  /* Text inputs */
+  .text-input {
     width: 100%;
-    min-height: 42px;
-    padding: 0 12px;
-    background: #111c2f;
-    border: 1px solid #2a3a55;
-    border-radius: 10px;
-    color: #eaf3ff;
+    min-height: 46px;
+    padding: 0 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 12px;
+    color: var(--c-text, #f1f5ff);
     font-weight: 600;
-    font-size: 13px;
-    transition: border-color 120ms, background 120ms;
+    font-size: 13.5px;
+    font-family: var(--font-brand, 'Outfit', system-ui);
+    transition:
+      border-color var(--t-base, 180ms ease),
+      background var(--t-base, 180ms ease),
+      box-shadow var(--t-base, 180ms ease);
+    backdrop-filter: blur(8px);
   }
-  .name-fields input:focus, .name-fields input:active {
+  .text-input:focus {
     outline: none;
-    border-color: var(--accent, #22c55e);
-    background: #132342;
+    border-color: color-mix(in srgb, var(--accent, #6366f1) 60%, transparent);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #6366f1) 12%, transparent);
   }
-  .name-fields input::placeholder { color: #5a6e8e; font-weight: 500; }
-  .vs {
+  .text-input::placeholder { color: var(--c-faint, #5a6e8a); font-weight: 500; }
+
+  /* VS chip */
+  .vs-chip {
+    position: relative;
     display: inline-flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: #1a2944;
-    color: var(--accent, #22c55e);
-    font-size: 11px;
+    gap: 3px;
+    width: 44px;
+    height: 46px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent, #6366f1) 14%, rgba(255,255,255,0.04));
+    border: 1px solid color-mix(in srgb, var(--accent, #6366f1) 28%, rgba(255,255,255,0.07));
+    color: var(--accent, #6366f1);
+    font-size: 10px;
     font-weight: 900;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     justify-self: center;
-    margin-bottom: 5px;
+    margin-bottom: 0;
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #6366f1) 10%, transparent);
   }
+  .vs-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 6px currentColor;
+    animation: dot-pulse 2s ease-in-out infinite;
+  }
+
+  /* Selects */
   .context-fields {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 10px;
   }
-  .context-fields label {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    color: #9fb2cc;
-    font-size: 11.5px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-  }
+
   .context-fields select {
     width: 100%;
-    min-height: 42px;
-    padding: 0 32px 0 12px;
-    background: #111c2f;
-    border: 1px solid #2a3a55;
-    border-radius: 10px;
-    color: #eaf3ff;
+    min-height: 46px;
+    padding: 0 32px 0 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 12px;
+    color: var(--c-text, #f1f5ff);
     font-weight: 600;
-    font-size: 13px;
+    font-size: 13.5px;
+    font-family: var(--font-brand, 'Outfit', system-ui);
     appearance: none;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%239fb2cc'><path d='M5.5 7.5L10 12l4.5-4.5z'/></svg>");
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition:
+      border-color var(--t-base, 180ms ease),
+      box-shadow var(--t-base, 180ms ease),
+      background var(--t-base, 180ms ease);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%238899bb'><path d='M5.5 7.5L10 12l4.5-4.5z'/></svg>");
     background-repeat: no-repeat;
     background-position: right 10px center;
     background-size: 14px;
   }
-  .context-fields select:focus { outline: none; border-color: var(--accent, #22c55e); }
+  .context-fields select:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--accent, #6366f1) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #6366f1) 12%, transparent);
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+  .context-fields select option { background: #0d1525; color: #f1f5ff; }
 
-  @media (max-width: 420px) {
-    .name-fields { grid-template-columns: 1fr; gap: 6px; }
-    .vs { display: none; }
+  /* Responsive */
+  @media (max-width: 440px) {
+    .name-fields { grid-template-columns: 1fr; gap: 8px; }
+    .vs-chip { display: none; }
   }
 </style>

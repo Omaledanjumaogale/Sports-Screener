@@ -16,7 +16,7 @@
   } = $props();
 </script>
 
-<div class="line-row-ou" aria-label={`O/U line row ${index + 1}`} role="group">
+<div class="line-row-ou" aria-label={`Over/Under line row ${index + 1}`} role="group">
   <div class="line-col">
     <LinePicker
       label="Line"
@@ -46,10 +46,15 @@
     display: grid;
     grid-template-columns: minmax(120px, 0.9fr) 1fr;
     gap: 10px;
-    padding: 12px;
-    background: #111c2f;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
     border-radius: 12px;
-    border: 1px solid #1a2944;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    transition: border-color var(--t-base, 180ms ease);
+  }
+  .line-row-ou:focus-within {
+    border-color: color-mix(in srgb, var(--accent, #6366f1) 30%, rgba(255,255,255,0.07));
   }
   .odds-cols {
     display: grid;
