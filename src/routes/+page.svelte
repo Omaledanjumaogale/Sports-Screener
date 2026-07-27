@@ -405,9 +405,8 @@
     min-width: 320px;
   }
 
-  /* ── Hero — Centered ────────────────────────────────────────── */
   /* ── Home Topbar ────────────────────────────────────────────── */
-  .home-topbar {
+  .topbar {
     width: 100%;
     display: flex;
     align-items: center;
@@ -433,6 +432,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    margin-left: auto;
   }
   .auth-btn {
     font-size: 13px;
