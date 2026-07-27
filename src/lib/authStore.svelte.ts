@@ -3,6 +3,11 @@ const AUTH_STORAGE_KEY = 'pulseodds_auth_session_v1';
 export interface UserSession {
   id: string;
   email: string;
+  fullName?: string;
+  mobile?: string;
+  dob?: string;
+  stateOfResidence?: string;
+  consentAccepted?: boolean;
   name?: string;
   createdAt?: number;
 }

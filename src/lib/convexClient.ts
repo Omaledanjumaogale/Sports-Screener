@@ -85,5 +85,9 @@ export const api = {
     save: 'savedScreeners:save',
     update: 'savedScreeners:update',
     remove: 'savedScreeners:remove'
+  },
+  users: {
+    registerProfile: 'users:registerProfile',
+    getProfile: 'users:getProfile'
   }
 };

@@ -38,5 +38,17 @@ export default defineSchema({
     .index('by_sport_and_session', ['sportId', 'sessionId', 'createdAt'])
     .index('by_session', ['sessionId', 'createdAt'])
     .index('by_user', ['userId', 'createdAt'])
-    .index('by_sport_and_user', ['sportId', 'userId', 'createdAt'])
+    .index('by_sport_and_user', ['sportId', 'userId', 'createdAt']),
+
+  userProfiles: defineTable({
+    userId: v.optional(v.string()),
+    email: v.string(),
+    fullName: v.string(),
+    mobile: v.string(),
+    dob: v.string(),
+    stateOfResidence: v.string(),
+    consentAccepted: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  }).index('by_email', ['email'])
 });

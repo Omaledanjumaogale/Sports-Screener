@@ -1,52 +1,94 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { ShieldAlert, LogIn, UserPlus } from '@lucide/svelte';
+  import { ShieldAlert, LogIn, UserPlus, Eye, EyeOff, ArrowLeft } from '@lucide/svelte';
   import { setAuthenticated } from '$lib/authStore.svelte';
-  import { getConvexClient } from '$lib/convexClient';
+  import { getConvexClient, api } from '$lib/convexClient';
 
   let isSignUp = $derived($page.url.searchParams.get('mode') === 'signup');
+  
   let email = $state('');
   let password = $state('');
+  let fullName = $state('');
+  let mobile = $state('');
+  let dob = $state('');
+  let stateOfResidence = $state('');
+  let consentAccepted = $state(false);
+  
+  let showPassword = $state(false);
   let loading = $state(false);
   let error = $state<string | null>(null);
+
+  const NIGERIAN_STATES = [
+    'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno',
+    'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu', 'FCT - Abuja', 'Gombe',
+    'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara',
+    'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo', 'Osun', 'Oyo', 'Plateau',
+    'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara', 'International / Other'
+  ];
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
     loading = true;
     error = null;
-    
+
+    if (isSignUp) {
+      if (!fullName.trim() || !mobile.trim() || !dob.trim() || !stateOfResidence || !consentAccepted) {
+        error = 'Please fill out all required fields and accept the consent agreement.';
+        loading = false;
+        return;
+      }
+    }
+
     try {
       let token = 'token_' + Math.random().toString(36).slice(2, 10);
       let userId = 'user_' + Math.random().toString(36).slice(2, 10);
-      
+
       try {
         const client = await getConvexClient();
-        // Try calling backend auth endpoint if deployed
+        
+        // Attempt Convex auth signIn / signUp
         const res = await client.mutation('auth:signIn', { 
           provider: 'password', 
-          email, 
+          email: email.trim(), 
           password, 
           flow: isSignUp ? 'signUp' : 'signIn' 
         });
         if (res?.token) token = res.token;
         if (res?.userId) userId = res.userId;
+
+        if (isSignUp) {
+          // Record profile details in Convex database
+          await client.mutation(api.users.registerProfile, {
+            email: email.trim(),
+            fullName: fullName.trim(),
+            mobile: mobile.trim(),
+            dob,
+            stateOfResidence,
+            consentAccepted,
+            userId
+          });
+        }
       } catch (_e) {
-        // Fallback for static client execution without running live Convex server
-        console.warn('Convex live auth endpoint offline, proceeding with client session creation');
+        console.warn('Convex backend offline or dev mode fallback active');
       }
-      
+
       const user = {
         id: userId,
         email: email.trim(),
-        name: email.split('@')[0] ?? 'Punter',
+        fullName: isSignUp ? fullName.trim() : email.split('@')[0],
+        mobile: isSignUp ? mobile.trim() : undefined,
+        dob: isSignUp ? dob : undefined,
+        stateOfResidence: isSignUp ? stateOfResidence : undefined,
+        consentAccepted: isSignUp ? consentAccepted : undefined,
+        name: isSignUp ? fullName.trim() : email.split('@')[0],
         createdAt: Date.now()
       };
 
       setAuthenticated(user, token);
       goto('/');
     } catch (err: any) {
-      error = err.message || 'Authentication failed. Please try again.';
+      error = err.message || 'Authentication failed. Please check your credentials.';
     } finally {
       loading = false;
     }
@@ -59,6 +101,13 @@
 
 <div class="auth-root">
   <div class="auth-card">
+    <div class="auth-top-nav">
+      <a href="/" class="back-home-btn">
+        <ArrowLeft size={16} />
+        <span>Return to Homepage</span>
+      </a>
+    </div>
+
     <div class="auth-header">
       <div class="brand">
         <span class="pulse-icon">⚡</span>
@@ -67,21 +116,37 @@
       <h2>{isSignUp ? 'Create your account' : 'Welcome back'}</h2>
       <p class="subtitle">
         {isSignUp 
-          ? 'Sign up to save your sports screening history and preferences.' 
-          : 'Log in to access your saved screeners and stats.'}
+          ? 'Sign up to unlock all sport screeners, saved history & analytics.' 
+          : 'Log in to access your saved screeners and edge stats.'}
       </p>
     </div>
 
     {#if error}
-      <div class="error-banner">
+      <div class="error-banner" role="alert">
         <ShieldAlert size={16} />
         <span>{error}</span>
       </div>
     {/if}
 
     <form class="auth-form" onsubmit={handleSubmit}>
+      {#if isSignUp}
+        <!-- Full Name -->
+        <div class="form-group">
+          <label for="fullName">Full Name <span class="req">*</span></label>
+          <input 
+            type="text" 
+            id="fullName" 
+            bind:value={fullName} 
+            placeholder="John Doe" 
+            required 
+            disabled={loading}
+          />
+        </div>
+      {/if}
+
+      <!-- Email -->
       <div class="form-group">
-        <label for="email">Email</label>
+        <label for="email">Email Address <span class="req">*</span></label>
         <input 
           type="email" 
           id="email" 
@@ -92,26 +157,100 @@
         />
       </div>
 
+      <!-- Password with Eye Toggle -->
       <div class="form-group">
-        <label for="password">Password</label>
-        <input 
-          type="password" 
-          id="password" 
-          bind:value={password} 
-          placeholder="••••••••" 
-          required 
-          disabled={loading}
-        />
+        <label for="password">Password <span class="req">*</span></label>
+        <div class="password-wrapper">
+          <input 
+            type={showPassword ? 'text' : 'password'} 
+            id="password" 
+            bind:value={password} 
+            placeholder="••••••••" 
+            required 
+            disabled={loading}
+          />
+          <button 
+            type="button" 
+            class="eye-btn" 
+            onclick={() => showPassword = !showPassword}
+            tabindex="-1"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {#if showPassword}
+              <EyeOff size={18} />
+            {:else}
+              <Eye size={18} />
+            {/if}
+          </button>
+        </div>
       </div>
+
+      {#if isSignUp}
+        <!-- Mobile Number -->
+        <div class="form-group">
+          <label for="mobile">Mobile Number <span class="req">*</span></label>
+          <input 
+            type="tel" 
+            id="mobile" 
+            bind:value={mobile} 
+            placeholder="+234 801 234 5678" 
+            required 
+            disabled={loading}
+          />
+        </div>
+
+        <!-- Date of Birth Selector -->
+        <div class="form-group">
+          <label for="dob">Date of Birth <span class="req">*</span></label>
+          <input 
+            type="date" 
+            id="dob" 
+            bind:value={dob} 
+            required 
+            disabled={loading}
+          />
+        </div>
+
+        <!-- State of Residence -->
+        <div class="form-group">
+          <label for="stateOfResidence">State of Residence <span class="req">*</span></label>
+          <select 
+            id="stateOfResidence" 
+            bind:value={stateOfResidence} 
+            required 
+            disabled={loading}
+          >
+            <option value="" disabled selected>Select your state</option>
+            {#each NIGERIAN_STATES as st}
+              <option value={st}>{st}</option>
+            {/each}
+          </select>
+        </div>
+
+        <!-- Consent Checkbox -->
+        <div class="form-group consent-group">
+          <label class="checkbox-label">
+            <input 
+              type="checkbox" 
+              bind:checked={consentAccepted} 
+              required 
+              disabled={loading}
+            />
+            <span class="consent-text">
+              I accept the Terms & Conditions and agree to stake responsibly as an intelligent punter. <span class="req">*</span>
+            </span>
+          </label>
+        </div>
+      {/if}
 
       <button type="submit" class="submit-btn" disabled={loading}>
         {#if loading}
           <span class="spinner"></span>
         {:else}
           {#if isSignUp}
-            <UserPlus size={18} /> Sign Up
+            <UserPlus size={18} /> Create Account & Access Screeners
           {:else}
-            <LogIn size={18} /> Log In
+            <LogIn size={18} /> Log In to PulseOdds
           {/if}
         {/if}
       </button>
@@ -133,19 +272,45 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
-    background: radial-gradient(circle at top right, color-mix(in srgb, var(--c-orange) 10%, transparent), transparent 50%),
-                radial-gradient(circle at bottom left, color-mix(in srgb, var(--c-rally) 10%, transparent), transparent 50%);
+    padding: 24px 16px;
+    background: radial-gradient(circle at top right, color-mix(in srgb, var(--c-orange) 12%, transparent), transparent 50%),
+                radial-gradient(circle at bottom left, color-mix(in srgb, var(--c-rally) 12%, transparent), transparent 50%);
   }
   
   .auth-card {
     background: var(--c-surface);
     border: 1px solid var(--c-border);
-    border-radius: 20px;
-    padding: 40px;
+    border-radius: 24px;
+    padding: 32px 36px;
     width: 100%;
-    max-width: 420px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    max-width: 460px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.18);
+    backdrop-filter: blur(16px);
+  }
+
+  .auth-top-nav {
+    margin-bottom: 20px;
+  }
+
+  .back-home-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--c-muted);
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--c-bg);
+    border: 1px solid var(--c-border);
+    transition: all var(--t-base);
+  }
+
+  .back-home-btn:hover {
+    color: var(--c-orange);
+    border-color: var(--c-orange);
+    background: color-mix(in srgb, var(--c-orange) 8%, var(--c-bg));
   }
   
   .brand {
@@ -154,7 +319,7 @@
     justify-content: center;
     gap: 8px;
     font-size: 18px;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
     color: var(--c-text);
   }
   
@@ -165,19 +330,20 @@
   
   .auth-header {
     text-align: center;
-    margin-bottom: 32px;
+    margin-bottom: 28px;
   }
   
   .auth-header h2 {
     margin: 0 0 8px;
     font-size: 24px;
+    font-weight: 800;
     color: var(--c-text);
   }
   
   .subtitle {
     margin: 0;
     color: var(--c-muted);
-    font-size: 14px;
+    font-size: 13.5px;
     line-height: 1.5;
   }
   
@@ -185,42 +351,107 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 12px;
+    padding: 12px 14px;
     background: color-mix(in srgb, var(--c-red) 15%, transparent);
     color: var(--c-red);
-    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--c-red) 30%, transparent);
+    border-radius: 12px;
     margin-bottom: 24px;
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 13.5px;
+    font-weight: 600;
   }
   
   .form-group {
-    margin-bottom: 20px;
+    margin-bottom: 18px;
   }
   
   label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--c-text-2);
   }
+
+  .req {
+    color: var(--c-orange);
+  }
   
-  input {
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="date"],
+  input[type="password"],
+  select {
     width: 100%;
     padding: 12px 16px;
     background: var(--c-bg);
     border: 1px solid var(--c-border);
-    border-radius: 10px;
+    border-radius: 12px;
     color: var(--c-text);
-    font-size: 15px;
+    font-size: 14.5px;
+    font-family: inherit;
     outline: none;
     transition: border-color var(--t-base), box-shadow var(--t-base);
   }
   
-  input:focus {
+  input:focus, select:focus {
     border-color: var(--c-orange);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-orange) 20%, transparent);
+  }
+
+  .password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .password-wrapper input {
+    padding-right: 46px;
+  }
+
+  .eye-btn {
+    position: absolute;
+    right: 12px;
+    background: transparent;
+    border: none;
+    color: var(--c-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 6px;
+    transition: color var(--t-fast);
+  }
+
+  .eye-btn:hover {
+    color: var(--c-orange);
+  }
+
+  .consent-group {
+    margin-top: 22px;
+    margin-bottom: 24px;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--c-text-2);
+    line-height: 1.45;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    accent-color: var(--c-orange);
+    cursor: pointer;
+    flex-shrink: 0;
   }
   
   .submit-btn {
@@ -233,17 +464,17 @@
     background: var(--c-brand-gradient, linear-gradient(135deg, #ff7700 0%, #ea580c 100%));
     color: white;
     border: none;
-    border-radius: 10px;
-    font-size: 16px;
-    font-weight: 700;
+    border-radius: 12px;
+    font-size: 15.5px;
+    font-weight: 800;
     cursor: pointer;
     transition: transform var(--t-base), opacity var(--t-base), box-shadow var(--t-base);
-    box-shadow: 0 4px 14px color-mix(in srgb, var(--c-orange) 40%, transparent);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--c-orange) 40%, transparent);
   }
   
   .submit-btn:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px color-mix(in srgb, var(--c-orange) 50%, transparent);
+    box-shadow: 0 6px 22px color-mix(in srgb, var(--c-orange) 50%, transparent);
   }
   
   .submit-btn:disabled {
@@ -254,14 +485,14 @@
   .auth-footer {
     margin-top: 24px;
     text-align: center;
-    font-size: 14px;
+    font-size: 13.5px;
     color: var(--c-muted);
   }
   
   .auth-footer a {
     color: var(--c-orange);
     text-decoration: none;
-    font-weight: 600;
+    font-weight: 700;
   }
   
   .auth-footer a:hover {
@@ -279,5 +510,11 @@
   
   @keyframes spin {
     to { transform: rotate(360deg); }
+  }
+
+  @media (max-width: 480px) {
+    .auth-card {
+      padding: 24px 20px;
+    }
   }
 </style>
