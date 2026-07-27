@@ -4,8 +4,14 @@
   import SportCard from '$lib/components/SportCard.svelte';
   import BottomNav from '$lib/components/BottomNav.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import EWINBanner from '$lib/components/EWINBanner.svelte';
+  import SEO from '$lib/components/SEO.svelte';
   import { authState, setUnauthenticated } from '$lib/authStore.svelte';
   import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User } from '@lucide/svelte';
+  import type { PageData } from './$types';
+
+  // Svelte 5: typed page data from +page.ts load()
+  const { data }: { data: PageData } = $props();
 
   type SportId = 'football' | 'basketball' | 'tennis' | 'rally';
 
@@ -124,9 +130,8 @@
   ];
 </script>
 
-<svelte:head>
-  <title>PulseOdds — Read the odds. Own the edge. Beat the Bookies</title>
-</svelte:head>
+<!-- SEO component renders all meta, OG, Twitter, canonical, JSON-LD from server load() data -->
+<SEO seo={data.seo} />
 
 <div class="landing-root">
   <!-- Aurora background orbs -->
@@ -156,6 +161,13 @@
           <a href="/auth?mode=signup" class="auth-btn signup-btn">Sign Up</a>
         {/if}
       </div>
+    </div>
+
+    <!-- ── E-WIN Project Ecosystem Banner ──────────────────────── -->
+    <!-- itemscope/itemtype bind PulseOdds as a member of the E-WIN Organization -->
+    <!-- AEO: Signals org hierarchy to LLMs and knowledge graph crawlers -->
+    <div class="ewin-banner-wrapper" aria-live="polite">
+      <EWINBanner />
     </div>
 
     <!-- ── Hero ──────────────────────────────────────────── -->
@@ -333,13 +345,20 @@
     </section>
 
     <!-- ── Footer ────────────────────────────────────────── -->
-    <footer class="foot" aria-label="App info">
+    <!-- itemscope for footer organization schema — reinforces E-WIN entity binding -->
+    <footer class="foot" aria-label="App info" itemscope itemtype="https://schema.org/Organization">
+      <meta itemprop="name" content="PulseOdds" />
+      <meta itemprop="url" content="https://pulseodds.ewinproject.org" />
       <div class="foot-brand">
         <span class="foot-logo" aria-hidden="true">⚡</span>
-        <strong>PulseOdds</strong>
+        <strong itemprop="legalName">PulseOdds</strong>
         <span class="foot-version">v2.0</span>
       </div>
       <p class="foot-copy">Read the odds. Own the edge. Beat the Bookies · Strictly 18+</p>
+      <p class="foot-ewin">
+        Part of the <a href="https://ewinproject.org" target="_blank" rel="noopener noreferrer" itemprop="memberOf">E-WIN Project</a> Ecosystem
+        · Built by <a href="https://omaledanjumaogale.ewinproject.org/" target="_blank" rel="noopener noreferrer" itemprop="founder">Omale Danjuma Ogale</a>
+      </p>
       <div class="foot-sports" aria-label="Available sports">
         <span>⚽</span><span>🏀</span><span>🎾</span><span>🏓</span><span>🏒</span><span>⚾</span>
       </div>
@@ -412,8 +431,20 @@
     align-items: center;
     justify-content: space-between;
     padding: 8px 0 16px;
-    margin-bottom: 8px;
+    margin-bottom: 0;
   }
+
+  /* ── E-WIN Banner Wrapper ────────────────────────────────────── */
+  /* Spans full available width, flush against topbar bottom */
+  .ewin-banner-wrapper {
+    width: calc(100% + 32px); /* bleed past landing-inner padding */
+    margin: 0 -16px 16px;
+    /* AEO: banner visible immediately on page load for all crawlers */
+  }
+  @media (max-width: 440px) {
+    .ewin-banner-wrapper { width: calc(100% + 24px); margin: 0 -12px 12px; }
+  }
+
   .topbar-brand {
     display: flex;
     align-items: center;
@@ -964,6 +995,24 @@
     gap: 12px;
     font-size: 18px;
     margin-top: 4px;
+  }
+
+  /* ── Footer Extra Attribution ────────────────────────────────── */
+  .foot-ewin {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--c-muted);
+    margin: 0;
+    text-align: center;
+    line-height: 1.5;
+  }
+  .foot-ewin a {
+    color: var(--c-orange);
+    text-decoration: none;
+    font-weight: 700;
+  }
+  .foot-ewin a:hover {
+    text-decoration: underline;
   }
 
   /* ── Responsive ─────────────────────────────────────────────── */

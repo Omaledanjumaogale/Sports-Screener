@@ -1,0 +1,67 @@
+# PulseOdds — Sports Odds Intelligence
+
+> Part of the **Elite Workforce Impact Nigeria (E-WIN) Project** Ecosystem
+
+**Site URL:** https://pulseodds.ewinproject.org  
+**Tagline:** Read the odds. Own the edge. Beat the Bookies.  
+**Primary Language:** English (Nigeria) — en-NG  
+**Last Updated:** 2026-07-27  
+**Update Frequency:** Weekly  
+
+---
+
+## Summary
+
+PulseOdds is a mobile-first, AI-assisted sports odds screening platform for Nigerian and African punters. It provides instant mathematical profile analysis across football, basketball, tennis, and table tennis markets using decimal odds, line picking, and statistical ranking. It is a non-gambling, informational analytics tool designed to help bettors make informed decisions — not a bookmaker.
+
+---
+
+## Organization
+
+- **Legal Name:** Elite Workforce Impact Nigeria Project (E-WIN)  
+- **Founder & CEO:** Omale Danjuma Ogale  
+- **Author Page:** https://omaledanjumaogale.ewinproject.org/  
+- **Contact:** ewinproject.org  
+
+---
+
+## Primary Entities & Topics
+
+1. Sports odds screening and analysis (football, basketball, tennis, table tennis)
+2. Decimal odds picking (1.01–5.00 range) with sequential selectors
+3. Mathematical profile verdict engine (4-profile, 5-lamp scoring)
+4. Top Pick ranking system (gold, silver, bronze value badges)
+5. Market Expected Total (MET) and Market Expected Games (MEG) models
+6. Half-time / Full-time correct score clustering
+7. BTTS (Both Teams to Score) analysis
+8. Convex-backed auto-save and screener history
+9. Responsible staking and sports betting education
+10. E-WIN Project digital tools for Nigerian workforce empowerment
+
+---
+
+## Curated Page Index
+
+| Route | Title | Summary |
+|-------|-------|---------|
+| / | Homepage — PulseOdds | Landing page with hero, sport screener cards, how-to-use guide, subscription info, and disclaimer. |
+| /football | Football Screener | Half-time/full-time profile analysis, correct score clusters, BTTS, 5-lamp scoreboard, live market ranking for football odds. |
+| /basketball | Basketball Screener | Market Expected Total (MET) analysis, team totals, quarter pace, spread ranking across basketball betting markets. |
+| /tennis | Tennis Screener | Market Expected Games (MEG), correct score intelligence, surface modifiers, dual tiebreak signals for tennis odds. |
+| /rally | Table Tennis Screener | Full match and first-set multi-market screening, safest pick, margin rank, sweep shapes and set metrics for table tennis. |
+| /auth | Authentication | User registration and login page. Access required to use screeners. Not indexed. |
+
+---
+
+## Data & Freshness
+
+- Mathematical models updated with each screener version release.
+- Platform content reviewed monthly.
+- Schema and structured data served server-side for LLM parsing accuracy.
+
+---
+
+## Attribution
+
+© 2025–2026 Elite Workforce Impact Nigeria (E-WIN) Project. PulseOdds is a non-commercial, educational analytics tool.  
+For citations and references, link to: https://pulseodds.ewinproject.org

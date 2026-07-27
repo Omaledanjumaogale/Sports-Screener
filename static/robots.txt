@@ -1,0 +1,53 @@
+# PulseOdds — Sports Odds Intelligence Platform
+# Part of the Elite Workforce Impact Nigeria (E-WIN) Project Ecosystem
+# https://pulseodds.ewinproject.org/robots.txt
+
+User-agent: *
+Allow: /
+Disallow: /auth
+Disallow: /admin
+Disallow: /api/private
+Disallow: /dashboard
+
+# Allow all major AI crawlers by name for AEO/GEO discoverability
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Gemini
+Allow: /
+
+User-agent: YouBot
+Allow: /
+
+User-agent: DuckAssistBot
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+# Sitemap references
+Sitemap: https://pulseodds.ewinproject.org/sitemap.xml
+
+# Host canonical domain
+Host: pulseodds.ewinproject.org

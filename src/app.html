@@ -1,9 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-NG">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#f97316" />
+
+    <!-- Inline theme script — must run before render to avoid flash -->
     <script>
       (function() {
         try {
@@ -13,29 +15,57 @@
         } catch (e) {}
       })();
     </script>
-    <meta name="description" content="PulseOdds — Smart sports odds intelligence for football, basketball, tennis and table tennis. Live profile screening, decimal odds ranking and automated verdicts." />
-    <meta name="keywords" content="sports odds, football screener, basketball odds, tennis betting, table tennis, decimal odds, sports analytics" />
+
+    <!-- Primary SEO meta — overridden per-page by SEO.svelte via svelte:head -->
+    <meta name="description" content="PulseOdds is a mathematical sports odds screening platform for football, basketball, tennis and table tennis. Instant profile verdicts, confidence scoring, and ranked top picks for informed punters. Part of the E-WIN Project." />
+    <meta name="keywords" content="sports odds screener, football odds analysis, basketball MET calculator, tennis MEG screener, table tennis odds, decimal odds, sports betting analytics, Nigeria sports betting, PulseOdds, E-WIN Project" />
+    <meta name="author" content="Omale Danjuma Ogale" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+
+    <!-- Canonical — overridden per-page by SEO.svelte -->
+    <link rel="canonical" href="https://pulseodds.ewinproject.org/" />
+
+    <!-- Open Graph (fallback — overridden per-page by SEO.svelte) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PulseOdds" />
+    <meta property="og:locale" content="en_NG" />
+    <meta property="og:title" content="PulseOdds — Sports Odds Intelligence | E-WIN Project" />
+    <meta property="og:description" content="Read the odds. Own the edge. Beat the Bookies. Mathematical profile screening for football, basketball, tennis and table tennis." />
+    <meta property="og:image" content="https://pulseodds.ewinproject.org/og-image.png" />
+    <meta property="og:image:alt" content="PulseOdds — Sports Odds Intelligence Platform" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:url" content="https://pulseodds.ewinproject.org/" />
+
+    <!-- Twitter/X Card (fallback — overridden per-page by SEO.svelte) -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PulseOdds — Sports Odds Intelligence" />
+    <meta name="twitter:description" content="Read the odds. Own the edge. Mathematical profile screening for football, basketball, tennis and table tennis." />
+    <meta name="twitter:image" content="https://pulseodds.ewinproject.org/og-image.png" />
+    <meta name="twitter:image:alt" content="PulseOdds — Sports Odds Intelligence" />
+
+    <!-- PWA meta -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="PulseOdds" />
-    <!-- Open Graph -->
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="PulseOdds — Sports Odds Intelligence" />
-    <meta property="og:description" content="Read the odds. Own the edge. Live profile screening across football, basketball, tennis and table tennis." />
-    <meta property="og:image" content="/favicon.svg" />
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="PulseOdds" />
-    <meta name="twitter:description" content="Read the odds. Own the edge." />
+
+    <!-- RSS autodiscovery — helps AI content aggregators find the feed -->
+    <link rel="alternate" type="application/rss+xml" title="PulseOdds — Sports Odds Intelligence" href="https://pulseodds.ewinproject.org/rss.xml" />
+
     <!-- Favicon -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
-    <!-- Google Fonts -->
+
+    <!-- Google Fonts — preconnect for performance (reduces LCP) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-    <title>PulseOdds — Sports Odds Intelligence</title>
+
+    <!-- Fallback title — overridden per-page -->
+    <title>PulseOdds — Sports Odds Intelligence | E-WIN Project</title>
+
+    <!-- SvelteKit injects per-page <svelte:head> content here (SEO.svelte output) -->
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">
