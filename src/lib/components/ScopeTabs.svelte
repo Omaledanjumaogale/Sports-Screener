@@ -76,35 +76,36 @@
       box-shadow var(--t-base, 180ms ease),
       transform 80ms ease;
 
-    /* Default glass state */
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    color: var(--c-muted, #8899bb);
+    /* Default glass state — theme adaptive */
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border);
+    color: var(--c-muted);
     backdrop-filter: blur(10px);
   }
 
   .tab-pill:hover {
-    background: rgba(255, 255, 255, 0.09);
-    border-color: rgba(255, 255, 255, 0.15);
-    color: var(--c-text-2, #c8d6ee);
+    background: var(--c-glass-lg);
+    border-color: var(--c-border-2);
+    color: var(--c-text-2);
   }
 
   .tab-pill:active { transform: scale(0.96); }
 
   .tab-pill.active {
-    background: color-mix(in srgb, var(--accent, #6366f1) 18%, rgba(255,255,255,0.04));
-    border-color: color-mix(in srgb, var(--accent, #6366f1) 55%, transparent);
-    color: #ffffff;
+    background: color-mix(in srgb, var(--accent, #f97316) 18%, var(--c-glass-sm));
+    border-color: color-mix(in srgb, var(--accent, #f97316) 55%, transparent);
+    color: var(--c-text);
+    font-weight: 800;
     box-shadow:
-      0 0 16px color-mix(in srgb, var(--accent, #6366f1) 25%, transparent),
-      0 0 0 1px color-mix(in srgb, var(--accent, #6366f1) 30%, transparent) inset;
+      0 0 16px color-mix(in srgb, var(--accent, #f97316) 25%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--accent, #f97316) 30%, transparent) inset;
   }
 
   .active-dot {
     width: 6px; height: 6px;
     border-radius: 50%;
-    background: var(--accent, #6366f1);
-    box-shadow: 0 0 8px var(--accent, #6366f1);
+    background: var(--accent, #f97316);
+    box-shadow: 0 0 8px var(--accent, #f97316);
     animation: dot-pulse 2s ease-in-out infinite;
     flex-shrink: 0;
   }

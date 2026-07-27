@@ -89,11 +89,11 @@
     text-align: left;
     padding: 18px;
     border-radius: var(--radius);
-    color: var(--c-text, #f1f5ff);
-    background: rgba(255, 255, 255, 0.04);
+    color: var(--c-text);
+    background: var(--c-glass-sm);
     backdrop-filter: blur(16px) saturate(160%);
     -webkit-backdrop-filter: blur(16px) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--c-border-md);
     overflow: hidden;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
@@ -120,8 +120,8 @@
   /* Hover / focus states */
   .sport-card:hover {
     transform: translateY(-3px);
-    border-color: color-mix(in srgb, var(--accent) 45%, rgba(255,255,255,0.08));
-    background: rgba(255, 255, 255, 0.07);
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--c-border-md));
+    background: var(--c-glass-lg);
     box-shadow:
       0 12px 40px -10px color-mix(in srgb, var(--accent) 40%, transparent),
       0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent) inset;
@@ -158,10 +158,10 @@
     border-radius: 16px;
     background: linear-gradient(
       150deg,
-      color-mix(in srgb, var(--accent) 22%, rgba(255,255,255,0.04)),
-      color-mix(in srgb, var(--accent) 8%, rgba(255,255,255,0.02))
+      color-mix(in srgb, var(--accent) 22%, var(--c-glass-sm)),
+      color-mix(in srgb, var(--accent) 8%, var(--c-glass-sm))
     );
-    border: 1px solid color-mix(in srgb, var(--accent) 30%, rgba(255,255,255,0.08));
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--c-border-md));
     box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 15%, transparent);
     transition: box-shadow 200ms ease;
     flex-shrink: 0;
@@ -201,18 +201,18 @@
     gap: 5px;
     padding: 2px 7px;
     border-radius: 999px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border-md);
     font-size: 9px;
     font-weight: 800;
-    color: #8899bb;
+    color: var(--c-muted);
     letter-spacing: 0.08em;
   }
   .live-dot {
     width: 5px; height: 5px;
     border-radius: 50%;
-    background: #4ade80;
-    box-shadow: 0 0 6px #4ade80;
+    background: var(--c-green);
+    box-shadow: 0 0 6px var(--c-green);
     animation: dot-pulse 2s ease-in-out infinite;
   }
 
@@ -222,18 +222,18 @@
     gap: 5px;
     padding: 2px 7px;
     border-radius: 999px;
-    background: rgba(245, 158, 11, 0.12);
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: color-mix(in srgb, var(--c-amber) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c-amber) 35%, transparent);
     font-size: 8.5px;
     font-weight: 800;
-    color: #fbbf24;
+    color: var(--c-amber);
     letter-spacing: 0.08em;
   }
   .cs-dot {
     width: 5px; height: 5px;
     border-radius: 50%;
-    background: #fbbf24;
-    box-shadow: 0 0 6px #fbbf24;
+    background: var(--c-amber);
+    box-shadow: 0 0 6px var(--c-amber);
   }
 
   .sport-card.coming-soon {
@@ -243,20 +243,20 @@
   .sport-card.coming-soon:hover {
     transform: none;
     box-shadow: none;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--c-glass-sm);
   }
 
   .card-title {
     font-size: 17px;
     font-weight: 800;
-    color: var(--c-text, #f1f5ff);
+    color: var(--c-text);
     margin: 0;
     letter-spacing: -0.01em;
     line-height: 1.2;
   }
 
   .card-desc {
-    color: var(--c-muted, #8899bb);
+    color: var(--c-muted);
     font-size: 12px;
     line-height: 1.5;
     margin: 0;
@@ -273,7 +273,7 @@
     width: 28px;
     height: 28px;
     border-radius: 8px;
-    color: #8899bb;
+    color: var(--c-muted);
     transition: transform 200ms ease, color 200ms ease, background 200ms ease;
     flex-shrink: 0;
   }

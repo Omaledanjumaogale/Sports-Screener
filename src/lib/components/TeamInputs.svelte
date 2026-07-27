@@ -104,8 +104,8 @@
 <style>
   .team-inputs {
     padding: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--c-border-md);
+    background: var(--c-glass-sm);
     backdrop-filter: blur(16px) saturate(160%);
     -webkit-backdrop-filter: blur(16px) saturate(160%);
     border-radius: 16px;
@@ -114,7 +114,7 @@
     transition: border-color var(--t-base, 180ms ease);
   }
   .team-inputs:focus-within {
-    border-color: color-mix(in srgb, var(--accent, #6366f1) 28%, rgba(255,255,255,0.08));
+    border-color: color-mix(in srgb, var(--accent, #f97316) 28%, var(--c-border-md));
   }
 
   /* Name row */
@@ -141,10 +141,10 @@
     width: 100%;
     min-height: 46px;
     padding: 0 14px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: var(--c-input-bg);
+    border: 1px solid var(--c-input-border);
     border-radius: 12px;
-    color: var(--c-text, #f1f5ff);
+    color: var(--c-input-text);
     font-weight: 600;
     font-size: 13.5px;
     font-family: var(--font-brand, 'Outfit', system-ui);
@@ -156,11 +156,11 @@
   }
   .text-input:focus {
     outline: none;
-    border-color: color-mix(in srgb, var(--accent, #6366f1) 60%, transparent);
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #6366f1) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent, #f97316) 60%, transparent);
+    background: var(--c-glass-hover);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #f97316) 12%, transparent);
   }
-  .text-input::placeholder { color: var(--c-faint, #5a6e8a); font-weight: 500; }
+  .text-input::placeholder { color: var(--c-faint); font-weight: 500; }
 
   /* VS chip */
   .vs-chip {
@@ -173,15 +173,15 @@
     width: 44px;
     height: 46px;
     border-radius: 12px;
-    background: color-mix(in srgb, var(--accent, #6366f1) 14%, rgba(255,255,255,0.04));
-    border: 1px solid color-mix(in srgb, var(--accent, #6366f1) 28%, rgba(255,255,255,0.07));
-    color: var(--accent, #6366f1);
+    background: color-mix(in srgb, var(--accent, #f97316) 14%, var(--c-glass-sm));
+    border: 1px solid color-mix(in srgb, var(--accent, #f97316) 28%, var(--c-border-md));
+    color: var(--accent, #f97316);
     font-size: 10px;
     font-weight: 900;
     letter-spacing: 0.08em;
     justify-self: center;
     margin-bottom: 0;
-    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #6366f1) 10%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #f97316) 10%, transparent);
   }
   .vs-dot {
     width: 5px; height: 5px;
@@ -202,10 +202,10 @@
     width: 100%;
     min-height: 46px;
     padding: 0 32px 0 14px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: var(--c-input-bg);
+    border: 1px solid var(--c-input-border);
     border-radius: 12px;
-    color: var(--c-text, #f1f5ff);
+    color: var(--c-input-text);
     font-weight: 600;
     font-size: 13.5px;
     font-family: var(--font-brand, 'Outfit', system-ui);
@@ -223,11 +223,11 @@
   }
   .context-fields select:focus {
     outline: none;
-    border-color: color-mix(in srgb, var(--accent, #6366f1) 60%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #6366f1) 12%, transparent);
-    background-color: rgba(255, 255, 255, 0.08);
+    border-color: color-mix(in srgb, var(--accent, #f97316) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #f97316) 12%, transparent);
+    background-color: var(--c-glass-hover);
   }
-  .context-fields select option { background: #0d1525; color: #f1f5ff; }
+  .context-fields select option { background: var(--c-option-bg); color: var(--c-option-text); }
 
   /* Responsive */
   @media (max-width: 440px) {

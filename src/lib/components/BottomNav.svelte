@@ -54,10 +54,10 @@
     right: 0;
     z-index: 100;
     padding: 0 8px max(12px, env(safe-area-inset-bottom)) 8px;
-    background: rgba(6, 9, 18, 0.82);
+    background: var(--c-surface-2);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid var(--c-border);
     gap: 4px;
     /* Mobile-only: hidden by default, shown via media query */
     display: none;
@@ -81,7 +81,7 @@
     padding: 10px 4px 6px;
     border: none;
     background: transparent;
-    color: var(--c-muted, #8899bb);
+    color: var(--c-muted);
     border-radius: 12px;
     transition: color var(--t-base, 180ms ease), background var(--t-base, 180ms ease);
     min-height: 58px;
@@ -89,8 +89,8 @@
   }
 
   .nav-item:hover {
-    color: var(--c-text, #f1f5ff);
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--c-text);
+    background: var(--c-glass-sm);
   }
 
   .nav-item.active {

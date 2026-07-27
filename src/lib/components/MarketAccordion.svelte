@@ -1,19 +1,3 @@
-<script lang="ts">
-  let {
-    title,
-    primary = false,
-    open = false,
-    accent = '#6366f1',
-    children
-  }: {
-    title: string;
-    primary?: boolean;
-    open?: boolean;
-    accent?: string;
-    children?: any;
-  } = $props();
-</script>
-
 <details class="market" {open} style={`--accent:${accent}`}>
   <summary aria-label={`${title} market${primary ? ' — primary' : ''}`}>
     {#if primary}
@@ -34,11 +18,27 @@
   </div>
 </details>
 
+<script lang="ts">
+  let {
+    title,
+    primary = false,
+    open = false,
+    accent = '#6366f1',
+    children
+  }: {
+    title: string;
+    primary?: boolean;
+    open?: boolean;
+    accent?: string;
+    children?: any;
+  } = $props();
+</script>
+
 <style>
   .market {
     position: relative;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--c-border-md);
+    background: var(--c-glass-sm);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-radius: 14px;
@@ -48,7 +48,7 @@
       box-shadow var(--t-base, 180ms ease);
   }
   .market[open] {
-    border-color: color-mix(in srgb, var(--accent) 30%, rgba(255,255,255,0.08));
+    border-color: color-mix(in srgb, var(--accent) 30%, var(--c-border-md));
     box-shadow: 0 4px 24px color-mix(in srgb, var(--accent) 8%, transparent);
   }
 
@@ -67,7 +67,7 @@
     position: relative;
   }
   summary::-webkit-details-marker { display: none; }
-  summary:hover { background: rgba(255, 255, 255, 0.04); }
+  summary:hover { background: var(--c-glass-sm); }
 
   /* Primary accent bar */
   .primary-stripe {
@@ -81,11 +81,11 @@
 
   .market-title {
     font-size: 13.5px;
-    color: var(--c-text, #f1f5ff);
+    color: var(--c-text);
     letter-spacing: -0.01em;
     padding-left: 0;
   }
-  .market[open] .market-title { color: #fff; }
+  .market[open] .market-title { color: var(--c-text); font-weight: 800; }
 
   .primary-tag {
     font-style: normal;
@@ -95,7 +95,7 @@
     font-weight: 900;
     letter-spacing: 0.07em;
     padding: 3px 9px;
-    background: color-mix(in srgb, var(--accent) 14%, rgba(255,255,255,0.04));
+    background: color-mix(in srgb, var(--accent) 14%, var(--c-glass-sm));
     border-radius: 999px;
     border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
     box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 12%, transparent);
@@ -106,9 +106,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: var(--c-muted, #8899bb);
+    color: var(--c-muted);
     border-radius: 8px;
-    background: rgba(255,255,255,0.05);
+    background: var(--c-glass-sm);
     transition:
       transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1),
       color var(--t-base, 180ms ease),
@@ -117,12 +117,12 @@
   .market[open] .chevron {
     transform: rotate(180deg);
     color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 12%, rgba(255,255,255,0.05));
+    background: color-mix(in srgb, var(--accent) 12%, var(--c-glass-sm));
   }
 
   .market-body {
     padding: 4px 14px 16px;
-    border-top: 1px solid rgba(255,255,255,0.06);
+    border-top: 1px solid var(--c-border-sm);
     animation: slide-up 0.22s ease both;
   }
 </style>

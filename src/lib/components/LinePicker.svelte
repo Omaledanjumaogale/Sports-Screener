@@ -87,10 +87,10 @@
   }
   .nudge {
     height: 44px;
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--c-input-border);
+    background: var(--c-input-bg);
     backdrop-filter: blur(8px);
-    color: var(--c-text, #f1f5ff);
+    color: var(--c-text);
     border-radius: 10px;
     font-size: 20px;
     font-weight: 700;
@@ -104,24 +104,24 @@
       transform 60ms ease;
   }
   .nudge:hover:not([disabled]) {
-    border-color: color-mix(in srgb, var(--accent, #6366f1) 50%, rgba(255,255,255,0.1));
-    background: rgba(255, 255, 255, 0.09);
-    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #6366f1) 15%, transparent);
-    color: var(--accent, #6366f1);
+    border-color: color-mix(in srgb, var(--accent, #f97316) 50%, var(--c-border));
+    background: var(--c-glass-hover);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #f97316) 15%, transparent);
+    color: var(--accent, #f97316);
   }
   .nudge:active:not([disabled]) {
     transform: scale(0.92);
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--c-glass-active);
   }
   .nudge[disabled] { opacity: 0.35; cursor: not-allowed; }
 
   select {
     width: 100%;
     min-height: 44px;
-    color: var(--c-text, #f1f5ff);
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--c-input-text);
+    background: var(--c-input-bg);
     backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    border: 1px solid var(--c-input-border);
     border-radius: 10px;
     padding: 0 28px 0 12px;
     font-variant-numeric: tabular-nums;
@@ -141,14 +141,14 @@
   }
   select:focus {
     outline: none;
-    border-color: color-mix(in srgb, var(--accent, #6366f1) 65%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #6366f1) 12%, transparent);
-    background-color: rgba(255, 255, 255, 0.08);
+    border-color: color-mix(in srgb, var(--accent, #f97316) 65%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #f97316) 12%, transparent);
+    background-color: var(--c-glass-hover);
   }
   select:disabled { opacity: 0.35; cursor: not-allowed; }
   select option {
-    background: #0d1525;
-    color: #f1f5ff;
+    background: var(--c-option-bg);
+    color: var(--c-option-text);
     font-family: 'JetBrains Mono', monospace;
   }
 </style>

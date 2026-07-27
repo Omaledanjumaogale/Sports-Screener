@@ -121,7 +121,7 @@
     font-size: 11px;
     font-weight: 700;
     color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 12%, rgba(255,255,255,0.04));
+    background: color-mix(in srgb, var(--accent) 12%, var(--c-glass-sm));
     border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
     padding: 3px 10px;
     border-radius: 999px;
@@ -143,10 +143,10 @@
     align-items: center;
     padding: 10px 8px;
     border-radius: 12px;
-    border-top: 1px solid rgba(255,255,255,0.04);
+    border-top: 1px solid var(--c-border-sm);
     transition: background var(--t-base, 180ms ease);
   }
-  .rank-row:hover { background: rgba(255,255,255,0.05); }
+  .rank-row:hover { background: var(--c-glass-sm); }
   .rank-row.top-3 {
     background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 6%, transparent) 0%, transparent 60%);
   }
@@ -161,9 +161,9 @@
     font-size: 12px;
     font-weight: 800;
     font-family: var(--font-mono, 'JetBrains Mono', monospace);
-    background: rgba(255,255,255,0.07);
-    color: var(--c-muted, #8899bb);
-    border: 1px solid rgba(255,255,255,0.07);
+    background: var(--c-glass-md);
+    color: var(--c-muted);
+    border: 1px solid var(--c-border-sm);
     flex-shrink: 0;
   }
   .medal {
@@ -192,13 +192,13 @@
     font-weight: 800;
     padding: 2px 7px;
     border-radius: 999px;
-    background: rgba(255,255,255,0.06);
-    color: var(--c-muted, #8899bb);
+    background: var(--c-glass-md);
+    color: var(--c-muted);
     letter-spacing: 0.04em;
-    border: 1px solid rgba(255,255,255,0.07);
+    border: 1px solid var(--c-border-sm);
   }
-  .ev-pos { color: #86efac; background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.2); }
-  .ev-neg { color: #fecdd3; background: rgba(251,113,133,0.1); border-color: rgba(251,113,133,0.2); }
+  .ev-pos { color: var(--c-green); background: color-mix(in srgb, var(--c-green) 12%, transparent); border-color: color-mix(in srgb, var(--c-green) 25%, transparent); }
+  .ev-neg { color: var(--c-red);   background: color-mix(in srgb, var(--c-red) 12%, transparent); border-color: color-mix(in srgb, var(--c-red) 25%, transparent); }
 
   .rank-meta {
     display: block;
@@ -224,7 +224,7 @@
   .prob-bar {
     height: 3px;
     width: 64px;
-    background: rgba(255,255,255,0.08);
+    background: var(--c-border-md);
     border-radius: 3px;
     overflow: hidden;
     margin-top: 6px;

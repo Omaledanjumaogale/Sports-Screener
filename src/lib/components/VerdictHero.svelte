@@ -42,16 +42,16 @@
     padding: 20px;
     border-radius: 18px;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--accent, #6366f1) 40%, rgba(255,255,255,0.08));
+    border: 1px solid color-mix(in srgb, var(--accent, #f97316) 40%, var(--c-border-md));
     background:
       linear-gradient(
         145deg,
-        color-mix(in srgb, var(--accent, #6366f1) 12%, rgba(255,255,255,0.03)) 0%,
-        rgba(255,255,255,0.02) 100%
+        color-mix(in srgb, var(--accent, #f97316) 12%, var(--c-glass-sm)) 0%,
+        var(--c-glass-sm) 100%
       );
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
-    box-shadow: 0 0 32px color-mix(in srgb, var(--accent, #6366f1) 10%, transparent);
+    box-shadow: 0 0 32px color-mix(in srgb, var(--accent, #f97316) 10%, transparent);
     animation: slide-up 0.35s ease both;
   }
 
@@ -59,7 +59,7 @@
   .dot-grid {
     position: absolute;
     inset: 0;
-    background-image: radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
+    background-image: radial-gradient(var(--c-border-md) 1px, transparent 1px);
     background-size: 20px 20px;
     pointer-events: none;
     mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
@@ -112,9 +112,9 @@
     border-radius: 999px;
     font-size: 11.5px;
     font-weight: 600;
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--c-text-2, #c8d6ee);
+    border: 1px solid var(--c-border-sm);
+    background: var(--c-glass-sm);
+    color: var(--c-text-2);
     transition: box-shadow var(--t-base);
     animation: slide-in-right 0.3s ease both;
   }
@@ -123,22 +123,22 @@
   .chip-value { font-family: var(--font-mono, 'JetBrains Mono', monospace); opacity: 0.9; }
 
   .chip-green {
-    color: #86efac;
-    background: rgba(34, 197, 94, 0.1);
-    border-color: rgba(34, 197, 94, 0.22);
-    box-shadow: 0 0 10px rgba(34, 197, 94, 0.12);
+    color: var(--c-green);
+    background: color-mix(in srgb, var(--c-green) 12%, transparent);
+    border-color: color-mix(in srgb, var(--c-green) 28%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--c-green) 14%, transparent);
   }
   .chip-amber {
-    color: #fde68a;
-    background: rgba(245, 158, 11, 0.10);
-    border-color: rgba(245, 158, 11, 0.22);
-    box-shadow: 0 0 10px rgba(245, 158, 11, 0.12);
+    color: var(--c-amber);
+    background: color-mix(in srgb, var(--c-amber) 12%, transparent);
+    border-color: color-mix(in srgb, var(--c-amber) 28%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--c-amber) 14%, transparent);
   }
   .chip-red {
-    color: #fecdd3;
-    background: rgba(251, 113, 133, 0.10);
-    border-color: rgba(251, 113, 133, 0.22);
-    box-shadow: 0 0 10px rgba(251, 113, 133, 0.12);
+    color: var(--c-red);
+    background: color-mix(in srgb, var(--c-red) 12%, transparent);
+    border-color: color-mix(in srgb, var(--c-red) 28%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--c-red) 14%, transparent);
   }
   .chip-empty { opacity: 0.55; }
 </style>

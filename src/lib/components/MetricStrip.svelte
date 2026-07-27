@@ -38,10 +38,10 @@
   .metric {
     position: relative;
     overflow: hidden;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--c-glass-sm);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--c-border-md);
     border-radius: 14px;
     padding: 14px 14px 18px;
     transition:
@@ -57,25 +57,25 @@
 
   /* Status variants */
   .metric-green {
-    border-color: rgba(74, 222, 128, 0.22);
-    background: linear-gradient(160deg, rgba(74,222,128,0.07), rgba(255,255,255,0.03));
-    box-shadow: 0 4px 20px rgba(74, 222, 128, 0.08);
+    border-color: color-mix(in srgb, var(--c-green) 28%, var(--c-border-md));
+    background: linear-gradient(160deg, color-mix(in srgb, var(--c-green) 10%, var(--c-glass-sm)), var(--c-glass-sm));
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--c-green) 12%, transparent);
   }
-  .metric-green:hover { box-shadow: 0 6px 28px rgba(74, 222, 128, 0.16); }
+  .metric-green:hover { box-shadow: 0 6px 28px color-mix(in srgb, var(--c-green) 20%, transparent); }
 
   .metric-amber {
-    border-color: rgba(251, 191, 36, 0.22);
-    background: linear-gradient(160deg, rgba(251,191,36,0.07), rgba(255,255,255,0.03));
-    box-shadow: 0 4px 20px rgba(251, 191, 36, 0.08);
+    border-color: color-mix(in srgb, var(--c-amber) 28%, var(--c-border-md));
+    background: linear-gradient(160deg, color-mix(in srgb, var(--c-amber) 10%, var(--c-glass-sm)), var(--c-glass-sm));
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--c-amber) 12%, transparent);
   }
-  .metric-amber:hover { box-shadow: 0 6px 28px rgba(251, 191, 36, 0.16); }
+  .metric-amber:hover { box-shadow: 0 6px 28px color-mix(in srgb, var(--c-amber) 20%, transparent); }
 
   .metric-red {
-    border-color: rgba(251, 113, 133, 0.22);
-    background: linear-gradient(160deg, rgba(251,113,133,0.07), rgba(255,255,255,0.03));
-    box-shadow: 0 4px 20px rgba(251, 113, 133, 0.08);
+    border-color: color-mix(in srgb, var(--c-red) 28%, var(--c-border-md));
+    background: linear-gradient(160deg, color-mix(in srgb, var(--c-red) 10%, var(--c-glass-sm)), var(--c-glass-sm));
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--c-red) 12%, transparent);
   }
-  .metric-red:hover { box-shadow: 0 6px 28px rgba(251, 113, 133, 0.16); }
+  .metric-red:hover { box-shadow: 0 6px 28px color-mix(in srgb, var(--c-red) 20%, transparent); }
 
   .metric-label {
     display: block;
@@ -94,11 +94,11 @@
     letter-spacing: -0.02em;
     line-height: 1;
     margin-bottom: 5px;
-    color: var(--c-text, #f1f5ff);
+    color: var(--c-text);
   }
-  .metric-green  .metric-value { color: #4ade80; }
-  .metric-amber  .metric-value { color: #fbbf24; }
-  .metric-red    .metric-value { color: #fb7185; }
+  .metric-green  .metric-value { color: var(--c-green); }
+  .metric-amber  .metric-value { color: var(--c-amber); }
+  .metric-red    .metric-value { color: var(--c-red); }
 
   .metric-note {
     display: block;
@@ -114,11 +114,11 @@
     bottom: 0; left: 12px; right: 12px;
     height: 2px;
     border-radius: 1px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--c-border-md);
   }
-  .metric-green  .metric-bar { background: linear-gradient(90deg, #4ade80, transparent); }
-  .metric-amber  .metric-bar { background: linear-gradient(90deg, #fbbf24, transparent); }
-  .metric-red    .metric-bar { background: linear-gradient(90deg, #fb7185, transparent); }
+  .metric-green  .metric-bar { background: linear-gradient(90deg, var(--c-green), transparent); }
+  .metric-amber  .metric-bar { background: linear-gradient(90deg, var(--c-amber), transparent); }
+  .metric-red    .metric-bar { background: linear-gradient(90deg, var(--c-red), transparent); }
 
   .mono { font-family: var(--font-mono, 'JetBrains Mono', monospace); }
 
