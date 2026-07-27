@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronRight } from '@lucide/svelte';
+  import { ChevronRight, Lock } from '@lucide/svelte';
   import SportSvgIcon from './SportSvgIcon.svelte';
 
   type SportId = 'football' | 'basketball' | 'tennis' | 'rally';
@@ -12,16 +12,21 @@
     accent: string;
     onClick?: () => void;
     path?: string;
-    icon?: any; /* legacy lucide icon — ignored if sportId provided */
+    icon?: any;
+    comingSoon?: boolean;
+    emoji?: string;
   }>();
 </script>
 
 <button
   class="sport-card"
+  class:coming-soon={props.comingSoon}
   style={`--accent:${props.accent}`}
-  aria-label={`Open ${props.title}`}
+  aria-label={props.comingSoon ? `${props.title} (Coming Soon)` : `Open ${props.title}`}
   type="button"
+  disabled={props.comingSoon}
   onclick={() => {
+    if (props.comingSoon) return;
     if (typeof props.onClick === 'function') {
       try { props.onClick(); } catch (_) { /* swallow */ }
     } else if (props.path && typeof window !== 'undefined') {
@@ -36,6 +41,8 @@
   <div class="icon-wrap" aria-hidden="true">
     {#if props.sportId}
       <SportSvgIcon sport={props.sportId} size={28} color={props.accent} />
+    {:else if props.emoji}
+      <span style="font-size:26px">{props.emoji}</span>
     {:else}
       <span style="font-size:22px">⚡</span>
     {/if}
@@ -45,18 +52,29 @@
   <div class="card-text">
     <div class="card-toprow">
       <span class="card-short">{props.short}</span>
-      <span class="live-badge" aria-label="Live">
-        <span class="live-dot"></span>
-        LIVE
-      </span>
+      {#if props.comingSoon}
+        <span class="cs-badge" aria-label="Coming Soon">
+          <span class="cs-dot"></span>
+          COMING SOON
+        </span>
+      {:else}
+        <span class="live-badge" aria-label="Live">
+          <span class="live-dot"></span>
+          LIVE
+        </span>
+      {/if}
     </div>
     <h2 class="card-title">{props.title}</h2>
     <p class="card-desc">{props.description}</p>
   </div>
 
-  <!-- Arrow -->
+  <!-- Arrow / Lock -->
   <div class="card-arrow" aria-hidden="true">
-    <ChevronRight size={18} stroke-width={2.5} />
+    {#if props.comingSoon}
+      <Lock size={16} stroke-width={2} />
+    {:else}
+      <ChevronRight size={18} stroke-width={2.5} />
+    {/if}
   </div>
 </button>
 
@@ -196,6 +214,36 @@
     background: #4ade80;
     box-shadow: 0 0 6px #4ade80;
     animation: dot-pulse 2s ease-in-out infinite;
+  }
+
+  .cs-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    font-size: 8.5px;
+    font-weight: 800;
+    color: #fbbf24;
+    letter-spacing: 0.08em;
+  }
+  .cs-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #fbbf24;
+    box-shadow: 0 0 6px #fbbf24;
+  }
+
+  .sport-card.coming-soon {
+    opacity: 0.72;
+    cursor: not-allowed;
+  }
+  .sport-card.coming-soon:hover {
+    transform: none;
+    box-shadow: none;
+    background: rgba(255, 255, 255, 0.03);
   }
 
   .card-title {

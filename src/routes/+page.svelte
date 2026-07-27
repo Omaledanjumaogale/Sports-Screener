@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import SportCard from '$lib/components/SportCard.svelte';
   import BottomNav from '$lib/components/BottomNav.svelte';
+  import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles } from '@lucide/svelte';
 
   type SportId = 'football' | 'basketball' | 'tennis' | 'rally';
 
@@ -48,6 +49,23 @@
     }
   ];
 
+  const comingSoonSports = [
+    {
+      short: 'Hockey',
+      title: 'Ice Hockey Screener',
+      description: 'Puck line handicap, 3-period goal pace, total goals, and overtime probability modeling.',
+      accent: '#06b6d4',
+      emoji: '🏒'
+    },
+    {
+      short: 'Baseball',
+      title: 'Baseball Screener',
+      description: 'Run line spread, 9-inning total runs, starting pitcher ERA weighting, and extra-inning margins.',
+      accent: '#e11d48',
+      emoji: '⚾'
+    }
+  ];
+
   function nav(p: string) {
     try {
       if (typeof goto === 'function') { void (async () => { await goto(p); })(); }
@@ -64,10 +82,48 @@
     { icon: '💾', label: 'Auto-Save' },
     { icon: '📱', label: 'Works Offline' }
   ];
+
+  const steps = [
+    {
+      num: 1,
+      title: 'Choose Match & Sport',
+      desc: 'Select any match/game from sports of Football, Basketball, Tennis, or Table Tennis.'
+    },
+    {
+      num: 2,
+      title: 'Launch Screener',
+      desc: 'Click the Sport card on the homepage to navigate you to the selected sport screener.'
+    },
+    {
+      num: 3,
+      title: 'Input Bookmaker Lines & Odds',
+      desc: 'Input by selecting the lines and odds as displayed on your favourite bookmaker or bookies site into the fields.'
+    },
+    {
+      num: 4,
+      title: 'Run Odds Screening Magic',
+      desc: 'Allow the PulseOdds Screener perform his magic with instant mathematical analysis.'
+    },
+    {
+      num: 5,
+      title: 'Manage Your Workspace',
+      desc: 'Clear or save to history to screen another match/game seamlessly.'
+    },
+    {
+      num: 6,
+      title: 'Build Informed Betslips',
+      desc: 'Build your slip with informed verdicts and stake responsibly.'
+    },
+    {
+      num: 7,
+      title: 'Beat the Bookies Together',
+      desc: 'Lets beat the bookies together as Intelligent and informed punters.'
+    }
+  ];
 </script>
 
 <svelte:head>
-  <title>PulseOdds — Sports Odds Intelligence</title>
+  <title>PulseOdds — Read the odds. Own the edge. Beat the Bookies</title>
 </svelte:head>
 
 <div class="landing-root">
@@ -89,7 +145,7 @@
         Pulse<span class="wordmark-accent">Odds</span>
       </h1>
 
-      <p class="tagline">Read the odds. Own the edge.</p>
+      <p class="tagline">Read the odds. Own the edge. Beat the Bookies</p>
 
       <p class="hero-copy">
         A mobile-first workspace for screening football, basketball, tennis and table tennis markets.
@@ -107,11 +163,11 @@
       </ul>
     </section>
 
-    <!-- ── Sport Grid ─────────────────────────────────────── -->
+    <!-- ── Active Sports Section ───────────────────────────── -->
     <section class="sport-section" aria-label="Choose a sport">
       <div class="section-head">
-        <h2 class="section-title">Choose Your Sport</h2>
-        <span class="sport-count-badge">{sports.length} sports</span>
+        <h2 class="section-title">Active Sports Screeners</h2>
+        <span class="sport-count-badge">{sports.length} active</span>
       </div>
 
       <div class="sport-grid">
@@ -128,6 +184,128 @@
       </div>
     </section>
 
+    <!-- ── Coming Soon Sports Section ─────────────────────── -->
+    <section class="coming-soon-section" aria-label="Coming soon sports">
+      <div class="section-head">
+        <h2 class="section-title">Coming Soon</h2>
+        <span class="cs-count-badge">{comingSoonSports.length} in development</span>
+      </div>
+
+      <div class="sport-grid">
+        {#each comingSoonSports as cs}
+          <SportCard
+            short={cs.short}
+            title={cs.title}
+            description={cs.description}
+            accent={cs.accent}
+            emoji={cs.emoji}
+            comingSoon={true}
+          />
+        {/each}
+      </div>
+    </section>
+
+    <!-- ── How to Use PulseOdds ───────────────────────────── -->
+    <section class="how-to-use-section" aria-label="How to use PulseOdds">
+      <div class="section-head">
+        <h2 class="section-title">How to Use PulseOdds</h2>
+        <span class="step-count-badge">7 Easy Steps</span>
+      </div>
+
+      <p class="section-sub">Follow these 7 steps to master sports screening and unlock your statistical edge.</p>
+
+      <div class="steps-grid">
+        {#each steps as step}
+          <div class="step-card">
+            <div class="step-num-badge">
+              <span class="step-num">{step.num}</span>
+            </div>
+            <div class="step-content">
+              <h3 class="step-title">{step.title}</h3>
+              <p class="step-desc">{step.desc}</p>
+            </div>
+          </div>
+        {/each}
+      </div>
+    </section>
+
+    <!-- ── Pricing Section ────────────────────────────────── -->
+    <section class="pricing-section" aria-label="Subscription and pricing">
+      <div class="section-head">
+        <h2 class="section-title">Subscription & Access</h2>
+        <span class="pricing-badge">Monthly Pass</span>
+      </div>
+
+      <div class="pricing-card">
+        <div class="pricing-glow" aria-hidden="true"></div>
+        <div class="pricing-header">
+          <span class="pass-tag">Punter Access Pass</span>
+          <h3 class="pricing-title">Full All-Sport Screener Access</h3>
+          <div class="price-box">
+            <span class="currency">₦</span>
+            <span class="amount">5,000</span>
+            <span class="period">/ month</span>
+          </div>
+          <p class="pricing-copy">
+            To access all four sport screeners (Football, Basketball, Tennis & Table Tennis), all punters are required to make a monthly donation of <strong>₦5,000 Naira</strong>.
+          </p>
+        </div>
+
+        <ul class="pricing-features">
+          <li>
+            <CheckCircle2 class="icon-check" size={18} />
+            <span>Unlimited screening access across Football, Basketball, Tennis & Table Tennis</span>
+          </li>
+          <li>
+            <CheckCircle2 class="icon-check" size={18} />
+            <span>4-Profile mathematical verdict engine with 5-lamp confidence scoring</span>
+          </li>
+          <li>
+            <CheckCircle2 class="icon-check" size={18} />
+            <span>Top Pick rankings with gold/silver/bronze value badges</span>
+          </li>
+          <li>
+            <CheckCircle2 class="icon-check" size={18} />
+            <span>Sequential decimal odds picker (1.01 - 5.00 by 0.01) & line selector</span>
+          </li>
+          <li>
+            <CheckCircle2 class="icon-check" size={18} />
+            <span>Convex-backed history sync & offline-first local storage</span>
+          </li>
+        </ul>
+
+        <button type="button" class="btn-donate" onclick={() => alert('Thank you for supporting PulseOdds! Contact admin or proceed to donate ₦5,000 to activate your monthly subscription pass.')}>
+          <HeartHandshake size={20} />
+          Donate ₦5,000 / Month & Get Access
+        </button>
+      </div>
+    </section>
+
+    <!-- ── Disclaimer Section ─────────────────────────────── -->
+    <section class="disclaimer-section" aria-label="Disclaimer">
+      <div class="disclaimer-card">
+        <div class="disclaimer-head">
+          <ShieldAlert class="disc-icon" size={24} />
+          <h3 class="disc-title">Important Disclaimer & Responsible Staking</h3>
+        </div>
+
+        <div class="disc-body">
+          <p>
+            <strong>PulseOdds</strong> is an analytical sports odds screening and statistical calculation tool designed exclusively for informational and educational purposes.
+          </p>
+          <p>
+            We are <strong>NOT a bookmaker, gambling operator, or betting service</strong>. We do not accept bets, process wagers, or handle financial gambling transactions.
+          </p>
+          <p>
+            Sports betting inherently involves financial risk. Statistical indicators, confidence ratios, profile ratings, and verdicts generated by PulseOdds do <strong>NOT guarantee winning outcomes or financial profit</strong>. Past performance and statistical metrics do not ensure future results.
+          </p>
+          <p class="disc-highlight">
+            Stake responsibly. Never stake money you cannot afford to lose. Comply strictly with all local gambling laws in your jurisdiction. Strictly 18+ only.
+          </p>
+        </div>
+      </div>
+    </section>
+
     <!-- ── Footer ────────────────────────────────────────── -->
     <footer class="foot" aria-label="App info">
       <div class="foot-brand">
@@ -135,9 +313,9 @@
         <strong>PulseOdds</strong>
         <span class="foot-version">v2.0</span>
       </div>
-      <p class="foot-copy">Offline-first · Decimal odds · No sign-up required</p>
+      <p class="foot-copy">Read the odds. Own the edge. Beat the Bookies · Strictly 18+</p>
       <div class="foot-sports" aria-label="Available sports">
-        <span>⚽</span><span>🏀</span><span>🎾</span><span>🏓</span>
+        <span>⚽</span><span>🏀</span><span>🎾</span><span>🏓</span><span>🏒</span><span>⚾</span>
       </div>
     </footer>
 
@@ -148,7 +326,7 @@
 </div>
 
 <style>
-  /* ── Root ──────────────────────────────────────────────────── */
+  /* ── Root & Centered Alignment ─────────────────────────────── */
   .landing-root {
     position: relative;
     width: 100%;
@@ -183,12 +361,16 @@
     animation: aurora-drift 30s ease-in-out infinite 8s;
   }
 
-  /* ── Layout ─────────────────────────────────────────────────── */
+  /* ── Layout — Fully Centered ─────────────────────────────────── */
   .landing-inner {
     position: relative;
     z-index: 1;
     width: min(100%, 960px);
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
     padding:
       max(24px, env(safe-area-inset-top))
       max(16px, env(safe-area-inset-right))
@@ -197,10 +379,15 @@
     min-width: 320px;
   }
 
-  /* ── Hero ───────────────────────────────────────────────────── */
+  /* ── Hero — Centered ────────────────────────────────────────── */
   .hero {
     padding: 40px 0 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
     animation: slide-up 0.5s ease both;
+    width: 100%;
   }
 
   .eyebrow-pill {
@@ -233,6 +420,7 @@
     line-height: 0.92;
     letter-spacing: -0.03em;
     color: #f1f5ff;
+    text-align: center;
   }
   .wordmark-accent {
     background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a3e635 100%);
@@ -242,30 +430,38 @@
   }
 
   .tagline {
-    margin: 0 0 14px;
-    font-size: clamp(16px, 4vw, 22px);
-    font-weight: 700;
-    color: #8899bb;
+    margin: 0 0 16px;
+    font-size: clamp(17px, 4.2vw, 24px);
+    font-weight: 800;
+    color: #f1f5ff;
     letter-spacing: -0.01em;
+    text-align: center;
+    background: linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
   .hero-copy {
-    margin: 0;
+    margin: 0 auto;
     color: #8899bb;
     line-height: 1.65;
     max-width: 680px;
     font-size: clamp(13px, 2.8vw, 15px);
     font-weight: 500;
+    text-align: center;
   }
 
-  /* ── Feature Pills ──────────────────────────────────────────── */
+  /* ── Feature Pills — Centered ───────────────────────────────── */
   .feature-pills {
     list-style: none;
     padding: 0;
     margin: 24px 0 0;
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: 8px;
+    width: 100%;
   }
   .pill {
     display: inline-flex;
@@ -287,29 +483,74 @@
     color: #a5b4fc;
   }
 
-  /* ── Sport Section ──────────────────────────────────────────── */
-  .sport-section { margin-top: 16px; }
+  /* ── Common Section Headers — Centered ─────────────────────── */
+  .sport-section, .coming-soon-section, .how-to-use-section, .pricing-section, .disclaimer-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
 
   .section-head {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 10px;
-    margin: 36px 0 18px;
+    margin: 40px 0 18px;
+    flex-wrap: wrap;
   }
   .section-title {
-    font-size: 13px;
-    color: #8899bb;
-    letter-spacing: 0.1em;
+    font-size: 14px;
+    color: #f1f5ff;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    font-weight: 800;
+    font-weight: 900;
     margin: 0;
+    text-align: center;
   }
+  .section-sub {
+    margin: -8px 0 24px;
+    color: #8899bb;
+    font-size: 13.5px;
+    font-weight: 500;
+    max-width: 600px;
+    text-align: center;
+  }
+
   .sport-count-badge {
     font-size: 11px;
     font-weight: 700;
-    color: #6366f1;
-    background: rgba(99, 102, 241, 0.12);
-    border: 1px solid rgba(99, 102, 241, 0.25);
+    color: #22c55e;
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+  .cs-count-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+  .step-count-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+  .pricing-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #a855f7;
+    background: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.25);
     padding: 3px 10px;
     border-radius: 999px;
   }
@@ -318,21 +559,286 @@
     display: grid;
     gap: 14px;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    width: 100%;
+  }
+
+  /* ── How to Use Section ────────────────────────────────────── */
+  .steps-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    width: 100%;
+  }
+
+  .step-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 18px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: left;
+    transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  }
+  .step-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(56, 189, 248, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .step-num-badge {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(99, 102, 241, 0.1));
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-num {
+    font-size: 16px;
+    font-weight: 900;
+    color: #38bdf8;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  }
+
+  .step-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .step-title {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 800;
+    color: #f1f5ff;
+    line-height: 1.3;
+  }
+  .step-desc {
+    margin: 0;
+    font-size: 12.5px;
+    color: #8899bb;
+    line-height: 1.55;
+    font-weight: 500;
+  }
+
+  /* ── Pricing Section ───────────────────────────────────────── */
+  .pricing-card {
+    position: relative;
+    width: min(100%, 640px);
+    margin: 0 auto;
+    padding: 32px 24px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    box-shadow: 0 16px 48px -12px rgba(168, 85, 247, 0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .pricing-glow {
+    position: absolute;
+    top: -100px; left: 50%;
+    transform: translateX(-50%);
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .pricing-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .pass-tag {
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #c084fc;
+    background: rgba(168, 85, 247, 0.14);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    padding: 4px 12px;
+    border-radius: 999px;
+  }
+
+  .pricing-title {
+    font-size: clamp(20px, 4vw, 26px);
+    font-weight: 900;
+    color: #f1f5ff;
+    margin: 4px 0;
+  }
+
+  .price-box {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 4px;
+    margin: 8px 0;
+    color: #f1f5ff;
+  }
+  .price-box .currency {
+    font-size: 24px;
+    font-weight: 900;
+    color: #c084fc;
+  }
+  .price-box .amount {
+    font-size: 42px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    color: #ffffff;
+  }
+  .price-box .period {
+    font-size: 14px;
+    color: #8899bb;
+    font-weight: 700;
+  }
+
+  .pricing-copy {
+    margin: 0;
+    font-size: 13.5px;
+    color: #c8d6ee;
+    line-height: 1.6;
+    max-width: 500px;
+  }
+
+  .pricing-features {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    text-align: left;
+    width: 100%;
+    max-width: 520px;
+    position: relative;
+    z-index: 1;
+  }
+  .pricing-features li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #f1f5ff;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .pricing-features :global(.icon-check) {
+    color: #c084fc;
+    flex-shrink: 0;
+  }
+
+  .btn-donate {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 480px;
+    min-height: 52px;
+    padding: 12px 24px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #9333ea 0%, #6366f1 100%);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 800;
+    font-family: var(--font-brand, 'Outfit', system-ui);
+    cursor: pointer;
+    box-shadow: 0 8px 24px -4px rgba(147, 51, 234, 0.4);
+    transition: transform 180ms ease, box-shadow 180ms ease;
+    position: relative;
+    z-index: 1;
+  }
+  .btn-donate:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px -4px rgba(147, 51, 234, 0.6);
+  }
+  .btn-donate:active { transform: scale(0.98); }
+
+  /* ── Disclaimer Section ────────────────────────────────────── */
+  .disclaimer-card {
+    width: min(100%, 720px);
+    margin: 28px auto 0;
+    padding: 24px;
+    border-radius: 18px;
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    backdrop-filter: blur(12px);
+    text-align: left;
+  }
+
+  .disclaimer-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .disclaimer-head :global(.disc-icon) {
+    color: #f87171;
+    flex-shrink: 0;
+  }
+  .disc-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+    color: #fecdd3;
+    letter-spacing: -0.01em;
+  }
+
+  .disc-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 12.5px;
+    color: #cbd5e1;
+    line-height: 1.6;
+  }
+  .disc-body p { margin: 0; }
+  .disc-highlight {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.12);
+    border-left: 3px solid #f87171;
+    color: #ffe4e6;
+    font-weight: 700;
   }
 
   /* ── Footer ─────────────────────────────────────────────────── */
   .foot {
-    margin-top: 48px;
-    padding: 22px 0 8px;
+    margin-top: 56px;
+    padding: 24px 0 8px;
     border-top: 1px solid rgba(255, 255, 255, 0.07);
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
   }
   .foot-brand {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    margin-bottom: 6px;
   }
   .foot-logo {
     font-size: 18px;
@@ -357,19 +863,23 @@
     color: #5a6e8a;
     font-size: 12px;
     font-weight: 500;
-    margin-bottom: 12px;
+    margin: 0;
   }
   .foot-sports {
     display: flex;
     justify-content: center;
     gap: 12px;
     font-size: 18px;
+    margin-top: 4px;
   }
 
   /* ── Responsive ─────────────────────────────────────────────── */
-  @media (max-width: 380px) {
+  @media (max-width: 440px) {
     .landing-inner { padding-left: 12px; padding-right: 12px; }
-    .sport-grid { grid-template-columns: 1fr; }
+    .sport-grid, .steps-grid { grid-template-columns: 1fr; }
+    .pricing-card { padding: 24px 16px; }
+    .price-box .amount { font-size: 34px; }
+    .btn-donate { font-size: 13.5px; padding: 12px 16px; }
   }
   @media (min-width: 768px) {
     .landing-inner { padding-bottom: max(40px, env(safe-area-inset-bottom)); }
