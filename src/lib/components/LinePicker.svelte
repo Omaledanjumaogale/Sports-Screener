@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   let {
     value = null,
     label = 'Line',
@@ -8,6 +9,7 @@
     step = 0.5,
     min = -999,
     max = 999,
+    storageKey = '',
     onChange = (_v: number | null) => { void _v; }
   }: {
     value: number | null;
@@ -18,8 +20,29 @@
     step?: number;
     min?: number;
     max?: number;
+    storageKey?: string;
     onChange?: (v: number | null) => void;
   } = $props();
+
+  onMount(() => {
+    if (storageKey) {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const num = parseFloat(saved);
+        if (!isNaN(num)) onChange(num);
+      }
+    }
+  });
+
+  $effect(() => {
+    if (storageKey) {
+      if (value !== null) {
+        localStorage.setItem(storageKey, String(value));
+      } else {
+        localStorage.removeItem(storageKey);
+      }
+    }
+  });
 
   function setLine(v: string) {
     onChange(v === '' ? null : Number(v));

@@ -4,7 +4,8 @@
   import SportCard from '$lib/components/SportCard.svelte';
   import BottomNav from '$lib/components/BottomNav.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-  import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles } from '@lucide/svelte';
+  import { authState, setUnauthenticated } from '$lib/authStore.svelte';
+  import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User } from '@lucide/svelte';
 
   type SportId = 'football' | 'basketball' | 'tennis' | 'rally';
 
@@ -136,12 +137,25 @@
   <main class="landing-inner">
 
     <!-- Top header actions -->
-    <div class="home-topbar">
+    <div class="topbar">
       <div class="topbar-brand">
         <span class="pulse-icon" aria-hidden="true">⚡</span>
         <strong>PulseOdds</strong>
       </div>
-      <ThemeToggle />
+      <div class="header-actions">
+        <ThemeToggle />
+        {#if authState.isAuthenticated}
+          <button class="auth-btn logout-btn" onclick={() => {
+            // TODO: call convex client sign out
+            setUnauthenticated();
+          }}>
+            <LogOut size={16} /> Sign Out
+          </button>
+        {:else}
+          <a href="/auth" class="auth-btn login-btn">Log In</a>
+          <a href="/auth?mode=signup" class="auth-btn signup-btn">Sign Up</a>
+        {/if}
+      </div>
     </div>
 
     <!-- ── Hero ──────────────────────────────────────────── -->
@@ -223,6 +237,8 @@
       </div>
 
       <p class="section-sub">Follow these 7 steps to master sports screening and unlock your statistical edge.</p>
+
+
 
       <div class="steps-grid">
         {#each steps as step}
@@ -410,6 +426,49 @@
   .pulse-icon {
     font-size: 20px;
     filter: drop-shadow(0 0 6px var(--c-orange));
+  }
+
+  /* ── Auth Buttons ────────────────────────────────────────────── */
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .auth-btn {
+    font-size: 13px;
+    font-weight: 800;
+    padding: 6px 14px;
+    border-radius: 999px;
+    text-decoration: none;
+    transition: all var(--t-base);
+  }
+  .login-btn {
+    color: var(--c-text);
+    background: transparent;
+  }
+  .login-btn:hover {
+    color: var(--c-orange);
+  }
+  .signup-btn {
+    color: var(--c-bg);
+    background: var(--c-orange);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--c-orange) 40%, transparent);
+  }
+  .signup-btn:hover {
+    background: color-mix(in srgb, var(--c-orange) 80%, white);
+    transform: translateY(-1px);
+  }
+  .logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: color-mix(in srgb, var(--c-red) 15%, transparent);
+    color: var(--c-red);
+    border: none;
+    cursor: pointer;
+  }
+  .logout-btn:hover {
+    background: color-mix(in srgb, var(--c-red) 30%, transparent);
   }
 
   /* ── Hero — Centered ────────────────────────────────────────── */

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { oddsOptions } from '../engine';
 
   let {
@@ -8,6 +9,7 @@
     disabled = false,
     step = 0.01,
     id,
+    storageKey = '',
     onChange = (_v: number | null) => { void _v; }
   }: {
     value: number | null;
@@ -16,11 +18,32 @@
     disabled?: boolean;
     step?: number;
     id?: string;
+    storageKey?: string;
     onChange?: (v: number | null) => void;
   } = $props();
 
   let isCustom = $state(false);
   let customValue = $state('');
+
+  onMount(() => {
+    if (storageKey) {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const num = parseFloat(saved);
+        if (!isNaN(num)) onChange(num);
+      }
+    }
+  });
+
+  $effect(() => {
+    if (storageKey) {
+      if (value !== null) {
+        localStorage.setItem(storageKey, String(value));
+      } else {
+        localStorage.removeItem(storageKey);
+      }
+    }
+  });
 
   $effect(() => {
     if (value !== null) {

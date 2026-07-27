@@ -1,7 +1,9 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
+import { authTables } from "@convex-dev/auth/server";
 
 export default defineSchema({
+  ...authTables,
   savedScreeners: defineTable({
     sportId: v.union(
       v.literal('football'),
@@ -29,9 +31,12 @@ export default defineSchema({
       }))
     })),
     sessionId: v.string(),
+    userId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number()
   })
     .index('by_sport_and_session', ['sportId', 'sessionId', 'createdAt'])
     .index('by_session', ['sessionId', 'createdAt'])
+    .index('by_user', ['userId', 'createdAt'])
+    .index('by_sport_and_user', ['sportId', 'userId', 'createdAt'])
 });

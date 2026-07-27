@@ -9,11 +9,28 @@ export const list = query({
       v.literal('tennis'),
       v.literal('rally')
     )),
-    sessionId: v.string()
+    sessionId: v.string(),
+    userId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     let results;
-    if (args.sportId) {
+    if (args.userId) {
+      if (args.sportId) {
+        results = await ctx.db
+          .query('savedScreeners')
+          .withIndex('by_sport_and_user', (q) =>
+            q.eq('sportId', args.sportId!).eq('userId', args.userId!)
+          )
+          .order('desc')
+          .collect();
+      } else {
+        results = await ctx.db
+          .query('savedScreeners')
+          .withIndex('by_user', (q) => q.eq('userId', args.userId!))
+          .order('desc')
+          .collect();
+      }
+    } else if (args.sportId) {
       results = await ctx.db
         .query('savedScreeners')
         .withIndex('by_sport_and_session', (q) =>
@@ -52,18 +69,20 @@ export const save = mutation({
     scopes: v.any(),
     verdict: v.optional(v.any()),
     sessionId: v.string(),
+    userId: v.optional(v.string()),
     _id: v.optional(v.id('savedScreeners'))
   },
   handler: async (ctx, args) => {
     const now = Date.now();
     if (args._id) {
       const existing = await ctx.db.get(args._id);
-      if (existing && existing.sessionId === args.sessionId) {
+      if (existing && (existing.sessionId === args.sessionId || (args.userId && existing.userId === args.userId))) {
         await ctx.db.patch(args._id, {
           title: args.title,
           notes: args.notes,
           scopes: args.scopes,
           verdict: args.verdict,
+          userId: args.userId ?? existing.userId,
           updatedAt: now
         });
         return args._id;
@@ -76,6 +95,7 @@ export const save = mutation({
       scopes: args.scopes,
       verdict: args.verdict,
       sessionId: args.sessionId,
+      userId: args.userId,
       createdAt: now,
       updatedAt: now
     });
@@ -86,6 +106,7 @@ export const update = mutation({
   args: {
     id: v.id('savedScreeners'),
     sessionId: v.string(),
+    userId: v.optional(v.string()),
     title: v.optional(v.string()),
     notes: v.optional(v.string()),
     scopes: v.optional(v.any()),
@@ -93,12 +114,14 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.get(args.id);
-    if (!existing || existing.sessionId !== args.sessionId) return null;
+    if (!existing) return null;
+    if (existing.sessionId !== args.sessionId && (!args.userId || existing.userId !== args.userId)) return null;
     const patch: Record<string, any> = { updatedAt: Date.now() };
     if (args.title !== undefined) patch.title = args.title;
     if (args.notes !== undefined) patch.notes = args.notes;
     if (args.scopes !== undefined) patch.scopes = args.scopes;
     if (args.verdict !== undefined) patch.verdict = args.verdict;
+    if (args.userId !== undefined) patch.userId = args.userId;
     await ctx.db.patch(args.id, patch);
   }
 });
@@ -106,13 +129,15 @@ export const update = mutation({
 export const remove = mutation({
   args: {
     id: v.id('savedScreeners'),
-    sessionId: v.string()
+    sessionId: v.string(),
+    userId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.get(args.id);
-    if (existing && existing.sessionId === args.sessionId) {
+    if (existing && (existing.sessionId === args.sessionId || (args.userId && existing.userId === args.userId))) {
       await ctx.db.delete(args.id);
     }
     return null;
   }
 });
+

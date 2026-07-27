@@ -21,7 +21,12 @@
     "vite": "^6.1.0"
   },
   "dependencies": {
+    "@convex-dev/aggregate": "^0.2.2",
+    "@convex-dev/auth": "^0.0.94",
+    "@convex-dev/rate-limiter": "^0.3.2",
     "@lucide/svelte": "^1.27.0",
-    "convex": "^1.42.3"
+    "convex": "^1.42.3",
+    "convex-ents": "^0.20.0",
+    "convex-helpers": "^0.1.120"
   }
 }

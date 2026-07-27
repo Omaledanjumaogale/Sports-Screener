@@ -30,6 +30,8 @@
     accent?: string;
   } = $props();
 
+  import { authState } from '../authStore.svelte';
+
   let mode: 'list' | 'save' | 'edit' = $state('list');
   let records: SavedScreenerDoc[] = $state([]);
   let loading: boolean = $state(true);
@@ -50,7 +52,8 @@
     loading = true;
     error = null;
     try {
-      records = await queryConvex<any[]>(api.savedScreeners.list, { sportId, sessionId }) as SavedScreenerDoc[];
+      const userId = authState.user?.id;
+      records = await queryConvex<any[]>(api.savedScreeners.list, { sportId, sessionId, userId }) as SavedScreenerDoc[];
     } catch (e: any) {
       error = e?.message ?? 'Could not load history. Using offline mode.';
       records = [];
@@ -109,7 +112,8 @@
         notes: notesInput.trim() || undefined,
         scopes: JSON.parse(JSON.stringify(scopes)),
         verdict: verdictPayload,
-        sessionId
+        sessionId,
+        userId: authState.user?.id
       };
       if (editingDoc?._id) args._id = editingDoc._id;
       const id = await callConvex<any>(api.savedScreeners.save, args);
@@ -130,7 +134,7 @@
     working = true;
     error = null;
     try {
-      await callConvex(api.savedScreeners.remove, { id: doc._id, sessionId });
+      await callConvex(api.savedScreeners.remove, { id: doc._id, sessionId, userId: authState.user?.id });
       if (expandedId === String(doc._id)) expandedId = null;
       await refresh();
     } catch (e: any) {
