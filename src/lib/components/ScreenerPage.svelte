@@ -16,6 +16,7 @@
   import SaveHistory from './SaveHistory.svelte';
   import BottomNav from './BottomNav.svelte';
   import MasterVerdictCard from './MasterVerdictCard.svelte';
+  import CloudflareAiBanner from './CloudflareAiBanner.svelte';
   import {
     analyzeFootball,
     analyzeBasketball,
@@ -206,6 +207,17 @@
         <div class="spacer"></div>
         <MasterVerdictCard ledger={analysis.masterLedger} />
       {/if}
+
+      <CloudflareAiBanner
+        {sportId}
+        {sportTitle}
+        scopeTitle={scope.title}
+        ledger={analysis.masterLedger ?? null}
+        profiles={analysis.profiles}
+        picks={analysis.masterRankings ?? analysis.picks}
+        metrics={analysis.metrics}
+        {accent}
+      />
 
       <div class="spacer"></div>
 

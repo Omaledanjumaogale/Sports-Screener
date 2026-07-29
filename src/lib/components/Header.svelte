@@ -3,7 +3,7 @@
   import SportSvgIcon from './SportSvgIcon.svelte';
   import ThemeToggle from './ThemeToggle.svelte';
 
-  type SportId = 'football' | 'basketball' | 'tennis' | 'rally';
+  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey';
 
   let {
     title,

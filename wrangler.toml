@@ -1,3 +1,7 @@
 name = "pulseodds-screener"
+account_id = "04ca38ff81dd0f1c0cdf584db3779aee"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-07-27"
+
+[ai]
+binding = "AI"

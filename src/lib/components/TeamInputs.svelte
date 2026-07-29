@@ -7,7 +7,7 @@
     onChange = () => {}
   }: {
     scope: ScopeState;
-    sportId: 'football' | 'basketball' | 'tennis' | 'rally';
+    sportId: 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey';
     onChange?: () => void;
   } = $props();
 
