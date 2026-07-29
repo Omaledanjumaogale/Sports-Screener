@@ -1,4 +1,5 @@
 // src/lib/cloudflareAi.ts
+// This module is browser-only (static SPA). All API calls are made client-side.
 import type { MasterConfluenceLedger, Profile, Pick, SportId } from './engine';
 
 export interface AiAnalysisRequest {
@@ -15,6 +16,7 @@ export interface AiAnalysisResult {
   success: boolean;
   isOffline: boolean;
   model: string;
+  provider?: 'cloudflare' | 'openrouter';
   insights?: {
     verdictSummary: string;
     valueAssessment: string;
@@ -26,39 +28,39 @@ export interface AiAnalysisResult {
   neuronsUsed?: number;
 }
 
-const CLOUDFLARE_ACCOUNT_ID =
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_CF_ACCOUNT_ID) ||
-  '04ca38ff81dd0f1c0cdf584db3779aee';
+// ── Credentials ──────────────────────────────────────────────────────────────
+// Set these in .env.local for local dev and in Cloudflare Pages → Settings →
+// Environment variables for production. NEVER hardcode secrets in source.
+const CF_ACCOUNT_ID: string =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_CF_ACCOUNT_ID) || '';
 
-const CLOUDFLARE_WORKER_AI_TOKEN =
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_CF_WORKER_AI_TOKEN) ||
-  '';
-const DEFAULT_MODEL = '@cf/meta/llama-3.1-8b-instruct';
+const CF_AI_TOKEN: string =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_CF_WORKER_AI_TOKEN) || '';
 
+// OpenRouter — free tier, no billing required for free models
+// Sign up at https://openrouter.ai/ and set VITE_OPENROUTER_API_KEY
+const OPENROUTER_API_KEY: string =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_OPENROUTER_API_KEY) || '';
+
+const CF_MODEL = '@cf/meta/llama-3.1-8b-instruct';
+const OR_MODEL = 'mistralai/mistral-7b-instruct:free'; // Free OpenRouter model
+
+// ── Network helpers ───────────────────────────────────────────────────────────
 export function isOnline(): boolean {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return true;
   return navigator.onLine;
 }
 
-export async function requestCloudflareAiAnalysis(
-  req: AiAnalysisRequest,
-  signal?: AbortSignal
-): Promise<AiAnalysisResult> {
-  if (!isOnline()) {
-    return {
-      success: false,
-      isOffline: true,
-      model: DEFAULT_MODEL,
-      error: 'Offline Mode: Local Master Model analysis running locally. Connect to network for Cloudflare Workers AI online recommendations.'
-    };
-  }
+// ── Prompt builder ────────────────────────────────────────────────────────────
+function buildPrompt(req: AiAnalysisRequest): string {
+  const { sportTitle, scopeTitle, ledger, picks, metrics } = req;
 
-  const { sportTitle, scopeTitle, ledger, profiles, picks, metrics } = req;
-
-  // Build compact, structured prompt for sports market intelligence
   const topPicksStr = picks
-    .slice(0, 4)
-    .map((p) => `${p.label} (${p.marketTitle}) @ ${p.odds.toFixed(2)} [P: ${p.probability.toFixed(1)}%, Vig: ${(p.margin ?? 0).toFixed(1)}%]`)
+    .slice(0, 5)
+    .map(
+      (p) =>
+        `${p.label} (${p.marketTitle}) @ ${p.odds.toFixed(2)} [P: ${p.probability.toFixed(1)}%, Vig: ${(p.margin ?? 0).toFixed(1)}%]`
+    )
     .join('; ');
 
   const metricsStr = metrics
@@ -67,103 +69,197 @@ export async function requestCloudflareAiAnalysis(
     .join(' · ');
 
   const ledgerStr = ledger
-    ? `Candidate: "${ledger.candidateLabel}" | Tier: ${ledger.tier} | Probability: ${ledger.marketProbability ?? '-'}% | Vig: ${ledger.bookmakerMargin ?? '-'}% | Confluence: ${ledger.agreeCount}/5 Agree, ${ledger.disagreeCount} Disagree`
-    : 'No master ledger available yet.';
+    ? `Best Pick: "${ledger.candidateLabel}" | Tier: ${ledger.tier} | Prob: ${ledger.marketProbability ?? '-'}% | Vig: ${ledger.bookmakerMargin ?? '-'}% | Agree: ${ledger.agreeCount}/5, Disagree: ${ledger.disagreeCount}`
+    : 'No master ledger yet.';
 
-  const promptText = `
-You are PulseOdds AI, an expert sports odds & quantitative lines analyst. Analyze the following screener data and provide a concise, high-value betting market verdict:
+  return `You are PulseOdds AI, an expert sports quantitative analyst. Analyze this screener data and return ONLY a JSON object — no markdown, no extra text.
 
-Sport: ${sportTitle} (${scopeTitle})
-Master Model Ledger: ${ledgerStr}
-Metrics: ${metricsStr}
-Top Ranked Picks: ${topPicksStr}
+Sport: ${sportTitle}${scopeTitle ? ` — ${scopeTitle}` : ''}
+Master Ledger: ${ledgerStr}
+Key Metrics: ${metricsStr || 'None entered yet.'}
+Top Ranked Picks: ${topPicksStr || 'No picks ranked yet.'}
 
-Instructions:
-Respond strictly with a brief, high-level JSON object matching this structure (no extra commentary outside JSON):
-{
-  "verdictSummary": "20-word executive summary of the leading market read",
-  "valueAssessment": "15-word assessment of bookmaker margin vs implied probability value",
-  "riskWarning": "15-word key risk or contradiction to watch out for",
-  "tacticalRecommendation": "15-word recommended slip action (e.g. Stake main line, wait for live odds, or pass)"
+Return exactly this JSON (no other text):
+{"verdictSummary":"20-word executive market verdict","valueAssessment":"15-word bookmaker margin vs probability value read","riskWarning":"15-word key risk or contradiction","tacticalRecommendation":"15-word slip action: stake, wait or pass"}`;
 }
-`;
+
+// ── Parse AI response text into insights ─────────────────────────────────────
+function parseInsights(text: string): AiAnalysisResult['insights'] {
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*?\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.verdictSummary) return parsed as AiAnalysisResult['insights'];
+    }
+  } catch (_) {/* fall through */}
+
+  // Fallback: use raw text as verdict
+  const clean = text.replace(/```[a-z]*/gi, '').replace(/```/g, '').trim();
+  return {
+    verdictSummary: clean.slice(0, 200) || 'Analysis complete. Review ranked picks above.',
+    valueAssessment: 'Cross-check market expected value against bookmaker implied odds.',
+    riskWarning: 'Bookmaker margin detected. Manage stake size accordingly.',
+    tacticalRecommendation: 'Verify top picks against live odds before placement.'
+  };
+}
+
+// ── Cloudflare Workers AI call ────────────────────────────────────────────────
+async function callCloudflareAI(
+  prompt: string,
+  signal: AbortSignal
+): Promise<AiAnalysisResult> {
+  const endpoint = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/${CF_MODEL}`;
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${CF_AI_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      messages: [
+        { role: 'system', content: 'You are a sports betting quantitative analyst. Always respond with valid JSON only.' },
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: 350,
+      temperature: 0.25
+    }),
+    signal
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`CF ${res.status}: ${errBody.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  // Cloudflare Workers AI response formats
+  const text: string =
+    data?.result?.response ??
+    data?.result?.choices?.[0]?.message?.content ??
+    data?.result?.choices?.[0]?.text ??
+    '';
+
+  const neuronsUsed: number | undefined = data?.result?.usage?.neurons;
+
+  return {
+    success: true,
+    isOffline: false,
+    provider: 'cloudflare',
+    model: CF_MODEL,
+    insights: parseInsights(text),
+    rawText: text,
+    neuronsUsed
+  };
+}
+
+// ── OpenRouter AI call (free fallback) ────────────────────────────────────────
+async function callOpenRouterAI(
+  prompt: string,
+  signal: AbortSignal
+): Promise<AiAnalysisResult> {
+  if (!OPENROUTER_API_KEY) {
+    throw new Error('OpenRouter API key not configured. Set VITE_OPENROUTER_API_KEY.');
+  }
+
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'https://pulseodds.app',
+      'X-Title': 'PulseOdds Screener'
+    },
+    body: JSON.stringify({
+      model: OR_MODEL,
+      messages: [
+        { role: 'system', content: 'You are a sports betting quantitative analyst. Always respond with valid JSON only.' },
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: 350,
+      temperature: 0.25
+    }),
+    signal
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`OpenRouter ${res.status}: ${errBody.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const text: string = data?.choices?.[0]?.message?.content ?? '';
+
+  return {
+    success: true,
+    isOffline: false,
+    provider: 'openrouter',
+    model: OR_MODEL,
+    insights: parseInsights(text),
+    rawText: text
+  };
+}
+
+// ── Main export: tries Cloudflare first, then OpenRouter ─────────────────────
+export async function requestCloudflareAiAnalysis(
+  req: AiAnalysisRequest,
+  signal?: AbortSignal
+): Promise<AiAnalysisResult> {
+  if (!isOnline()) {
+    return {
+      success: false,
+      isOffline: true,
+      model: CF_MODEL,
+      error:
+        'You are offline. All local screener analysis is running. Reconnect for AI-powered recommendations.'
+    };
+  }
+
+  const prompt = buildPrompt(req);
+
+  // Abort controller with 15s timeout
+  const controller = new AbortController();
+  const combinedSignal = signal ?? controller.signal;
+  const timeoutId = setTimeout(() => controller.abort(), 15_000);
 
   try {
-    const endpoint = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/${DEFAULT_MODEL}`;
-    
-    // 10 second timeout fallback
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    // ── Attempt 1: Cloudflare Workers AI ─────────────────────────────────────
+    try {
+      const result = await callCloudflareAI(prompt, combinedSignal);
+      clearTimeout(timeoutId);
+      return result;
+    } catch (cfErr: any) {
+      // If aborted by user/timeout — don't retry
+      if (cfErr.name === 'AbortError') throw cfErr;
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${CLOUDFLARE_WORKER_AI_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        prompt: promptText,
-        max_tokens: 300,
-        temperature: 0.3
-      }),
-      signal: signal ?? controller.signal
-    });
+      // ── Attempt 2: OpenRouter free fallback ───────────────────────────────
+      if (OPENROUTER_API_KEY) {
+        console.warn('[PulseOdds AI] Cloudflare failed, trying OpenRouter:', cfErr.message);
+        const result = await callOpenRouterAI(prompt, combinedSignal);
+        clearTimeout(timeoutId);
+        return result;
+      }
 
+      // No fallback available — report Cloudflare error
+      throw cfErr;
+    }
+  } catch (err: any) {
     clearTimeout(timeoutId);
 
-    if (!res.ok) {
-      const errText = await res.text();
-      return {
-        success: false,
-        isOffline: false,
-        model: DEFAULT_MODEL,
-        error: `Cloudflare Workers AI HTTP ${res.status}: ${errText.slice(0, 150)}`
-      };
-    }
-
-    const data = await res.json();
-    const responseText = data?.result?.response ?? data?.result?.choices?.[0]?.text ?? '';
-    const neuronsUsed = data?.result?.usage?.neurons;
-
-    // Try parsing JSON from AI response
-    let insights: AiAnalysisResult['insights'];
-    try {
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        insights = JSON.parse(jsonMatch[0]);
-      }
-    } catch (_e) {
-      // Fallback if model returned plain text instead of strict JSON
-      insights = {
-        verdictSummary: responseText.slice(0, 150),
-        valueAssessment: 'Value verified against market expected lines.',
-        riskWarning: 'Verify bookmaker odds against line changes before placement.',
-        tacticalRecommendation: 'Screen complete. Manage stake size responsibly.'
-      };
-    }
-
-    return {
-      success: true,
-      isOffline: false,
-      model: DEFAULT_MODEL,
-      insights,
-      rawText: responseText,
-      neuronsUsed
-    };
-  } catch (err: any) {
     if (err.name === 'AbortError') {
       return {
         success: false,
         isOffline: false,
-        model: DEFAULT_MODEL,
-        error: 'Cloudflare Workers AI request timed out (10s limit exceeded).'
+        model: CF_MODEL,
+        error: 'AI request timed out after 15 seconds. Please try again.'
       };
     }
+
     return {
       success: false,
       isOffline: !isOnline(),
-      model: DEFAULT_MODEL,
-      error: err.message || 'Failed to connect to Cloudflare Workers AI.'
+      model: CF_MODEL,
+      error: err.message || 'Failed to connect to AI service. Please retry.'
     };
   }
 }
