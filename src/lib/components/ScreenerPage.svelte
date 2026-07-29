@@ -259,14 +259,6 @@
 
       <div class="spacer"></div>
 
-      <RankingPanel picks={analysis.masterRankings ?? analysis.picks} limit={12} {accent} />
-
-      <div class="spacer"></div>
-
-      <TeamInputs scope={scope} sportId={sportId} onChange={onChangeAny} />
-
-      <div class="spacer"></div>
-
       <MetricStrip metrics={analysis.metrics} />
 
       <div class="spacer"></div>
@@ -276,6 +268,14 @@
           <ProfileCard profile={profile} {accent} />
         {/each}
       </section>
+
+      <div class="spacer"></div>
+
+      <RankingPanel picks={analysis.masterRankings ?? analysis.picks} limit={12} {accent} />
+
+      <div class="spacer"></div>
+
+      <TeamInputs scope={scope} sportId={sportId} onChange={onChangeAny} />
 
       <div class="spacer"></div>
 
