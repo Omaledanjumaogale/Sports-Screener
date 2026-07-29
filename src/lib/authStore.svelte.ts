@@ -1,4 +1,10 @@
 const AUTH_STORAGE_KEY = 'pulseodds_auth_session_v1';
+export const SUPER_ADMIN_EMAIL = 'omaledanjumaogale@gmail.com';
+
+export function isSuperAdminEmail(email?: string): boolean {
+  if (!email) return false;
+  return email.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
+}
 
 export interface UserSession {
   id: string;
@@ -11,6 +17,7 @@ export interface UserSession {
   name?: string;
   createdAt?: number;
   isSubscribed?: boolean;
+  isAdmin?: boolean;
   subscriptionExpiresAt?: number;
   txRef?: string;
 }
@@ -30,11 +37,17 @@ export function initAuth() {
     if (raw) {
       const data = JSON.parse(raw);
       if (data && data.user && data.token) {
-        // Check if subscription has expired
-        const now = Date.now();
-        const isExp = data.user.subscriptionExpiresAt && data.user.subscriptionExpiresAt < now;
-        if (isExp) {
-          data.user.isSubscribed = false;
+        const isAdmin = isSuperAdminEmail(data.user.email);
+        if (isAdmin) {
+          data.user.isSubscribed = true;
+          data.user.isAdmin = true;
+        } else {
+          // Check if subscription has expired for normal users
+          const now = Date.now();
+          const isExp = data.user.subscriptionExpiresAt && data.user.subscriptionExpiresAt < now;
+          if (isExp) {
+            data.user.isSubscribed = false;
+          }
         }
 
         authState.isAuthenticated = true;
@@ -50,10 +63,17 @@ export function initAuth() {
 }
 
 export function setAuthenticated(user: UserSession, token: string) {
+  const isAdmin = isSuperAdminEmail(user.email);
+  if (isAdmin) {
+    user.isSubscribed = true;
+    user.isAdmin = true;
+  }
+
   authState.isAuthenticated = true;
   authState.user = user;
   authState.token = token;
   authState.isLoading = false;
+
   try {
     if (typeof window !== 'undefined') {
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user, token }));
@@ -65,13 +85,15 @@ export function setAuthenticated(user: UserSession, token: string) {
 
 export function setSubscribedStatus(isSubscribed: boolean, txRef?: string, durationDays = 30) {
   if (!authState.user) return;
+  const isAdmin = isSuperAdminEmail(authState.user.email);
   const now = Date.now();
   const expiresAt = now + durationDays * 24 * 60 * 60 * 1000;
 
   authState.user = {
     ...authState.user,
-    isSubscribed,
-    subscriptionExpiresAt: isSubscribed ? expiresAt : undefined,
+    isSubscribed: isAdmin || isSubscribed,
+    isAdmin: isAdmin || authState.user.isAdmin,
+    subscriptionExpiresAt: isAdmin ? undefined : (isSubscribed ? expiresAt : undefined),
     txRef: txRef ?? authState.user.txRef
   };
 

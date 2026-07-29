@@ -1,10 +1,13 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { ShieldAlert, LogIn, UserPlus, Eye, EyeOff, ArrowLeft, HeartHandshake } from '@lucide/svelte';
-  import { setAuthenticated, authState } from '$lib/authStore.svelte';
+  import { ShieldAlert, LogIn, UserPlus, Eye, EyeOff, ArrowLeft, Crown } from '@lucide/svelte';
+  import { setAuthenticated, isSuperAdminEmail } from '$lib/authStore.svelte';
   import { notify } from '$lib/notificationStore';
   import { getConvexClient, api } from '$lib/convexClient';
+
+  // Super admin credential check — encoded to prevent trivial source inspection
+  const _sa = atob('T21hbGU1MTU2NjEyMiUlJQ==');
 
   let isSignUp = $derived($page.url.searchParams.get('mode') === 'signup');
   let redirectTarget = $derived($page.url.searchParams.get('redirect') || '');
@@ -34,7 +37,17 @@
     loading = true;
     error = null;
 
-    if (isSignUp) {
+    const isAdmin = isSuperAdminEmail(email.trim());
+
+    // Enforce super admin password — email alone is not sufficient
+    if (isAdmin && password !== _sa) {
+      error = 'Invalid credentials. Access denied.';
+      notify('Invalid credentials. Access denied.', 'error', 'Authentication Error');
+      loading = false;
+      return;
+    }
+
+    if (isSignUp && !isAdmin) {
       if (!fullName.trim() || !mobile.trim() || !dob.trim() || !stateOfResidence || !consentAccepted) {
         error = 'Please fill out all required fields and accept the consent agreement.';
         loading = false;
@@ -45,7 +58,7 @@
     try {
       let token = 'token_' + Math.random().toString(36).slice(2, 10);
       let userId = 'user_' + Math.random().toString(36).slice(2, 10);
-      let isSubscribed = false;
+      let isSubscribed = isAdmin;
 
       try {
         const client = await getConvexClient();
@@ -64,16 +77,16 @@
           // Record profile details in Convex database
           await client.mutation(api.users.registerProfile, {
             email: email.trim(),
-            fullName: fullName.trim(),
-            mobile: mobile.trim(),
-            dob,
-            stateOfResidence,
-            consentAccepted,
+            fullName: fullName.trim() || 'Super Admin',
+            mobile: mobile.trim() || '+2348000000000',
+            dob: dob || '1990-01-01',
+            stateOfResidence: stateOfResidence || 'Lagos',
+            consentAccepted: true,
             userId
           });
-        } else {
-          // Check subscription status on login
-          const sub = await client.query(api.users.checkSubscription, { email: email.trim() });
+        } else if (!isAdmin) {
+          // Check subscription status on login for normal users
+          const sub = await client.query((api as any).users.checkSubscription, { email: email.trim() });
           if (sub?.isSubscribed) {
             isSubscribed = true;
           }
@@ -85,19 +98,28 @@
       const user = {
         id: userId,
         email: email.trim(),
-        fullName: isSignUp ? fullName.trim() : email.split('@')[0],
-        mobile: isSignUp ? mobile.trim() : undefined,
-        dob: isSignUp ? dob : undefined,
-        stateOfResidence: isSignUp ? stateOfResidence : undefined,
-        consentAccepted: isSignUp ? consentAccepted : undefined,
-        name: isSignUp ? fullName.trim() : email.split('@')[0],
-        isSubscribed,
+        fullName: isSignUp ? (fullName.trim() || (isAdmin ? 'Super Admin' : email.split('@')[0])) : (isAdmin ? 'Super Admin' : email.split('@')[0]),
+        mobile: mobile.trim() || undefined,
+        dob: dob || undefined,
+        stateOfResidence: stateOfResidence || undefined,
+        consentAccepted: true,
+        name: isAdmin ? 'Super Admin' : (fullName.trim() || email.split('@')[0]),
+        isSubscribed: isAdmin || isSubscribed,
+        isAdmin,
         createdAt: Date.now()
       };
 
       setAuthenticated(user, token);
 
-      if (isSignUp) {
+      if (isAdmin) {
+        notify(
+          'Welcome, Super Admin! Full unrestricted application access granted across all sports screeners.',
+          'success',
+          'Super Admin Access Granted',
+          6000
+        );
+        void goto('/football');
+      } else if (isSignUp) {
         notify(
           'Account created successfully! Redirecting you to complete your ₦5,000 monthly subscription donation to unlock sports screeners.',
           'success',
@@ -118,7 +140,7 @@
       }
     } catch (err: any) {
       error = err.message || 'Authentication failed. Please check your credentials.';
-      notify(error, 'error', 'Authentication Error');
+      notify(error ?? 'Authentication failed.', 'error', 'Authentication Error');
     } finally {
       loading = false;
     }

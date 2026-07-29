@@ -1,6 +1,13 @@
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
 
+const SUPER_ADMIN_EMAIL = 'omaledanjumaogale@gmail.com';
+
+function isSuperAdminEmail(email?: string): boolean {
+  if (!email) return false;
+  return email.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
+}
+
 export const registerProfile = mutation({
   args: {
     email: v.string(),
@@ -13,6 +20,7 @@ export const registerProfile = mutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    const isAdmin = isSuperAdminEmail(args.email);
     const existing = await ctx.db
       .query('userProfiles')
       .withIndex('by_email', (q) => q.eq('email', args.email))
@@ -26,6 +34,7 @@ export const registerProfile = mutation({
         stateOfResidence: args.stateOfResidence,
         consentAccepted: args.consentAccepted,
         userId: args.userId ?? existing.userId,
+        isSubscribed: isAdmin || existing.isSubscribed,
         updatedAt: now
       });
       return existing._id;
@@ -39,7 +48,7 @@ export const registerProfile = mutation({
       stateOfResidence: args.stateOfResidence,
       consentAccepted: args.consentAccepted,
       userId: args.userId,
-      isSubscribed: false,
+      isSubscribed: isAdmin,
       createdAt: now,
       updatedAt: now
     });
@@ -49,10 +58,18 @@ export const registerProfile = mutation({
 export const getProfile = query({
   args: { email: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const profile = await ctx.db
       .query('userProfiles')
       .withIndex('by_email', (q) => q.eq('email', args.email))
       .first();
+
+    if (!profile) return null;
+
+    const isAdmin = isSuperAdminEmail(args.email);
+    return {
+      ...profile,
+      isSubscribed: isAdmin || profile.isSubscribed
+    };
   }
 });
 
@@ -112,18 +129,29 @@ export const markSubscribed = mutation({
 export const checkSubscription = query({
   args: { email: v.string() },
   handler: async (ctx, args) => {
+    // Super Admin bypass: lifetime active subscription
+    if (isSuperAdminEmail(args.email)) {
+      return {
+        isSubscribed: true,
+        isAdmin: true,
+        expiresAt: undefined,
+        txRef: 'SUPER_ADMIN_PASS'
+      };
+    }
+
     const profile = await ctx.db
       .query('userProfiles')
       .withIndex('by_email', (q) => q.eq('email', args.email))
       .first();
 
-    if (!profile) return { isSubscribed: false };
+    if (!profile) return { isSubscribed: false, isAdmin: false };
 
     const now = Date.now();
     const active = !!profile.isSubscribed && (!profile.subscriptionExpiresAt || profile.subscriptionExpiresAt > now);
 
     return {
       isSubscribed: active,
+      isAdmin: false,
       expiresAt: profile.subscriptionExpiresAt,
       txRef: profile.flutterwaveTxRef
     };
