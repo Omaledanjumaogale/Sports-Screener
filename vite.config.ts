@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [sveltekit()],
   build: {
-    target: 'es2020'
+    target: 'es2020',
+    cssMinify: true
   }
 });
