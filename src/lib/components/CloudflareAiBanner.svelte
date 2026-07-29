@@ -38,6 +38,7 @@
   let result: AiAnalysisResult | null = $state(null);
   let errorMessage: string | null = $state(null);
   let hasData: boolean = $state(false);
+  let mounted: boolean = $state(false);
 
   // Track a debounce timer
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -72,18 +73,34 @@
     loading = true;
     errorMessage = null;
 
-    const res = await requestCloudflareAiAnalysis(req, currentAbort.signal);
-    loading = false;
-    currentAbort = null;
+    try {
+      const res = await requestCloudflareAiAnalysis(req, currentAbort.signal);
+      loading = false;
+      currentAbort = null;
 
-    if (res.success) {
-      result = res;
-      errorMessage = null;
-    } else if (res.isOffline) {
-      online = false;
-    } else {
-      errorMessage = res.error || 'AI analysis failed. Please retry.';
+      if (res.success) {
+        result = res;
+        errorMessage = null;
+      } else if (res.isOffline) {
+        online = false;
+      } else {
+        errorMessage = res.error || 'AI Copilot analysis failed. Please retry.';
+      }
+    } catch (err: any) {
+      loading = false;
+      currentAbort = null;
+      if (err?.name !== 'AbortError') {
+        errorMessage = 'AI Copilot encountered an error. Please retry.';
+      }
     }
+  }
+
+  // ── Schedule a debounced auto-fetch ──────────────────────────────────────
+  function scheduleAutoFetch(delay = 1500) {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      void generateInsights(true);
+    }, delay);
   }
 
   // ── Auto-trigger with debounce whenever picks/metrics/ledger change ───────
@@ -93,17 +110,15 @@
     const _metrics = metrics;
     const _ledger = ledger;
     const _online = online;
+    const _mounted = mounted;
     const dataReady = computeHasData();
 
     hasData = dataReady;
 
-    if (!autoFetch || !_online || !dataReady) return;
+    if (!autoFetch || !_online || !dataReady || !_mounted) return;
+    if (result) return; // already have analysis — let Re-analyze button handle refresh
 
-    // Debounce 1.5s so rapid odds entry doesn't spam the API
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      void generateInsights(true);
-    }, 1500);
+    scheduleAutoFetch(1500);
   });
 
   // ── Network event listeners ───────────────────────────────────────────────
@@ -112,12 +127,13 @@
 
   onMount(() => {
     online = isOnline();
+    mounted = true;
 
     handleOnline = () => {
       online = true;
-      // Trigger immediately when reconnecting if there's data
-      if (autoFetch && computeHasData() && !result) {
-        void generateInsights(true);
+      // Trigger immediately when reconnecting if there's data and no result yet
+      if (autoFetch && computeHasData() && !result && !loading) {
+        scheduleAutoFetch(500);
       }
     };
     handleOffline = () => {
@@ -130,6 +146,11 @@
       window.addEventListener('online', handleOnline);
       window.addEventListener('offline', handleOffline);
     }
+
+    // Auto-trigger on mount if there's already data (e.g. loaded from history)
+    if (autoFetch && online && computeHasData() && !result) {
+      scheduleAutoFetch(800);
+    }
   });
 
   onDestroy(() => {
@@ -140,12 +161,6 @@
       if (handleOffline) window.removeEventListener('offline', handleOffline);
     }
   });
-
-  // ── Provider display label ────────────────────────────────────────────────
-  function getProviderLabel(r: AiAnalysisResult): string {
-    if (r.provider === 'openrouter') return 'OpenRouter · Mistral 7B';
-    return 'Cloudflare Workers AI · Llama 3.1 8B';
-  }
 </script>
 
 <div class="cf-ai-banner" class:compact style={`--cf-accent: ${accent}`}>
@@ -157,7 +172,7 @@
       </span>
       {#if !compact}
         <div class="brand-text">
-          <span class="sub-tag">Cloudflare Workers AI Copilot</span>
+          <span class="sub-tag">AI Copilot</span>
           <h4 class="ai-title">Real-Time Odds &amp; Verdict Analysis</h4>
         </div>
       {:else}
@@ -207,7 +222,7 @@
         <WifiOff size={14} />
         <div>
           <strong>Offline Mode Active</strong>
-          <p>All local Master Model analysis and pick rankings are fully operational. Connect to the internet for AI-powered recommendations.</p>
+          <p>All local Master Model analysis and pick rankings are fully operational. Connect to the internet for AI Copilot recommendations.</p>
         </div>
       </div>
 
@@ -215,18 +230,18 @@
     {:else if !hasData && !loading && !result}
       <p class="waiting-note">
         <Cpu size={13} class="inline-icon" />
-        Enter odds in the markets below — AI analysis will generate automatically once data is detected.
+        Enter odds in the markets below — AI Copilot will generate analysis automatically once data is detected.
       </p>
 
     <!-- Loading bar -->
     {:else if loading}
-      <div class="loading-state" role="status" aria-label="Generating AI insights">
+      <div class="loading-state" role="status" aria-label="Generating AI Copilot insights">
         <div class="loading-bar">
           <div class="loading-progress"></div>
         </div>
         <p class="loading-text">
           <RefreshCw size={13} class="spin-icon-inline" />
-          AI is reading your odds data &amp; generating verdict…
+          AI Copilot is reading your odds data &amp; generating verdict…
         </p>
       </div>
     {/if}
@@ -269,10 +284,7 @@
         </div>
 
         <div class="insights-foot">
-          <span class="model-tag">{getProviderLabel(result)}</span>
-          {#if result.neuronsUsed}
-            <span class="neuron-tag">{result.neuronsUsed.toFixed(2)} Neurons</span>
-          {/if}
+          <span class="model-tag">AI Copilot · Live Analysis</span>
           <button class="refresh-btn" type="button" onclick={() => generateInsights(false)} disabled={loading}>
             <RefreshCw size={11} />
             Re-analyze
@@ -571,16 +583,6 @@
     font-size: 10px;
     font-weight: 700;
     color: var(--c-muted, #8899bb);
-  }
-
-  .neuron-tag {
-    background: color-mix(in srgb, #f38020 10%, transparent);
-    border: 1px solid color-mix(in srgb, #f38020 22%, transparent);
-    color: #f38020;
-    padding: 2px 7px;
-    border-radius: 6px;
-    font-size: 10px;
-    font-weight: 700;
   }
 
   .refresh-btn {

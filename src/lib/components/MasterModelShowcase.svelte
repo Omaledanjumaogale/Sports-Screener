@@ -50,7 +50,7 @@
       icon: Zap,
       title: 'Edge-Driven Neural Verdicts',
       color: '#f97316',
-      desc: 'Executes high-speed Cloudflare Workers AI neural model inference directly on edge nodes to generate instant second-opinion analysis without slowing down your screening.'
+      desc: 'Executes high-speed AI neural model inference at the edge to generate instant second-opinion analysis without slowing down your screening.'
     },
     {
       icon: Brain,
@@ -73,7 +73,7 @@
   ];
 </script>
 
-<div class="master-model-showcase" aria-label="Master Model & Cloudflare AI Framework Showcase">
+<div class="master-model-showcase" aria-label="Master Model & AI Copilot Framework Showcase">
   <!-- ── 1. The Offline Master Model Framework ────────────────────────── -->
   <div class="showcase-header">
     <div class="header-badge">
@@ -99,11 +99,11 @@
     {/each}
   </div>
 
-  <!-- ── 2. The Online Cloudflare Workers AI Framework ──────────────── -->
+  <!-- ── 2. The Online AI Copilot Framework ──────────────────────────── -->
   <div class="showcase-header ai-header">
     <div class="header-badge ai-badge">
       <Sparkles size={14} />
-      <span>Cloudflare Workers AI Layer</span>
+      <span>AI Copilot Layer</span>
     </div>
 
     <!-- Network Status Indicator Badge -->
@@ -119,9 +119,9 @@
       {/if}
     </div>
 
-    <h2 class="showcase-title">The Online Cloudflare Workers AI Framework</h2>
+    <h2 class="showcase-title">The Online AI Copilot Framework</h2>
     <p class="showcase-sub">
-      An intelligent AI layer running on Cloudflare Edge Worker AI. Automatically augments the offline Master Model with instant AI verdicts &amp; recommendations when your device is connected to the internet.
+      An intelligent AI Copilot layer that automatically augments the offline Master Model with instant AI verdicts &amp; recommendations when your device is connected to the internet.
     </p>
   </div>
 

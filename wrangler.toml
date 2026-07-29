@@ -1,7 +1,8 @@
 name = "pulseodds-screener"
-
 pages_build_output_dir = "dist"
 compatibility_date = "2026-07-27"
 
+# Cloudflare Workers AI binding
+# The AI binding makes env.AI available inside Pages Functions — no API token needed.
 [ai]
 binding = "AI"
