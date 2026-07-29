@@ -113,12 +113,12 @@
 
       if (isAdmin) {
         notify(
-          'Welcome, Super Admin! Full unrestricted application access granted across all sports screeners.',
+          'Welcome, Super Admin! Full unrestricted access granted. Choose any sport screener from the homepage.',
           'success',
           'Super Admin Access Granted',
           6000
         );
-        void goto('/football');
+        void goto('/');
       } else if (isSignUp) {
         notify(
           'Account created successfully! Redirecting you to complete your ₦5,000 monthly subscription donation to unlock sports screeners.',
