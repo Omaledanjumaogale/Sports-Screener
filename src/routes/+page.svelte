@@ -8,8 +8,22 @@
   import SEO from '$lib/components/SEO.svelte';
   import MasterModelShowcase from '$lib/components/MasterModelShowcase.svelte';
   import { authState, setUnauthenticated } from '$lib/authStore.svelte';
+  import { notify } from '$lib/notificationStore';
   import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User } from '@lucide/svelte';
   import type { PageData } from './$types';
+
+  function handleDonateClick() {
+    if (!authState.isAuthenticated) {
+      notify('Please complete account registration to proceed to subscription payment.', 'info', 'Registration Required');
+      try { void goto('/auth?mode=signup&redirect=checkout'); } catch (_) { /* ignore */ }
+    } else if (!authState.user?.isSubscribed) {
+      notify('Redirecting to subscription payment checkout...', 'info', 'Subscription Checkout');
+      try { void goto('/checkout'); } catch (_) { /* ignore */ }
+    } else {
+      notify('Your monthly subscription pass is active! Enjoy full sports screener access.', 'success', 'Active Subscription');
+      try { void goto('/football'); } catch (_) { /* ignore */ }
+    }
+  }
 
   // Svelte 5: typed page data from +page.ts load()
   const { data }: { data: PageData } = $props();
@@ -319,7 +333,7 @@
           </li>
         </ul>
 
-        <button type="button" class="btn-donate" onclick={() => alert('Thank you for supporting PulseOdds! Contact admin or proceed to donate ₦5,000 to activate your monthly subscription pass.')}>
+        <button type="button" class="btn-donate" onclick={handleDonateClick}>
           <HeartHandshake size={20} />
           Donate ₦5,000 / Month & Get Access
         </button>

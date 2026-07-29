@@ -4,27 +4,29 @@
   import { goto } from '$app/navigation';
   import { authState, initAuth } from '$lib/authStore.svelte';
   import { onMount } from 'svelte';
+  import NotificationToast from '$lib/components/NotificationToast.svelte';
 
   onMount(() => {
     initAuth();
   });
 
   $effect(() => {
-    // Add any routes that don't require authentication here
-    const publicPaths = ['/', '/auth'];
+    // Add routes that don't require pre-existing authentication here
+    const publicPaths = ['/', '/auth', '/checkout'];
     
     // Check if current route is protected and auth is resolved
     if (!publicPaths.includes($page.url.pathname) && !authState.isLoading) {
       if (!authState.isAuthenticated) {
-        // Not authenticated, redirect to login page
-        goto('/auth');
+        // Not authenticated, redirect to signup/auth page
+        goto('/auth?mode=signup&redirect=checkout');
       }
     }
   });
 </script>
 
 <div class="app-root">
-  {#if !authState.isLoading || ['/', '/auth'].includes($page.url.pathname)}
+  <NotificationToast />
+  {#if !authState.isLoading || ['/', '/auth', '/checkout'].includes($page.url.pathname)}
     <slot />
   {:else}
     <div class="loading-screen">

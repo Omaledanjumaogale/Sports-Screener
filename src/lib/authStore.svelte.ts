@@ -10,6 +10,9 @@ export interface UserSession {
   consentAccepted?: boolean;
   name?: string;
   createdAt?: number;
+  isSubscribed?: boolean;
+  subscriptionExpiresAt?: number;
+  txRef?: string;
 }
 
 // Global reactive auth state using Svelte 5 runes
@@ -27,6 +30,13 @@ export function initAuth() {
     if (raw) {
       const data = JSON.parse(raw);
       if (data && data.user && data.token) {
+        // Check if subscription has expired
+        const now = Date.now();
+        const isExp = data.user.subscriptionExpiresAt && data.user.subscriptionExpiresAt < now;
+        if (isExp) {
+          data.user.isSubscribed = false;
+        }
+
         authState.isAuthenticated = true;
         authState.user = data.user;
         authState.token = data.token;
@@ -53,6 +63,27 @@ export function setAuthenticated(user: UserSession, token: string) {
   }
 }
 
+export function setSubscribedStatus(isSubscribed: boolean, txRef?: string, durationDays = 30) {
+  if (!authState.user) return;
+  const now = Date.now();
+  const expiresAt = now + durationDays * 24 * 60 * 60 * 1000;
+
+  authState.user = {
+    ...authState.user,
+    isSubscribed,
+    subscriptionExpiresAt: isSubscribed ? expiresAt : undefined,
+    txRef: txRef ?? authState.user.txRef
+  };
+
+  try {
+    if (typeof window !== 'undefined' && authState.token) {
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: authState.user, token: authState.token }));
+    }
+  } catch (e) {
+    console.error('Failed to update subscription in auth session:', e);
+  }
+}
+
 export function setUnauthenticated() {
   authState.isAuthenticated = false;
   authState.user = null;
@@ -66,4 +97,3 @@ export function setUnauthenticated() {
     console.error('Failed to clear auth session:', e);
   }
 }
-

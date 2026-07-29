@@ -128,7 +128,45 @@
     refresh();
   }
 
-  onMount(() => {
+  import { authState, setSubscribedStatus } from '$lib/authStore.svelte';
+  import { notify } from '$lib/notificationStore';
+  import { getConvexClient, api } from '$lib/convexClient';
+
+  onMount(async () => {
+    // ── Access Control & Subscription Guard ──
+    if (!authState.isAuthenticated) {
+      notify(
+        'Subscription required. Please sign up and complete your ₦5,000 monthly donation to unlock all sports screeners.',
+        'warning',
+        'Access Restricted'
+      );
+      void goto('/auth?mode=signup&redirect=checkout');
+      return;
+    }
+
+    if (!authState.user?.isSubscribed) {
+      // Re-verify against Convex DB in case user paid via webhook
+      if (authState.user?.email) {
+        try {
+          const client = await getConvexClient();
+          const sub = await client.query(api.users.checkSubscription, { email: authState.user.email });
+          if (sub?.isSubscribed) {
+            setSubscribedStatus(true, sub.txRef);
+          }
+        } catch (_) { /* fallback */ }
+      }
+
+      if (!authState.user?.isSubscribed) {
+        notify(
+          'Monthly subscription pass required. Please complete your ₦5,000 donation payment to unlock sports screeners.',
+          'warning',
+          'Subscription Required'
+        );
+        void goto('/checkout');
+        return;
+      }
+    }
+
     scopes = loadScopes(sportId, factory());
     if (!scopes.length) scopes = factory();
     mounted = true;

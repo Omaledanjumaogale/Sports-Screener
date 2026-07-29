@@ -1,11 +1,13 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { ShieldAlert, LogIn, UserPlus, Eye, EyeOff, ArrowLeft } from '@lucide/svelte';
-  import { setAuthenticated } from '$lib/authStore.svelte';
+  import { ShieldAlert, LogIn, UserPlus, Eye, EyeOff, ArrowLeft, HeartHandshake } from '@lucide/svelte';
+  import { setAuthenticated, authState } from '$lib/authStore.svelte';
+  import { notify } from '$lib/notificationStore';
   import { getConvexClient, api } from '$lib/convexClient';
 
   let isSignUp = $derived($page.url.searchParams.get('mode') === 'signup');
+  let redirectTarget = $derived($page.url.searchParams.get('redirect') || '');
   
   let email = $state('');
   let password = $state('');
@@ -43,6 +45,7 @@
     try {
       let token = 'token_' + Math.random().toString(36).slice(2, 10);
       let userId = 'user_' + Math.random().toString(36).slice(2, 10);
+      let isSubscribed = false;
 
       try {
         const client = await getConvexClient();
@@ -68,6 +71,12 @@
             consentAccepted,
             userId
           });
+        } else {
+          // Check subscription status on login
+          const sub = await client.query(api.users.checkSubscription, { email: email.trim() });
+          if (sub?.isSubscribed) {
+            isSubscribed = true;
+          }
         }
       } catch (_e) {
         console.warn('Convex backend offline or dev mode fallback active');
@@ -82,13 +91,34 @@
         stateOfResidence: isSignUp ? stateOfResidence : undefined,
         consentAccepted: isSignUp ? consentAccepted : undefined,
         name: isSignUp ? fullName.trim() : email.split('@')[0],
+        isSubscribed,
         createdAt: Date.now()
       };
 
       setAuthenticated(user, token);
-      goto('/');
+
+      if (isSignUp) {
+        notify(
+          'Account created successfully! Redirecting you to complete your ₦5,000 monthly subscription donation to unlock sports screeners.',
+          'success',
+          'Registration Complete!',
+          5000
+        );
+        void goto('/checkout');
+      } else if (redirectTarget === 'checkout' || !isSubscribed) {
+        notify(
+          'Welcome back! Please complete your subscription payment to access all sports screeners.',
+          'info',
+          'Subscription Required'
+        );
+        void goto('/checkout');
+      } else {
+        notify(`Welcome back, ${user.fullName || 'Punter'}!`, 'success', 'Logged In');
+        void goto('/football');
+      }
     } catch (err: any) {
       error = err.message || 'Authentication failed. Please check your credentials.';
+      notify(error, 'error', 'Authentication Error');
     } finally {
       loading = false;
     }
@@ -116,8 +146,8 @@
       <h2>{isSignUp ? 'Create your account' : 'Welcome back'}</h2>
       <p class="subtitle">
         {isSignUp 
-          ? 'Sign up to unlock all sport screeners, saved history & analytics.' 
-          : 'Log in to access your saved screeners and edge stats.'}
+          ? 'Sign up to register your punter profile and proceed to subscription checkout.' 
+          : 'Log in to access your saved screeners and subscription pass.'}
       </p>
     </div>
 
@@ -237,7 +267,7 @@
               disabled={loading}
             />
             <span class="consent-text">
-              I accept the Terms & Conditions and agree to stake responsibly as an intelligent punter. <span class="req">*</span>
+              I accept the Terms &amp; Conditions and agree to stake responsibly as an intelligent punter. <span class="req">*</span>
             </span>
           </label>
         </div>
@@ -248,7 +278,7 @@
           <span class="spinner"></span>
         {:else}
           {#if isSignUp}
-            <UserPlus size={18} /> Create Account & Access Screeners
+            <UserPlus size={18} /> Submit &amp; Proceed to Payment (₦5,000)
           {:else}
             <LogIn size={18} /> Log In to PulseOdds
           {/if}

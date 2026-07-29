@@ -49,7 +49,25 @@ export default defineSchema({
     dob: v.string(),
     stateOfResidence: v.string(),
     consentAccepted: v.boolean(),
+    isSubscribed: v.optional(v.boolean()),
+    subscriptionExpiresAt: v.optional(v.number()),
+    flutterwaveTxRef: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number()
-  }).index('by_email', ['email'])
+  }).index('by_email', ['email']),
+
+  subscriptions: defineTable({
+    email: v.string(),
+    userId: v.optional(v.string()),
+    txRef: v.string(),
+    transactionId: v.optional(v.string()),
+    amount: v.number(),
+    currency: v.string(),
+    status: v.union(v.literal('pending'), v.literal('successful'), v.literal('failed')),
+    flwRef: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index('by_email', ['email'])
+    .index('by_txRef', ['txRef'])
 });
