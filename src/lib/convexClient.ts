@@ -88,6 +88,8 @@ export const api = {
   },
   users: {
     registerProfile: 'users:registerProfile',
-    getProfile: 'users:getProfile'
+    getProfile: 'users:getProfile',
+    markSubscribed: 'users:markSubscribed',
+    checkSubscription: 'users:checkSubscription'
   }
 };

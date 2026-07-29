@@ -72,7 +72,7 @@
       }, 2000);
     } catch (err: any) {
       verifyingError = err?.message || 'Failed to verify payment. Please contact support.';
-      notify(verifyingError, 'error', 'Verification Failed');
+      notify(verifyingError ?? 'Failed to verify payment.', 'error', 'Verification Failed');
     } finally {
       verifying = false;
     }
