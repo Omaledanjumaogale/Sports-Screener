@@ -4,20 +4,23 @@
   import { goto } from '$app/navigation';
   import { authState, initAuth } from '$lib/authStore.svelte';
   import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import NotificationToast from '$lib/components/NotificationToast.svelte';
+
+  // Svelte 5: accept children snippet for rendering child pages
+  let { children } = $props();
 
   onMount(() => {
     initAuth();
   });
 
+  // Auth guard — runs only in the browser, never during SSR pre-rendering
   $effect(() => {
-    // Add routes that don't require pre-existing authentication here
+    if (!browser) return;
+
     const publicPaths = ['/', '/auth', '/checkout'];
-    
-    // Check if current route is protected and auth is resolved
     if (!publicPaths.includes($page.url.pathname) && !authState.isLoading) {
       if (!authState.isAuthenticated) {
-        // Not authenticated, redirect to signup/auth page
         goto('/auth?mode=signup&redirect=checkout');
       }
     }
@@ -27,7 +30,7 @@
 <div class="app-root">
   <NotificationToast />
   {#if !authState.isLoading || ['/', '/auth', '/checkout'].includes($page.url.pathname)}
-    <slot />
+    {@render children()}
   {:else}
     <div class="loading-screen">
       <div class="spinner"></div>
