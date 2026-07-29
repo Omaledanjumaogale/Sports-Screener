@@ -7,6 +7,7 @@
   import EWINBanner from '$lib/components/EWINBanner.svelte';
   import SEO from '$lib/components/SEO.svelte';
   import CloudflareAiBanner from '$lib/components/CloudflareAiBanner.svelte';
+  import MasterModelShowcase from '$lib/components/MasterModelShowcase.svelte';
   import { authState, setUnauthenticated } from '$lib/authStore.svelte';
   import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User } from '@lucide/svelte';
   import type { PageData } from './$types';
@@ -222,21 +223,9 @@
       </div>
     </section>
 
-    <!-- ── AI Copilot Section ───────────────────────────────── -->
-    <section class="ai-copilot-section" aria-label="AI Odds Copilot">
-      <div class="section-head">
-        <h2 class="section-title">AI Odds Copilot</h2>
-        <span class="ai-copilot-badge">Powered by Cloudflare</span>
-      </div>
-      <p class="section-sub">Get instant AI-powered odds verdict and tactical recommendations. Auto-activates when you are online — fully offline-safe when you are not.</p>
-      <CloudflareAiBanner
-        sportId="football"
-        sportTitle="General Sports"
-        scopeTitle="Homepage Overview"
-        accent="#38bdf8"
-        autoFetch={true}
-        compact={false}
-      />
+    <!-- ── Offline Master Model Framework & Interactive Sandbox Section ── -->
+    <section class="master-model-section" aria-label="Offline Master Model Framework">
+      <MasterModelShowcase />
     </section>
 
     <!-- ── Coming Soon Sports Section ─────────────────────── -->
@@ -625,7 +614,7 @@
   }
 
   /* ── Common Section Headers — Centered ─────────────────────── */
-  .sport-section, .coming-soon-section, .how-to-use-section, .pricing-section, .disclaimer-section, .ai-copilot-section {
+  .sport-section, .coming-soon-section, .how-to-use-section, .pricing-section, .disclaimer-section, .master-model-section {
     width: 100%;
     display: flex;
     flex-direction: column;
@@ -694,19 +683,6 @@
     border: 1px solid color-mix(in srgb, var(--c-orange) 30%, transparent);
     padding: 3px 10px;
     border-radius: 999px;
-  }
-  .ai-copilot-badge {
-    font-size: 11px;
-    font-weight: 800;
-    color: #f38020;
-    background: color-mix(in srgb, #f38020 13%, var(--c-surface));
-    border: 1px solid color-mix(in srgb, #f38020 30%, transparent);
-    padding: 3px 10px;
-    border-radius: 999px;
-  }
-  .ai-copilot-section :global(.cf-ai-banner) {
-    width: 100%;
-    max-width: 700px;
   }
 
   .sport-grid {
