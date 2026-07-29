@@ -221,6 +221,8 @@
 
       <div class="spacer"></div>
 
+      <RankingPanel picks={analysis.masterRankings ?? analysis.picks} limit={12} {accent} />
+
       <div class="spacer"></div>
 
       <TeamInputs scope={scope} sportId={sportId} onChange={onChangeAny} />
@@ -304,10 +306,6 @@
           {/if}
         {/each}
       </section>
-
-      <div class="spacer"></div>
-
-      <RankingPanel picks={analysis.masterRankings ?? analysis.picks} limit={12} {accent} />
 
       <div class="spacer"></div>
 
