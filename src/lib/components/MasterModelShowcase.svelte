@@ -1,60 +1,24 @@
 <script lang="ts">
-  import { Shield, Brain, Layers, Cpu, CheckCircle2, AlertTriangle, Zap, Check, ChevronRight } from '@lucide/svelte';
-  import MasterVerdictCard from './MasterVerdictCard.svelte';
-  import CloudflareAiBanner from './CloudflareAiBanner.svelte';
-  import {
-    analyzeFootball,
-    analyzeBasketball,
-    analyzeTennis,
-    analyzeRally,
-    analyzeHockey,
-    buildConfluenceLedger,
-    sortCandidatesByTierAndProbability,
-    createFootballScopes,
-    createBasketballScopes,
-    createTennisScopes,
-    createRallyScopes,
-    createHockeyScopes,
-    type SportId,
-    type ScopeState
-  } from '../engine';
+  import { onMount } from 'svelte';
+  import { Shield, Brain, Layers, Cpu, Zap, Wifi, WifiOff, Sparkles, Globe, TrendingUp, CheckCircle2 } from '@lucide/svelte';
 
-  let activeDemoSport: SportId = $state('football');
+  let isOnline = $state(true);
 
-  const demoSports: { id: SportId; name: string; accent: string; factory: () => ScopeState[] }[] = [
-    { id: 'football', name: 'Football', accent: '#22c55e', factory: createFootballScopes },
-    { id: 'basketball', name: 'Basketball', accent: '#f97316', factory: createBasketballScopes },
-    { id: 'tennis', name: 'Tennis', accent: '#e879f9', factory: createTennisScopes },
-    { id: 'rally', name: 'Table Tennis', accent: '#38bdf8', factory: createRallyScopes },
-    { id: 'hockey', name: 'Ice Hockey', accent: '#06b6d4', factory: createHockeyScopes }
-  ];
-
-  let currentDemoSport = $derived(demoSports.find(s => s.id === activeDemoSport) ?? demoSports[0]);
-
-  // Compute live analysis for the active demo sport
-  let demoScopes = $derived(currentDemoSport.factory());
-  let demoMainScope = $derived(demoScopes[0]);
-  let demoAnalysis = $derived.by(() => {
-    const s = demoMainScope;
-    const sid = activeDemoSport;
-    let res;
-    if (sid === 'football') res = analyzeFootball(s);
-    else if (sid === 'basketball') res = analyzeBasketball(s);
-    else if (sid === 'tennis') res = analyzeTennis(s);
-    else if (sid === 'hockey') res = analyzeHockey(s);
-    else res = analyzeRally(s);
-
-    const masterLedger = buildConfluenceLedger(sid, s, demoScopes);
-    const masterRankings = sortCandidatesByTierAndProbability(res.picks, masterLedger);
-
-    return {
-      ...res,
-      masterLedger,
-      masterRankings
-    };
+  onMount(() => {
+    if (typeof window !== 'undefined') {
+      isOnline = navigator.onLine;
+      const handleOnline = () => { isOnline = true; };
+      const handleOffline = () => { isOnline = false; };
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+      return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+      };
+    }
   });
 
-  const pillars = [
+  const offlinePillars = [
     {
       icon: Shield,
       title: 'Prime Directive — Data Fidelity',
@@ -80,9 +44,37 @@
       desc: 'Refuses high confidence unless multiple independent market angles agree. Contradictions instantly cap candidates to Conflicted Tier.'
     }
   ];
+
+  const onlineAiPillars = [
+    {
+      icon: Zap,
+      title: 'Edge-Driven Neural Verdicts',
+      color: '#f97316',
+      desc: 'Executes high-speed Cloudflare Workers AI neural model inference directly on edge nodes to generate instant second-opinion analysis without slowing down your screening.'
+    },
+    {
+      icon: Brain,
+      title: 'Deep Confluence & Match Verdicts',
+      color: '#e879f9',
+      desc: 'Cross-analyzes all entered bookmaker odds, time segments, and scoreline clusters to produce clear, structured match verdicts and probability assessments.'
+    },
+    {
+      icon: TrendingUp,
+      title: 'Smart Risk & Value Guidance',
+      color: '#22c55e',
+      desc: 'Delivers automated risk warnings, stake sizing advice, and market value ratings, highlighting hidden risks or strong statistical alignments.'
+    },
+    {
+      icon: Globe,
+      title: 'Seamless Dual-Mode Operation',
+      color: '#38bdf8',
+      desc: 'Operates 100% offline using standalone mathematical rules, then seamlessly attaches live AI recommendations whenever network connectivity is detected.'
+    }
+  ];
 </script>
 
-<div class="master-model-showcase" aria-label="Offline Master Model Framework">
+<div class="master-model-showcase" aria-label="Master Model & Cloudflare AI Framework Showcase">
+  <!-- ── 1. The Offline Master Model Framework ────────────────────────── -->
   <div class="showcase-header">
     <div class="header-badge">
       <Brain size={14} />
@@ -94,9 +86,9 @@
     </p>
   </div>
 
-  <!-- Framework 4 Pillars Grid -->
+  <!-- Offline Framework 4 Pillars Grid -->
   <div class="pillars-grid">
-    {#each pillars as p}
+    {#each offlinePillars as p}
       <div class="pillar-card" style={`--p-color: ${p.color}`}>
         <div class="pillar-icon">
           <p.icon size={20} />
@@ -107,54 +99,43 @@
     {/each}
   </div>
 
-  <!-- Interactive Live Screener & AI Preview Sandbox -->
-  <div class="sandbox-container">
-    <div class="sandbox-header">
-      <div class="sandbox-title-wrap">
-        <Zap size={16} class="zap-icon" />
-        <h3 class="sandbox-title">Interactive Master Model &amp; AI Copilot Sandbox</h3>
-      </div>
-      <p class="sandbox-copy">Experience how the Master Model Confluence Ledger &amp; Cloudflare Workers AI auto-analyze sports markets live in real-time:</p>
+  <!-- ── 2. The Online Cloudflare Workers AI Framework ──────────────── -->
+  <div class="showcase-header ai-header">
+    <div class="header-badge ai-badge">
+      <Sparkles size={14} />
+      <span>Cloudflare Workers AI Layer</span>
     </div>
 
-    <!-- Sport Selector Tabs -->
-    <div class="demo-tabs" role="tablist" aria-label="Demo sport selector">
-      {#each demoSports as ds}
-        <button
-          type="button"
-          class="demo-tab-btn"
-          class:active={activeDemoSport === ds.id}
-          style={`--accent: ${ds.accent}`}
-          onclick={() => { activeDemoSport = ds.id; }}
-          role="tab"
-          aria-selected={activeDemoSport === ds.id}
-        >
-          <span class="demo-tab-dot" style={`background: ${ds.accent}`}></span>
-          <span>{ds.name}</span>
-        </button>
-      {/each}
-    </div>
-
-    <!-- Live Ledger Output Preview -->
-    <div class="sandbox-preview">
-      {#if demoAnalysis.masterLedger}
-        <MasterVerdictCard ledger={demoAnalysis.masterLedger} />
+    <!-- Network Status Indicator Badge -->
+    <div class="network-status-bar" class:is-online={isOnline}>
+      {#if isOnline}
+        <span class="status-dot online-dot" aria-hidden="true"></span>
+        <Wifi size={14} class="wifi-icon" />
+        <span class="status-text">Connected — Online AI Blanket Active</span>
+      {:else}
+        <span class="status-dot offline-dot" aria-hidden="true"></span>
+        <WifiOff size={14} class="wifi-icon" />
+        <span class="status-text">Disconnected — Offline Math Mode Active</span>
       {/if}
-
-      <!-- Cloudflare AI Copilot Integration on Homepage -->
-      <CloudflareAiBanner
-        sportId={activeDemoSport}
-        sportTitle={currentDemoSport.name}
-        scopeTitle={demoMainScope.title}
-        ledger={demoAnalysis.masterLedger ?? null}
-        profiles={demoAnalysis.profiles}
-        picks={demoAnalysis.masterRankings ?? demoAnalysis.picks}
-        metrics={demoAnalysis.metrics}
-        accent={currentDemoSport.accent}
-        autoFetch={true}
-        compact={false}
-      />
     </div>
+
+    <h2 class="showcase-title">The Online Cloudflare Workers AI Framework</h2>
+    <p class="showcase-sub">
+      An intelligent AI layer running on Cloudflare Edge Worker AI. Automatically augments the offline Master Model with instant AI verdicts &amp; recommendations when your device is connected to the internet.
+    </p>
+  </div>
+
+  <!-- Online AI Framework 4 Pillars Grid -->
+  <div class="pillars-grid">
+    {#each onlineAiPillars as p}
+      <div class="pillar-card" style={`--p-color: ${p.color}`}>
+        <div class="pillar-icon">
+          <p.icon size={20} />
+        </div>
+        <h3 class="pillar-title">{p.title}</h3>
+        <p class="pillar-desc">{p.desc}</p>
+      </div>
+    {/each}
   </div>
 </div>
 
@@ -171,6 +152,13 @@
     text-align: center;
     max-width: 760px;
     margin-bottom: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .ai-header {
+    margin-top: 24px;
   }
 
   .header-badge {
@@ -187,6 +175,61 @@
     background: color-mix(in srgb, var(--c-orange, #f97316) 12%, var(--c-surface));
     border: 1px solid color-mix(in srgb, var(--c-orange, #f97316) 30%, transparent);
     margin-bottom: 12px;
+  }
+
+  .ai-badge {
+    color: var(--c-rally, #38bdf8);
+    background: color-mix(in srgb, var(--c-rally, #38bdf8) 12%, var(--c-surface));
+    border-color: color-mix(in srgb, var(--c-rally, #38bdf8) 30%, transparent);
+  }
+
+  /* Network Status Bar */
+  .network-status-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    transition: all 200ms ease;
+    background: color-mix(in srgb, var(--c-amber, #f59e0b) 12%, var(--c-surface-2));
+    border: 1px solid color-mix(in srgb, var(--c-amber, #f59e0b) 35%, transparent);
+    color: var(--c-amber, #f59e0b);
+  }
+
+  .network-status-bar.is-online {
+    background: color-mix(in srgb, var(--c-green, #22c55e) 12%, var(--c-surface-2));
+    border-color: color-mix(in srgb, var(--c-green, #22c55e) 35%, transparent);
+    color: var(--c-green, #22c55e);
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .online-dot {
+    background: var(--c-green, #22c55e);
+    box-shadow: 0 0 10px var(--c-green, #22c55e);
+    animation: pulse-dot 1.8s ease-in-out infinite;
+  }
+
+  .offline-dot {
+    background: var(--c-amber, #f59e0b);
+    box-shadow: 0 0 6px var(--c-amber, #f59e0b);
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.6; }
+  }
+
+  :global(.wifi-icon) {
+    flex-shrink: 0;
   }
 
   .showcase-title {
@@ -257,98 +300,5 @@
     margin: 0;
     font-weight: 500;
   }
-
-  /* Sandbox Container */
-  .sandbox-container {
-    width: 100%;
-    background: var(--c-surface-2);
-    border: 1px solid color-mix(in srgb, var(--c-orange, #f97316) 30%, var(--c-border));
-    border-radius: 20px;
-    padding: 24px;
-    contain: layout style;
-    box-shadow: 0 12px 40px -10px color-mix(in srgb, var(--c-orange, #f97316) 12%, transparent);
-  }
-
-  @media (max-width: 600px) {
-    .sandbox-container { padding: 16px; }
-  }
-
-  .sandbox-header {
-    text-align: left;
-    margin-bottom: 18px;
-  }
-
-  .sandbox-title-wrap {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
-  }
-
-  :global(.zap-icon) {
-    color: var(--c-orange, #f97316);
-  }
-
-  .sandbox-title {
-    font-size: 17px;
-    font-weight: 800;
-    color: var(--c-text);
-    margin: 0;
-  }
-
-  .sandbox-copy {
-    font-size: 13px;
-    color: var(--c-muted);
-    margin: 0;
-    font-weight: 500;
-  }
-
-  /* Demo Tabs */
-  .demo-tabs {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-  }
-
-  .demo-tab-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    border-radius: 10px;
-    background: var(--c-glass-sm);
-    border: 1px solid var(--c-border);
-    color: var(--c-muted);
-    font-size: 12.5px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 150ms ease;
-  }
-
-  .demo-tab-btn:hover {
-    color: var(--c-text);
-    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
-  }
-
-  .demo-tab-btn.active {
-    color: var(--c-text);
-    background: color-mix(in srgb, var(--accent) 16%, var(--c-surface-2));
-    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 20%, transparent);
-  }
-
-  .demo-tab-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-  }
-
-  /* Sandbox Preview */
-  .sandbox-preview {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
 </style>
+

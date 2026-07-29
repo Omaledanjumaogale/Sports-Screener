@@ -6,7 +6,6 @@
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import EWINBanner from '$lib/components/EWINBanner.svelte';
   import SEO from '$lib/components/SEO.svelte';
-  import CloudflareAiBanner from '$lib/components/CloudflareAiBanner.svelte';
   import MasterModelShowcase from '$lib/components/MasterModelShowcase.svelte';
   import { authState, setUnauthenticated } from '$lib/authStore.svelte';
   import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User } from '@lucide/svelte';
