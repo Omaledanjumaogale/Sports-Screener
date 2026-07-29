@@ -1,8 +1,7 @@
 // src/lib/cloudflareAi.ts
-// Browser-side AI client.
+// Browser-side AI client for AI Copilot.
 // Production: calls /api/ai-analyze (Cloudflare Pages Function — edge, no CORS).
-// Local dev:  calls /api/ai-analyze via wrangler pages dev, OR falls back to
-//             OpenRouter REST API directly if VITE_OPENROUTER_API_KEY is set.
+// Dev mode / fallback: calls OpenRouter REST API directly if key is available.
 import type { MasterConfluenceLedger, Profile, Pick, SportId } from './engine';
 
 export interface AiAnalysisRequest {
@@ -31,10 +30,29 @@ export interface AiAnalysisResult {
   tokensUsed?: number;
 }
 
+// ── Defensive helper: guarantee input is always a clean string ────────────────
+function safeStr(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (Array.isArray(val)) {
+    return val.map((item) => safeStr(item)).join(' ');
+  }
+  if (typeof val === 'object') {
+    const obj = val as Record<string, unknown>;
+    if (typeof obj.text === 'string') return obj.text;
+    if (typeof obj.message === 'string') return obj.message;
+    try {
+      return JSON.stringify(val);
+    } catch (_) {
+      return String(val);
+    }
+  }
+  return String(val);
+}
+
 // ── Env vars (baked at build time by Vite) ────────────────────────────────────
 const IS_DEV = (import.meta as any).env?.DEV === true;
-const OR_KEY: string = (import.meta as any).env?.VITE_OPENROUTER_API_KEY || '';
-
+const OR_KEY: string = safeStr((import.meta as any).env?.VITE_OPENROUTER_API_KEY);
 const OR_MODEL = 'mistralai/mistral-7b-instruct:free';
 
 // ── Network helpers ───────────────────────────────────────────────────────────
@@ -45,26 +63,29 @@ export function isOnline(): boolean {
 
 // ── Prompt builder ────────────────────────────────────────────────────────────
 function buildMessages(req: AiAnalysisRequest): { role: string; content: string }[] {
-  const { sportTitle, scopeTitle, ledger, picks, metrics } = req;
+  const { sportTitle = '', scopeTitle = '', ledger, picks, metrics } = req || {};
 
-  const topPicksStr = picks
+  const safePicks = Array.isArray(picks) ? picks : [];
+  const safeMetrics = Array.isArray(metrics) ? metrics : [];
+
+  const topPicksStr = safePicks
     .slice(0, 5)
     .map(
       (p) =>
-        `${p.label} (${p.marketTitle}) @ ${p.odds.toFixed(2)} — P:${p.probability.toFixed(1)}%, Vig:${(p.margin ?? 0).toFixed(1)}%`
+        `${safeStr(p?.label)} (${safeStr(p?.marketTitle)}) @ ${Number(p?.odds || 0).toFixed(2)} — P:${Number(p?.probability || 0).toFixed(1)}%, Vig:${Number(p?.margin || 0).toFixed(1)}%`
     )
     .join('; ') || 'None ranked yet.';
 
-  const metricsStr = metrics
-    .filter((m) => m.value && m.value !== '-' && m.value !== '0')
-    .map((m) => `${m.label}: ${m.value}`)
+  const metricsStr = safeMetrics
+    .filter((m) => m && m.value && m.value !== '-' && m.value !== '0')
+    .map((m) => `${safeStr(m.label)}: ${safeStr(m.value)}`)
     .join(' · ') || 'No metric values entered.';
 
   const ledgerStr = ledger?.candidateLabel
-    ? `Best Pick: "${ledger.candidateLabel}" | Tier: ${ledger.tier} | P: ${ledger.marketProbability ?? '-'}% | Vig: ${ledger.bookmakerMargin ?? '-'}% | Agree: ${ledger.agreeCount}/5 models`
+    ? `Best Pick: "${safeStr(ledger.candidateLabel)}" | Tier: ${safeStr(ledger.tier)} | P: ${ledger.marketProbability ?? '-'}% | Vig: ${ledger.bookmakerMargin ?? '-'}% | Agree: ${ledger.agreeCount || 0}/5 models`
     : 'Master ledger not yet available.';
 
-  const userContent = `Sport: ${sportTitle}${scopeTitle ? ` — ${scopeTitle}` : ''}
+  const userContent = `Sport: ${safeStr(sportTitle)}${scopeTitle ? ` — ${safeStr(scopeTitle)}` : ''}
 Master Ledger: ${ledgerStr}
 Metrics: ${metricsStr}
 Top Ranked Picks: ${topPicksStr}
@@ -83,27 +104,49 @@ Respond ONLY with a valid JSON object — no markdown, no extra text:
 }
 
 // ── Response text parser ──────────────────────────────────────────────────────
-function parseInsights(text: string): AiAnalysisResult['insights'] {
+function parseInsights(rawInput: unknown): AiAnalysisResult['insights'] {
+  if (rawInput === null || rawInput === undefined) return undefined;
+
+  let text = '';
+  if (typeof rawInput === 'string') {
+    text = rawInput;
+  } else if (typeof rawInput === 'object') {
+    const obj = rawInput as Record<string, unknown>;
+    if (obj.verdictSummary || obj.valueAssessment) {
+      return {
+        verdictSummary: safeStr(obj.verdictSummary || 'Analysis complete.'),
+        valueAssessment: safeStr(obj.valueAssessment || 'Review value metrics above.'),
+        riskWarning: safeStr(obj.riskWarning || 'Monitor odds movement closely.'),
+        tacticalRecommendation: safeStr(obj.tacticalRecommendation || 'Verify before placement.')
+      };
+    }
+    text = safeStr(rawInput);
+  } else {
+    text = String(rawInput);
+  }
+
   if (!text) return undefined;
+
   try {
     // Extract first JSON object from response
     const jsonMatch = text.match(/\{[\s\S]*?\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      if (parsed.verdictSummary || parsed.valueAssessment) {
+      if (parsed && (parsed.verdictSummary || parsed.valueAssessment)) {
         return {
-          verdictSummary: parsed.verdictSummary || 'Analysis complete.',
-          valueAssessment: parsed.valueAssessment || 'Review value metrics above.',
-          riskWarning: parsed.riskWarning || 'Monitor odds movement closely.',
-          tacticalRecommendation: parsed.tacticalRecommendation || 'Verify before placement.'
+          verdictSummary: safeStr(parsed.verdictSummary || 'Analysis complete.'),
+          valueAssessment: safeStr(parsed.valueAssessment || 'Review value metrics above.'),
+          riskWarning: safeStr(parsed.riskWarning || 'Monitor odds movement closely.'),
+          tacticalRecommendation: safeStr(parsed.tacticalRecommendation || 'Verify before placement.')
         };
       }
     }
   } catch (_) {/* fall through */}
 
-  // Graceful fallback: use raw text
+  // Graceful fallback: use raw text safely
+  const cleanSummary = text.length > 180 ? text.slice(0, 180).trim() : text.trim();
   return {
-    verdictSummary: text.slice(0, 180).trim() || 'AI analysis complete.',
+    verdictSummary: cleanSummary || 'AI Copilot analysis complete.',
     valueAssessment: 'Cross-check market EV against bookmaker implied probability.',
     riskWarning: 'Bookmaker margin detected. Manage stake size carefully.',
     tacticalRecommendation: 'Verify top picks against live odds before placing.'
@@ -122,15 +165,30 @@ async function callPagesFunction(
     signal
   });
 
+  const contentType = res.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+
   if (!res.ok) {
-    const errBody = await res.text().catch(() => '');
-    throw new Error(`AI Copilot service ${res.status}: ${errBody.slice(0, 200)}`);
+    let errBody = '';
+    if (isJson) {
+      const errJson = await res.json().catch(() => null);
+      errBody = safeStr(errJson?.error || errJson);
+    } else {
+      errBody = safeStr(await res.text().catch(() => ''));
+    }
+    const snippet = errBody.length > 200 ? errBody.slice(0, 200) : errBody;
+    throw new Error(`AI Copilot service (${res.status}): ${snippet || 'HTTP error'}`);
   }
 
-  const data = await res.json();
+  if (!isJson) {
+    throw new Error('AI Copilot endpoint returned unexpected format. Retrying...');
+  }
 
-  if (!data.success) {
-    throw new Error(data.error || 'AI Copilot returned a failure response');
+  const data = await res.json().catch(() => null);
+
+  if (!data || !data.success) {
+    const errorMsg = safeStr(data?.error || 'AI Copilot returned an invalid response');
+    throw new Error(errorMsg);
   }
 
   return {
@@ -138,9 +196,9 @@ async function callPagesFunction(
     isOffline: false,
     provider: 'ai-copilot',
     model: 'ai-copilot',
-    insights: parseInsights(data.response ?? ''),
-    rawText: data.response,
-    tokensUsed: data.tokensUsed
+    insights: parseInsights(data.response),
+    rawText: safeStr(data.response),
+    tokensUsed: Number(data.tokensUsed) || 0
   };
 }
 
@@ -150,7 +208,7 @@ async function callOpenRouterDirect(
   signal: AbortSignal
 ): Promise<AiAnalysisResult> {
   if (!OR_KEY) {
-    throw new Error('AI Copilot API key not configured. Please contact support.');
+    throw new Error('AI Copilot connection key not configured.');
   }
 
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -171,12 +229,13 @@ async function callOpenRouterDirect(
   });
 
   if (!res.ok) {
-    const errBody = await res.text().catch(() => '');
-    throw new Error(`AI Copilot request failed (${res.status}): ${errBody.slice(0, 200)}`);
+    const errText = safeStr(await res.text().catch(() => ''));
+    const snippet = errText.length > 200 ? errText.slice(0, 200) : errText;
+    throw new Error(`AI Copilot direct request failed (${res.status}): ${snippet || 'HTTP error'}`);
   }
 
-  const data = await res.json();
-  const text: string = data?.choices?.[0]?.message?.content ?? '';
+  const data = await res.json().catch(() => null);
+  const text = safeStr(data?.choices?.[0]?.message?.content);
 
   return {
     success: true,
@@ -185,7 +244,7 @@ async function callOpenRouterDirect(
     model: 'ai-copilot',
     insights: parseInsights(text),
     rawText: text,
-    tokensUsed: data?.usage?.total_tokens
+    tokensUsed: Number(data?.usage?.total_tokens) || 0
   };
 }
 
@@ -209,15 +268,16 @@ export async function requestCloudflareAiAnalysis(
   const timeoutId = setTimeout(() => controller.abort(), 20_000);
 
   try {
-    // In dev mode: try OpenRouter directly first (no wrangler pages dev needed)
+    // Dev mode: try OpenRouter directly first if key available
     if (IS_DEV && OR_KEY) {
       try {
         const result = await callOpenRouterDirect(messages, effectiveSignal);
         clearTimeout(timeoutId);
         return result;
       } catch (orErr: any) {
-        if (orErr.name === 'AbortError') throw orErr;
-        console.warn('[AI Copilot] Direct request failed, trying edge function:', orErr.message);
+        if (orErr?.name === 'AbortError') throw orErr;
+        const msg = safeStr(orErr?.message || orErr);
+        console.warn('[AI Copilot] Direct request failed, trying edge function:', msg);
         // Fall through to Pages Function attempt
       }
     }
@@ -228,11 +288,12 @@ export async function requestCloudflareAiAnalysis(
       clearTimeout(timeoutId);
       return result;
     } catch (pfErr: any) {
-      if (pfErr.name === 'AbortError') throw pfErr;
+      if (pfErr?.name === 'AbortError') throw pfErr;
 
-      // Pages Function failed — try OpenRouter as final fallback
+      // Pages Function failed — try OpenRouter as final fallback if key is available
       if (OR_KEY) {
-        console.warn('[AI Copilot] Edge function failed, trying direct connection:', pfErr.message);
+        const msg = safeStr(pfErr?.message || pfErr);
+        console.warn('[AI Copilot] Edge function failed, trying direct connection:', msg);
         const result = await callOpenRouterDirect(messages, effectiveSignal);
         clearTimeout(timeoutId);
         return result;
@@ -243,7 +304,7 @@ export async function requestCloudflareAiAnalysis(
   } catch (err: any) {
     clearTimeout(timeoutId);
 
-    if (err.name === 'AbortError') {
+    if (err?.name === 'AbortError') {
       return {
         success: false,
         isOffline: false,
@@ -252,11 +313,12 @@ export async function requestCloudflareAiAnalysis(
       };
     }
 
+    const rawErrorStr = safeStr(err?.message || err || 'AI Copilot connection failed.');
     return {
       success: false,
       isOffline: !isOnline(),
       model: 'ai-copilot',
-      error: err.message || 'AI Copilot connection failed. Please retry.'
+      error: rawErrorStr || 'AI Copilot connection failed. Please retry.'
     };
   }
 }
