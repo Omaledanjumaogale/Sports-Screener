@@ -9,7 +9,8 @@ export default defineSchema({
       v.literal('football'),
       v.literal('basketball'),
       v.literal('tennis'),
-      v.literal('rally')
+      v.literal('rally'),
+      v.literal('hockey')
     ),
     title: v.string(),
     notes: v.optional(v.string()),

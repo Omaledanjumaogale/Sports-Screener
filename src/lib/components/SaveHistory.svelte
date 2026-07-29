@@ -32,6 +32,21 @@
 
   import { authState } from '../authStore.svelte';
 
+  // ── Local storage fallback key ────────────────────────────────
+  const LS_KEY = () => `sportsScreener_history_${sportId}_v1`;
+
+  function lsLoad(): SavedScreenerDoc[] {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem(LS_KEY());
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  }
+
+  function lsSave(docs: SavedScreenerDoc[]) {
+    try { localStorage.setItem(LS_KEY(), JSON.stringify(docs)); } catch { /* ignore */ }
+  }
+
   let mode: 'list' | 'save' | 'edit' = $state('list');
   let records: SavedScreenerDoc[] = $state([]);
   let loading: boolean = $state(true);
@@ -42,6 +57,7 @@
   let editingDoc: SavedScreenerDoc | null = $state(null);
   let expandedId: string | null = $state(null);
   let sessionId: string = $state('');
+  let usingOffline: boolean = $state(false);
 
   onMount(() => {
     sessionId = getSessionId();
@@ -54,9 +70,11 @@
     try {
       const userId = authState.user?.id;
       records = await queryConvex<any[]>(api.savedScreeners.list, { sportId, sessionId, userId }) as SavedScreenerDoc[];
+      usingOffline = false;
     } catch (e: any) {
-      error = e?.message ?? 'Could not load history. Using offline mode.';
-      records = [];
+      // Silently fall back to localStorage
+      usingOffline = true;
+      records = lsLoad();
     } finally {
       loading = false;
     }
@@ -106,23 +124,60 @@
               : undefined
           }
         : undefined;
-      const args: any = {
-        sportId,
-        title: titleInput.trim(),
-        notes: notesInput.trim() || undefined,
-        scopes: JSON.parse(JSON.stringify(scopes)),
-        verdict: verdictPayload,
-        sessionId,
-        userId: authState.user?.id
-      };
-      if (editingDoc?._id) args._id = editingDoc._id;
-      const id = await callConvex<any>(api.savedScreeners.save, args);
-      mode = 'list';
-      await refresh();
-      const found = records.find((r) => String(r._id) === String(id)) ?? records[0];
-      if (found) dispatch('saved', { doc: found });
+
+      if (usingOffline) {
+        // Save to localStorage
+        const now = Date.now();
+        const existing = lsLoad();
+        let found: SavedScreenerDoc | undefined;
+        if (editingDoc?._id) {
+          const idx = existing.findIndex((r) => r._id === editingDoc!._id);
+          if (idx !== -1) {
+            existing[idx] = { ...existing[idx], title: titleInput.trim(), notes: notesInput.trim() || undefined, scopes: JSON.parse(JSON.stringify(scopes)), verdict: verdictPayload, updatedAt: now };
+            found = existing[idx];
+          }
+        }
+        if (!found) {
+          const newDoc: SavedScreenerDoc = {
+            _id: ('ls_' + Date.now().toString(36) + Math.random().toString(36).slice(2)) as any,
+            sportId,
+            title: titleInput.trim(),
+            notes: notesInput.trim() || undefined,
+            scopes: JSON.parse(JSON.stringify(scopes)),
+            verdict: verdictPayload,
+            sessionId,
+            createdAt: now,
+            updatedAt: now
+          };
+          existing.unshift(newDoc);
+          found = newDoc;
+        }
+        lsSave(existing);
+        records = existing;
+        mode = 'list';
+        if (found) dispatch('saved', { doc: found });
+      } else {
+        const args: any = {
+          sportId,
+          title: titleInput.trim(),
+          notes: notesInput.trim() || undefined,
+          scopes: JSON.parse(JSON.stringify(scopes)),
+          verdict: verdictPayload,
+          sessionId,
+          userId: authState.user?.id
+        };
+        if (editingDoc?._id) args._id = editingDoc._id;
+        const id = await callConvex<any>(api.savedScreeners.save, args);
+        mode = 'list';
+        await refresh();
+        const found2 = records.find((r) => String(r._id) === String(id)) ?? records[0];
+        if (found2) dispatch('saved', { doc: found2 });
+      }
     } catch (e: any) {
-      error = e?.message ?? 'Failed to save screener';
+      // Try localStorage fallback if convex fails mid-session
+      usingOffline = true;
+      error = null;
+      await submitSave();
     } finally {
       working = false;
     }
@@ -134,9 +189,15 @@
     working = true;
     error = null;
     try {
-      await callConvex(api.savedScreeners.remove, { id: doc._id, sessionId, userId: authState.user?.id });
-      if (expandedId === String(doc._id)) expandedId = null;
-      await refresh();
+      if (usingOffline || String(doc._id).startsWith('ls_')) {
+        const existing = lsLoad().filter((r) => r._id !== doc._id);
+        lsSave(existing);
+        records = existing;
+      } else {
+        await callConvex(api.savedScreeners.remove, { id: doc._id, sessionId, userId: authState.user?.id });
+        if (expandedId === String(doc._id)) expandedId = null;
+        await refresh();
+      }
     } catch (e: any) {
       error = e?.message ?? 'Failed to delete screener';
     } finally {
@@ -163,9 +224,16 @@
 
 <section class="sh-root" style={`--accent:${accent}`} aria-label="Saved screeners history">
   <div class="sh-head">
-    <div>
+    <div class="sh-meta">
       <h3>Screener History</h3>
-      <p class="sub">Save verdicts for later review. Stored in Convex · synced with this browser.</p>
+      <p class="sub">
+        Save verdicts for later review.
+        {#if usingOffline}
+          <span class="offline-badge">Saved to this device</span>
+        {:else}
+          Stored in Convex · synced with this browser.
+        {/if}
+      </p>
     </div>
     <div class="sh-actions">
       {#if mode !== 'list'}
@@ -174,10 +242,6 @@
       <button type="button" class="btn primary" onclick={() => openSaveDialog()} disabled={working}>+ Save Current</button>
     </div>
   </div>
-
-  {#if error}
-    <div class="err" role="alert">{error}</div>
-  {/if}
 
   {#if mode === 'save' || mode === 'edit'}
     <div class="save-card" aria-labelledby="save-dialog-title">
@@ -212,6 +276,9 @@
       </div>
     </div>
   {:else}
+    {#if error}
+      <div class="err" role="alert">{error}</div>
+    {/if}
     {#if loading}
       <div class="empty">Loading history…</div>
     {:else if !records.length}
@@ -228,8 +295,8 @@
               <button type="button" class="rec-title" onclick={() => toggleExpand(String(rec._id))}>
                 <span class="chev" aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>
                 <strong>{rec.title}</strong>
-                <span class="ts">{fmt(rec.updatedAt)}</span>
               </button>
+              <span class="ts">{fmt(rec.updatedAt)}</span>
               <div class="rec-buttons" role="group" aria-label="Record actions">
                 <button
                   type="button"
@@ -298,15 +365,16 @@
 
 <style>
   .sh-root {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--c-surface-2, rgba(255, 255, 255, 0.04));
     backdrop-filter: blur(16px) saturate(160%);
     -webkit-backdrop-filter: blur(16px) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--c-border, rgba(255, 255, 255, 0.08));
     border-radius: 18px;
     padding: 18px;
     display: grid;
     gap: 14px;
   }
+
   .sh-head {
     display: flex;
     justify-content: space-between;
@@ -314,6 +382,9 @@
     gap: 12px;
     flex-wrap: wrap;
   }
+
+  .sh-meta { flex: 1 1 200px; min-width: 0; }
+
   h3 {
     margin: 0;
     font-size: 16px;
@@ -321,17 +392,41 @@
     letter-spacing: -0.01em;
     color: var(--c-text, #f1f5ff);
   }
+
   .sub {
     margin: 5px 0 0;
     color: var(--c-muted, #8899bb);
     font-size: 12px;
     font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
   }
-  .sh-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .offline-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+    font-weight: 800;
+    color: var(--c-amber, #f59e0b);
+    background: color-mix(in srgb, var(--c-amber, #f59e0b) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c-amber, #f59e0b) 30%, transparent);
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+
+  .sh-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
 
   /* Buttons */
   .btn {
-    border: 1px solid rgba(255,255,255,0.09);
+    border: 1px solid var(--c-border, rgba(255,255,255,0.09));
     background: rgba(255,255,255,0.05);
     backdrop-filter: blur(8px);
     color: var(--c-text, #f1f5ff);
@@ -342,9 +437,11 @@
     font-family: var(--font-brand, 'Outfit', system-ui);
     cursor: pointer;
     transition: border-color 120ms, background 120ms, transform 60ms, box-shadow 120ms;
+    white-space: nowrap;
   }
   .btn[disabled] { opacity: 0.45; cursor: not-allowed; }
   .btn:not([disabled]):active { transform: scale(0.96); }
+
   .btn.primary {
     background: color-mix(in srgb, var(--accent) 22%, rgba(255,255,255,0.05));
     border-color: color-mix(in srgb, var(--accent) 50%, transparent);
@@ -360,16 +457,6 @@
   .btn.warn:not([disabled]):hover { border-color: rgba(251,191,36,0.5); color: #fde68a; }
   .btn.danger:not([disabled]):hover { border-color: rgba(251,113,133,0.5); color: #fecdd3; }
   .btn.mini { padding: 5px 11px; font-size: 12px; border-radius: 8px; }
-
-  /* Error */
-  .err {
-    background: rgba(251,113,133,0.08);
-    border: 1px solid rgba(251,113,133,0.25);
-    color: #fecdd3;
-    padding: 10px 14px;
-    border-radius: 10px;
-    font-size: 13px;
-  }
 
   /* Save form */
   .save-card {
@@ -408,9 +495,16 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
   }
   .save-card textarea { resize: vertical; min-height: 80px; }
-  .save-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
-  .save-foot .meta { color: var(--c-muted, #8899bb); font-size: 12px; }
-  .save-foot .row { display: flex; gap: 8px; }
+  .save-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .save-foot .meta { color: var(--c-muted, #8899bb); font-size: 12px; flex: 1 1 180px; }
+  .save-foot .row { display: flex; gap: 8px; flex-shrink: 0; }
 
   /* Empty */
   .empty {
@@ -424,6 +518,16 @@
   .empty strong { display: block; color: var(--c-text, #f1f5ff); margin-bottom: 8px; font-size: 15px; }
   .empty p { margin: 4px 0 0; font-size: 12.5px; color: var(--c-muted, #8899bb); line-height: 1.5; }
 
+  /* Error */
+  .err {
+    background: rgba(251,113,133,0.08);
+    border: 1px solid rgba(251,113,133,0.25);
+    color: #fecdd3;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+
   /* Record list */
   .rec-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
   .rec-item {
@@ -435,23 +539,60 @@
   }
   .rec-item:hover { border-color: color-mix(in srgb, var(--accent) 25%, rgba(255,255,255,0.07)); }
   .rec-item[data-expanded] { border-color: color-mix(in srgb, var(--accent) 30%, rgba(255,255,255,0.08)); }
-  .rec-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 13px; flex-wrap: wrap; }
+
+  .rec-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 13px;
+    flex-wrap: wrap;
+  }
+
   .rec-title {
     all: unset;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 9px;
-    flex: 1 1 220px;
+    gap: 8px;
+    flex: 1 1 160px;
+    min-width: 0;
     color: var(--c-text, #f1f5ff);
     padding: 4px 0;
-    min-width: 0;
   }
   .rec-title:hover { color: #fff; }
-  .rec-title strong { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 520px; font-weight: 700; }
-  .chev { color: var(--accent); font-size: 11px; width: 14px; text-align: center; }
-  .ts { margin-left: auto; color: var(--c-muted, #8899bb); font-size: 11px; white-space: nowrap; font-family: var(--font-mono, 'JetBrains Mono', monospace); }
-  .rec-buttons { display: flex; gap: 6px; flex: 0 0 auto; }
+  .rec-title strong {
+    font-size: 13.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    font-weight: 700;
+  }
+
+  .chev { color: var(--accent); font-size: 11px; width: 14px; text-align: center; flex-shrink: 0; }
+  .ts {
+    color: var(--c-muted, #8899bb);
+    font-size: 11px;
+    white-space: nowrap;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    flex-shrink: 0;
+    order: 3;
+  }
+  .rec-buttons {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    order: 4;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 500px) {
+    .rec-row { padding: 10px 10px; gap: 6px; }
+    .rec-title { flex: 1 1 100%; }
+    .ts { order: 2; margin-left: auto; }
+    .rec-buttons { order: 3; width: 100%; justify-content: flex-start; }
+    .btn.mini { flex: 1; justify-content: center; display: flex; align-items: center; }
+  }
 
   /* Expanded detail */
   .rec-detail { padding: 0 14px 14px; display: grid; gap: 10px; animation: slide-up 0.2s ease both; }
@@ -461,7 +602,7 @@
     border-radius: 10px;
     padding: 11px 13px;
   }
-  .verdict-head { display: flex; gap: 10px; align-items: flex-start; color: var(--c-text, #f1f5ff); font-size: 13px; margin-bottom: 7px; font-weight: 600; }
+  .verdict-head { display: flex; gap: 10px; align-items: flex-start; color: var(--c-text, #f1f5ff); font-size: 13px; margin-bottom: 7px; font-weight: 600; flex-wrap: wrap; }
   .top-pick { color: var(--c-text-2, #c8d6ee); font-size: 12.5px; }
   .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .chip {
@@ -481,6 +622,7 @@
     background: color-mix(in srgb, var(--accent) 12%, rgba(255,255,255,0.04));
     padding: 3px 8px; border-radius: 6px; margin-right: 8px;
     border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    white-space: nowrap;
   }
   .scope-meta { display: flex; gap: 6px; flex-wrap: wrap; }
   .scope-pill {

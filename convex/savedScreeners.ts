@@ -7,7 +7,8 @@ export const list = query({
       v.literal('football'),
       v.literal('basketball'),
       v.literal('tennis'),
-      v.literal('rally')
+      v.literal('rally'),
+      v.literal('hockey')
     )),
     sessionId: v.string(),
     userId: v.optional(v.string())
@@ -62,7 +63,8 @@ export const save = mutation({
       v.literal('football'),
       v.literal('basketball'),
       v.literal('tennis'),
-      v.literal('rally')
+      v.literal('rally'),
+      v.literal('hockey')
     ),
     title: v.string(),
     notes: v.optional(v.string()),
