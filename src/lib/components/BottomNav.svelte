@@ -13,7 +13,8 @@
     { id: 'football',   path: '/football',   label: 'Football',   accent: '#22c55e' },
     { id: 'basketball', path: '/basketball', label: 'Basketball', accent: '#f97316' },
     { id: 'tennis',     path: '/tennis',     label: 'Tennis',     accent: '#e879f9' },
-    { id: 'rally',      path: '/rally',      label: 'Rally',      accent: '#38bdf8' }
+    { id: 'rally',      path: '/rally',      label: 'Rally',      accent: '#38bdf8' },
+    { id: 'hockey',     path: '/hockey',     label: 'Hockey',     accent: '#06b6d4' }
   ];
 
   function navigate(path: string) {

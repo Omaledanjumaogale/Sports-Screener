@@ -2,7 +2,7 @@
   import { ChevronRight, Lock } from '@lucide/svelte';
   import SportSvgIcon from './SportSvgIcon.svelte';
 
-  type SportId = 'football' | 'basketball' | 'tennis' | 'rally';
+  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey';
 
   const props = $props<{
     sportId?: SportId;

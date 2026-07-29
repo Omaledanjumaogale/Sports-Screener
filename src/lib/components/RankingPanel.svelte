@@ -52,6 +52,11 @@
           <div class="rank-info">
             <div class="rank-title-row">
               <b class="rank-label">{pick.label}</b>
+              {#if pick.confluenceTier}
+                <span class={`tier-mini-pill ${pick.confluenceTier.includes('Tier 1') ? 't1' : pick.confluenceTier.includes('Tier 2') ? 't2' : pick.confluenceTier.includes('Conflicted') ? 't-conflict' : ''}`}>
+                  {pick.confluenceTier.split(' — ')[0]}
+                </span>
+              {/if}
               {#if pick.ev !== undefined}
                 <span class={`ev-pill ${pick.ev > 0 ? 'ev-pos' : pick.ev < -0.08 ? 'ev-neg' : ''}`}>
                   {pick.ev > 0 ? '+' : ''}{(pick.ev * 100).toFixed(1)}% EV
@@ -199,6 +204,19 @@
   }
   .ev-pos { color: var(--c-green); background: color-mix(in srgb, var(--c-green) 12%, transparent); border-color: color-mix(in srgb, var(--c-green) 25%, transparent); }
   .ev-neg { color: var(--c-red);   background: color-mix(in srgb, var(--c-red) 12%, transparent); border-color: color-mix(in srgb, var(--c-red) 25%, transparent); }
+
+  .tier-mini-pill {
+    font-size: 9.5px;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+  }
+  .tier-mini-pill.t1 { background: rgba(34, 197, 94, 0.15); color: #4ade80; border-color: rgba(34, 197, 94, 0.4); }
+  .tier-mini-pill.t2 { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); }
+  .tier-mini-pill.t-conflict { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.4); }
 
   .rank-meta {
     display: block;

@@ -13,7 +13,7 @@
   // Svelte 5: typed page data from +page.ts load()
   const { data }: { data: PageData } = $props();
 
-  type SportId = 'football' | 'basketball' | 'tennis' | 'rally';
+  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey';
 
   const sports: {
     id: SportId;
@@ -54,17 +54,18 @@
       description: 'Full match and first-set multi-market screening. Safest pick, margin rank, sweep shapes and set metrics.',
       accent: '#38bdf8',
       path: '/rally'
+    },
+    {
+      id: 'hockey',
+      short: 'Hockey',
+      title: 'Ice Hockey Screener',
+      description: 'Puck line handicap, 3-period goal pace, Overtime Intelligence P(OT), and CS Reconciliation.',
+      accent: '#06b6d4',
+      path: '/hockey'
     }
   ];
 
   const comingSoonSports = [
-    {
-      short: 'Hockey',
-      title: 'Ice Hockey Screener',
-      description: 'Puck line handicap, 3-period goal pace, total goals, and overtime probability modeling.',
-      accent: '#06b6d4',
-      emoji: '🏒'
-    },
     {
       short: 'Baseball',
       title: 'Baseball Screener',
@@ -184,7 +185,7 @@
       <p class="tagline">Read the odds. Own the edge. Beat the Bookies</p>
 
       <p class="hero-copy">
-        A mobile-first workspace for screening football, basketball, tennis and table tennis markets.
+        A mobile-first workspace for screening football, basketball, tennis, table tennis and ice hockey markets.
         Drop in your odds, get instant profile verdicts, live rankings and smart picks — all saved to your device.
       </p>
 
@@ -285,14 +286,14 @@
             <span class="period">/ month</span>
           </div>
           <p class="pricing-copy">
-            To access all four sport screeners (Football, Basketball, Tennis & Table Tennis), all punters are required to make a monthly donation of <strong>₦5,000 Naira</strong>.
+            To access all five sport screeners (Football, Basketball, Tennis, Table Tennis & Ice Hockey), all punters are required to make a monthly donation of <strong>₦5,000 Naira</strong>.
           </p>
         </div>
 
         <ul class="pricing-features">
           <li>
             <CheckCircle2 class="icon-check" size={18} />
-            <span>Unlimited screening access across Football, Basketball, Tennis & Table Tennis</span>
+            <span>Unlimited screening access across Football, Basketball, Tennis, Table Tennis & Ice Hockey</span>
           </li>
           <li>
             <CheckCircle2 class="icon-check" size={18} />

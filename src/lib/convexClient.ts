@@ -1,4 +1,4 @@
-export type ConvexSportId = 'football' | 'basketball' | 'tennis' | 'rally';
+export type ConvexSportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey';
 
 export type Id<T extends string> = string & { __convexId: T };
 

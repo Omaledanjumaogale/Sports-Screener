@@ -15,12 +15,15 @@
   import TeamInputs from './TeamInputs.svelte';
   import SaveHistory from './SaveHistory.svelte';
   import BottomNav from './BottomNav.svelte';
-  import SportSvgIcon from './SportSvgIcon.svelte';
+  import MasterVerdictCard from './MasterVerdictCard.svelte';
   import {
     analyzeFootball,
     analyzeBasketball,
     analyzeTennis,
     analyzeRally,
+    analyzeHockey,
+    buildConfluenceLedger,
+    sortCandidatesByTierAndProbability,
     clearScopes,
     clearScopeState,
     lineOptionsFor,
@@ -48,7 +51,7 @@
   } = $props();
 
   // Derive the SportId union for SVG icon
-  type SportIconId = 'football' | 'basketball' | 'tennis' | 'rally';
+  type SportIconId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey';
   const iconId = $derived(sportId as SportIconId);
 
   let scopes: ScopeState[] = $state([]);
@@ -61,10 +64,21 @@
   let analysis: Analysis | null = $derived(scope && mounted ? runAnalysis(sportId, scope, refreshTick) : null);
 
   function runAnalysis(sid: SportId, s: ScopeState, _t: number): Analysis {
-    if (sid === 'football') return analyzeFootball(s);
-    if (sid === 'basketball') return analyzeBasketball(s);
-    if (sid === 'tennis') return analyzeTennis(s);
-    return analyzeRally(s);
+    let res: Analysis;
+    if (sid === 'football') res = analyzeFootball(s);
+    else if (sid === 'basketball') res = analyzeBasketball(s);
+    else if (sid === 'tennis') res = analyzeTennis(s);
+    else if (sid === 'hockey') res = analyzeHockey(s);
+    else res = analyzeRally(s);
+
+    const masterLedger = buildConfluenceLedger(sid, s, scopes);
+    const masterRankings = sortCandidatesByTierAndProbability(res.picks, masterLedger);
+
+    return {
+      ...res,
+      masterLedger,
+      masterRankings
+    };
   }
 
   function refresh() {
@@ -138,7 +152,8 @@
     football: ['Home', 'Away'],
     basketball: ['Team 1', 'Team 2'],
     tennis: ['Player 1', 'Player 2'],
-    rally: ['Player A', 'Player B']
+    rally: ['Player A', 'Player B'],
+    hockey: ['Team 1', 'Team 2']
   };
 </script>
 
@@ -186,6 +201,13 @@
       />
 
       <VerdictHero headline={analysis.headline} chips={analysis.chips} />
+
+      {#if analysis.masterLedger}
+        <div class="spacer"></div>
+        <MasterVerdictCard ledger={analysis.masterLedger} />
+      {/if}
+
+      <div class="spacer"></div>
 
       <div class="spacer"></div>
 
@@ -273,7 +295,7 @@
 
       <div class="spacer"></div>
 
-      <RankingPanel picks={analysis.picks} limit={12} {accent} />
+      <RankingPanel picks={analysis.masterRankings ?? analysis.picks} limit={12} {accent} />
 
       <div class="spacer"></div>
 

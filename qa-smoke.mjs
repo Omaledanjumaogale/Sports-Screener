@@ -31,7 +31,8 @@ const sportsToTest = [
   { name: 'Football',   path: '/football'   },
   { name: 'Basketball', path: '/basketball' },
   { name: 'Tennis',     path: '/tennis'     },
-  { name: 'Rally',      path: '/rally'      }
+  { name: 'Rally',      path: '/rally'      },
+  { name: 'Hockey',     path: '/hockey'     }
 ];
 
 for (const sport of sportsToTest) {

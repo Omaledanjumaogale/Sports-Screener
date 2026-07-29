@@ -1,5 +1,5 @@
 <script lang="ts">
-  type SportId = 'football' | 'basketball' | 'tennis' | 'rally';
+  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey';
 
   let {
     sport = 'football' as SportId,
@@ -71,6 +71,15 @@
     <!-- Ball -->
     <circle cx="22" cy="6" r="4" stroke={color} stroke-width="1.6" fill="none"/>
     <path d="M18.5 4.5 Q22 7 25.5 4.5" stroke={color} stroke-width="1.1" fill="none"/>
+  </svg>
+
+{:else if sport === 'hockey'}
+  <!-- Ice hockey crossed sticks + puck -->
+  <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-hidden="true">
+    <path d="M4 22 L20 4 M24 24 L22 22 L7 7" stroke={color} stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="5" y1="24" x2="23" y2="6" stroke={color} stroke-width="1.8" stroke-linecap="round"/>
+    <!-- Puck -->
+    <ellipse cx="14" cy="20" rx="5" ry="2.5" fill={color} opacity="0.9"/>
   </svg>
 
 {:else}
