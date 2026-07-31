@@ -34,6 +34,11 @@
         label="Handicap"
         value={pair.line}
         options={lineOptions}
+        locked={!!pair.lineLocked}
+        onToggleLock={() => {
+          pair.lineLocked = !pair.lineLocked;
+          onChange();
+        }}
         onChange={(v) => {
           pair.line = v;
           if (onAutoFillLine) onAutoFillLine(index, 'line', v);
@@ -46,6 +51,11 @@
         id={`hdp-${index}-a`}
         label={sideALabel}
         value={pair.sideA}
+        locked={!!pair.sideALocked}
+        onToggleLock={() => {
+          pair.sideALocked = !pair.sideALocked;
+          onChange();
+        }}
         onChange={(v) => {
           pair.sideA = v;
           if (onAutoFillLine) onAutoFillLine(index, 'sideA', v);
@@ -56,6 +66,11 @@
         id={`hdp-${index}-b`}
         label={sideBLabel}
         value={pair.sideB}
+        locked={!!pair.sideBLocked}
+        onToggleLock={() => {
+          pair.sideBLocked = !pair.sideBLocked;
+          onChange();
+        }}
         onChange={(v) => {
           pair.sideB = v;
           if (onAutoFillLine) onAutoFillLine(index, 'sideB', v);

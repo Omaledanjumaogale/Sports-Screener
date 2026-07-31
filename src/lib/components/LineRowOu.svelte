@@ -30,6 +30,11 @@
         label="Line"
         value={pair.line}
         options={lineOptions}
+        locked={!!pair.lineLocked}
+        onToggleLock={() => {
+          pair.lineLocked = !pair.lineLocked;
+          onChange();
+        }}
         onChange={(v) => {
           pair.line = v;
           if (onAutoFillLine) onAutoFillLine(index, 'line', v);
@@ -42,6 +47,11 @@
         id={`ou-${index}-over`}
         label="Over"
         value={pair.over}
+        locked={!!pair.overLocked}
+        onToggleLock={() => {
+          pair.overLocked = !pair.overLocked;
+          onChange();
+        }}
         onChange={(v) => {
           pair.over = v;
           if (onAutoFillLine) onAutoFillLine(index, 'over', v);
@@ -52,6 +62,11 @@
         id={`ou-${index}-under`}
         label="Under"
         value={pair.under}
+        locked={!!pair.underLocked}
+        onToggleLock={() => {
+          pair.underLocked = !pair.underLocked;
+          onChange();
+        }}
         onChange={(v) => {
           pair.under = v;
           if (onAutoFillLine) onAutoFillLine(index, 'under', v);

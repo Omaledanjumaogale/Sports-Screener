@@ -23,12 +23,18 @@ export interface LinePair {
   line: number | null;
   over: number | null;
   under: number | null;
+  lineLocked?: boolean;
+  overLocked?: boolean;
+  underLocked?: boolean;
 }
 
 export interface HandicapPair {
   line: number | null;
   sideA: number | null;
   sideB: number | null;
+  lineLocked?: boolean;
+  sideALocked?: boolean;
+  sideBLocked?: boolean;
 }
 
 export interface MarketInput {
@@ -176,15 +182,18 @@ export function autoFillLinePairs(
     }
     if (!step || step <= 0) step = 1.0;
     for (let i = 0; i < pairs.length; i++) {
+      if (i === changedIndex || pairs[i].lineLocked) continue;
       pairs[i].line = round(val + (i - changedIndex) * step, 1);
     }
   } else if (field === 'over') {
     for (let i = 0; i < pairs.length; i++) {
-      pairs[i].over = round(Math.max(1.01, val + (i - changedIndex) * 0.10), 2);
+      if (i === changedIndex || pairs[i].overLocked) continue;
+      pairs[i].over = round(Math.max(1.01, val + (i - changedIndex) * 0.20), 2);
     }
   } else if (field === 'under') {
     for (let i = 0; i < pairs.length; i++) {
-      pairs[i].under = round(Math.max(1.01, val - (i - changedIndex) * 0.10), 2);
+      if (i === changedIndex || pairs[i].underLocked) continue;
+      pairs[i].under = round(Math.max(1.01, val - (i - changedIndex) * 0.20), 2);
     }
   }
 }
@@ -209,15 +218,18 @@ export function autoFillHandicapPairs(
     }
     if (!step || step <= 0) step = 1.0;
     for (let i = 0; i < pairs.length; i++) {
+      if (i === changedIndex || pairs[i].lineLocked) continue;
       pairs[i].line = round(val + (i - changedIndex) * step, 1);
     }
   } else if (field === 'sideA') {
     for (let i = 0; i < pairs.length; i++) {
-      pairs[i].sideA = round(Math.max(1.01, val + (i - changedIndex) * 0.10), 2);
+      if (i === changedIndex || pairs[i].sideALocked) continue;
+      pairs[i].sideA = round(Math.max(1.01, val + (i - changedIndex) * 0.20), 2);
     }
   } else if (field === 'sideB') {
     for (let i = 0; i < pairs.length; i++) {
-      pairs[i].sideB = round(Math.max(1.01, val - (i - changedIndex) * 0.10), 2);
+      if (i === changedIndex || pairs[i].sideBLocked) continue;
+      pairs[i].sideB = round(Math.max(1.01, val - (i - changedIndex) * 0.20), 2);
     }
   }
 }

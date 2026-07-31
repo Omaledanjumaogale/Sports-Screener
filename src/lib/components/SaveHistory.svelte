@@ -21,12 +21,14 @@
     sportTitle,
     scopes,
     analysis,
+    aiResult = null as any,
     accent = '#6aa6ff'
   }: {
     sportId: ConvexSportId;
     sportTitle: string;
     scopes: any[];
     analysis: Analysis | null;
+    aiResult?: any;
     accent?: string;
   } = $props();
 
@@ -111,7 +113,16 @@
       const verdictPayload = analysis
         ? {
             headline: analysis.headline,
-            chips: analysis.chips.map((c) => ({ label: c.label, value: c.value, status: c.status })),
+            chips: analysis.chips?.map((c) => ({ label: c.label, value: c.value, status: c.status })),
+            masterLedger: analysis.masterLedger ? {
+              candidateLabel: analysis.masterLedger.candidateLabel,
+              marketProbability: analysis.masterLedger.marketProbability,
+              bookmakerMargin: analysis.masterLedger.bookmakerMargin,
+              tier: analysis.masterLedger.tier,
+              agreeCount: analysis.masterLedger.agreeCount,
+              disagreeCount: analysis.masterLedger.disagreeCount
+            } : undefined,
+            aiInsights: aiResult?.insights ? { ...aiResult.insights } : undefined,
             topPick: analysis.picks?.[0]
               ? {
                   marketId: analysis.picks[0].marketId,
@@ -325,7 +336,7 @@
                 {#if rec.verdict}
                   <div class="verdict-box">
                     <div class="verdict-head">
-                      <span class="tag">Verdict</span>
+                      <span class="tag">Verdict Hero</span>
                       {rec.verdict.headline}
                     </div>
                     {#if rec.verdict.topPick}
@@ -339,6 +350,41 @@
                         {#each rec.verdict.chips as c}
                           <span class="chip" data-status={c.status}><b>{c.label}</b> {c.value}</span>
                         {/each}
+                      </div>
+                    {/if}
+
+                    <!-- Saved Master Verdict Card -->
+                    {#if rec.verdict.masterLedger}
+                      <div class="saved-section master-card-saved">
+                        <span class="tag master-tag">Master Verdict Card</span>
+                        <div class="master-summary-row">
+                          <span class="cand-label">{rec.verdict.masterLedger.candidateLabel}</span>
+                          <span class="tier-pill">{rec.verdict.masterLedger.tier}</span>
+                          <span class="stat-pill">Real Win Chance: {rec.verdict.masterLedger.marketProbability ?? '-'}%</span>
+                          <span class="stat-pill">Bookies Profit Cut: {rec.verdict.masterLedger.bookmakerMargin ?? '-'}%</span>
+                        </div>
+                      </div>
+                    {/if}
+
+                    <!-- Saved AI Copilot Real-Time Analysis -->
+                    {#if rec.verdict.aiInsights}
+                      <div class="saved-section ai-insights-saved">
+                        <span class="tag ai-tag">AI Copilot Analysis</span>
+                        <p class="ai-verdict-summary"><strong>AI Verdict:</strong> {rec.verdict.aiInsights.verdictSummary}</p>
+                        {#if rec.verdict.aiInsights.valueAssessment}
+                          <p class="ai-sub-text"><strong>Value Read:</strong> {rec.verdict.aiInsights.valueAssessment}</p>
+                        {/if}
+                        {#if rec.verdict.aiInsights.top3Selections?.length}
+                          <div class="saved-top3-list">
+                            {#each rec.verdict.aiInsights.top3Selections as item}
+                              <div class="top3-saved-pill">
+                                <span class="rank">#{item.rank}</span>
+                                <span class="name">{item.selection}</span>
+                                <span class="conf">{item.confidence}</span>
+                              </div>
+                            {/each}
+                          </div>
+                        {/if}
                       </div>
                     {/if}
                   </div>
@@ -374,6 +420,63 @@
     display: grid;
     gap: 14px;
   }
+
+  .verdict-box {
+    margin-top: 8px;
+    background: var(--c-surface-1, rgba(0, 0, 0, 0.22));
+    border: 1px solid var(--c-border-sm, rgba(255, 255, 255, 0.08));
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .saved-section {
+    border-top: 1px solid var(--c-border-sm, rgba(255, 255, 255, 0.06));
+    padding-top: 8px;
+    margin-top: 4px;
+  }
+
+  .master-tag { color: var(--accent, #6366f1) !important; background: color-mix(in srgb, var(--accent, #6366f1) 16%, transparent) !important; }
+  .ai-tag { color: #f38020 !important; background: color-mix(in srgb, #f38020 16%, transparent) !important; }
+
+  .master-summary-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+    font-size: 11.5px;
+  }
+
+  .cand-label { font-weight: 800; color: var(--c-text, #ffffff); }
+  .tier-pill { font-weight: 700; color: var(--accent, #6aa6ff); }
+  .stat-pill { color: var(--c-muted, #8899bb); font-size: 11px; }
+
+  .ai-verdict-summary { margin: 4px 0 2px; font-size: 12px; color: var(--c-text-sub, #d0d7e6); line-height: 1.4; }
+  .ai-sub-text { margin: 0; font-size: 11.5px; color: var(--c-muted, #8899bb); line-height: 1.35; }
+
+  .saved-top3-list {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+
+  .top3-saved-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+  }
+  .top3-saved-pill .rank { color: #f59e0b; font-weight: 900; }
+  .top3-saved-pill .name { color: var(--c-text, #ffffff); font-weight: 700; }
+  .top3-saved-pill .conf { color: var(--c-green, #4ade80); font-weight: 800; font-size: 10px; }
 
   .sh-head {
     display: flex;

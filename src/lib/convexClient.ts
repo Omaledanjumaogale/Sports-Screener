@@ -20,6 +20,8 @@ export interface SavedScreenerDoc {
   verdict?: {
     headline: string;
     chips: { label: string; value: string; status: 'green' | 'amber' | 'red' | 'empty' }[];
+    masterLedger?: any;
+    aiInsights?: any;
     topPick?: {
       marketId: string;
       marketTitle: string;

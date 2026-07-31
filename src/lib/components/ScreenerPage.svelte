@@ -66,6 +66,7 @@
   let refreshTick: number = $state(0);
   let mounted: boolean = $state(false);
   let loadBanner: string | null = $state(null);
+  let restoredAiResult: any = $state(null);
 
   let scope: ScopeState | null = $derived(scopes[selectedScopeIndex] ?? null);
   let analysis: Analysis | null = $derived(scope && mounted ? runAnalysis(sportId, scope, refreshTick) : null);
@@ -102,6 +103,7 @@
     clearScopeState(scope);
     saveScopes(sportId, scopes);
     loadBanner = null;
+    restoredAiResult = null;
     refresh();
   }
 
@@ -109,6 +111,7 @@
     scopes.forEach(clearScopeState);
     clearScopes(sportId);
     loadBanner = null;
+    restoredAiResult = null;
     refresh();
   }
 
@@ -135,6 +138,16 @@
     scopes = freshScopes;
     saveScopes(sportId, scopes);
     loadBanner = `Loaded from history: ${doc.title}`;
+    if ((doc as any).verdict?.aiInsights) {
+      restoredAiResult = {
+        success: true,
+        isOffline: false,
+        model: 'Saved Analysis',
+        insights: (doc as any).verdict.aiInsights
+      };
+    } else {
+      restoredAiResult = null;
+    }
     refresh();
   }
 
@@ -264,6 +277,7 @@
         profiles={analysis.profiles}
         picks={analysis.masterRankings ?? analysis.picks}
         metrics={analysis.metrics}
+        initialResult={restoredAiResult}
         {accent}
       />
 

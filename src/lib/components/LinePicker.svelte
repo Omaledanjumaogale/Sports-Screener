@@ -7,22 +7,26 @@
     options = [] as number[],
     placeholder = 'Pick',
     disabled = false,
+    locked = false,
     step = 0.5,
     min = -999,
     max = 999,
     storageKey = '',
-    onChange = (_v: number | null) => { void _v; }
+    onChange = (_v: number | null) => { void _v; },
+    onToggleLock = null as (() => void) | null
   }: {
     value: number | null;
     label?: string;
     options?: number[];
     placeholder?: string;
     disabled?: boolean;
+    locked?: boolean;
     step?: number;
     min?: number;
     max?: number;
     storageKey?: string;
     onChange?: (v: number | null) => void;
+    onToggleLock?: (() => void) | null;
   } = $props();
 
   let customInput = $state('');
@@ -85,8 +89,34 @@
   }
 </script>
 
-<div class="line-picker" aria-label={label}>
-  <span class="line-picker-label">{label}</span>
+<div class="line-picker" class:is-locked={locked} aria-label={label}>
+  <div class="picker-header">
+    <span class="line-picker-label">{label}</span>
+    {#if onToggleLock}
+      <button
+        type="button"
+        class="lock-btn"
+        class:locked={locked}
+        title={locked ? "Locked — auto-fill will not change this line. Click to unlock" : "Unlocked — click to lock line"}
+        aria-label={locked ? "Unlock line" : "Lock line"}
+        onclick={onToggleLock}
+      >
+        {#if locked}
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <span>Locked</span>
+        {:else}
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+          </svg>
+          <span>Lock</span>
+        {/if}
+      </button>
+    {/if}
+  </div>
 
   <!-- Custom line input — always at top so user doesn't have to scroll -->
   <div class="custom-row">
@@ -102,7 +132,7 @@
         id={`lp-custom-${label.replace(/\s+/g, '-')}`}
         placeholder={`e.g. ${options[0] ?? 2.5}`}
         value={isCustom ? customInput : (value !== null ? String(value) : '')}
-        {disabled}
+        disabled={disabled || locked}
         oninput={(e) => {
           const val = e.currentTarget.value;
           if (val === '') { isCustom = false; customInput = ''; onChange(null); return; }
@@ -110,7 +140,7 @@
         }}
         aria-label={`Custom ${label}`}
       />
-      {#if isCustom}
+      {#if isCustom && !locked}
         <button
           type="button"
           class="clear-custom"
@@ -131,11 +161,11 @@
       class="nudge"
       aria-label={`Decrease ${label}`}
       onclick={() => nudge(-step)}
-      {disabled}
+      disabled={disabled || locked}
     >−</button>
 
     <select
-      {disabled}
+      disabled={disabled || locked}
       aria-label={`Select ${label}`}
       value={!isCustom && value !== null ? String(value) : ''}
       onchange={(e) => setLine(e.currentTarget.value)}
@@ -151,7 +181,7 @@
       class="nudge"
       aria-label={`Increase ${label}`}
       onclick={() => nudge(step)}
-      {disabled}
+      disabled={disabled || locked}
     >+</button>
   </div>
 </div>
@@ -171,6 +201,45 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     padding-left: 2px;
+  }
+
+  .picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .lock-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid var(--c-border-sm, rgba(255,255,255,0.08));
+    color: var(--c-muted, #8899bb);
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 120ms ease;
+  }
+
+  .lock-btn:hover {
+    color: #f59e0b;
+    border-color: color-mix(in srgb, #f59e0b 40%, transparent);
+    background: color-mix(in srgb, #f59e0b 8%, transparent);
+  }
+
+  .lock-btn.locked {
+    background: color-mix(in srgb, #f59e0b 16%, transparent);
+    border-color: color-mix(in srgb, #f59e0b 40%, transparent);
+    color: #f59e0b;
+  }
+
+  .line-picker.is-locked .custom-inline input {
+    border-color: color-mix(in srgb, #f59e0b 50%, transparent);
+    background: color-mix(in srgb, #f59e0b 5%, var(--c-input-bg));
   }
 
   /* Custom row */

@@ -23,7 +23,8 @@
     metrics = [] as { label: string; value: string; note?: string }[],
     accent = '#38bdf8',
     autoFetch = true,
-    compact = false
+    compact = false,
+    initialResult = null as AiAnalysisResult | null
   }: {
     sportId?: SportId;
     sportTitle?: string;
@@ -35,6 +36,7 @@
     accent?: string;
     autoFetch?: boolean;
     compact?: boolean;
+    initialResult?: AiAnalysisResult | null;
   } = $props();
 
   let online: boolean = $state(true);
@@ -107,6 +109,12 @@
     }, delay);
   }
 
+  $effect(() => {
+    if (initialResult && !result) {
+      result = initialResult;
+    }
+  });
+
   // ── Auto-trigger with debounce whenever picks/metrics/ledger change ───────
   $effect(() => {
     const _picks = picks;
@@ -118,7 +126,16 @@
 
     hasData = dataReady;
 
-    if (!autoFetch || !_online || !dataReady || !_mounted) return;
+    if (!dataReady) {
+      if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+      if (currentAbort) { currentAbort.abort(); currentAbort = null; }
+      loading = false;
+      result = null;
+      errorMessage = null;
+      return;
+    }
+
+    if (!autoFetch || !_online || !_mounted) return;
     if (result) return;
 
     scheduleAutoFetch(1500);
