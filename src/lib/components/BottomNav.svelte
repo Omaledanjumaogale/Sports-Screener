@@ -10,15 +10,12 @@
   };
 
   const sports: SportDef[] = [
-    { id: 'football',          path: '/football',          label: 'Football',     accent: '#22c55e' },
-    { id: 'basketball',        path: '/basketball',        label: 'Basketball',   accent: '#f97316' },
-    { id: 'tennis',            path: '/tennis',            label: 'Tennis',       accent: '#e879f9' },
-    { id: 'rally',             path: '/rally',             label: 'Ping Pong',   accent: '#38bdf8' },
-    { id: 'hockey',            path: '/hockey',            label: 'Ice Hockey',  accent: '#06b6d4' },
-    { id: 'instant-football',  path: '/instant-football',  label: 'Instant FB',  accent: '#84cc16' },
-    { id: 'instant-basketball',path: '/instant-basketball',label: 'Instant BB',  accent: '#fb923c' },
-    { id: 'vfootball',         path: '/vfootball',         label: 'Virtual FB',  accent: '#a78bfa' },
-    { id: 'baseball',          path: '/baseball',          label: 'Baseball',    accent: '#f43f5e' }
+    { id: 'football',   path: '/football',   label: 'Football',   accent: '#22c55e' },
+    { id: 'basketball', path: '/basketball', label: 'Basketball', accent: '#f97316' },
+    { id: 'tennis',     path: '/tennis',     label: 'Tennis',     accent: '#e879f9' },
+    { id: 'rally',      path: '/rally',      label: 'Ping Pong', accent: '#38bdf8' },
+    { id: 'hockey',     path: '/hockey',     label: 'Ice Hockey', accent: '#06b6d4' },
+    { id: 'baseball',   path: '/baseball',   label: 'Baseball',  accent: '#f43f5e' }
   ];
 
   function navigate(path: string) {

@@ -31,93 +31,168 @@
   const isRacket = $derived(sportId === 'tennis' || sportId === 'rally');
 </script>
 
-<section class="team-inputs" aria-label="Match context" style={`--accent:var(--c-${sportId}, #6366f1)`}>
+<details class="team-accordion">
+  <summary class="team-accordion-header" aria-label="Toggle team inputs and match context">
+    <span class="team-accordion-icon" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM4 10c0-1.1 1.79-2 4-2s4 .9 4 2v1H4v-1z" fill="currentColor"/>
+      </svg>
+    </span>
+    <span class="team-accordion-title">Team Inputs &amp; Match Context</span>
+    <span class="team-accordion-chevron" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+  </summary>
 
-  <!-- VS row -->
-  <div class="name-fields">
-    <label class="field-label">
-      <span>{isRacket ? 'Player A' : 'Home / Team 1'}</span>
-      <input
-        type="text"
-        autocomplete="off"
-        placeholder={sportId === 'tennis' ? 'e.g. Djokovic' : sportId === 'rally' ? 'Player A' : 'Home team'}
-        bind:value={scope.teamA}
-        oninput={onChange}
-        aria-label={isRacket ? 'Player A name' : 'Home team name'}
-        class="text-input"
-      />
-    </label>
+  <section class="team-inputs" aria-label="Match context" style={`--accent:var(--c-${sportId}, #6366f1)`}>
 
-    <div class="vs-chip" aria-hidden="true">
-      <span>VS</span>
-      <span class="vs-dot" aria-hidden="true"></span>
-    </div>
-
-    <label class="field-label">
-      <span>{isRacket ? 'Player B' : 'Away / Team 2'}</span>
-      <input
-        type="text"
-        autocomplete="off"
-        placeholder={sportId === 'tennis' ? 'e.g. Alcaraz' : sportId === 'rally' ? 'Player B' : 'Away team'}
-        bind:value={scope.teamB}
-        oninput={onChange}
-        aria-label={isRacket ? 'Player B name' : 'Away team name'}
-        class="text-input"
-      />
-    </label>
-  </div>
-
-  <!-- Context selects -->
-  {#if sportId === 'football'}
-    <div class="context-fields">
+    <!-- VS row -->
+    <div class="name-fields">
       <label class="field-label">
-        <span>League profile</span>
-        <select bind:value={scope.leaguePreset} onchange={onChange} aria-label="League profile preset">
-          {#each footballPresets as p}
-            <option value={p.v}>{p.l}</option>
-          {/each}
-        </select>
+        <span>{isRacket ? 'Player A' : 'Home / Team 1'}</span>
+        <input
+          type="text"
+          autocomplete="off"
+          placeholder={sportId === 'tennis' ? 'e.g. Djokovic' : sportId === 'rally' ? 'Player A' : 'Home team'}
+          bind:value={scope.teamA}
+          oninput={onChange}
+          aria-label={isRacket ? 'Player A name' : 'Home team name'}
+          class="text-input"
+        />
+      </label>
+
+      <div class="vs-chip" aria-hidden="true">
+        <span>VS</span>
+        <span class="vs-dot" aria-hidden="true"></span>
+      </div>
+
+      <label class="field-label">
+        <span>{isRacket ? 'Player B' : 'Away / Team 2'}</span>
+        <input
+          type="text"
+          autocomplete="off"
+          placeholder={sportId === 'tennis' ? 'e.g. Alcaraz' : sportId === 'rally' ? 'Player B' : 'Away team'}
+          bind:value={scope.teamB}
+          oninput={onChange}
+          aria-label={isRacket ? 'Player B name' : 'Away team name'}
+          class="text-input"
+        />
       </label>
     </div>
-  {:else if sportId === 'tennis'}
-    <div class="context-fields">
-      <label class="field-label">
-        <span>Court surface</span>
-        <select bind:value={scope.surface} onchange={onChange} aria-label="Court surface">
-          {#each tennisSurfaces as s}
-            <option value={s.v}>{s.l}</option>
-          {/each}
-        </select>
-      </label>
-      <label class="field-label">
-        <span>Match format</span>
-        <select bind:value={scope.format} onchange={onChange} aria-label="Match format">
-          {#each tennisFormats as f}
-            <option value={f.v}>{f.l}</option>
-          {/each}
-        </select>
-      </label>
-    </div>
-  {/if}
-</section>
+
+    <!-- Context selects -->
+    {#if sportId === 'football'}
+      <div class="context-fields">
+        <label class="field-label">
+          <span>League profile</span>
+          <select bind:value={scope.leaguePreset} onchange={onChange} aria-label="League profile preset">
+            {#each footballPresets as p}
+              <option value={p.v}>{p.l}</option>
+            {/each}
+          </select>
+        </label>
+      </div>
+    {:else if sportId === 'tennis'}
+      <div class="context-fields">
+        <label class="field-label">
+          <span>Court surface</span>
+          <select bind:value={scope.surface} onchange={onChange} aria-label="Court surface">
+            {#each tennisSurfaces as s}
+              <option value={s.v}>{s.l}</option>
+            {/each}
+          </select>
+        </label>
+        <label class="field-label">
+          <span>Match format</span>
+          <select bind:value={scope.format} onchange={onChange} aria-label="Match format">
+            {#each tennisFormats as f}
+              <option value={f.v}>{f.l}</option>
+            {/each}
+          </select>
+        </label>
+      </div>
+    {/if}
+  </section>
+</details>
 
 <style>
-  .team-inputs {
-    padding: 16px;
+  /* ── Outer accordion wrapper ─────────────────────────────────────────── */
+  .team-accordion {
     border: 1px solid var(--c-border-md);
     background: var(--c-glass-sm);
-    backdrop-filter: blur(16px) saturate(160%);
-    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
     border-radius: 16px;
+    overflow: hidden;
+    transition: border-color var(--t-base, 180ms ease), box-shadow var(--t-base, 180ms ease);
+  }
+  .team-accordion[open] {
+    border-color: color-mix(in srgb, var(--accent, #f97316) 30%, var(--c-border-md));
+    box-shadow: 0 4px 24px color-mix(in srgb, var(--accent, #f97316) 8%, transparent);
+  }
+
+  /* ── Header / summary row ────────────────────────────────────────────── */
+  .team-accordion-header {
+    list-style: none;
+    min-height: 52px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--c-text);
+    font-family: var(--font-brand, 'Outfit', system-ui);
+    transition: background var(--t-fast, 100ms ease);
+  }
+  .team-accordion-header::-webkit-details-marker { display: none; }
+  .team-accordion-header:hover { background: var(--c-glass-sm); }
+
+  .team-accordion-icon {
+    display: inline-flex;
+    align-items: center;
+    color: var(--accent, #f97316);
+    flex-shrink: 0;
+  }
+  .team-accordion[open] .team-accordion-icon { color: var(--accent, #f97316); }
+
+  .team-accordion-title { flex: 1; }
+
+  .team-accordion-chevron {
+    width: 28px; height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--c-muted);
+    border-radius: 8px;
+    background: var(--c-glass-sm);
+    transition:
+      transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1),
+      color var(--t-base, 180ms ease),
+      background var(--t-base, 180ms ease);
+    flex-shrink: 0;
+  }
+  .team-accordion[open] .team-accordion-chevron {
+    transform: rotate(180deg);
+    color: var(--accent, #f97316);
+    background: color-mix(in srgb, var(--accent, #f97316) 12%, var(--c-glass-sm));
+  }
+
+  /* ── Inner section (no outer border — accordion provides it) ─────────── */
+  .team-inputs {
+    padding: 4px 16px 16px;
+    border-top: 1px solid var(--c-border-sm);
     display: grid;
     gap: 14px;
-    transition: border-color var(--t-base, 180ms ease);
-  }
-  .team-inputs:focus-within {
-    border-color: color-mix(in srgb, var(--accent, #f97316) 28%, var(--c-border-md));
+    animation: slide-up 0.22s ease both;
   }
 
   /* Name row */
+
   .name-fields {
     display: grid;
     grid-template-columns: 1fr 44px 1fr;

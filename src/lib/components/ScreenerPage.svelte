@@ -307,7 +307,7 @@
         {#each Object.values(scope.markets) as m}
           {#if !(sportId === 'basketball' && (m.id === 'correctScore' || m.id === 'tiebreak'))}
             {#if !(sportId === 'football' && scope.id !== 'ft' && ['homeTotal', 'awayTotal', 'btts'].includes(m.id))}
-              <MarketAccordion title={m.title} primary={!!m.primary} open={!!m.primary} {accent}>
+              <MarketAccordion title={m.title} primary={!!m.primary} open={false} {accent}>
                 {#if m.kind === 'ou' && m.pairs}
                   <div class="line-list">
                     {#each m.pairs as pair, index}
