@@ -233,8 +233,9 @@
       <p class="tagline">Read the odds. Own the edge. Beat the Bookies</p>
 
       <p class="hero-copy">
-        A mobile-first workspace for screening football, basketball, tennis, table tennis and ice hockey markets.
-        Drop in your odds, get instant profile verdicts, live rankings and smart picks — all saved to your device.
+        A mobile-first workspace for screening football, basketball, tennis, ping pong, ice hockey,
+        instant football, instant basketball, virtual football and baseball markets.
+        Drop in your odds, get instant profile verdicts, live rankings and smart picks — powered by Agnes AI Copilot.
       </p>
 
       <!-- Feature pills -->
@@ -274,7 +275,8 @@
       <MasterModelShowcase />
     </section>
 
-    <!-- ── Coming Soon Sports Section ─────────────────────── -->
+    <!-- ── Coming Soon Sports Section (hidden when empty) ─────────── -->
+    {#if comingSoonSports.length > 0}
     <section class="coming-soon-section" aria-label="Coming soon sports">
       <div class="section-head">
         <h2 class="section-title">Coming Soon</h2>
@@ -294,6 +296,7 @@
         {/each}
       </div>
     </section>
+    {/if}
 
     <!-- ── How to Use PulseOdds ───────────────────────────── -->
     <section class="how-to-use-section" aria-label="How to use PulseOdds">

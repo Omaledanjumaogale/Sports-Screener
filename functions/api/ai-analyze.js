@@ -1,7 +1,11 @@
 // functions/api/ai-analyze.js
 // Edge Function — runs at the Cloudflare edge on every request.
 // Route: POST /api/ai-analyze
-// Keeps API tokens server-side — no CORS issues.
+// Provider chain:
+//   1. Agnes AI  (primary  — OpenAI-compatible, enterprise grade)
+//   2. OpenRouter (secondary — free Mistral fallback)
+//   3. Cloudflare AI binding (tertiary — native CF Workers AI)
+//   4. Cloudflare REST API  (quaternary — token-based CF AI)
 
 function safeStringify(val) {
   if (val === null || val === undefined) return '';
@@ -18,6 +22,81 @@ function safeStringify(val) {
     }
   }
   return String(val);
+}
+
+// ── Agnes AI helper (OpenAI-compatible chat/completions) ──────────────────────
+async function callAgnesAi(messages, max_tokens, temperature, env) {
+  const agnesKey =
+    (env && (env.AGNES_AI_KEY || env.VITE_AGNES_AI_KEY)) || '';
+  if (!agnesKey) return null;
+
+  const res = await fetch('https://apihub.agnes-ai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${agnesKey}`,
+      'Content-Type': 'application/json',
+      'X-Title': 'PulseOdds Screener'
+    },
+    body: JSON.stringify({
+      model: 'Agnes AI',
+      messages,
+      max_tokens,
+      temperature
+    })
+  });
+
+  if (!res.ok) {
+    const errRaw = await res.text().catch(() => '');
+    console.error('[AI Copilot] Agnes AI request failed:', res.status, safeStringify(errRaw).slice(0, 300));
+    return null;
+  }
+
+  const data = await res.json().catch(() => null);
+  const rawContent = data?.choices?.[0]?.message?.content;
+  const responseText = safeStringify(rawContent);
+  const tokensUsed = Number(data?.usage?.total_tokens) || 0;
+
+  if (!responseText) return null;
+
+  return { responseText, tokensUsed, model: 'Agnes AI', provider: 'agnes-ai' };
+}
+
+// ── OpenRouter helper ─────────────────────────────────────────────────────────
+async function callOpenRouter(messages, max_tokens, temperature, env) {
+  const orKey =
+    (env && (env.OPENROUTER_API_KEY || env.VITE_OPENROUTER_API_KEY)) || '';
+  if (!orKey) return null;
+
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${orKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://pulseodds.pages.dev',
+      'X-Title': 'PulseOdds Screener'
+    },
+    body: JSON.stringify({
+      model: 'mistralai/mistral-7b-instruct:free',
+      messages,
+      max_tokens,
+      temperature
+    })
+  });
+
+  if (!res.ok) {
+    const errRaw = await res.text().catch(() => '');
+    console.error('[AI Copilot] OpenRouter failed:', res.status, safeStringify(errRaw).slice(0, 300));
+    return null;
+  }
+
+  const data = await res.json().catch(() => null);
+  const rawContent = data?.choices?.[0]?.message?.content;
+  const responseText = safeStringify(rawContent);
+  const tokensUsed = Number(data?.usage?.total_tokens) || 0;
+
+  if (!responseText) return null;
+
+  return { responseText, tokensUsed, model: 'Mistral-7B', provider: 'openrouter' };
 }
 
 export async function onRequestPost(context) {
@@ -41,7 +120,7 @@ export async function onRequestPost(context) {
       );
     }
 
-    const { messages, max_tokens = 500, temperature = 0.25 } = body || {};
+    const { messages, max_tokens = 600, temperature = 0.2 } = body || {};
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(
@@ -50,58 +129,45 @@ export async function onRequestPost(context) {
       );
     }
 
-    // ── Primary: OpenRouter (always available when key is set) ────────────────
-    const orKey =
-      (env && env.OPENROUTER_API_KEY) ||
-      (env && env.VITE_OPENROUTER_API_KEY) ||
-      '';
-
-    if (orKey) {
-      try {
-        const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${orKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://pulseodds.pages.dev',
-            'X-Title': 'PulseOdds Screener'
-          },
-          body: JSON.stringify({
-            model: 'mistralai/mistral-7b-instruct:free',
-            messages,
-            max_tokens,
-            temperature
-          })
-        });
-
-        if (orRes.ok) {
-          const data = await orRes.json().catch(() => null);
-          const rawContent = data?.choices?.[0]?.message?.content;
-          const responseText = safeStringify(rawContent);
-          const tokensUsed = Number(data?.usage?.total_tokens) || 0;
-
-          return new Response(
-            JSON.stringify({
-              success: true,
-              provider: 'ai-copilot',
-              model: 'ai-copilot',
-              response: responseText,
-              tokensUsed
-            }),
-            { headers: corsHeaders }
-          );
-        } else {
-          const errRaw = await orRes.text().catch(() => '');
-          const errStr = safeStringify(errRaw);
-          console.error('[AI Copilot] Primary request failed:', orRes.status, errStr.slice(0, 300));
-        }
-      } catch (orErr) {
-        const msg = safeStringify(orErr?.message || orErr);
-        console.error('[AI Copilot] Primary request error:', msg);
+    // ── 1. Agnes AI (primary — enterprise-grade) ──────────────────────────────
+    try {
+      const agnesResult = await callAgnesAi(messages, max_tokens, temperature, env);
+      if (agnesResult) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            provider: agnesResult.provider,
+            model: agnesResult.model,
+            response: agnesResult.responseText,
+            tokensUsed: agnesResult.tokensUsed
+          }),
+          { headers: corsHeaders }
+        );
       }
+    } catch (agnesErr) {
+      console.error('[AI Copilot] Agnes AI error:', safeStringify(agnesErr?.message || agnesErr));
     }
 
-    // ── Secondary: Cloudflare AI binding (if env.AI available) ───────────────
+    // ── 2. OpenRouter (secondary fallback) ────────────────────────────────────
+    try {
+      const orResult = await callOpenRouter(messages, max_tokens, temperature, env);
+      if (orResult) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            provider: orResult.provider,
+            model: orResult.model,
+            response: orResult.responseText,
+            tokensUsed: orResult.tokensUsed
+          }),
+          { headers: corsHeaders }
+        );
+      }
+    } catch (orErr) {
+      console.error('[AI Copilot] OpenRouter error:', safeStringify(orErr?.message || orErr));
+    }
+
+    // ── 3. Cloudflare AI binding (tertiary — native binding) ──────────────────
     if (env && env.AI) {
       try {
         const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
@@ -113,23 +179,24 @@ export async function onRequestPost(context) {
         const responseText = safeStringify(result?.response);
         const tokensUsed = Number(result?.usage?.total_tokens) || 0;
 
-        return new Response(
-          JSON.stringify({
-            success: true,
-            provider: 'ai-copilot',
-            model: 'ai-copilot',
-            response: responseText,
-            tokensUsed
-          }),
-          { headers: corsHeaders }
-        );
+        if (responseText) {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              provider: 'cloudflare-ai',
+              model: 'Llama-3.1-8B',
+              response: responseText,
+              tokensUsed
+            }),
+            { headers: corsHeaders }
+          );
+        }
       } catch (aiErr) {
-        const msg = safeStringify(aiErr?.message || aiErr);
-        console.error('[AI Copilot] Secondary binding error:', msg);
+        console.error('[AI Copilot] CF binding error:', safeStringify(aiErr?.message || aiErr));
       }
     }
 
-    // ── Tertiary: Cloudflare REST API (token-based fallback) ─────────────────
+    // ── 4. Cloudflare REST API (quaternary fallback) ───────────────────────────
     const cfAccountId = (env && (env.CF_ACCOUNT_ID || env.VITE_CF_ACCOUNT_ID)) || '';
     const cfToken = (env && (env.CF_WORKER_AI_TOKEN || env.VITE_CF_WORKER_AI_TOKEN)) || '';
 
@@ -152,31 +219,31 @@ export async function onRequestPost(context) {
           const responseText = safeStringify(data?.result?.response);
           const tokensUsed = Number(data?.result?.usage?.total_tokens) || 0;
 
-          return new Response(
-            JSON.stringify({
-              success: true,
-              provider: 'ai-copilot',
-              model: 'ai-copilot',
-              response: responseText,
-              tokensUsed
-            }),
-            { headers: corsHeaders }
-          );
+          if (responseText) {
+            return new Response(
+              JSON.stringify({
+                success: true,
+                provider: 'cloudflare-rest',
+                model: 'Llama-3.1-8B',
+                response: responseText,
+                tokensUsed
+              }),
+              { headers: corsHeaders }
+            );
+          }
         } else {
           const errRaw = await cfRes.text().catch(() => '');
-          const errStr = safeStringify(errRaw);
-          console.error('[AI Copilot] Tertiary request failed:', cfRes.status, errStr.slice(0, 300));
+          console.error('[AI Copilot] CF REST failed:', cfRes.status, safeStringify(errRaw).slice(0, 300));
         }
       } catch (cfErr) {
-        const msg = safeStringify(cfErr?.message || cfErr);
-        console.error('[AI Copilot] Tertiary request error:', msg);
+        console.error('[AI Copilot] CF REST error:', safeStringify(cfErr?.message || cfErr));
       }
     }
 
     return new Response(
       JSON.stringify({
         success: false,
-        error: 'AI Copilot service is currently updating. Please try again in a few moments.'
+        error: 'AI Copilot service is temporarily unavailable. Local Master Model analysis remains fully active.'
       }),
       { status: 503, headers: corsHeaders }
     );

@@ -10,11 +10,15 @@
   };
 
   const sports: SportDef[] = [
-    { id: 'football',   path: '/football',   label: 'Football',   accent: '#22c55e' },
-    { id: 'basketball', path: '/basketball', label: 'Basketball', accent: '#f97316' },
-    { id: 'tennis',     path: '/tennis',     label: 'Tennis',     accent: '#e879f9' },
-    { id: 'rally',      path: '/rally',      label: 'Rally',      accent: '#38bdf8' },
-    { id: 'hockey',     path: '/hockey',     label: 'Hockey',     accent: '#06b6d4' }
+    { id: 'football',          path: '/football',          label: 'Football',     accent: '#22c55e' },
+    { id: 'basketball',        path: '/basketball',        label: 'Basketball',   accent: '#f97316' },
+    { id: 'tennis',            path: '/tennis',            label: 'Tennis',       accent: '#e879f9' },
+    { id: 'rally',             path: '/rally',             label: 'Ping Pong',   accent: '#38bdf8' },
+    { id: 'hockey',            path: '/hockey',            label: 'Ice Hockey',  accent: '#06b6d4' },
+    { id: 'instant-football',  path: '/instant-football',  label: 'Instant FB',  accent: '#84cc16' },
+    { id: 'instant-basketball',path: '/instant-basketball',label: 'Instant BB',  accent: '#fb923c' },
+    { id: 'vfootball',         path: '/vfootball',         label: 'Virtual FB',  accent: '#a78bfa' },
+    { id: 'baseball',          path: '/baseball',          label: 'Baseball',    accent: '#f43f5e' }
   ];
 
   function navigate(path: string) {
@@ -25,6 +29,7 @@
 </script>
 
 <nav class="bottom-nav" aria-label="Sport navigation">
+  <div class="nav-scroll">
   {#each sports as sport}
     {@const active = currentPath.startsWith(sport.path)}
     <button
@@ -37,7 +42,7 @@
       type="button"
     >
       <span class="nav-icon" aria-hidden="true">
-        <SportSvgIcon sport={sport.id as any} size={22} color={active ? sport.accent : 'currentColor'} />
+        <SportSvgIcon sport={sport.id as any} size={20} color={active ? sport.accent : 'currentColor'} />
       </span>
       <span class="nav-label">{sport.label}</span>
       {#if active}
@@ -45,6 +50,7 @@
       {/if}
     </button>
   {/each}
+  </div>
 </nav>
 
 <style>
@@ -54,13 +60,28 @@
     left: 0;
     right: 0;
     z-index: 100;
-    padding: 0 8px max(12px, env(safe-area-inset-bottom)) 8px;
+    padding: 0 0 max(12px, env(safe-area-inset-bottom)) 0;
     background: var(--c-surface-2);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
     border-top: 1px solid var(--c-border);
-    gap: 4px;
-    /* Mobile-only: hidden by default, shown via media query */
+    /* Mobile-only */
+    display: none;
+  }
+
+  .nav-scroll {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    gap: 0;
+    padding: 0 4px;
+    /* Hide scrollbar */
+    scrollbar-width: none;
+  }
+
+  .nav-scroll::-webkit-scrollbar {
     display: none;
   }
 
