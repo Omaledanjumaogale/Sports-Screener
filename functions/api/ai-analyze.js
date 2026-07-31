@@ -24,6 +24,13 @@ function safeStringify(val) {
   return String(val);
 }
 
+// Strip markdown code fences from AI response to get clean JSON
+function cleanJsonResponse(text) {
+  if (!text) return text;
+  // Remove ```json ... ``` or ``` ... ``` wrappers
+  return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+}
+
 // ── Agnes AI helper (OpenAI-compatible chat/completions) ──────────────────────
 async function callAgnesAi(messages, max_tokens, temperature, env) {
   const agnesKey =
@@ -55,7 +62,7 @@ async function callAgnesAi(messages, max_tokens, temperature, env) {
 
   const data = await res.json().catch(() => null);
   const rawContent = data?.choices?.[0]?.message?.content;
-  const responseText = safeStringify(rawContent);
+  const responseText = cleanJsonResponse(safeStringify(rawContent));
   const tokensUsed = Number(data?.usage?.total_tokens) || 0;
 
   if (!responseText) return null;
@@ -95,7 +102,7 @@ async function callOpenRouter(messages, max_tokens, temperature, env) {
 
   const data = await res.json().catch(() => null);
   const rawContent = data?.choices?.[0]?.message?.content;
-  const responseText = safeStringify(rawContent);
+  const responseText = cleanJsonResponse(safeStringify(rawContent));
   const tokensUsed = Number(data?.usage?.total_tokens) || 0;
 
   if (!responseText) return null;
@@ -124,7 +131,7 @@ export async function onRequestPost(context) {
       );
     }
 
-    const { messages, max_tokens = 1200, temperature = 0.2 } = body || {};
+    const { messages, max_tokens = 2000, temperature = 0.25 } = body || {};
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(

@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { Zap, Wifi, WifiOff, RefreshCw, Bot, AlertTriangle, CheckCircle2, ShieldCheck, Cpu, Layers, Trophy, TrendingUp, HelpCircle } from '@lucide/svelte';
+  import {
+    Zap, Wifi, WifiOff, RefreshCw, Bot, AlertTriangle, CheckCircle2,
+    ShieldCheck, Cpu, Layers, Trophy, TrendingUp,
+    BarChart3, CircleDollarSign
+  } from '@lucide/svelte';
   import {
     requestCloudflareAiAnalysis,
     isOnline,
@@ -169,7 +173,7 @@
       </span>
       {#if !compact}
         <div class="brand-text">
-          <span class="sub-tag">Enterprise AI Copilot</span>
+          <span class="sub-tag">AI Copilot · Smart Analysis</span>
           <h4 class="ai-title">Odds Cross-Check &amp; Edge Intelligence</h4>
         </div>
       {:else}
@@ -219,7 +223,7 @@
         <WifiOff size={14} />
         <div>
           <strong>Offline Mode Active</strong>
-          <p>All local Master Model analysis and pick rankings are fully operational. Connect to the internet for AI Copilot recommendations.</p>
+          <p>All local Master Model analysis and pick rankings are fully working. Connect to the internet for AI Copilot recommendations.</p>
         </div>
       </div>
 
@@ -227,7 +231,7 @@
     {:else if !hasData && !loading && !result}
       <p class="waiting-note">
         <Cpu size={13} class="inline-icon" />
-        Select or enter lines &amp; odds in the markets below — AI Copilot will generate plain-English analysis automatically.
+        Select or enter lines &amp; odds in the markets below — AI Copilot will generate detailed plain-English analysis automatically.
       </p>
 
     <!-- Loading bar -->
@@ -246,7 +250,8 @@
     <!-- AI Insights Output -->
     {#if result?.insights}
       <div class="insights-container">
-        <!-- 4 Core Insights Grid -->
+
+        <!-- 4 Core Insight Boxes -->
         <div class="insights-grid">
           <div class="insight-box verdict">
             <div class="box-head">
@@ -281,7 +286,7 @@
           </div>
         </div>
 
-        <!-- Detailed Cross-Check Analysis Breakdown -->
+        <!-- Cross-Check Analysis Breakdown -->
         {#if result.insights.crossCheckAnalysis}
           <div class="detail-section cross-check">
             <div class="section-badge">
@@ -289,6 +294,18 @@
               <span>How &amp; Why Markets Were Cross-Checked</span>
             </div>
             <p class="detail-text">{result.insights.crossCheckAnalysis}</p>
+
+            <!-- Cross-check Steps -->
+            {#if result.insights.crossCheckSteps && result.insights.crossCheckSteps.length > 0}
+              <ol class="check-steps-list">
+                {#each result.insights.crossCheckSteps as step}
+                  <li class="check-step-item">
+                    <span class="step-bullet" aria-hidden="true">✓</span>
+                    <span>{step}</span>
+                  </li>
+                {/each}
+              </ol>
+            {/if}
           </div>
         {/if}
 
@@ -319,7 +336,7 @@
           </div>
         {/if}
 
-        <!-- Punter Mathematical Edge Breakdown -->
+        <!-- Punter Mathematical Edge -->
         {#if result.insights.punterEdge}
           <div class="detail-section punter-edge">
             <div class="section-badge edge">
@@ -330,11 +347,35 @@
           </div>
         {/if}
 
+        <!-- Bookmaker Bias Note + Stake Advice — side by side -->
+        {#if result.insights.bookmakerBiasNote || result.insights.stakeAdvice}
+          <div class="two-col-row">
+            {#if result.insights.bookmakerBiasNote}
+              <div class="detail-section mini-section bias-note">
+                <div class="section-badge warning-badge">
+                  <BarChart3 size={13} />
+                  <span>Bookmaker Pricing Bias</span>
+                </div>
+                <p class="detail-text">{result.insights.bookmakerBiasNote}</p>
+              </div>
+            {/if}
+            {#if result.insights.stakeAdvice}
+              <div class="detail-section mini-section stake-section">
+                <div class="section-badge stake-badge">
+                  <CircleDollarSign size={13} />
+                  <span>Stake &amp; Bankroll Advice</span>
+                </div>
+                <p class="detail-text">{result.insights.stakeAdvice}</p>
+              </div>
+            {/if}
+          </div>
+        {/if}
+
         <div class="insights-foot">
-          <span class="model-tag">Agnes AI Enterprise · Plain English Mode</span>
-          <button class="refresh-btn" type="button" onclick={() => generateInsights(false)} disabled={loading}>
+          <span class="model-tag">Agnes AI · Plain English Mode · {result.model || 'AI Copilot'}</span>
+          <button class="refresh-btn" type="button" onclick={() => { result = null; generateInsights(false); }} disabled={loading}>
             <RefreshCw size={11} />
-            Re-analyze Markets
+            Re-analyze
           </button>
         </div>
       </div>
@@ -633,12 +674,41 @@
   }
   .section-badge.gold { color: #f59e0b; }
   .section-badge.edge { color: var(--c-green, #4ade80); }
+  .section-badge.warning-badge { color: #fb923c; }
+  .section-badge.stake-badge { color: #a78bfa; }
 
   .detail-text {
     margin: 0;
     font-size: 12.5px;
     color: var(--c-text-sub, #d0d7e6);
     line-height: 1.5;
+  }
+
+  /* Cross-check steps list */
+  .check-steps-list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .check-step-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--c-text-sub, #c5d0e3);
+    line-height: 1.4;
+  }
+
+  .step-bullet {
+    font-size: 11px;
+    font-weight: 900;
+    color: var(--c-green, #4ade80);
+    flex-shrink: 0;
+    margin-top: 1px;
   }
 
   /* Top 3 Grid */
@@ -727,6 +797,20 @@
     border-radius: 6px;
     align-self: flex-start;
     margin-top: 2px;
+  }
+
+  /* Two-column mini sections */
+  .two-col-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  @media (max-width: 600px) {
+    .two-col-row { grid-template-columns: 1fr; }
+  }
+
+  .mini-section {
+    padding: 10px 13px;
   }
 
   .insights-foot {
