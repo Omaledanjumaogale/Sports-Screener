@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { Zap, Wifi, WifiOff, RefreshCw, Bot, AlertTriangle, CheckCircle2, ShieldCheck, Cpu } from '@lucide/svelte';
+  import { Zap, Wifi, WifiOff, RefreshCw, Bot, AlertTriangle, CheckCircle2, ShieldCheck, Cpu, Layers, Trophy, TrendingUp, HelpCircle } from '@lucide/svelte';
   import {
     requestCloudflareAiAnalysis,
     isOnline,
@@ -105,7 +105,6 @@
 
   // ── Auto-trigger with debounce whenever picks/metrics/ledger change ───────
   $effect(() => {
-    // Access reactive props to establish dependency tracking
     const _picks = picks;
     const _metrics = metrics;
     const _ledger = ledger;
@@ -116,7 +115,7 @@
     hasData = dataReady;
 
     if (!autoFetch || !_online || !dataReady || !_mounted) return;
-    if (result) return; // already have analysis — let Re-analyze button handle refresh
+    if (result) return;
 
     scheduleAutoFetch(1500);
   });
@@ -131,7 +130,6 @@
 
     handleOnline = () => {
       online = true;
-      // Trigger immediately when reconnecting if there's data and no result yet
       if (autoFetch && computeHasData() && !result && !loading) {
         scheduleAutoFetch(500);
       }
@@ -147,7 +145,6 @@
       window.addEventListener('offline', handleOffline);
     }
 
-    // Auto-trigger on mount if there's already data (e.g. loaded from history)
     if (autoFetch && online && computeHasData() && !result) {
       scheduleAutoFetch(800);
     }
@@ -172,8 +169,8 @@
       </span>
       {#if !compact}
         <div class="brand-text">
-          <span class="sub-tag">AI Copilot</span>
-          <h4 class="ai-title">Real-Time Odds &amp; Verdict Analysis</h4>
+          <span class="sub-tag">Enterprise AI Copilot</span>
+          <h4 class="ai-title">Odds Cross-Check &amp; Edge Intelligence</h4>
         </div>
       {:else}
         <span class="ai-title-compact">AI Copilot</span>
@@ -230,7 +227,7 @@
     {:else if !hasData && !loading && !result}
       <p class="waiting-note">
         <Cpu size={13} class="inline-icon" />
-        Enter odds in the markets below — AI Copilot will generate analysis automatically once data is detected.
+        Select or enter lines &amp; odds in the markets below — AI Copilot will generate plain-English analysis automatically.
       </p>
 
     <!-- Loading bar -->
@@ -241,7 +238,7 @@
         </div>
         <p class="loading-text">
           <RefreshCw size={13} class="spin-icon-inline" />
-          AI Copilot is reading your odds data &amp; generating verdict…
+          AI Copilot is cross-checking core target markets with context markets…
         </p>
       </div>
     {/if}
@@ -249,6 +246,7 @@
     <!-- AI Insights Output -->
     {#if result?.insights}
       <div class="insights-container">
+        <!-- 4 Core Insights Grid -->
         <div class="insights-grid">
           <div class="insight-box verdict">
             <div class="box-head">
@@ -261,7 +259,7 @@
           <div class="insight-box value">
             <div class="box-head">
               <CheckCircle2 size={13} />
-              <span>Value Read</span>
+              <span>Value &amp; Real Win Chance</span>
             </div>
             <p class="box-content">{result.insights.valueAssessment}</p>
           </div>
@@ -269,7 +267,7 @@
           <div class="insight-box risk">
             <div class="box-head">
               <AlertTriangle size={13} />
-              <span>Risk Warning</span>
+              <span>Risk Warning &amp; Pitfalls</span>
             </div>
             <p class="box-content">{result.insights.riskWarning}</p>
           </div>
@@ -277,17 +275,66 @@
           <div class="insight-box action">
             <div class="box-head">
               <Zap size={13} />
-              <span>Slip Action</span>
+              <span>Betslip Action</span>
             </div>
             <p class="box-content">{result.insights.tacticalRecommendation}</p>
           </div>
         </div>
 
+        <!-- Detailed Cross-Check Analysis Breakdown -->
+        {#if result.insights.crossCheckAnalysis}
+          <div class="detail-section cross-check">
+            <div class="section-badge">
+              <Layers size={13} />
+              <span>How &amp; Why Markets Were Cross-Checked</span>
+            </div>
+            <p class="detail-text">{result.insights.crossCheckAnalysis}</p>
+          </div>
+        {/if}
+
+        <!-- Top 3 Data-Proven Shortlisted Selections -->
+        {#if result.insights.top3Selections && result.insights.top3Selections.length > 0}
+          <div class="detail-section top3-section">
+            <div class="section-badge gold">
+              <Trophy size={13} />
+              <span>Data-Proven Top 3 Ranked Selections</span>
+            </div>
+            <div class="top3-grid">
+              {#each result.insights.top3Selections as item}
+                <div class="top3-card">
+                  <div class="card-header">
+                    <span class="rank-num">#{item.rank}</span>
+                    <span class="item-title">{item.selection}</span>
+                    <span class="confidence-tag">{item.confidence} Win Chance</span>
+                  </div>
+                  <div class="card-sub">{item.marketTitle}</div>
+                  <p class="reason-text">{item.reason}</p>
+                  <div class="edge-pill">
+                    <TrendingUp size={11} />
+                    <span>{item.punterEdge}</span>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <!-- Punter Mathematical Edge Breakdown -->
+        {#if result.insights.punterEdge}
+          <div class="detail-section punter-edge">
+            <div class="section-badge edge">
+              <TrendingUp size={13} />
+              <span>Punter Advantage &amp; Win Likelihood</span>
+            </div>
+            <p class="detail-text">{result.insights.punterEdge}</p>
+          </div>
+        {/if}
+
         <div class="insights-foot">
-          <span class="model-tag">AI Copilot · Live Analysis</span>
+          <span class="model-tag">Agnes AI Enterprise · Plain English Mode</span>
           <button class="refresh-btn" type="button" onclick={() => generateInsights(false)} disabled={loading}>
             <RefreshCw size={11} />
-            Re-analyze
+            Re-analyze Markets
           </button>
         </div>
       </div>
@@ -323,8 +370,8 @@
     background: var(--c-surface-2, rgba(255,255,255,0.04));
     border: 1px solid var(--c-border, rgba(255,255,255,0.09));
     border-radius: 16px;
-    padding: 14px 16px;
-    margin: 12px 0;
+    padding: 16px 18px;
+    margin: 14px 0;
     position: relative;
     overflow: hidden;
     transition: border-color 180ms ease;
@@ -338,7 +385,7 @@
     background: linear-gradient(90deg, #f38020, #faad3f, var(--cf-accent, #38bdf8));
   }
 
-  .cf-ai-banner.compact { padding: 10px 14px; border-radius: 12px; }
+  .cf-ai-banner.compact { padding: 12px 14px; border-radius: 12px; }
 
   /* Header */
   .cf-ai-header {
@@ -349,7 +396,7 @@
     flex-wrap: wrap;
     padding-bottom: 10px;
     border-bottom: 1px solid var(--c-border-sm, rgba(255,255,255,0.06));
-    margin-bottom: 12px;
+    margin-bottom: 14px;
   }
 
   .cf-brand {
@@ -377,7 +424,7 @@
   .sub-tag {
     display: block;
     font-size: 9.5px;
-    font-weight: 700;
+    font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: #f38020;
@@ -386,7 +433,7 @@
 
   .ai-title {
     margin: 0;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 800;
     color: var(--c-text, #f1f5ff);
     line-height: 1.25;
@@ -485,7 +532,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: 12.5px;
     color: var(--c-muted, #8899bb);
     margin: 0 0 4px;
     line-height: 1.45;
@@ -533,29 +580,29 @@
   :global(.spin-icon-inline) { animation: spin 1s linear infinite; flex-shrink: 0; }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-  /* Insights grid */
-  .insights-container { animation: fade-in 0.25s ease both; }
+  /* Insights container */
+  .insights-container { animation: fade-in 0.25s ease both; display: flex; flex-direction: column; gap: 12px; }
   @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-  .insights-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  @media (max-width: 480px) { .insights-grid { grid-template-columns: 1fr; } }
+  .insights-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (max-width: 580px) { .insights-grid { grid-template-columns: 1fr; } }
 
   .insight-box {
     background: var(--c-glass-sm, rgba(255,255,255,0.03));
-    border: 1px solid var(--c-border-sm, rgba(255,255,255,0.06));
-    border-radius: 10px;
-    padding: 9px 11px;
+    border: 1px solid var(--c-border-sm, rgba(255,255,255,0.07));
+    border-radius: 11px;
+    padding: 11px 13px;
   }
 
   .box-head {
     display: flex;
     align-items: center;
-    gap: 5px;
-    font-size: 10px;
+    gap: 6px;
+    font-size: 10.5px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-bottom: 5px;
+    margin-bottom: 6px;
   }
 
   .insight-box.verdict .box-head { color: var(--cf-accent, #38bdf8); }
@@ -563,13 +610,130 @@
   .insight-box.risk .box-head { color: var(--c-orange, #fb923c); }
   .insight-box.action .box-head { color: #f38020; }
 
-  .box-content { margin: 0; font-size: 12px; color: var(--c-text, #f1f5ff); line-height: 1.45; font-weight: 500; }
+  .box-content { margin: 0; font-size: 12.5px; color: var(--c-text, #f1f5ff); line-height: 1.48; font-weight: 500; }
+
+  /* Detail Sections */
+  .detail-section {
+    background: var(--c-surface-1, rgba(0, 0, 0, 0.22));
+    border: 1px solid var(--c-border-sm, rgba(255, 255, 255, 0.08));
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+
+  .section-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--cf-accent, #38bdf8);
+    margin-bottom: 8px;
+  }
+  .section-badge.gold { color: #f59e0b; }
+  .section-badge.edge { color: var(--c-green, #4ade80); }
+
+  .detail-text {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--c-text-sub, #d0d7e6);
+    line-height: 1.5;
+  }
+
+  /* Top 3 Grid */
+  .top3-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 6px;
+  }
+  @media (max-width: 700px) {
+    .top3-grid { grid-template-columns: 1fr; }
+  }
+
+  .top3-card {
+    background: color-mix(in srgb, var(--c-surface-2, rgba(255,255,255,0.03)) 80%, transparent);
+    border: 1px solid var(--c-border-sm, rgba(255, 255, 255, 0.09));
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .rank-num {
+    font-size: 11px;
+    font-weight: 900;
+    color: #f59e0b;
+    background: color-mix(in srgb, #f59e0b 16%, transparent);
+    border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-family: var(--font-mono, monospace);
+  }
+
+  .item-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--c-text, #ffffff);
+    flex: 1;
+    min-width: 0;
+  }
+
+  .confidence-tag {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--c-green, #4ade80);
+    background: color-mix(in srgb, var(--c-green, #4ade80) 14%, transparent);
+    padding: 2px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .card-sub {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--c-muted, #8899bb);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .reason-text {
+    margin: 0;
+    font-size: 11.5px;
+    color: var(--c-text-sub, #c5d0e3);
+    line-height: 1.42;
+    flex: 1;
+  }
+
+  .edge-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--cf-accent, #38bdf8);
+    background: color-mix(in srgb, var(--cf-accent, #38bdf8) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--cf-accent, #38bdf8) 25%, transparent);
+    padding: 3px 8px;
+    border-radius: 6px;
+    align-self: flex-start;
+    margin-top: 2px;
+  }
 
   .insights-foot {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 9px;
+    margin-top: 4px;
     font-size: 10.5px;
     color: var(--c-faint, #5a6a85);
     flex-wrap: wrap;
@@ -593,7 +757,7 @@
     background: transparent;
     border: 1px solid var(--c-border-sm, rgba(255,255,255,0.07));
     color: var(--c-muted, #8899bb);
-    padding: 3px 10px;
+    padding: 4px 11px;
     border-radius: 7px;
     font-size: 11px;
     font-weight: 600;

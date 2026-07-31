@@ -120,7 +120,7 @@ export async function onRequestPost(context) {
       );
     }
 
-    const { messages, max_tokens = 600, temperature = 0.2 } = body || {};
+    const { messages, max_tokens = 1200, temperature = 0.2 } = body || {};
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(

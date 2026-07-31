@@ -20,17 +20,17 @@
     <!-- Dual Metrics Display: Probability + Margin -->
     <div class="metrics-grid">
       <div class="metric-box">
-        <span class="m-label">Market Probability</span>
+        <span class="m-label">Real Win Chance</span>
         <span class="m-val prob-val">{ledger.marketProbability !== null ? `${ledger.marketProbability}%` : '-'}</span>
-        <span class="m-sub">De-vigged bookmaker price</span>
+        <span class="m-sub">Bookies Cut Excluded</span>
       </div>
       <div class="metric-box">
-        <span class="m-label">Bookmaker Margin</span>
+        <span class="m-label">Bookies Profit Cut</span>
         <span class="m-val margin-val">{ledger.bookmakerMargin !== null ? `${ledger.bookmakerMargin}%` : '-'}</span>
-        <span class="m-sub">Vig on this selection</span>
+        <span class="m-sub">Bookmakers Fee Margin</span>
       </div>
       <div class="metric-box">
-        <span class="m-label">Confluence Score</span>
+        <span class="m-label">Model Agreement Score</span>
         <span class="m-val agree-val">{ledger.agreeCount} / 5</span>
         <span class="m-sub">{ledger.agreeCount} Agree · {ledger.disagreeCount} Disagree</span>
       </div>
@@ -38,7 +38,7 @@
 
     <!-- Confluence Ledger Table -->
     <div class="ledger-section">
-      <h4 class="ledger-title">Confluence Ledger (Cross-Market & Cross-Scope Checks)</h4>
+      <h4 class="ledger-title">Market Agreement Breakdown (Cross-Market &amp; Cross-Scope Checks)</h4>
       <div class="ledger-rows">
         {#each ledger.rows as row}
           <div class="ledger-row" class:vote-agree={row.vote === 'Agree'} class:vote-disagree={row.vote === 'Disagree'}>

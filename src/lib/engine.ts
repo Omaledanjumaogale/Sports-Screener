@@ -895,53 +895,58 @@ export function analyzeRally(scope: ScopeState): Analysis {
   const fourSet = cs.filter((p) => p.label === '3-1' || p.label === '1-3').reduce((s, p) => s + p.probability, 0);
   const fiveSet = cs.filter((p) => p.label === '3-2' || p.label === '2-3').reduce((s, p) => s + p.probability, 0);
 
+  // Fair-Number Interpolation for Table Tennis Total Points
+  const total = bestExpectedLine(scope.markets.gameTotal?.pairs ?? [], 3.5);
+  const pA = bestExpectedLine(scope.markets.playerATotal?.pairs ?? [], 3.5);
+  const pB = bestExpectedLine(scope.markets.playerBTotal?.pairs ?? [], 3.5);
+  const combinedDiff = total && pA && pB ? round(pA.expected + pB.expected - total.expected, 1) : null;
+
   const tsPicks = analyzeLines(scope.markets.totalSets ?? { id: 'totalSets', kind: 'ou', title: '' });
   const tsU35 = tsPicks.find((p) => p.label === 'Under 3.5');
   const setsLean = topPick(tsPicks) ?? topPick(cs);
 
   const checks: Check[] = [
     {
-      title: 'Safest primary-market pick',
-      detail: safest ? `${safest.marketTitle}: ${safest.label} @ ${pct(safest.probability, 1)}` : 'Enter any of the primary markets',
+      title: 'Target Core Selection',
+      detail: safest ? `${safest.marketTitle}: ${safest.label} @ ${pct(safest.probability, 1)} (Real Win Chance)` : 'Select any core primary market option',
       status: safest ? statusFromPct(safest.probability, 70, 58) : 'empty'
     },
     {
-      title: 'Lowest-vig 55%+ candidate',
-      detail: bestValue ? `${bestValue.label} EV ${(bestValue.ev! * 100).toFixed(1)}% (margin read)` : 'Needs a 55%+ primary candidate',
+      title: 'Lowest-Bookies-Cut Value Candidate',
+      detail: bestValue ? `${bestValue.label} (Bookies Cut: ${pct(bestValue.margin, 1)})` : 'Requires 55%+ candidate option',
       status: bestValue ? statusFromPct(bestValue.probability, 65, 55) : 'empty'
     },
     {
-      title: 'Correct score coverage',
-      detail: `${cs.length}/6 CS outcomes entered`,
-      status: cs.length >= 6 ? 'green' : cs.length >= 3 ? 'amber' : cs.length ? 'red' : 'empty'
+      title: 'True Expected Match Points',
+      detail: total ? `Expected Total: ${total.expected} points` : 'Enter points total lines',
+      status: total ? 'green' : 'empty'
     },
     {
-      title: 'Sweep ↔ Total Sets consistency',
-      detail: tsU35 ? `CS sweep ${pct(sweep, 1)} vs TS U3.5 ${pct(tsU35.probability, 1)}` : 'Enter Under/Over 3.5 to cross-check',
+      title: '3-Market Triangulation (Sweep vs Total Sets)',
+      detail: tsU35 ? `Correct Score Sweep ${pct(sweep, 1)} vs Total Sets U3.5 ${pct(tsU35.probability, 1)}` : 'Enter Total Sets to cross-check',
       status: tsU35 ? (Math.abs(tsU35.probability - sweep) < 15 ? 'green' : 'amber') : 'empty'
     },
     {
-      title: 'Market inventory depth',
-      detail: `${allPicks.length} candidate sides ranked across all markets`,
+      title: 'Market Inventory Depth',
+      detail: `${allPicks.length} options cross-checked across all markets`,
       status: allPicks.length >= 20 ? 'green' : allPicks.length >= 10 ? 'amber' : allPicks.length ? 'red' : 'empty'
     }
   ];
 
   const profiles = [
-    profileFromChecks('A', 'Safest Selection — lowest margin read', checks, 0.72, 0.45, safest, 'Final Verdict'),
-    profileFromChecks('B', 'Best Value — margin-cost ranking', [], 0.72, 0.45, bestValue, 'Margin Rank'),
-    profileFromChecks('C', 'Match-Shape Intelligence (4/5 set etc.)', [], 0.72, 0.45, setsLean, 'Shape Read'),
+    profileFromChecks('A', 'Safest Selection — Lowest Bookies Cut', checks, 0.72, 0.45, safest, 'Final Verdict'),
+    profileFromChecks('B', 'Best Value — Margin-Cost Rank', [], 0.72, 0.45, bestValue, 'Margin Rank'),
+    profileFromChecks('C', 'Match-Shape & Sets Intelligence', [], 0.72, 0.45, setsLean, 'Shape Read'),
     profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topPick(allPicks), 'All Markets')
   ];
 
   return {
     ...finishAnalysis(scope, profiles, allPicks, 76, 62),
     metrics: [
+      { label: 'Expected points', value: total ? `${total.expected} pts` : '-', note: 'Fair-number points total interpolation', status: total ? ('green' as Status) : ('empty' as Status) },
+      { label: 'Player sum diff', value: combinedDiff === null ? '-' : `${combinedDiff > 0 ? '+' : ''}${combinedDiff}`, note: 'P1 MET + P2 MET vs Match MET', status: combinedDiff === null ? ('empty' as Status) : Math.abs(combinedDiff) <= 2 ? ('green' as Status) : ('amber' as Status) },
       { label: 'Sweep chance', value: cs.length ? pct(sweep, 1) : '-', note: 'CS 3-0 / 0-3', status: statusFromPct(sweep, 40, 25) },
-      { label: '4-set (3-1/1-3)', value: cs.length ? pct(fourSet, 1) : '-', note: '', status: fourSet > 0 ? ('green' as Status) : ('empty' as Status) },
-      { label: '5-set (3-2/2-3)', value: cs.length ? pct(fiveSet, 1) : '-', note: '', status: fiveSet > 0 ? ('green' as Status) : ('empty' as Status) },
-      { label: 'Ranked picks', value: String(allPicks.length), note: 'Across FM + 1st set' },
-      { label: 'Best-value EV', value: bestValue?.ev ? `${round(bestValue.ev * 100, 1)}%` : '-', note: 'Margin read, not profit forecast' }
+      { label: 'Ranked picks', value: String(allPicks.length), note: 'Across Full Match + 1st set' }
     ]
   };
 }
@@ -1438,23 +1443,39 @@ export function analyzeInstantFootball(scope: ScopeState): Analysis {
 
   const allPicks = [...targetPicks, ...ttsPicks, ...resultPicks].map(withEv).sort((a, b) => b.probability - a.probability);
 
+  // Fair-Number Interpolation for Instant Football Goal Pace
+  const goalLinesList: LinePair[] = [];
+  if (m05?.pairs?.[0]) goalLinesList.push(m05.pairs[0]);
+  if (m15?.pairs?.[0]) goalLinesList.push(m15.pairs[0]);
+  const expectedGoals = bestExpectedLine(goalLinesList, 1.0);
+
   const bestOver = allPicks.find((p) => p.label.toLowerCase().includes('over 0.5') || p.label.toLowerCase().includes('over 1.5'));
   const bestBtts = allPicks.find((p) => p.label.includes('BTTS'));
+
+  // 3-Market Triangulation Check (Goal Lines + Teams To Score + 1X2 Result)
+  const ttsBoth = ttsPicks.find((p) => p.label.includes('Both'));
+  const bttsYes = targetPicks.find((p) => p.label.includes('BTTS Yes'));
+  const triangulationDiff = bttsYes && ttsBoth ? round(Math.abs(bttsYes.probability - ttsBoth.probability), 1) : null;
 
   const profiles: Profile[] = [
     {
       key: 'A',
-      title: 'Primary Target Markets',
-      tag: '5 Targets',
+      title: 'Target Core Goal Markets',
+      tag: '5 Target Core',
       score: targetPicks.length,
       completed: targetPicks.length,
       ratio: targetPicks.length ? 1 : 0,
       status: targetPicks.length ? 'green' : 'empty',
       checks: [
         {
-          title: 'Target Odds Entry',
-          detail: `${targetPicks.length} target market selections screened`,
+          title: 'Primary Target Markets Entry',
+          detail: `${targetPicks.length} core target selections screened`,
           status: targetPicks.length >= 4 ? 'green' : targetPicks.length >= 2 ? 'amber' : 'red'
+        },
+        {
+          title: 'True Expected Goal Pace',
+          detail: expectedGoals ? `Expected Goals: ${expectedGoals.expected} goals` : 'Enter Over 0.5 & 1.5 lines',
+          status: expectedGoals ? 'green' : 'empty'
         }
       ],
       top: topPick(targetPicks)
@@ -1469,9 +1490,9 @@ export function analyzeInstantFootball(scope: ScopeState): Analysis {
       status: ttsPicks.length ? 'green' : 'empty',
       checks: [
         {
-          title: 'Teams To Score (4-Way)',
-          detail: ttsPicks.length ? `TTS Top Pick: ${ttsPicks[0].label} @ ${pct(ttsPicks[0].probability, 1)}` : 'Enter Teams To Score odds for 2-market triangulation',
-          status: ttsPicks.length ? 'green' : 'empty'
+          title: '3-Market Triangulation (BTTS vs TTS 4-Way)',
+          detail: triangulationDiff !== null ? `Triangulation difference: ${triangulationDiff}% (${triangulationDiff <= 5 ? 'Perfect Alignment' : 'Slight Divergence'})` : 'Enter Teams To Score 4-way odds to triangulate',
+          status: triangulationDiff !== null ? (triangulationDiff <= 6 ? 'green' : 'amber') : 'empty'
         }
       ],
       top: topPick(ttsPicks)
@@ -1486,7 +1507,7 @@ export function analyzeInstantFootball(scope: ScopeState): Analysis {
       status: resultPicks.length ? 'green' : 'empty',
       checks: [
         {
-          title: '1X2 Favoritism',
+          title: '1X2 Favoritism Alignment',
           detail: resultPicks.length ? `Favoured: ${resultPicks[0].label} @ ${pct(resultPicks[0].probability, 1)}` : 'Enter 1X2 odds for context',
           status: resultPicks.length ? 'green' : 'empty'
         }
@@ -1522,6 +1543,12 @@ export function analyzeInstantBasketball(scope: ScopeState): Analysis {
 
   const allPicks = [...gameTotalPicks, ...handicapPicks, ...homeTotalPicks, ...awayTotalPicks, ...winnerPicks, ...regPicks].map(withEv).sort((a, b) => b.probability - a.probability);
 
+  // Fair-Number Interpolation for Instant Basketball MET
+  const total = bestExpectedLine(scope.markets.gameTotal?.pairs ?? [], 5);
+  const p1 = bestExpectedLine(scope.markets.homeTotal?.pairs ?? [], 5);
+  const p2 = bestExpectedLine(scope.markets.awayTotal?.pairs ?? [], 5);
+  const combinedDiff = total && p1 && p2 ? round(p1.expected + p2.expected - total.expected, 1) : null;
+
   const bestTotal = topPick([...gameTotalPicks, ...homeTotalPicks, ...awayTotalPicks]);
 
   const profiles: Profile[] = [
@@ -1535,9 +1562,14 @@ export function analyzeInstantBasketball(scope: ScopeState): Analysis {
       status: gameTotalPicks.length ? 'green' : 'empty',
       checks: [
         {
-          title: 'Total Points Lines',
+          title: 'Total Points Lines Entry',
           detail: gameTotalPicks.length ? `Best Line: ${gameTotalPicks[0].label} @ ${pct(gameTotalPicks[0].probability, 1)}` : 'Enter Match Total line and odds',
           status: gameTotalPicks.length ? 'green' : 'empty'
+        },
+        {
+          title: 'True Expected Total Points',
+          detail: total ? `MET: ${total.expected} points` : 'Enter points total lines',
+          status: total ? 'green' : 'empty'
         }
       ],
       top: topPick(gameTotalPicks)
@@ -1561,7 +1593,7 @@ export function analyzeInstantBasketball(scope: ScopeState): Analysis {
     },
     {
       key: 'C',
-      title: 'Team Total Points',
+      title: 'Team Total Points & 3-Market Triangulation',
       tag: 'Team Totals',
       score: homeTotalPicks.length + awayTotalPicks.length,
       completed: homeTotalPicks.length + awayTotalPicks.length,
@@ -1569,9 +1601,9 @@ export function analyzeInstantBasketball(scope: ScopeState): Analysis {
       status: homeTotalPicks.length + awayTotalPicks.length ? 'green' : 'empty',
       checks: [
         {
-          title: 'Home / Away Team Totals',
-          detail: homeTotalPicks[0] ? `Home: ${homeTotalPicks[0].label} (${pct(homeTotalPicks[0].probability, 1)})` : 'Enter Team Total odds',
-          status: homeTotalPicks.length ? 'green' : 'empty'
+          title: 'Team Totals Sum Consistency (TTC)',
+          detail: combinedDiff !== null ? `Team total diff: ${combinedDiff > 0 ? '+' : ''}${combinedDiff} pts` : 'Enter team total lines',
+          status: combinedDiff !== null ? (Math.abs(combinedDiff) <= 4 ? 'green' : 'amber') : 'empty'
         }
       ],
       top: topPick([...homeTotalPicks, ...awayTotalPicks])
@@ -1705,6 +1737,12 @@ export function analyzeBaseball(scope: ScopeState): Analysis {
   const drawProb = regPicks.find((p) => p.label.includes('Draw'))?.probability;
   const directExtraProb = extraInningPicks.find((p) => p.label.includes('Yes'))?.probability;
 
+  // Fair-Number Interpolation for Baseball Run Lines
+  const total = bestExpectedLine(scope.markets.gameTotal?.pairs ?? [], 1.5);
+  const p1 = bestExpectedLine(scope.markets.homeTotal?.pairs ?? [], 1.5);
+  const p2 = bestExpectedLine(scope.markets.awayTotal?.pairs ?? [], 1.5);
+  const combinedDiff = total && p1 && p2 ? round(p1.expected + p2.expected - total.expected, 1) : null;
+
   const profiles: Profile[] = [
     {
       key: 'A',
@@ -1725,7 +1763,7 @@ export function analyzeBaseball(scope: ScopeState): Analysis {
     },
     {
       key: 'B',
-      title: 'Run Totals (Game & Teams)',
+      title: 'Run Totals & True Expected Runs',
       tag: 'Total Runs',
       score: gameTotalPicks.length,
       completed: gameTotalPicks.length,
@@ -1733,9 +1771,14 @@ export function analyzeBaseball(scope: ScopeState): Analysis {
       status: gameTotalPicks.length ? 'green' : 'empty',
       checks: [
         {
-          title: 'Game Total Runs',
-          detail: gameTotalPicks.length ? `Best Line: ${gameTotalPicks[0].label} @ ${pct(gameTotalPicks[0].probability, 1)}` : 'Enter Game Total line and odds',
-          status: gameTotalPicks.length ? 'green' : 'empty'
+          title: 'True Expected Runs (MET)',
+          detail: total ? `Expected Runs: ${total.expected} runs` : 'Enter Game Total line and odds',
+          status: total ? 'green' : 'empty'
+        },
+        {
+          title: 'Team Runs Sum Consistency',
+          detail: combinedDiff !== null ? `Team runs diff: ${combinedDiff > 0 ? '+' : ''}${combinedDiff} runs` : 'Enter team total lines',
+          status: combinedDiff !== null ? (Math.abs(combinedDiff) <= 1.0 ? 'green' : 'amber') : 'empty'
         }
       ],
       top: topPick(gameTotalPicks)
@@ -1759,7 +1802,7 @@ export function analyzeBaseball(scope: ScopeState): Analysis {
     },
     {
       key: 'D',
-      title: 'Extra-Innings & Margin Intelligence',
+      title: 'Extra-Innings & 3-Market Triangulation',
       tag: 'Extra Innings',
       score: extraInningPicks.length + marginPicks.length,
       completed: extraInningPicks.length + marginPicks.length,
@@ -1767,19 +1810,10 @@ export function analyzeBaseball(scope: ScopeState): Analysis {
       status: extraInningPicks.length + marginPicks.length ? 'green' : 'empty',
       checks: [
         {
-          title: '9-Inning Draw extra-innings signal',
+          title: '3-Market Triangulation (Regulation Draw vs Extra Inning)',
           detail: drawProb !== undefined ? `Regulation Draw implies ${pct(drawProb, 1)} extra-innings likelihood` : 'Enter 1X2 Regulation odds to extract Draw %',
           status: drawProb !== undefined ? 'green' : 'empty'
-        },
-        ...(directExtraProb !== undefined
-          ? [
-              {
-                title: 'Direct Extra Inning Market vs 1X2 Draw',
-                detail: `Direct market: ${pct(directExtraProb, 1)} vs 1X2 Draw: ${pct(drawProb ?? 0, 1)}`,
-                status: Math.abs((directExtraProb ?? 0) - (drawProb ?? 0)) <= 8 ? ('green' as Status) : ('red' as Status)
-              }
-            ]
-          : [])
+        }
       ],
       top: topPick(allPicks)
     }
