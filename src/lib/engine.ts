@@ -152,6 +152,76 @@ export function emptyHandicaps(count: number, lines: number[] = []): HandicapPai
   }));
 }
 
+// ── Smart Auto-fill: line cascade ────────────────────────────────────────────
+// When any LinePair.line is set, all other rows fill with (val ± diff * step).
+// When Over/Under odds are set, all rows fill with ±0.10 per row interval.
+export function autoFillLinePairs(
+  pairs: LinePair[],
+  changedIndex: number,
+  field: 'line' | 'over' | 'under',
+  val: number | null
+): void {
+  if (val === null || !pairs || pairs.length < 2) return;
+
+  if (field === 'line') {
+    // Infer step from first two defined lines, default to 1.0
+    let step = 1.0;
+    const existing = pairs.filter((p) => p.line !== null);
+    if (existing.length >= 2) {
+      const idxA = pairs.indexOf(existing[0]);
+      const idxB = pairs.indexOf(existing[1]);
+      if (idxA !== idxB) {
+        step = Math.abs((existing[1].line! - existing[0].line!) / (idxB - idxA));
+      }
+    }
+    if (!step || step <= 0) step = 1.0;
+    for (let i = 0; i < pairs.length; i++) {
+      pairs[i].line = round(val + (i - changedIndex) * step, 1);
+    }
+  } else if (field === 'over') {
+    for (let i = 0; i < pairs.length; i++) {
+      pairs[i].over = round(Math.max(1.01, val + (i - changedIndex) * 0.10), 2);
+    }
+  } else if (field === 'under') {
+    for (let i = 0; i < pairs.length; i++) {
+      pairs[i].under = round(Math.max(1.01, val - (i - changedIndex) * 0.10), 2);
+    }
+  }
+}
+
+export function autoFillHandicapPairs(
+  pairs: HandicapPair[],
+  changedIndex: number,
+  field: 'line' | 'sideA' | 'sideB',
+  val: number | null
+): void {
+  if (val === null || !pairs || pairs.length < 2) return;
+
+  if (field === 'line') {
+    let step = 1.0;
+    const existing = pairs.filter((p) => p.line !== null);
+    if (existing.length >= 2) {
+      const idxA = pairs.indexOf(existing[0]);
+      const idxB = pairs.indexOf(existing[1]);
+      if (idxA !== idxB) {
+        step = Math.abs((existing[1].line! - existing[0].line!) / (idxB - idxA));
+      }
+    }
+    if (!step || step <= 0) step = 1.0;
+    for (let i = 0; i < pairs.length; i++) {
+      pairs[i].line = round(val + (i - changedIndex) * step, 1);
+    }
+  } else if (field === 'sideA') {
+    for (let i = 0; i < pairs.length; i++) {
+      pairs[i].sideA = round(Math.max(1.01, val + (i - changedIndex) * 0.10), 2);
+    }
+  } else if (field === 'sideB') {
+    for (let i = 0; i < pairs.length; i++) {
+      pairs[i].sideB = round(Math.max(1.01, val - (i - changedIndex) * 0.10), 2);
+    }
+  }
+}
+
 export function oddsMap(keys: string[]): Record<string, null> {
   return Object.fromEntries(keys.map((key) => [key, null]));
 }
@@ -1736,7 +1806,7 @@ export function createFootballScope(id: 'h1' | 'h2' | 'ft', title: string): Scop
       awayTotal: market('awayTotal', 'Away Team Total Goals', 'ou', { pairs: emptyPairs(OU_LINE_COUNT, footballHomeAwayLines) }),
       result: market('result', '1X2 Result', 'threeway', { primary: true, odds: oddsMap(['home', 'draw', 'away']) }),
       doubleChance: market('doubleChance', 'Double Chance', 'threeway', { odds: oddsMap(['hd', 'ha', 'da']) }),
-      handicap: market('handicap', 'Asian Handicap', 'handicap', { handicapPairs: emptyHandicaps(7, [-2.5, -1.5, -0.5, 0, 0.5, 1.5, 2.5]) }),
+      handicap: market('handicap', 'Asian Handicap', 'handicap', { handicapPairs: emptyHandicaps(OU_LINE_COUNT, [-5.0, -4.0, -3.0, -2.0, -1.0, -0.5, 0, 0.5, 1.0, 2.0, 3.0]) }),
       correctScore: market('correctScore', 'Correct Score Grid (9 cells)', 'correctScore', { odds: oddsMap(FOOTBALL_SCORES) })
     }
   };
@@ -1790,7 +1860,7 @@ export function createMetScope(id: string, title: string, sport: 'basketball' | 
       mainTotal: market('mainTotal', isTennis ? 'Total Games' : 'Game Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, mainLines11) }),
       homeTotal: market('homeTotal', isTennis ? 'Player 1 Total Games' : 'Team 1 Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, playerLines11) }),
       awayTotal: market('awayTotal', isTennis ? 'Player 2 Total Games' : 'Team 2 Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, playerLines11offset) }),
-      handicap: market('handicap', isTennis ? 'Game Handicap' : 'Spread / Handicap', 'handicap', { handicapPairs: emptyHandicaps(7, isTennis ? [-5.5, -3.5, -1.5, 0.5, 1.5, 3.5, 5.5] : [-15.5, -8.5, -2.5, 0.5, 4.5, 9.5, 15.5]) }),
+      handicap: market('handicap', isTennis ? 'Game Handicap' : 'Spread / Handicap', 'handicap', { handicapPairs: emptyHandicaps(OU_LINE_COUNT, isTennis ? [-5.5, -4.5, -3.5, -2.5, -1.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5] : [-15.5, -10.5, -6.5, -3.5, -1.5, 0.5, 1.5, 3.5, 6.5, 10.5, 15.5]) }),
       winner: market('winner', isTennis ? 'Match / Set Winner' : 'Moneyline Winner', 'winner', { primary: true, odds: oddsMap(['a', 'b']) })
     }
   };
@@ -1845,7 +1915,7 @@ export function createRallyScope(): ScopeState {
       gameTotal: market('gameTotal', 'Full Match Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, gameLines11) }),
       playerATotal: market('playerATotal', 'Player A Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, playerLines11) }),
       playerBTotal: market('playerBTotal', 'Player B Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, playerLines11.slice().reverse()) }),
-      pointsHandicap: market('pointsHandicap', 'Points Handicap', 'handicap', { handicapPairs: emptyHandicaps(7, [-12.5, -8.5, -4.5, 0.5, 4.5, 8.5, 12.5]) }),
+      pointsHandicap: market('pointsHandicap', 'Points Handicap', 'handicap', { handicapPairs: emptyHandicaps(OU_LINE_COUNT, [-12.5, -9.5, -7.5, -5.5, -3.5, -1.5, 0.5, 1.5, 3.5, 5.5, 7.5]) }),
       setsHandicap: market('setsHandicap', 'Sets Handicap', 'handicap', { handicapPairs: emptyHandicaps(5, [-2.5, -1.5, 0.5, 1.5, 2.5]) }),
       totalSets: market('totalSets', 'Total Sets Played', 'ou', { pairs: emptyPairs(OU_LINE_COUNT, [2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5]) }),
       oddEven: market('oddEven', 'Total Sets Odd / Even', 'yesno', { odds: oddsMap(['yes', 'no']) }),
@@ -1854,7 +1924,7 @@ export function createRallyScope(): ScopeState {
       setTotal: market('setTotal', '1st Set Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, setTotal11) }),
       setPlayerA: market('setPlayerA', '1st Set Player A Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, setPlayer11) }),
       setPlayerB: market('setPlayerB', '1st Set Player B Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, setPlayer11.slice().reverse()) }),
-      setHandicap: market('setHandicap', '1st Set Points Handicap', 'handicap', { handicapPairs: emptyHandicaps(7, [-6.5, -4.5, -2.5, 0.5, 2.5, 4.5, 6.5]) })
+      setHandicap: market('setHandicap', '1st Set Points Handicap', 'handicap', { handicapPairs: emptyHandicaps(OU_LINE_COUNT, [-6.5, -5.5, -4.5, -3.5, -2.5, -1.5, 0.5, 1.5, 2.5, 3.5, 4.5]) })
     }
   };
 }
@@ -1879,7 +1949,7 @@ export function createHockeyScope(id: 'rt' | 'p1', title: string): ScopeState {
       homeTotal: market('homeTotal', isRT ? 'Team 1 Total Goals' : '1st Period T1 Goals', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, teamLines.slice(0, OU_LINE_COUNT)) }),
       awayTotal: market('awayTotal', isRT ? 'Team 2 Total Goals' : '1st Period T2 Goals', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, teamLines.slice(0, OU_LINE_COUNT)) }),
       result: market('result', isRT ? '1X2 Regulation Result' : '1st Period 1X2', 'threeway', { primary: true, odds: oddsMap(['home', 'draw', 'away']) }),
-      handicap: market('handicap', isRT ? 'Puck Line Handicap' : '1st Period Handicap', 'handicap', { handicapPairs: emptyHandicaps(hdpLines.length, hdpLines) }),
+      handicap: market('handicap', isRT ? 'Puck Line Handicap' : '1st Period Handicap', 'handicap', { handicapPairs: emptyHandicaps(OU_LINE_COUNT, isRT ? [-5.0, -3.5, -2.5, -1.5, -0.5, 0, 0.5, 1.5, 2.5, 3.5, 5.0] : [-1.5, -1.0, -0.5, 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5]) }),
       correctScore: market('correctScore', 'Correct Score Grid', 'correctScore', { odds: oddsMap(csKeys) })
     }
   };
@@ -1904,10 +1974,10 @@ export function createInstantFootballScopes(): ScopeState[] {
       id: 'round',
       title: 'Instant Match Round',
       markets: {
-        mainTotal05: market('mainTotal05', 'Match Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(1, [0.5]) }),
-        mainTotal15: market('mainTotal15', 'Match Goals — Over / Under 1.5', 'ou', { primary: true, pairs: emptyPairs(1, [1.5]) }),
-        homeTotal05: market('homeTotal05', 'Home Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(1, [0.5]) }),
-        awayTotal05: market('awayTotal05', 'Away Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(1, [0.5]) }),
+        mainTotal05: market('mainTotal05', 'Match Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]) }),
+        mainTotal15: market('mainTotal15', 'Match Goals — Over / Under 1.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]) }),
+        homeTotal05: market('homeTotal05', 'Home Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]) }),
+        awayTotal05: market('awayTotal05', 'Away Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]) }),
         btts: market('btts', 'Both Teams to Score (BTTS GG/NG)', 'yesno', { primary: true, odds: oddsMap(['yes', 'no']) }),
         tts: market('tts', 'Teams To Score (4-Way)', 'threeway', { odds: oddsMap(['neither', 'homeOnly', 'awayOnly', 'both']) }),
         result: market('result', 'Match Result 1X2', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) }),
@@ -1923,10 +1993,10 @@ export function createInstantBasketballScopes(): ScopeState[] {
       id: 'game',
       title: 'Instant Match Game',
       markets: {
-        gameTotal: market('gameTotal', 'Match Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(3, [195.5, 205.5, 215.5]) }),
-        handicap: market('handicap', 'Match Handicap (incl. OT)', 'handicap', { primary: true, handicapPairs: emptyHandicaps(3, [-5.5, 0.5, 5.5]) }),
-        homeTotal: market('homeTotal', 'Home Team Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(3, [98.5, 104.5, 110.5]) }),
-        awayTotal: market('awayTotal', 'Away Team Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(3, [98.5, 104.5, 110.5]) }),
+        gameTotal: market('gameTotal', 'Match Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [189.5, 194.5, 199.5, 204.5, 209.5, 214.5, 219.5, 224.5, 229.5, 234.5, 239.5]) }),
+        handicap: market('handicap', 'Match Handicap (incl. OT)', 'handicap', { primary: true, handicapPairs: emptyHandicaps(OU_LINE_COUNT, [-12.5, -9.5, -6.5, -4.5, -2.5, -0.5, 0.5, 2.5, 4.5, 6.5, 9.5]) }),
+        homeTotal: market('homeTotal', 'Home Team Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [88.5, 93.5, 98.5, 103.5, 108.5, 113.5, 118.5, 123.5, 128.5, 133.5, 138.5]) }),
+        awayTotal: market('awayTotal', 'Away Team Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [88.5, 93.5, 98.5, 103.5, 108.5, 113.5, 118.5, 123.5, 128.5, 133.5, 138.5]) }),
         winner: market('winner', 'Winner (incl. OT)', 'winner', { odds: oddsMap(['a', 'b']) }),
         regResult: market('regResult', 'Regulation Result (1X2)', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) })
       }
@@ -1940,10 +2010,10 @@ export function createVirtualFootballScopes(): ScopeState[] {
       id: 'round',
       title: 'Virtual Round',
       markets: {
-        mainTotal15: market('mainTotal15', 'Match Goals — Over / Under 1.5', 'ou', { primary: true, pairs: emptyPairs(1, [1.5]) }),
-        mainTotal25: market('mainTotal25', 'Match Goals — Over / Under 2.5', 'ou', { primary: true, pairs: emptyPairs(1, [2.5]) }),
-        homeTotal05: market('homeTotal05', 'Home Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(1, [0.5]) }),
-        awayTotal05: market('awayTotal05', 'Away Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(1, [0.5]) }),
+        mainTotal15: market('mainTotal15', 'Match Goals — Over / Under 1.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]) }),
+        mainTotal25: market('mainTotal25', 'Match Goals — Over / Under 2.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5]) }),
+        homeTotal05: market('homeTotal05', 'Home Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]) }),
+        awayTotal05: market('awayTotal05', 'Away Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]) }),
         btts: market('btts', 'Both Teams to Score (BTTS GG/NG)', 'yesno', { primary: true, odds: oddsMap(['yes', 'no']) }),
         result: market('result', 'Match Result 1X2', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) }),
         correctScore: market('correctScore', 'Correct Score Grid (16 + Other)', 'correctScore', { odds: oddsMap([...FOOTBALL_SCORES, 'Other']) })
@@ -1955,18 +2025,23 @@ export function createVirtualFootballScopes(): ScopeState[] {
 export function createBaseballScope(id: 'rt' | 'f5' | 'f1', title: string): ScopeState {
   const isRT = id === 'rt';
   const isF5 = id === 'f5';
-  const totalLines = isRT ? range(6.5, 12.5, 0.5) : isF5 ? range(3.5, 6.5, 0.5) : range(0.5, 1.5, 0.5);
-  const teamLines = isRT ? range(2.5, 6.5, 0.5) : isF5 ? range(1.5, 3.5, 0.5) : range(0.5, 0.5, 0.5);
+  const totalLines = isRT ? range(6.5, 17.5, 1) : isF5 ? range(3.5, 9.5, 0.5) : range(0.5, 3.5, 0.5);
+  const teamLines = isRT ? range(2.5, 7.5, 0.5) : isF5 ? range(1.5, 4.5, 0.5) : range(0.5, 2.5, 0.5);
+  const hdpLines = isRT
+    ? [-5.0, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 5.0, 6.5]
+    : isF5
+    ? [-3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5]
+    : [-0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
 
   const state: ScopeState = {
     id,
     title,
     markets: {
-      gameTotal: market('gameTotal', isRT ? 'Full Game Total Runs' : isF5 ? '1-5 Innings Total Runs' : '1st Inning Total Runs', 'ou', { primary: true, pairs: emptyPairs(3, totalLines.slice(0, 3)) }),
-      homeTotal: market('homeTotal', isRT ? 'Home Team Total Runs' : '1-5 Innings Home Total', 'ou', { primary: true, pairs: emptyPairs(2, teamLines.slice(0, 2)) }),
-      awayTotal: market('awayTotal', isRT ? 'Away Team Total Runs' : '1-5 Innings Away Total', 'ou', { primary: true, pairs: emptyPairs(2, teamLines.slice(0, 2)) }),
+      gameTotal: market('gameTotal', isRT ? 'Full Game Total Runs' : isF5 ? '1-5 Innings Total Runs' : '1st Inning Total Runs', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, totalLines.slice(0, OU_LINE_COUNT)) }),
+      homeTotal: market('homeTotal', isRT ? 'Home Team Total Runs' : '1-5 Innings Home Total', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, teamLines.slice(0, OU_LINE_COUNT)) }),
+      awayTotal: market('awayTotal', isRT ? 'Away Team Total Runs' : '1-5 Innings Away Total', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, teamLines.slice(0, OU_LINE_COUNT)) }),
       regResult: market('regResult', isRT ? 'Regulation Result (9 Innings 1X2)' : '1-5 Innings Result 1X2', 'threeway', { primary: true, odds: oddsMap(['home', 'draw', 'away']) }),
-      handicap: market('handicap', isRT ? 'Full Game Run Line (Handicap)' : '1-5 Innings Handicap', 'handicap', { handicapPairs: emptyHandicaps(3, [-1.5, 0.5, 1.5]) })
+      handicap: market('handicap', isRT ? 'Full Game Run Line (Handicap)' : '1-5 Innings Handicap', 'handicap', { handicapPairs: emptyHandicaps(OU_LINE_COUNT, hdpLines) })
     }
   };
 

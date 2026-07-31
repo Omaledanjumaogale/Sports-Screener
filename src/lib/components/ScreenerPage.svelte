@@ -35,6 +35,8 @@
     loadScopes,
     saveScopes,
     mergeScopeOnto,
+    autoFillLinePairs,
+    autoFillHandicapPairs,
     type Analysis,
     type ScopeState,
     type SportId
@@ -300,6 +302,10 @@
                         lineOptions={lineOptionsFor(sportId, scope.id, m.id)}
                         index={index}
                         onChange={onChangeAny}
+                        onAutoFillLine={(i, field, v) => {
+                          if (m.pairs) autoFillLinePairs(m.pairs, i, field, v);
+                          refresh();
+                        }}
                       />
                     {/each}
                   </div>
@@ -313,6 +319,10 @@
                         sideBLabel={handicapLabels[sportId]?.[1] ?? 'B'}
                         index={index}
                         onChange={onChangeAny}
+                        onAutoFillLine={(i, field, v) => {
+                          if (m.handicapPairs) autoFillHandicapPairs(m.handicapPairs, i, field, v);
+                          refresh();
+                        }}
                       />
                     {/each}
                   </div>

@@ -46,80 +46,93 @@
     description: string;
     accent: string;
     path: string;
+    category: 'real' | 'simulated';
   }[] = [
     {
       id: 'football',
       short: 'Football',
-      title: 'Football Matchday Screener V4',
+      title: 'Football Matchday Screener',
       description: 'Half-time and full-time profile analysis. Correct score clusters, BTTS, 5-lamp scoreboards, and live market ranking.',
       accent: '#22c55e',
-      path: '/football'
+      path: '/football',
+      category: 'real'
     },
     {
       id: 'basketball',
       short: 'Basketball',
-      title: 'Basketball Matchday Screener V1',
+      title: 'Basketball Matchday Screener',
       description: 'Market Expected Total (MET) analysis. Team totals, quarter pace, spread ranking — all in one view.',
       accent: '#f97316',
-      path: '/basketball'
+      path: '/basketball',
+      category: 'real'
     },
     {
       id: 'tennis',
       short: 'Tennis',
-      title: 'Tennis Matchday Screener V1',
+      title: 'Tennis Matchday Screener',
       description: 'Market Expected Games (MEG), correct score intelligence, surface modifiers, and dual tiebreak signals.',
       accent: '#e879f9',
-      path: '/tennis'
+      path: '/tennis',
+      category: 'real'
     },
     {
       id: 'rally',
-      short: 'Rally / TT',
-      title: 'Table Tennis Screener V2',
+      short: 'Table Tennis',
+      title: 'Table Tennis Matchday Screener',
       description: 'Full match and first-set multi-market screening. Safest pick, margin rank, sweep shapes and set metrics.',
       accent: '#38bdf8',
-      path: '/rally'
+      path: '/rally',
+      category: 'real'
     },
     {
       id: 'hockey',
-      short: 'Hockey',
-      title: 'Ice Hockey Matchday Screener V1',
-      description: 'Puck line handicap, 3-period goal pace, Overtime Intelligence P(OT), and CS Reconciliation.',
+      short: 'Ice Hockey',
+      title: 'Ice Hockey Matchday Screener',
+      description: 'Puck line handicap, 3-period goal pace, Overtime Intelligence, and Correct Score Reconciliation.',
       accent: '#06b6d4',
-      path: '/hockey'
+      path: '/hockey',
+      category: 'real'
+    },
+    {
+      id: 'baseball',
+      short: 'Baseball',
+      title: 'Baseball Matchday Screener',
+      description: '21 baseball markets across 9-Inning, 1-5 Innings, 1st Inning, and Extra-Innings probability extraction.',
+      accent: '#8b5cf6',
+      path: '/baseball',
+      category: 'real'
     },
     {
       id: 'instant-football',
       short: 'Flash Line',
-      title: 'Instant Football Screener (v1)',
+      title: 'Instant Football Screener',
       description: '5 target selections focus (Over 0.5/1.5, BTTS, Team Over 0.5) with Teams To Score 4-way triangulation engine.',
       accent: '#10b981',
-      path: '/instant-football'
+      path: '/instant-football',
+      category: 'simulated'
     },
     {
       id: 'instant-basketball',
       short: 'Court Line',
-      title: 'Instant Basketball Screener (v1)',
+      title: 'Instant Basketball Screener',
       description: '4 target markets (Match Total, Handicap, Team Totals) with OT Regulation Draw consistency check.',
       accent: '#f59e0b',
-      path: '/instant-basketball'
+      path: '/instant-basketball',
+      category: 'simulated'
     },
     {
       id: 'vfootball',
       short: 'Pulse Line',
-      title: 'Virtual Football Screener (v1)',
+      title: 'Virtual Football Screener',
       description: 'Fast 3-minute round screening (Over 1.5/2.5, BTTS) with 16-scoreline joint distribution grid.',
       accent: '#06b6d4',
-      path: '/vfootball'
-    },
-    {
-      id: 'baseball',
-      short: 'Diamond Line',
-      title: 'Baseball Enterprise Screener (v1)',
-      description: '21 baseball markets across 9-Inning, 1-5 Innings, 1st Inning, and Extra-Innings Draw probability extraction.',
-      accent: '#8b5cf6',
-      path: '/baseball'
+      path: '/vfootball',
+      category: 'simulated'
     }
   ];
+
+  const realSports = $derived(sports.filter((s) => s.category === 'real'));
+  const simulatedSports = $derived(sports.filter((s) => s.category === 'simulated'));
 
   const comingSoonSports: Array<{ short: string; title: string; description: string; accent: string; emoji: string }> = [];
 
@@ -249,15 +262,36 @@
       </ul>
     </section>
 
-    <!-- ── Active Sports Section ───────────────────────────── -->
-    <section class="sport-section" aria-label="Choose a sport">
+    <!-- ── Real Sports Section ──────────────────────────────── -->
+    <section class="sport-section" aria-label="Real sports matchday screeners">
       <div class="section-head">
-        <h2 class="section-title">Active Sports Screeners</h2>
-        <span class="sport-count-badge">{sports.length} active</span>
+        <h2 class="section-title">Real Sports Matchday Screeners</h2>
+        <span class="sport-count-badge">{realSports.length} sports</span>
       </div>
 
       <div class="sport-grid">
-        {#each sports as s}
+        {#each realSports as s}
+          <SportCard
+            sportId={s.id}
+            short={s.short}
+            title={s.title}
+            description={s.description}
+            accent={s.accent}
+            onClick={() => nav(s.path)}
+          />
+        {/each}
+      </div>
+    </section>
+
+    <!-- ── Virtual & Simulated Section ───────────────────────── -->
+    <section class="sport-section" aria-label="Virtual and instant simulated screeners">
+      <div class="section-head">
+        <h2 class="section-title">Virtual &amp; Instant Simulated Screeners</h2>
+        <span class="sport-count-badge">{simulatedSports.length} screeners</span>
+      </div>
+
+      <div class="sport-grid">
+        {#each simulatedSports as s}
           <SportCard
             sportId={s.id}
             short={s.short}

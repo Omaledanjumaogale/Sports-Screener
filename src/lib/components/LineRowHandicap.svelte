@@ -9,7 +9,8 @@
     sideALabel = 'A/Home',
     sideBLabel = 'B/Away',
     index = 0,
-    onChange = () => {}
+    onChange = () => {},
+    onAutoFillLine = null as ((i: number, field: 'line'|'sideA'|'sideB', v: number|null) => void) | null
   }: {
     pair: HandicapPair;
     lineOptions?: number[];
@@ -17,6 +18,7 @@
     sideBLabel?: string;
     index?: number;
     onChange?: () => void;
+    onAutoFillLine?: ((i: number, field: 'line'|'sideA'|'sideB', v: number|null) => void) | null;
   } = $props();
 </script>
 
@@ -32,7 +34,11 @@
         label="Handicap"
         value={pair.line}
         options={lineOptions}
-        onChange={(v) => { pair.line = v; onChange(); }}
+        onChange={(v) => {
+          pair.line = v;
+          if (onAutoFillLine) onAutoFillLine(index, 'line', v);
+          onChange();
+        }}
       />
     </div>
     <div class="odds-cols">
@@ -40,13 +46,21 @@
         id={`hdp-${index}-a`}
         label={sideALabel}
         value={pair.sideA}
-        onChange={(v) => { pair.sideA = v; onChange(); }}
+        onChange={(v) => {
+          pair.sideA = v;
+          if (onAutoFillLine) onAutoFillLine(index, 'sideA', v);
+          onChange();
+        }}
       />
       <OddsPicker
         id={`hdp-${index}-b`}
         label={sideBLabel}
         value={pair.sideB}
-        onChange={(v) => { pair.sideB = v; onChange(); }}
+        onChange={(v) => {
+          pair.sideB = v;
+          if (onAutoFillLine) onAutoFillLine(index, 'sideB', v);
+          onChange();
+        }}
       />
     </div>
   </div>
@@ -124,4 +138,3 @@
     .odds-cols { grid-template-columns: 1fr; }
   }
 </style>
-

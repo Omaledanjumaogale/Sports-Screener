@@ -7,12 +7,14 @@
     pair,
     lineOptions = [] as number[],
     index = 0,
-    onChange = () => {}
+    onChange = () => {},
+    onAutoFillLine = null as ((i: number, field: 'line'|'over'|'under', v: number|null) => void) | null
   }: {
     pair: LinePair;
     lineOptions?: number[];
     index?: number;
     onChange?: () => void;
+    onAutoFillLine?: ((i: number, field: 'line'|'over'|'under', v: number|null) => void) | null;
   } = $props();
 </script>
 
@@ -28,7 +30,11 @@
         label="Line"
         value={pair.line}
         options={lineOptions}
-        onChange={(v) => { pair.line = v; onChange(); }}
+        onChange={(v) => {
+          pair.line = v;
+          if (onAutoFillLine) onAutoFillLine(index, 'line', v);
+          onChange();
+        }}
       />
     </div>
     <div class="odds-cols">
@@ -36,13 +42,21 @@
         id={`ou-${index}-over`}
         label="Over"
         value={pair.over}
-        onChange={(v) => { pair.over = v; onChange(); }}
+        onChange={(v) => {
+          pair.over = v;
+          if (onAutoFillLine) onAutoFillLine(index, 'over', v);
+          onChange();
+        }}
       />
       <OddsPicker
         id={`ou-${index}-under`}
         label="Under"
         value={pair.under}
-        onChange={(v) => { pair.under = v; onChange(); }}
+        onChange={(v) => {
+          pair.under = v;
+          if (onAutoFillLine) onAutoFillLine(index, 'under', v);
+          onChange();
+        }}
       />
     </div>
   </div>
@@ -121,4 +135,3 @@
     .odds-cols { grid-template-columns: 1fr; }
   }
 </style>
-
