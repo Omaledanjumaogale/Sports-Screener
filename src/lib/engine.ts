@@ -1,5 +1,14 @@
 export type Status = 'green' | 'amber' | 'red' | 'empty';
-export type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey';
+export type SportId =
+  | 'football'
+  | 'basketball'
+  | 'tennis'
+  | 'rally'
+  | 'hockey'
+  | 'instant-football'
+  | 'instant-basketball'
+  | 'vfootball'
+  | 'baseball';
 export type MarketKind = 'ou' | 'handicap' | 'winner' | 'threeway' | 'yesno' | 'correctScore';
 
 export type LedgerVote = 'Agree' | 'Disagree' | 'N/A';
@@ -1307,6 +1316,408 @@ function finishAnalysis(scope: ScopeState, profiles: Profile[], picks: Pick[], r
   };
 }
 
+/* ========================= INSTANT FOOTBALL (FLASH LINE) ========================= */
+
+export function analyzeInstantFootball(scope: ScopeState): Analysis {
+  const targetPicks: Pick[] = [];
+
+  // 1. Match Goals Over/Under 0.5
+  const m05 = scope.markets.mainTotal05;
+  if (m05?.pairs?.[0]) {
+    targetPicks.push(...analyzeLines(m05));
+  }
+
+  // 2. Match Goals Over/Under 1.5
+  const m15 = scope.markets.mainTotal15;
+  if (m15?.pairs?.[0]) {
+    targetPicks.push(...analyzeLines(m15));
+  }
+
+  // 3. Home Team Over/Under 0.5
+  const h05 = scope.markets.homeTotal05;
+  if (h05?.pairs?.[0]) {
+    targetPicks.push(...analyzeLines(h05));
+  }
+
+  // 4. Away Team Over/Under 0.5
+  const a05 = scope.markets.awayTotal05;
+  if (a05?.pairs?.[0]) {
+    targetPicks.push(...analyzeLines(a05));
+  }
+
+  // 5. BTTS (GG/NG)
+  const btts = scope.markets.btts;
+  if (btts) {
+    targetPicks.push(...analyzeOddsMarket(btts, { yes: 'BTTS Yes (GG)', no: 'BTTS No (NG)' }));
+  }
+
+  // Context: Teams To Score (4-way)
+  const ttsPicks = analyzeOddsMarket(scope.markets.tts ?? { id: 'tts', kind: 'threeway', title: '' }, {
+    neither: 'Neither Scores',
+    homeOnly: 'Only Home Scores',
+    awayOnly: 'Only Away Scores',
+    both: 'Both Teams Score'
+  });
+
+  // Context: Result 1X2
+  const resultPicks = analyzeOddsMarket(scope.markets.result ?? { id: 'result', kind: 'threeway', title: '' }, {
+    home: 'Home Win',
+    draw: 'Draw',
+    away: 'Away Win'
+  });
+
+  const allPicks = [...targetPicks, ...ttsPicks, ...resultPicks].map(withEv).sort((a, b) => b.probability - a.probability);
+
+  const bestOver = allPicks.find((p) => p.label.toLowerCase().includes('over 0.5') || p.label.toLowerCase().includes('over 1.5'));
+  const bestBtts = allPicks.find((p) => p.label.includes('BTTS'));
+
+  const profiles: Profile[] = [
+    {
+      key: 'A',
+      title: 'Primary Target Markets',
+      tag: '5 Targets',
+      score: targetPicks.length,
+      completed: targetPicks.length,
+      ratio: targetPicks.length ? 1 : 0,
+      status: targetPicks.length ? 'green' : 'empty',
+      checks: [
+        {
+          title: 'Target Odds Entry',
+          detail: `${targetPicks.length} target market selections screened`,
+          status: targetPicks.length >= 4 ? 'green' : targetPicks.length >= 2 ? 'amber' : 'red'
+        }
+      ],
+      top: topPick(targetPicks)
+    },
+    {
+      key: 'B',
+      title: 'Teams To Score Triangulation',
+      tag: 'TTS Cross-Check',
+      score: ttsPicks.length,
+      completed: ttsPicks.length,
+      ratio: ttsPicks.length ? 1 : 0,
+      status: ttsPicks.length ? 'green' : 'empty',
+      checks: [
+        {
+          title: 'Teams To Score (4-Way)',
+          detail: ttsPicks.length ? `TTS Top Pick: ${ttsPicks[0].label} @ ${pct(ttsPicks[0].probability, 1)}` : 'Enter Teams To Score odds for 2-market triangulation',
+          status: ttsPicks.length ? 'green' : 'empty'
+        }
+      ],
+      top: topPick(ttsPicks)
+    },
+    {
+      key: 'C',
+      title: 'Match Winner & Goals Alignment',
+      tag: 'Match Shape',
+      score: resultPicks.length,
+      completed: resultPicks.length,
+      ratio: resultPicks.length ? 1 : 0,
+      status: resultPicks.length ? 'green' : 'empty',
+      checks: [
+        {
+          title: '1X2 Favoritism',
+          detail: resultPicks.length ? `Favoured: ${resultPicks[0].label} @ ${pct(resultPicks[0].probability, 1)}` : 'Enter 1X2 odds for context',
+          status: resultPicks.length ? 'green' : 'empty'
+        }
+      ],
+      top: topPick(resultPicks)
+    },
+    {
+      key: 'D',
+      title: 'Best Selection Ranking',
+      tag: 'Top Value',
+      score: allPicks.length,
+      completed: allPicks.length,
+      ratio: allPicks.length ? 1 : 0,
+      status: allPicks.length ? 'green' : 'empty',
+      checks: [],
+      top: bestOver ?? bestBtts ?? topPick(allPicks)
+    }
+  ];
+
+  return finishAnalysis(scope, profiles, allPicks, 70, 58);
+}
+
+/* ========================= INSTANT BASKETBALL (COURT LINE) ========================= */
+
+export function analyzeInstantBasketball(scope: ScopeState): Analysis {
+  const gameTotalPicks = analyzeLines(scope.markets.gameTotal ?? { id: 'gameTotal', kind: 'ou', title: '' });
+  const handicapPicks = analyzeHandicap(scope.markets.handicap ?? { id: 'handicap', kind: 'handicap', title: '' }, 'Home', 'Away');
+  const homeTotalPicks = analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' });
+  const awayTotalPicks = analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' });
+
+  const winnerPicks = analyzeOddsMarket(scope.markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, { a: 'Home Win (incl. OT)', b: 'Away Win (incl. OT)' });
+  const regPicks = analyzeOddsMarket(scope.markets.regResult ?? { id: 'regResult', kind: 'threeway', title: '' }, { home: 'Home Win', draw: 'Draw (Regulation)', away: 'Away Win' });
+
+  const allPicks = [...gameTotalPicks, ...handicapPicks, ...homeTotalPicks, ...awayTotalPicks, ...winnerPicks, ...regPicks].map(withEv).sort((a, b) => b.probability - a.probability);
+
+  const bestTotal = topPick([...gameTotalPicks, ...homeTotalPicks, ...awayTotalPicks]);
+
+  const profiles: Profile[] = [
+    {
+      key: 'A',
+      title: 'Match Total Points (incl. OT)',
+      tag: 'Game Total',
+      score: gameTotalPicks.length,
+      completed: gameTotalPicks.length,
+      ratio: gameTotalPicks.length ? 1 : 0,
+      status: gameTotalPicks.length ? 'green' : 'empty',
+      checks: [
+        {
+          title: 'Total Points Lines',
+          detail: gameTotalPicks.length ? `Best Line: ${gameTotalPicks[0].label} @ ${pct(gameTotalPicks[0].probability, 1)}` : 'Enter Match Total line and odds',
+          status: gameTotalPicks.length ? 'green' : 'empty'
+        }
+      ],
+      top: topPick(gameTotalPicks)
+    },
+    {
+      key: 'B',
+      title: 'Match Handicap (Spread)',
+      tag: 'Spread',
+      score: handicapPicks.length,
+      completed: handicapPicks.length,
+      ratio: handicapPicks.length ? 1 : 0,
+      status: handicapPicks.length ? 'green' : 'empty',
+      checks: [
+        {
+          title: 'Handicap Line',
+          detail: handicapPicks.length ? `Best Spread: ${handicapPicks[0].label} @ ${pct(handicapPicks[0].probability, 1)}` : 'Enter Handicap line and odds',
+          status: handicapPicks.length ? 'green' : 'empty'
+        }
+      ],
+      top: topPick(handicapPicks)
+    },
+    {
+      key: 'C',
+      title: 'Team Total Points',
+      tag: 'Team Totals',
+      score: homeTotalPicks.length + awayTotalPicks.length,
+      completed: homeTotalPicks.length + awayTotalPicks.length,
+      ratio: homeTotalPicks.length + awayTotalPicks.length ? 1 : 0,
+      status: homeTotalPicks.length + awayTotalPicks.length ? 'green' : 'empty',
+      checks: [
+        {
+          title: 'Home / Away Team Totals',
+          detail: homeTotalPicks[0] ? `Home: ${homeTotalPicks[0].label} (${pct(homeTotalPicks[0].probability, 1)})` : 'Enter Team Total odds',
+          status: homeTotalPicks.length ? 'green' : 'empty'
+        }
+      ],
+      top: topPick([...homeTotalPicks, ...awayTotalPicks])
+    },
+    {
+      key: 'D',
+      title: 'Overtime & Winner Alignment',
+      tag: 'Winner / OT',
+      score: winnerPicks.length + regPicks.length,
+      completed: winnerPicks.length + regPicks.length,
+      ratio: winnerPicks.length + regPicks.length ? 1 : 0,
+      status: winnerPicks.length + regPicks.length ? 'green' : 'empty',
+      checks: [],
+      top: topPick(winnerPicks) ?? bestTotal
+    }
+  ];
+
+  return finishAnalysis(scope, profiles, allPicks, 70, 58);
+}
+
+/* ========================= VIRTUAL FOOTBALL (PULSE LINE) ========================= */
+
+export function analyzeVirtualFootball(scope: ScopeState): Analysis {
+  const m15 = scope.markets.mainTotal15;
+  const m25 = scope.markets.mainTotal25;
+  const h05 = scope.markets.homeTotal05;
+  const a05 = scope.markets.awayTotal05;
+  const btts = scope.markets.btts;
+
+  const targetPicks: Pick[] = [
+    ...(m15?.pairs?.[0] ? analyzeLines(m15) : []),
+    ...(m25?.pairs?.[0] ? analyzeLines(m25) : []),
+    ...(h05?.pairs?.[0] ? analyzeLines(h05) : []),
+    ...(a05?.pairs?.[0] ? analyzeLines(a05) : []),
+    ...(btts ? analyzeOddsMarket(btts, { yes: 'BTTS Yes (GG)', no: 'BTTS No (NG)' }) : [])
+  ];
+
+  const csGrid = analyzeOddsMarket(scope.markets.correctScore ?? { id: 'correctScore', kind: 'correctScore', title: '' }, Object.fromEntries([...FOOTBALL_SCORES, 'Other'].map((s) => [s, s])));
+  const resultPicks = analyzeOddsMarket(scope.markets.result ?? { id: 'result', kind: 'threeway', title: '' }, { home: 'Home Win', draw: 'Draw', away: 'Away Win' });
+
+  const allPicks = [...targetPicks, ...csGrid, ...resultPicks].map(withEv).sort((a, b) => b.probability - a.probability);
+
+  const profiles: Profile[] = [
+    {
+      key: 'A',
+      title: 'Virtual Goal Lines (1.5 / 2.5)',
+      tag: 'Match Goals',
+      score: targetPicks.length,
+      completed: targetPicks.length,
+      ratio: targetPicks.length ? 1 : 0,
+      status: targetPicks.length ? 'green' : 'empty',
+      checks: [
+        {
+          title: 'Goal Lines Entry',
+          detail: targetPicks.length ? `Best Goal Line: ${targetPicks[0].label} @ ${pct(targetPicks[0].probability, 1)}` : 'Enter Over 1.5 or Over 2.5 odds',
+          status: targetPicks.length ? 'green' : 'empty'
+        }
+      ],
+      top: topPick(targetPicks)
+    },
+    {
+      key: 'B',
+      title: 'Joint Score Distribution (Grid)',
+      tag: 'CS Grid',
+      score: csGrid.length,
+      completed: csGrid.length,
+      ratio: csGrid.length ? 1 : 0,
+      status: csGrid.length ? 'green' : 'empty',
+      checks: [
+        {
+          title: 'Correct Score Grid',
+          detail: csGrid.length ? `Top Scoreline: ${csGrid[0].label} @ ${pct(csGrid[0].probability, 1)}` : 'Enter Correct Score odds for joint distribution',
+          status: csGrid.length >= 4 ? 'green' : csGrid.length ? 'amber' : 'empty'
+        }
+      ],
+      top: topPick(csGrid)
+    },
+    {
+      key: 'C',
+      title: 'Team Goals & BTTS',
+      tag: 'Team / BTTS',
+      score: targetPicks.filter((p) => p.marketId === 'homeTotal05' || p.marketId === 'awayTotal05' || p.marketId === 'btts').length,
+      completed: targetPicks.filter((p) => p.marketId === 'homeTotal05' || p.marketId === 'awayTotal05' || p.marketId === 'btts').length,
+      ratio: targetPicks.length ? 1 : 0,
+      status: targetPicks.length ? 'green' : 'empty',
+      checks: [],
+      top: topPick(targetPicks.filter((p) => p.marketId === 'btts' || p.marketId === 'homeTotal05' || p.marketId === 'awayTotal05'))
+    },
+    {
+      key: 'D',
+      title: 'Fast-Round Recommendation',
+      tag: 'Top Pick',
+      score: allPicks.length,
+      completed: allPicks.length,
+      ratio: allPicks.length ? 1 : 0,
+      status: allPicks.length ? 'green' : 'empty',
+      checks: [],
+      top: topPick(allPicks)
+    }
+  ];
+
+  return finishAnalysis(scope, profiles, allPicks, 70, 58);
+}
+
+/* ========================= BASEBALL (DIAMOND LINE) ========================= */
+
+export function analyzeBaseball(scope: ScopeState): Analysis {
+  const isRT = scope.id === 'rt';
+  const isF5 = scope.id === 'f5';
+
+  const regPicks = analyzeOddsMarket(scope.markets.regResult ?? { id: 'regResult', kind: 'threeway', title: '' }, { home: 'Home Win (9 Inn)', draw: 'Draw (9 Inn)', away: 'Away Win (9 Inn)' });
+  const winnerPicks = analyzeOddsMarket(scope.markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, { a: 'Home Win (incl. Extra Innings)', b: 'Away Win (incl. Extra Innings)' });
+
+  const gameTotalPicks = analyzeLines(scope.markets.gameTotal ?? { id: 'gameTotal', kind: 'ou', title: '' });
+  const homeTotalPicks = analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' });
+  const awayTotalPicks = analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' });
+  const handicapPicks = analyzeHandicap(scope.markets.handicap ?? { id: 'handicap', kind: 'handicap', title: '' }, 'Home', 'Away');
+
+  const extraInningPicks = analyzeOddsMarket(scope.markets.extraInnings ?? { id: 'extraInnings', kind: 'yesno', title: '' }, { yes: 'Extra Inning — Yes', no: 'Extra Inning — No' });
+  const marginPicks = analyzeOddsMarket(scope.markets.winningMargin ?? { id: 'winningMargin', kind: 'threeway', title: '' }, {
+    h1: 'Home by 1',
+    h2: 'Home by 2',
+    h3: 'Home by 3+',
+    a1: 'Away by 1',
+    a2: 'Away by 2',
+    a3: 'Away by 3+'
+  });
+
+  const allPicks = [...regPicks, ...winnerPicks, ...gameTotalPicks, ...homeTotalPicks, ...awayTotalPicks, ...handicapPicks, ...extraInningPicks, ...marginPicks].map(withEv).sort((a, b) => b.probability - a.probability);
+
+  const drawProb = regPicks.find((p) => p.label.includes('Draw'))?.probability;
+  const directExtraProb = extraInningPicks.find((p) => p.label.includes('Yes'))?.probability;
+
+  const profiles: Profile[] = [
+    {
+      key: 'A',
+      title: isRT ? 'Moneyline & 9-Inning Result' : isF5 ? '1-5 Innings Result' : '1st Inning Result',
+      tag: 'Result',
+      score: regPicks.length + winnerPicks.length,
+      completed: regPicks.length + winnerPicks.length,
+      ratio: regPicks.length + winnerPicks.length ? 1 : 0,
+      status: regPicks.length + winnerPicks.length ? 'green' : 'empty',
+      checks: [
+        {
+          title: 'Moneyline Winner',
+          detail: winnerPicks.length ? `Favoured: ${winnerPicks[0].label} @ ${pct(winnerPicks[0].probability, 1)}` : 'Enter Moneyline odds',
+          status: winnerPicks.length ? 'green' : 'empty'
+        }
+      ],
+      top: topPick([...winnerPicks, ...regPicks])
+    },
+    {
+      key: 'B',
+      title: 'Run Totals (Game & Teams)',
+      tag: 'Total Runs',
+      score: gameTotalPicks.length,
+      completed: gameTotalPicks.length,
+      ratio: gameTotalPicks.length ? 1 : 0,
+      status: gameTotalPicks.length ? 'green' : 'empty',
+      checks: [
+        {
+          title: 'Game Total Runs',
+          detail: gameTotalPicks.length ? `Best Line: ${gameTotalPicks[0].label} @ ${pct(gameTotalPicks[0].probability, 1)}` : 'Enter Game Total line and odds',
+          status: gameTotalPicks.length ? 'green' : 'empty'
+        }
+      ],
+      top: topPick(gameTotalPicks)
+    },
+    {
+      key: 'C',
+      title: 'Run Line (Handicap)',
+      tag: 'Run Line',
+      score: handicapPicks.length,
+      completed: handicapPicks.length,
+      ratio: handicapPicks.length ? 1 : 0,
+      status: handicapPicks.length ? 'green' : 'empty',
+      checks: [
+        {
+          title: 'Run Line Spread',
+          detail: handicapPicks.length ? `Best Spread: ${handicapPicks[0].label} @ ${pct(handicapPicks[0].probability, 1)}` : 'Enter Run Line odds',
+          status: handicapPicks.length ? 'green' : 'empty'
+        }
+      ],
+      top: topPick(handicapPicks)
+    },
+    {
+      key: 'D',
+      title: 'Extra-Innings & Margin Intelligence',
+      tag: 'Extra Innings',
+      score: extraInningPicks.length + marginPicks.length,
+      completed: extraInningPicks.length + marginPicks.length,
+      ratio: extraInningPicks.length + marginPicks.length ? 1 : 0,
+      status: extraInningPicks.length + marginPicks.length ? 'green' : 'empty',
+      checks: [
+        {
+          title: '9-Inning Draw extra-innings signal',
+          detail: drawProb !== undefined ? `Regulation Draw implies ${pct(drawProb, 1)} extra-innings likelihood` : 'Enter 1X2 Regulation odds to extract Draw %',
+          status: drawProb !== undefined ? 'green' : 'empty'
+        },
+        ...(directExtraProb !== undefined
+          ? [
+              {
+                title: 'Direct Extra Inning Market vs 1X2 Draw',
+                detail: `Direct market: ${pct(directExtraProb, 1)} vs 1X2 Draw: ${pct(drawProb ?? 0, 1)}`,
+                status: Math.abs((directExtraProb ?? 0) - (drawProb ?? 0)) <= 8 ? ('green' as Status) : ('red' as Status)
+              }
+            ]
+          : [])
+      ],
+      top: topPick(allPicks)
+    }
+  ];
+
+  return finishAnalysis(scope, profiles, allPicks, 70, 58);
+}
+
 /* ========================= SCOPE FACTORIES ========================= */
 
 const OU_LINE_COUNT = 11;
@@ -1487,14 +1898,106 @@ export function createHockeyScopes(): ScopeState[] {
   return [createHockeyScope('rt', 'Regular Time'), createHockeyScope('p1', '1st Period')];
 }
 
+export function createInstantFootballScopes(): ScopeState[] {
+  return [
+    {
+      id: 'round',
+      title: 'Instant Match Round',
+      markets: {
+        mainTotal05: market('mainTotal05', 'Match Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(1, [0.5]) }),
+        mainTotal15: market('mainTotal15', 'Match Goals — Over / Under 1.5', 'ou', { primary: true, pairs: emptyPairs(1, [1.5]) }),
+        homeTotal05: market('homeTotal05', 'Home Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(1, [0.5]) }),
+        awayTotal05: market('awayTotal05', 'Away Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(1, [0.5]) }),
+        btts: market('btts', 'Both Teams to Score (BTTS GG/NG)', 'yesno', { primary: true, odds: oddsMap(['yes', 'no']) }),
+        tts: market('tts', 'Teams To Score (4-Way)', 'threeway', { odds: oddsMap(['neither', 'homeOnly', 'awayOnly', 'both']) }),
+        result: market('result', 'Match Result 1X2', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) }),
+        correctScore: market('correctScore', 'Correct Score Grid (16 + Other)', 'correctScore', { odds: oddsMap([...FOOTBALL_SCORES, 'Other']) })
+      }
+    }
+  ];
+}
+
+export function createInstantBasketballScopes(): ScopeState[] {
+  return [
+    {
+      id: 'game',
+      title: 'Instant Match Game',
+      markets: {
+        gameTotal: market('gameTotal', 'Match Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(3, [195.5, 205.5, 215.5]) }),
+        handicap: market('handicap', 'Match Handicap (incl. OT)', 'handicap', { primary: true, handicapPairs: emptyHandicaps(3, [-5.5, 0.5, 5.5]) }),
+        homeTotal: market('homeTotal', 'Home Team Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(3, [98.5, 104.5, 110.5]) }),
+        awayTotal: market('awayTotal', 'Away Team Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(3, [98.5, 104.5, 110.5]) }),
+        winner: market('winner', 'Winner (incl. OT)', 'winner', { odds: oddsMap(['a', 'b']) }),
+        regResult: market('regResult', 'Regulation Result (1X2)', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) })
+      }
+    }
+  ];
+}
+
+export function createVirtualFootballScopes(): ScopeState[] {
+  return [
+    {
+      id: 'round',
+      title: 'Virtual Round',
+      markets: {
+        mainTotal15: market('mainTotal15', 'Match Goals — Over / Under 1.5', 'ou', { primary: true, pairs: emptyPairs(1, [1.5]) }),
+        mainTotal25: market('mainTotal25', 'Match Goals — Over / Under 2.5', 'ou', { primary: true, pairs: emptyPairs(1, [2.5]) }),
+        homeTotal05: market('homeTotal05', 'Home Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(1, [0.5]) }),
+        awayTotal05: market('awayTotal05', 'Away Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(1, [0.5]) }),
+        btts: market('btts', 'Both Teams to Score (BTTS GG/NG)', 'yesno', { primary: true, odds: oddsMap(['yes', 'no']) }),
+        result: market('result', 'Match Result 1X2', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) }),
+        correctScore: market('correctScore', 'Correct Score Grid (16 + Other)', 'correctScore', { odds: oddsMap([...FOOTBALL_SCORES, 'Other']) })
+      }
+    }
+  ];
+}
+
+export function createBaseballScope(id: 'rt' | 'f5' | 'f1', title: string): ScopeState {
+  const isRT = id === 'rt';
+  const isF5 = id === 'f5';
+  const totalLines = isRT ? range(6.5, 12.5, 0.5) : isF5 ? range(3.5, 6.5, 0.5) : range(0.5, 1.5, 0.5);
+  const teamLines = isRT ? range(2.5, 6.5, 0.5) : isF5 ? range(1.5, 3.5, 0.5) : range(0.5, 0.5, 0.5);
+
+  const state: ScopeState = {
+    id,
+    title,
+    markets: {
+      gameTotal: market('gameTotal', isRT ? 'Full Game Total Runs' : isF5 ? '1-5 Innings Total Runs' : '1st Inning Total Runs', 'ou', { primary: true, pairs: emptyPairs(3, totalLines.slice(0, 3)) }),
+      homeTotal: market('homeTotal', isRT ? 'Home Team Total Runs' : '1-5 Innings Home Total', 'ou', { primary: true, pairs: emptyPairs(2, teamLines.slice(0, 2)) }),
+      awayTotal: market('awayTotal', isRT ? 'Away Team Total Runs' : '1-5 Innings Away Total', 'ou', { primary: true, pairs: emptyPairs(2, teamLines.slice(0, 2)) }),
+      regResult: market('regResult', isRT ? 'Regulation Result (9 Innings 1X2)' : '1-5 Innings Result 1X2', 'threeway', { primary: true, odds: oddsMap(['home', 'draw', 'away']) }),
+      handicap: market('handicap', isRT ? 'Full Game Run Line (Handicap)' : '1-5 Innings Handicap', 'handicap', { handicapPairs: emptyHandicaps(3, [-1.5, 0.5, 1.5]) })
+    }
+  };
+
+  if (isRT) {
+    state.markets.winner = market('winner', 'Winner (incl. Extra Innings)', 'winner', { primary: true, odds: oddsMap(['a', 'b']) });
+    state.markets.extraInnings = market('extraInnings', 'Will There Be Extra Innings?', 'yesno', { odds: oddsMap(['yes', 'no']) });
+    state.markets.winningMargin = market('winningMargin', 'Winning Margin (6-Way)', 'threeway', { odds: oddsMap(['h1', 'h2', 'h3', 'a1', 'a2', 'a3']) });
+  }
+
+  return state;
+}
+
+export function createBaseballScopes(): ScopeState[] {
+  return [createBaseballScope('rt', 'Regular Time (9 Innings)'), createBaseballScope('f5', '1st 5 Innings'), createBaseballScope('f1', '1st Inning')];
+}
+
 /* ========================= LINE OPTIONS ========================= */
 
 export function lineOptionsFor(sportId: SportId, scopeId: string, marketId: string): number[] {
-  if (sportId === 'football') {
-    if (marketId === 'mainTotal' || marketId === 'homeTotal' || marketId === 'awayTotal') {
+  if (sportId === 'football' || sportId === 'instant-football' || sportId === 'vfootball') {
+    if (marketId.includes('mainTotal') || marketId.includes('Total')) {
       return [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5];
     }
     if (marketId === 'handicap') return [-3.5, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3.5];
+    return [];
+  }
+  if (sportId === 'baseball') {
+    if (marketId === 'gameTotal' || marketId === 'homeTotal' || marketId === 'awayTotal') {
+      return scopeId === 'f1' ? range(0.5, 3.5, 0.5) : scopeId === 'f5' ? range(2.5, 9.5, 0.5) : range(5.5, 16.5, 0.5);
+    }
+    if (marketId === 'handicap') return [-3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5];
     return [];
   }
   if (sportId === 'tennis') {
@@ -1507,8 +2010,8 @@ export function lineOptionsFor(sportId: SportId, scopeId: string, marketId: stri
     if (marketId === 'handicap') return range(-8.5, 8.5, 0.5);
     return [];
   }
-  if (sportId === 'basketball') {
-    if (marketId === 'mainTotal') {
+  if (sportId === 'basketball' || sportId === 'instant-basketball') {
+    if (marketId === 'mainTotal' || marketId === 'gameTotal') {
       if (scopeId === 'q1') return range(26.5, 70.5, 1);
       if (scopeId === 'h1') return range(60.5, 130.5, 1);
       return range(120.5, 260.5, 1);

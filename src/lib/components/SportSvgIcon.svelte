@@ -1,5 +1,5 @@
 <script lang="ts">
-  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey';
+  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball';
 
   let {
     sport = 'football' as SportId,

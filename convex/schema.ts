@@ -10,7 +10,11 @@ export default defineSchema({
       v.literal('basketball'),
       v.literal('tennis'),
       v.literal('rally'),
-      v.literal('hockey')
+      v.literal('hockey'),
+      v.literal('instant-football'),
+      v.literal('instant-basketball'),
+      v.literal('vfootball'),
+      v.literal('baseball')
     ),
     title: v.string(),
     notes: v.optional(v.string()),

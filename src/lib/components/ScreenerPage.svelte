@@ -23,6 +23,10 @@
     analyzeTennis,
     analyzeRally,
     analyzeHockey,
+    analyzeInstantFootball,
+    analyzeInstantBasketball,
+    analyzeVirtualFootball,
+    analyzeBaseball,
     buildConfluenceLedger,
     sortCandidatesByTierAndProbability,
     clearScopes,
@@ -52,7 +56,7 @@
   } = $props();
 
   // Derive the SportId union for SVG icon
-  type SportIconId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey';
+  type SportIconId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball';
   const iconId = $derived(sportId as SportIconId);
 
   let scopes: ScopeState[] = $state([]);
@@ -70,6 +74,10 @@
     else if (sid === 'basketball') res = analyzeBasketball(s);
     else if (sid === 'tennis') res = analyzeTennis(s);
     else if (sid === 'hockey') res = analyzeHockey(s);
+    else if (sid === 'instant-football') res = analyzeInstantFootball(s);
+    else if (sid === 'instant-basketball') res = analyzeInstantBasketball(s);
+    else if (sid === 'vfootball') res = analyzeVirtualFootball(s);
+    else if (sid === 'baseball') res = analyzeBaseball(s);
     else res = analyzeRally(s);
 
     const masterLedger = buildConfluenceLedger(sid, s, scopes);

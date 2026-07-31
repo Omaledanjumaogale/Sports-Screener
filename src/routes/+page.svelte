@@ -28,7 +28,16 @@
   // Svelte 5: typed page data from +page.ts load()
   const { data }: { data: PageData } = $props();
 
-  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey';
+  type SportId =
+    | 'football'
+    | 'basketball'
+    | 'tennis'
+    | 'rally'
+    | 'hockey'
+    | 'instant-football'
+    | 'instant-basketball'
+    | 'vfootball'
+    | 'baseball';
 
   const sports: {
     id: SportId;
@@ -41,7 +50,7 @@
     {
       id: 'football',
       short: 'Football',
-      title: 'Football Screener',
+      title: 'Football Matchday Screener V4',
       description: 'Half-time and full-time profile analysis. Correct score clusters, BTTS, 5-lamp scoreboards, and live market ranking.',
       accent: '#22c55e',
       path: '/football'
@@ -49,7 +58,7 @@
     {
       id: 'basketball',
       short: 'Basketball',
-      title: 'Basketball Screener',
+      title: 'Basketball Matchday Screener V1',
       description: 'Market Expected Total (MET) analysis. Team totals, quarter pace, spread ranking — all in one view.',
       accent: '#f97316',
       path: '/basketball'
@@ -57,7 +66,7 @@
     {
       id: 'tennis',
       short: 'Tennis',
-      title: 'Tennis Screener',
+      title: 'Tennis Matchday Screener V1',
       description: 'Market Expected Games (MEG), correct score intelligence, surface modifiers, and dual tiebreak signals.',
       accent: '#e879f9',
       path: '/tennis'
@@ -65,7 +74,7 @@
     {
       id: 'rally',
       short: 'Rally / TT',
-      title: 'Table Tennis Screener',
+      title: 'Table Tennis Screener V2',
       description: 'Full match and first-set multi-market screening. Safest pick, margin rank, sweep shapes and set metrics.',
       accent: '#38bdf8',
       path: '/rally'
@@ -73,22 +82,46 @@
     {
       id: 'hockey',
       short: 'Hockey',
-      title: 'Ice Hockey Screener',
+      title: 'Ice Hockey Matchday Screener V1',
       description: 'Puck line handicap, 3-period goal pace, Overtime Intelligence P(OT), and CS Reconciliation.',
       accent: '#06b6d4',
       path: '/hockey'
+    },
+    {
+      id: 'instant-football',
+      short: 'Flash Line',
+      title: 'Instant Football Screener (v1)',
+      description: '5 target selections focus (Over 0.5/1.5, BTTS, Team Over 0.5) with Teams To Score 4-way triangulation engine.',
+      accent: '#10b981',
+      path: '/instant-football'
+    },
+    {
+      id: 'instant-basketball',
+      short: 'Court Line',
+      title: 'Instant Basketball Screener (v1)',
+      description: '4 target markets (Match Total, Handicap, Team Totals) with OT Regulation Draw consistency check.',
+      accent: '#f59e0b',
+      path: '/instant-basketball'
+    },
+    {
+      id: 'vfootball',
+      short: 'Pulse Line',
+      title: 'Virtual Football Screener (v1)',
+      description: 'Fast 3-minute round screening (Over 1.5/2.5, BTTS) with 16-scoreline joint distribution grid.',
+      accent: '#06b6d4',
+      path: '/vfootball'
+    },
+    {
+      id: 'baseball',
+      short: 'Diamond Line',
+      title: 'Baseball Enterprise Screener (v1)',
+      description: '21 baseball markets across 9-Inning, 1-5 Innings, 1st Inning, and Extra-Innings Draw probability extraction.',
+      accent: '#8b5cf6',
+      path: '/baseball'
     }
   ];
 
-  const comingSoonSports = [
-    {
-      short: 'Baseball',
-      title: 'Baseball Screener',
-      description: 'Run line spread, 9-inning total runs, starting pitcher ERA weighting, and extra-inning margins.',
-      accent: '#e11d48',
-      emoji: '⚾'
-    }
-  ];
+  const comingSoonSports: Array<{ short: string; title: string; description: string; accent: string; emoji: string }> = [];
 
   function nav(p: string) {
     try {
