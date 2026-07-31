@@ -2,7 +2,7 @@
 // Edge Function — runs at the Cloudflare edge on every request.
 // Route: POST /api/ai-analyze
 // Provider chain:
-//   1. Agnes AI  (primary  — OpenAI-compatible, enterprise grade)
+//   1. Agnes AI   (primary  — OpenAI-compatible, enterprise grade)
 //   2. OpenRouter (secondary — free Mistral fallback)
 //   3. Cloudflare AI binding (tertiary — native CF Workers AI)
 //   4. Cloudflare REST API  (quaternary — token-based CF AI)
@@ -35,6 +35,8 @@ async function callAgnesAi(messages, max_tokens, temperature, env) {
     headers: {
       Authorization: `Bearer ${agnesKey}`,
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 PulseOdds/1.0',
       'X-Title': 'PulseOdds Screener'
     },
     body: JSON.stringify({
@@ -47,7 +49,7 @@ async function callAgnesAi(messages, max_tokens, temperature, env) {
 
   if (!res.ok) {
     const errRaw = await res.text().catch(() => '');
-    console.error('[AI Copilot] Agnes AI request failed:', res.status, safeStringify(errRaw).slice(0, 300));
+    console.error('[AI Copilot] Agnes AI request failed:', res.status, safeStringify(errRaw).slice(0, 200));
     return null;
   }
 
@@ -72,6 +74,8 @@ async function callOpenRouter(messages, max_tokens, temperature, env) {
     headers: {
       Authorization: `Bearer ${orKey}`,
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 PulseOdds/1.0',
       'HTTP-Referer': 'https://pulseodds.pages.dev',
       'X-Title': 'PulseOdds Screener'
     },
@@ -85,7 +89,7 @@ async function callOpenRouter(messages, max_tokens, temperature, env) {
 
   if (!res.ok) {
     const errRaw = await res.text().catch(() => '');
-    console.error('[AI Copilot] OpenRouter failed:', res.status, safeStringify(errRaw).slice(0, 300));
+    console.error('[AI Copilot] OpenRouter failed:', res.status, safeStringify(errRaw).slice(0, 200));
     return null;
   }
 
@@ -208,7 +212,8 @@ export async function onRequestPost(context) {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${cfToken}`,
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
             },
             body: JSON.stringify({ messages, max_tokens, temperature })
           }
