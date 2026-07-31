@@ -1,9 +1,33 @@
 const AUTH_STORAGE_KEY = 'pulseodds_auth_session_v1';
 export const SUPER_ADMIN_EMAIL = 'omaledanjumaogale@gmail.com';
+export const TESTER_EMAIL = 'tester@gmail.com';
+export const TESTER_PASSWORD = 'Share&getbloacked#';
+const TESTER_TRIAL_START_KEY = 'pulseodds_tester_trial_start_v1';
 
 export function isSuperAdminEmail(email?: string): boolean {
   if (!email) return false;
   return email.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
+}
+
+export function isTesterEmail(email?: string): boolean {
+  if (!email) return false;
+  return email.trim().toLowerCase() === TESTER_EMAIL;
+}
+
+export function getTesterTrialExpiresAt(): number {
+  if (typeof window === 'undefined') return Date.now() + 30 * 24 * 60 * 60 * 1000;
+  let start = 0;
+  try {
+    const raw = localStorage.getItem(TESTER_TRIAL_START_KEY);
+    if (raw) start = parseInt(raw, 10);
+    if (!start || isNaN(start)) {
+      start = Date.now();
+      localStorage.setItem(TESTER_TRIAL_START_KEY, start.toString());
+    }
+  } catch (_) {
+    start = Date.now();
+  }
+  return start + 30 * 24 * 60 * 60 * 1000; // 1 month (30 days)
 }
 
 export interface UserSession {
@@ -18,6 +42,7 @@ export interface UserSession {
   createdAt?: number;
   isSubscribed?: boolean;
   isAdmin?: boolean;
+  isTester?: boolean;
   subscriptionExpiresAt?: number;
   txRef?: string;
 }
@@ -38,9 +63,16 @@ export function initAuth() {
       const data = JSON.parse(raw);
       if (data && data.user && data.token) {
         const isAdmin = isSuperAdminEmail(data.user.email);
+        const isTester = isTesterEmail(data.user.email);
         if (isAdmin) {
           data.user.isSubscribed = true;
           data.user.isAdmin = true;
+        } else if (isTester) {
+          const expAt = getTesterTrialExpiresAt();
+          const now = Date.now();
+          data.user.isTester = true;
+          data.user.subscriptionExpiresAt = expAt;
+          data.user.isSubscribed = now <= expAt;
         } else {
           // Check if subscription has expired for normal users
           const now = Date.now();
@@ -64,9 +96,16 @@ export function initAuth() {
 
 export function setAuthenticated(user: UserSession, token: string) {
   const isAdmin = isSuperAdminEmail(user.email);
+  const isTester = isTesterEmail(user.email);
   if (isAdmin) {
     user.isSubscribed = true;
     user.isAdmin = true;
+  } else if (isTester) {
+    const expAt = getTesterTrialExpiresAt();
+    const now = Date.now();
+    user.isTester = true;
+    user.subscriptionExpiresAt = expAt;
+    user.isSubscribed = now <= expAt;
   }
 
   authState.isAuthenticated = true;
@@ -86,14 +125,16 @@ export function setAuthenticated(user: UserSession, token: string) {
 export function setSubscribedStatus(isSubscribed: boolean, txRef?: string, durationDays = 30) {
   if (!authState.user) return;
   const isAdmin = isSuperAdminEmail(authState.user.email);
+  const isTester = isTesterEmail(authState.user.email);
   const now = Date.now();
-  const expiresAt = now + durationDays * 24 * 60 * 60 * 1000;
+  const expiresAt = isTester ? getTesterTrialExpiresAt() : (now + durationDays * 24 * 60 * 60 * 1000);
 
   authState.user = {
     ...authState.user,
-    isSubscribed: isAdmin || isSubscribed,
+    isSubscribed: isAdmin || (isTester ? now <= expiresAt : isSubscribed),
     isAdmin: isAdmin || authState.user.isAdmin,
-    subscriptionExpiresAt: isAdmin ? undefined : (isSubscribed ? expiresAt : undefined),
+    isTester: isTester || authState.user.isTester,
+    subscriptionExpiresAt: isAdmin ? undefined : expiresAt,
     txRef: txRef ?? authState.user.txRef
   };
 

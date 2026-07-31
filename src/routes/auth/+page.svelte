@@ -2,7 +2,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { ShieldAlert, LogIn, UserPlus, Eye, EyeOff, ArrowLeft, Crown } from '@lucide/svelte';
-  import { setAuthenticated, isSuperAdminEmail } from '$lib/authStore.svelte';
+  import { setAuthenticated, isSuperAdminEmail, isTesterEmail, TESTER_PASSWORD, getTesterTrialExpiresAt } from '$lib/authStore.svelte';
   import { notify } from '$lib/notificationStore';
   import { getConvexClient, api } from '$lib/convexClient';
 
@@ -37,7 +37,9 @@
     loading = true;
     error = null;
 
-    const isAdmin = isSuperAdminEmail(email.trim());
+    const cleanEmail = email.trim().toLowerCase();
+    const isAdmin = isSuperAdminEmail(cleanEmail);
+    const isTester = isTesterEmail(cleanEmail);
 
     // Enforce super admin password — email alone is not sufficient
     if (isAdmin && password !== _sa) {
@@ -47,7 +49,24 @@
       return;
     }
 
-    if (isSignUp && !isAdmin) {
+    // Enforce tester account password and 1-month trial period check
+    if (isTester) {
+      if (password !== TESTER_PASSWORD) {
+        error = 'Invalid credentials for tester account. Access denied.';
+        notify('Invalid password for tester account.', 'error', 'Authentication Error');
+        loading = false;
+        return;
+      }
+      const expAt = getTesterTrialExpiresAt();
+      if (Date.now() > expAt) {
+        error = 'The 1-month free trial period for tester@gmail.com has expired. Please sign up with your own account and subscribe.';
+        notify('Tester free trial period has expired. Please create your own account and subscribe.', 'warning', 'Trial Expired');
+        loading = false;
+        return;
+      }
+    }
+
+    if (isSignUp && !isAdmin && !isTester) {
       if (!fullName.trim() || !mobile.trim() || !dob.trim() || !stateOfResidence || !consentAccepted) {
         error = 'Please fill out all required fields and accept the consent agreement.';
         loading = false;
@@ -60,52 +79,61 @@
       let userId = 'user_' + Math.random().toString(36).slice(2, 10);
       let isSubscribed = isAdmin;
 
-      try {
-        const client = await getConvexClient();
-        
-        // Attempt Convex auth signIn / signUp
-        const res = await client.mutation('auth:signIn', { 
-          provider: 'password', 
-          email: email.trim(), 
-          password, 
-          flow: isSignUp ? 'signUp' : 'signIn' 
-        });
-        if (res?.token) token = res.token;
-        if (res?.userId) userId = res.userId;
-
-        if (isSignUp) {
-          // Record profile details in Convex database
-          await client.mutation(api.users.registerProfile, {
-            email: email.trim(),
-            fullName: fullName.trim() || 'Super Admin',
-            mobile: mobile.trim() || '+2348000000000',
-            dob: dob || '1990-01-01',
-            stateOfResidence: stateOfResidence || 'Lagos',
-            consentAccepted: true,
-            userId
+      if (isTester) {
+        const expAt = getTesterTrialExpiresAt();
+        isSubscribed = Date.now() <= expAt;
+      } else {
+        try {
+          const client = await getConvexClient();
+          
+          // Attempt Convex auth signIn / signUp
+          const res = await client.mutation('auth:signIn', { 
+            provider: 'password', 
+            email: cleanEmail, 
+            password, 
+            flow: isSignUp ? 'signUp' : 'signIn' 
           });
-        } else if (!isAdmin) {
-          // Check subscription status on login for normal users
-          const sub = await client.query((api as any).users.checkSubscription, { email: email.trim() });
-          if (sub?.isSubscribed) {
-            isSubscribed = true;
+          if (res?.token) token = res.token;
+          if (res?.userId) userId = res.userId;
+
+          if (isSignUp) {
+            // Record profile details in Convex database
+            await client.mutation(api.users.registerProfile, {
+              email: cleanEmail,
+              fullName: fullName.trim() || 'Super Admin',
+              mobile: mobile.trim() || '+2348000000000',
+              dob: dob || '1990-01-01',
+              stateOfResidence: stateOfResidence || 'Lagos',
+              consentAccepted: true,
+              userId
+            });
+          } else if (!isAdmin) {
+            // Check subscription status on login for normal users
+            const sub = await client.query((api as any).users.checkSubscription, { email: cleanEmail });
+            if (sub?.isSubscribed) {
+              isSubscribed = true;
+            }
           }
+        } catch (_e) {
+          console.warn('Convex backend offline or dev mode fallback active');
         }
-      } catch (_e) {
-        console.warn('Convex backend offline or dev mode fallback active');
       }
+
+      const testerExpAt = isTester ? getTesterTrialExpiresAt() : undefined;
 
       const user = {
         id: userId,
-        email: email.trim(),
-        fullName: isSignUp ? (fullName.trim() || (isAdmin ? 'Super Admin' : email.split('@')[0])) : (isAdmin ? 'Super Admin' : email.split('@')[0]),
+        email: cleanEmail,
+        fullName: isSignUp ? (fullName.trim() || (isAdmin ? 'Super Admin' : isTester ? 'Tester User' : cleanEmail.split('@')[0])) : (isAdmin ? 'Super Admin' : isTester ? 'Tester User' : cleanEmail.split('@')[0]),
         mobile: mobile.trim() || undefined,
         dob: dob || undefined,
         stateOfResidence: stateOfResidence || undefined,
         consentAccepted: true,
-        name: isAdmin ? 'Super Admin' : (fullName.trim() || email.split('@')[0]),
+        name: isAdmin ? 'Super Admin' : isTester ? 'Tester User' : (fullName.trim() || cleanEmail.split('@')[0]),
         isSubscribed: isAdmin || isSubscribed,
         isAdmin,
+        isTester,
+        subscriptionExpiresAt: testerExpAt,
         createdAt: Date.now()
       };
 
@@ -119,6 +147,14 @@
           6000
         );
         void goto('/');
+      } else if (isTester) {
+        notify(
+          'Welcome, Tester! 1-month free trial pass active. Full unrestricted access granted to all screeners.',
+          'success',
+          'Tester Free Access Granted (1 Month Trial)',
+          7000
+        );
+        void goto('/football');
       } else if (isSignUp) {
         notify(
           'Account created successfully! Redirecting you to complete your ₦5,000 monthly subscription donation to unlock sports screeners.',

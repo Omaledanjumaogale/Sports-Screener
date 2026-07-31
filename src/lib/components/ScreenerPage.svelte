@@ -168,6 +168,16 @@
     }
 
     if (!authState.user?.isSubscribed) {
+      if (authState.user?.isTester) {
+        notify(
+          'Your 1-month free trial for tester@gmail.com has expired. Please sign up with your own account and subscribe to continue using PulseOdds screeners.',
+          'warning',
+          'Free Trial Expired'
+        );
+        void goto('/auth?mode=signup&redirect=checkout');
+        return;
+      }
+
       // Re-verify against Convex DB in case user paid via webhook
       if (authState.user?.email) {
         try {
