@@ -416,7 +416,6 @@
       <section class="markets" aria-label="Market inputs">
         {#each Object.values(scope.markets) as m (m.id)}
           {#if !(sportId === 'basketball' && (m.id === 'correctScore' || m.id === 'tiebreak'))}
-            {#if !(sportId === 'football' && scope.id !== 'ft' && ['homeTotal', 'awayTotal', 'btts'].includes(m.id))}
               <MarketAccordion title={m.title} primary={!!m.primary} open={false} {accent}>
                 {#if m.kind === 'ou' && m.pairs}
                   <div class="line-list">
@@ -482,7 +481,6 @@
                   {/if}
                 {/if}
               </MarketAccordion>
-            {/if}
           {/if}
         {/each}
       </section>

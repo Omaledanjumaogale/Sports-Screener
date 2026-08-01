@@ -180,7 +180,7 @@ export function autoFillLinePairs(
   if (!step || step <= 0) step = 1.0;
   for (let i = 0; i < pairs.length; i++) {
     if (i === changedIndex || pairs[i].lineLocked) continue;
-    pairs[i].line = round(val + (i - changedIndex) * step, 1);
+    pairs[i].line = round(Math.max(0.5, val + (i - changedIndex) * step), 1);
   }
 }
 
@@ -1856,7 +1856,7 @@ export function createFootballScope(id: 'h1' | 'h2' | 'ft', title: string): Scop
       awayTotal: market('awayTotal', 'Away Team Goals — Over / Under', 'ou', { pairs: emptyPairs(FOOTBALL_TOTAL_LINES.length, FOOTBALL_TOTAL_LINES) }),
       result: market('result', '1X2 Result', 'threeway', { primary: true, odds: oddsMap(['home', 'draw', 'away']) }),
       doubleChance: market('doubleChance', 'Double Chance', 'threeway', { odds: oddsMap(['hd', 'ha', 'da']) }),
-      handicap: market('handicap', 'Asian Handicap', 'handicap', { handicapPairs: emptyHandicaps(OU_LINE_COUNT, [-5.0, -4.0, -3.0, -2.0, -1.0, -0.5, 0, 0.5, 1.0, 2.0, 3.0]) }),
+      handicap: market('handicap', 'Asian Handicap', 'handicap', { handicapPairs: emptyHandicaps(7, [0, -0.5, 0.5, -1, 1, -1.5, 1.5]) }),
       correctScore: market('correctScore', 'Correct Score Grid (9 cells)', 'correctScore', { odds: oddsMap(FOOTBALL_SCORES) })
     }
   };
@@ -2133,7 +2133,7 @@ function computeLineOptions(sportId: SportId, scopeId: string, marketId: string)
     if (marketId === 'mainTotal' || marketId === 'homeTotal' || marketId === 'awayTotal') {
       return FOOTBALL_TOTAL_LINES;
     }
-    if (marketId === 'handicap') return [-3.5, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3.5];
+    if (marketId === 'handicap') return [-3.5, -2.5, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2.5, 3.5];
     return [];
   }
   if (sportId === 'baseball') {
