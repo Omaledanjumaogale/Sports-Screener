@@ -2164,12 +2164,12 @@ function computeLineOptions(sportId: SportId, scopeId: string, marketId: string)
   }
   if (sportId === 'basketball' || sportId === 'instant-basketball') {
     if (marketId === 'mainTotal' || marketId === 'gameTotal') {
-      if (scopeId === 'q1') return range(26.5, 70.5, 1);
-      if (scopeId === 'h1') return range(60.5, 130.5, 1);
+      if (scopeId === 'q1') return range(12.5, 65.5, 1);
+      if (scopeId === 'h1') return range(24.5, 130.5, 1);
       return range(120.5, 260.5, 1);
     }
     if (marketId === 'homeTotal' || marketId === 'awayTotal') {
-      if (scopeId === 'q1') return range(4.5, 40.5, 1);
+      if (scopeId === 'q1') return range(6.5, 55.5, 1);
       if (scopeId === 'h1') return range(24.5, 80.5, 1);
       return range(50.5, 144.5, 1);
     }
