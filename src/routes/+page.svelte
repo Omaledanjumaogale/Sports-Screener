@@ -10,7 +10,7 @@
   import { authState, setUnauthenticated } from '$lib/authStore.svelte';
   import { convexSignOut } from '$lib/convexClient';
   import { notify } from '$lib/notificationStore';
-  import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User } from '@lucide/svelte';
+  import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User, MessageSquare } from '@lucide/svelte';
   import type { PageData } from './$types';
 
   function handleDonateClick() {
@@ -402,6 +402,16 @@
           <HeartHandshake size={20} />
           Donate ₦5,000 / Month & Get Access
         </button>
+
+        <a
+          href="https://wa.me/2349025152818?text=Hello%20Founder%2C%20I%20have%20an%20enquiry%20regarding%20PulseOdds%20Screener"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn-whatsapp"
+        >
+          <MessageSquare size={20} />
+          Chat / Make Enquiries with Founder on WhatsApp
+        </a>
       </div>
     </section>
 
@@ -982,6 +992,38 @@
     box-shadow: 0 12px 32px -4px color-mix(in srgb, var(--c-orange) 65%, transparent);
   }
   .btn-donate:active { transform: scale(0.98); }
+
+  .btn-whatsapp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 480px;
+    min-height: 50px;
+    margin-top: 12px;
+    padding: 12px 24px;
+    border-radius: 14px;
+    background: #25d366;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    font-size: 14.5px;
+    font-weight: 800;
+    font-family: var(--font-brand, 'Outfit', system-ui);
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: 0 8px 24px -4px rgba(37, 211, 102, 0.4);
+    transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+    position: relative;
+    z-index: 1;
+  }
+  .btn-whatsapp:hover {
+    background: #22c55e;
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px -4px rgba(37, 211, 102, 0.6);
+    color: #ffffff;
+  }
+  .btn-whatsapp:active { transform: scale(0.98); }
 
   /* ── Disclaimer Section ────────────────────────────────────── */
   .disclaimer-card {

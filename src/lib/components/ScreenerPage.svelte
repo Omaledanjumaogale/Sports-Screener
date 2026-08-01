@@ -321,7 +321,8 @@
     basketball: ['Team 1', 'Team 2'],
     tennis: ['Player 1', 'Player 2'],
     rally: ['Player A', 'Player B'],
-    hockey: ['Team 1', 'Team 2']
+    hockey: ['Team 1', 'Team 2'],
+    baseball: ['Home', 'Away']
   };
 </script>
 
@@ -423,7 +424,10 @@
                         index={index}
                         onChange={onChangeAny}
                         onAutoFillLine={(i, v) => {
-                          if (m.pairs) autoFillLinePairs(m.pairs, i, v);
+                          if (m.pairs) autoFillLinePairs(
+                            m.pairs, i, v,
+                            (sportId === 'basketball' || sportId === 'instant-basketball' || sportId === 'tennis') ? 1 : undefined
+                          );
                           refresh();
                         }}
                       />
@@ -440,7 +444,10 @@
                         index={index}
                         onChange={onChangeAny}
                         onAutoFillLine={(i, v) => {
-                          if (m.handicapPairs) autoFillHandicapPairs(m.handicapPairs, i, v);
+                          if (m.handicapPairs) autoFillHandicapPairs(
+                            m.handicapPairs, i, v,
+                            (sportId === 'basketball' || sportId === 'instant-basketball' || sportId === 'tennis') ? 1 : undefined
+                          );
                           refresh();
                         }}
                       />

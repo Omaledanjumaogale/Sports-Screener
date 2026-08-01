@@ -160,47 +160,62 @@ export function emptyHandicaps(count: number, lines: number[] = []): HandicapPai
 
 // ── Smart Auto-fill: line cascade ────────────────────────────────────────────
 // When any LinePair.line is set, all other rows fill with (val ± diff * step).
+// Pass forcedStep to override the inferred step (e.g. basketball & tennis use 1).
 export function autoFillLinePairs(
   pairs: LinePair[],
   changedIndex: number,
-  val: number | null
+  val: number | null,
+  forcedStep?: number
 ): void {
   if (val === null || !pairs || pairs.length < 2) return;
 
-  // Infer step from first two defined lines, default to 1.0
-  let step = 1.0;
-  const existing = pairs.filter((p) => p.line !== null);
-  if (existing.length >= 2) {
-    const idxA = pairs.indexOf(existing[0]);
-    const idxB = pairs.indexOf(existing[1]);
-    if (idxA !== idxB) {
-      step = Math.abs((existing[1].line! - existing[0].line!) / (idxB - idxA));
+  // Use forcedStep if provided, otherwise infer from existing lines, default 1.0
+  let step: number;
+  if (forcedStep !== undefined && forcedStep > 0) {
+    step = forcedStep;
+  } else {
+    step = 1.0;
+    const existing = pairs.filter((p) => p.line !== null);
+    if (existing.length >= 2) {
+      const idxA = pairs.indexOf(existing[0]);
+      const idxB = pairs.indexOf(existing[1]);
+      if (idxA !== idxB) {
+        step = Math.abs((existing[1].line! - existing[0].line!) / (idxB - idxA));
+      }
     }
+    if (!step || step <= 0) step = 1.0;
   }
-  if (!step || step <= 0) step = 1.0;
   for (let i = 0; i < pairs.length; i++) {
     if (i === changedIndex || pairs[i].lineLocked) continue;
-    pairs[i].line = round(Math.max(0.5, val + (i - changedIndex) * step), 1);
+    // Use a lower bound of 0.5 only for non-basketball (basketball lines are > 100)
+    const raw = round(val + (i - changedIndex) * step, 1);
+    pairs[i].line = raw < 0.5 ? round(0.5, 1) : raw;
   }
 }
 
 export function autoFillHandicapPairs(
   pairs: HandicapPair[],
   changedIndex: number,
-  val: number | null
+  val: number | null,
+  forcedStep?: number
 ): void {
   if (val === null || !pairs || pairs.length < 2) return;
 
-  let step = 1.0;
-  const existing = pairs.filter((p) => p.line !== null);
-  if (existing.length >= 2) {
-    const idxA = pairs.indexOf(existing[0]);
-    const idxB = pairs.indexOf(existing[1]);
-    if (idxA !== idxB) {
-      step = Math.abs((existing[1].line! - existing[0].line!) / (idxB - idxA));
+  let step: number;
+  if (forcedStep !== undefined && forcedStep > 0) {
+    step = forcedStep;
+  } else {
+    step = 1.0;
+    const existing = pairs.filter((p) => p.line !== null);
+    if (existing.length >= 2) {
+      const idxA = pairs.indexOf(existing[0]);
+      const idxB = pairs.indexOf(existing[1]);
+      if (idxA !== idxB) {
+        step = Math.abs((existing[1].line! - existing[0].line!) / (idxB - idxA));
+      }
     }
+    if (!step || step <= 0) step = 1.0;
   }
-  if (!step || step <= 0) step = 1.0;
   for (let i = 0; i < pairs.length; i++) {
     if (i === changedIndex || pairs[i].lineLocked) continue;
     pairs[i].line = round(val + (i - changedIndex) * step, 1);
@@ -858,35 +873,41 @@ export function analyzeTennis(scope: ScopeState): Analysis {
 /* ========================= RALLY / TABLE TENNIS ========================= */
 
 export function analyzeRally(scope: ScopeState): Analysis {
-  const allPicks = Object.values(scope.markets)
+  // Guard: ensure markets object exists
+  const markets = scope.markets ?? {};
+
+  const allPicks = Object.values(markets)
     .flatMap((market) => {
-      if (market.kind === 'ou') return analyzeLines(market);
-      if (market.kind === 'handicap') return analyzeHandicap(market, 'Player A', 'Player B');
-      if (market.kind === 'winner') return analyzeOddsMarket(market, { a: 'Player A Wins', b: 'Player B Wins' });
-      if (market.kind === 'threeway') return analyzeOddsMarket(market, { home: 'Home', draw: 'Draw', away: 'Away' });
-      if (market.kind === 'yesno') return analyzeOddsMarket(market, { yes: 'Yes', no: 'No' });
-      if (market.kind === 'correctScore') return analyzeOddsMarket(market, Object.fromEntries(RALLY_SCORES.map((s) => [s, s])));
+      if (!market) return [];
+      try {
+        if (market.kind === 'ou') return analyzeLines(market);
+        if (market.kind === 'handicap') return analyzeHandicap(market, 'Player A', 'Player B');
+        if (market.kind === 'winner') return analyzeOddsMarket(market, { a: 'Player A Wins', b: 'Player B Wins' });
+        if (market.kind === 'threeway') return analyzeOddsMarket(market, { home: 'Home', draw: 'Draw', away: 'Away' });
+        if (market.kind === 'yesno') return analyzeOddsMarket(market, { yes: 'Yes', no: 'No' });
+        if (market.kind === 'correctScore') return analyzeOddsMarket(market, Object.fromEntries(RALLY_SCORES.map((s) => [s, s])));
+      } catch (_) { /* ignore individual market errors */ }
       return [];
     })
     .map(withEv)
     .sort((a, b) => b.probability - a.probability);
 
-  const primary = allPicks.filter((pick) => scope.markets[pick.marketId]?.primary);
+  const primary = allPicks.filter((pick) => markets[pick.marketId]?.primary);
   const safest = topPick(primary) ?? topPick(allPicks);
   const bestValue = primary.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allPicks);
 
-  const cs = analyzeOddsMarket(scope.markets.correctScore ?? { id: 'correctScore', kind: 'correctScore', title: '' }, Object.fromEntries(RALLY_SCORES.map((s) => [s, s])));
+  const csMarket = markets.correctScore ?? { id: 'correctScore', kind: 'correctScore' as MarketKind, title: '', odds: {} };
+  const cs = analyzeOddsMarket(csMarket, Object.fromEntries(RALLY_SCORES.map((s) => [s, s])));
   const sweep = cs.filter((p) => p.label === '3-0' || p.label === '0-3').reduce((s, p) => s + p.probability, 0);
-  const fourSet = cs.filter((p) => p.label === '3-1' || p.label === '1-3').reduce((s, p) => s + p.probability, 0);
-  const fiveSet = cs.filter((p) => p.label === '3-2' || p.label === '2-3').reduce((s, p) => s + p.probability, 0);
 
   // Fair-Number Interpolation for Table Tennis Total Points
-  const total = bestExpectedLine(scope.markets.gameTotal?.pairs ?? [], 3.5);
-  const pA = bestExpectedLine(scope.markets.playerATotal?.pairs ?? [], 3.5);
-  const pB = bestExpectedLine(scope.markets.playerBTotal?.pairs ?? [], 3.5);
+  const total = bestExpectedLine((markets.gameTotal?.pairs) ?? [], 3.5);
+  const pA = bestExpectedLine((markets.playerATotal?.pairs) ?? [], 3.5);
+  const pB = bestExpectedLine((markets.playerBTotal?.pairs) ?? [], 3.5);
   const combinedDiff = total && pA && pB ? round(pA.expected + pB.expected - total.expected, 1) : null;
 
-  const tsPicks = analyzeLines(scope.markets.totalSets ?? { id: 'totalSets', kind: 'ou', title: '' });
+  const totalSetsMarket = markets.totalSets ?? { id: 'totalSets', kind: 'ou' as MarketKind, title: '', pairs: [] };
+  const tsPicks = analyzeLines(totalSetsMarket);
   const tsU35 = tsPicks.find((p) => p.label === 'Under 3.5');
   const setsLean = topPick(tsPicks) ?? topPick(cs);
 
@@ -897,7 +918,7 @@ export function analyzeRally(scope: ScopeState): Analysis {
       status: safest ? statusFromPct(safest.probability, 70, 58) : 'empty'
     },
     {
-      title: 'Lowest-Bookies-Cut Value Candidate',
+      title: 'Lowest Bookies Cut Value Candidate',
       detail: bestValue ? `${bestValue.label} (Bookies Cut: ${pct(bestValue.margin, 1)})` : 'Requires 55%+ candidate option',
       status: bestValue ? statusFromPct(bestValue.probability, 65, 55) : 'empty'
     },
@@ -907,12 +928,12 @@ export function analyzeRally(scope: ScopeState): Analysis {
       status: total ? 'green' : 'empty'
     },
     {
-      title: '3-Market Triangulation (Sweep vs Total Sets)',
+      title: '3-Market Check (Sweep vs Total Sets)',
       detail: tsU35 ? `Correct Score Sweep ${pct(sweep, 1)} vs Total Sets U3.5 ${pct(tsU35.probability, 1)}` : 'Enter Total Sets to cross-check',
       status: tsU35 ? (Math.abs(tsU35.probability - sweep) < 15 ? 'green' : 'amber') : 'empty'
     },
     {
-      title: 'Market Inventory Depth',
+      title: 'Market Depth',
       detail: `${allPicks.length} options cross-checked across all markets`,
       status: allPicks.length >= 20 ? 'green' : allPicks.length >= 10 ? 'amber' : allPicks.length ? 'red' : 'empty'
     }
@@ -921,7 +942,7 @@ export function analyzeRally(scope: ScopeState): Analysis {
   const profiles = [
     profileFromChecks('A', 'Safest Selection — Lowest Bookies Cut', checks, 0.72, 0.45, safest, 'Final Verdict'),
     profileFromChecks('B', 'Best Value — Margin-Cost Rank', [], 0.72, 0.45, bestValue, 'Margin Rank'),
-    profileFromChecks('C', 'Match-Shape & Sets Intelligence', [], 0.72, 0.45, setsLean, 'Shape Read'),
+    profileFromChecks('C', 'Match-Shape and Sets Intelligence', [], 0.72, 0.45, setsLean, 'Shape Read'),
     profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topPick(allPicks), 'All Markets')
   ];
 
@@ -946,24 +967,26 @@ export function analyzeHockey(scope: ScopeState): Analysis {
   const teamSumTight = 1.0;
   const teamSumStrong = 2.5;
 
-  const total = bestExpectedLine(scope.markets.mainTotal?.pairs ?? [], zone);
-  const p1 = bestExpectedLine(scope.markets.homeTotal?.pairs ?? [], zone);
-  const p2 = bestExpectedLine(scope.markets.awayTotal?.pairs ?? [], zone);
+  const markets = scope?.markets ?? {};
+
+  const total = bestExpectedLine(markets.mainTotal?.pairs ?? [], zone);
+  const p1 = bestExpectedLine(markets.homeTotal?.pairs ?? [], zone);
+  const p2 = bestExpectedLine(markets.awayTotal?.pairs ?? [], zone);
 
   const ouPicks = [
-    ...analyzeLines(scope.markets.mainTotal ?? { id: 'mainTotal', kind: 'ou', title: '' }),
-    ...analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' }),
-    ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' })
+    ...analyzeLines(markets.mainTotal ?? { id: 'mainTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' })
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
-  const hdp = scope.markets.handicap;
-  const resultPicks = analyzeOddsMarket(scope.markets.result ?? { id: 'result', kind: 'threeway', title: '' }, {
+  const hdp = markets.handicap;
+  const resultPicks = analyzeOddsMarket(markets.result ?? { id: 'result', kind: 'threeway', title: '' }, {
     home: 'Home Win (Reg)',
     draw: 'Draw (Overtime)',
     away: 'Away Win (Reg)'
   });
   const mlPicks = isRT
-    ? analyzeOddsMarket(scope.markets.moneyline ?? { id: 'moneyline', kind: 'winner', title: '' }, {
+    ? analyzeOddsMarket(markets.moneyline ?? { id: 'moneyline', kind: 'winner', title: '' }, {
         a: 'Home Win (incl. OT)',
         b: 'Away Win (incl. OT)'
       })
@@ -973,8 +996,8 @@ export function analyzeHockey(scope: ScopeState): Analysis {
     ...(hdp ? analyzeHandicap(hdp, 'Team 1', 'Team 2') : []),
     ...resultPicks,
     ...mlPicks,
-    ...(isRT
-      ? analyzeOddsMarket(scope.markets.doubleChance ?? { id: 'doubleChance', kind: 'threeway', title: '' }, {
+    ...(isRT && markets.doubleChance
+      ? analyzeOddsMarket(markets.doubleChance, {
           hd: 'Home or Draw',
           ha: 'Home or Away',
           da: 'Draw or Away'
@@ -996,7 +1019,7 @@ export function analyzeHockey(scope: ScopeState): Analysis {
   // Correct Score Reconciliation
   const csKeys = isRT ? HOCKEY_SCORES_RT : HOCKEY_SCORES_P1;
   const csPicks = analyzeOddsMarket(
-    scope.markets.correctScore ?? { id: 'correctScore', kind: 'correctScore', title: '' },
+    markets.correctScore ?? { id: 'correctScore', kind: 'correctScore', title: '' },
     Object.fromEntries(csKeys.map((s) => [s, s]))
   );
 
@@ -1008,6 +1031,7 @@ export function analyzeHockey(scope: ScopeState): Analysis {
 
   if (csPicks.length) {
     csPicks.forEach((p) => {
+      if (!p || !p.label) return;
       const parts = p.label.split('-').map(Number);
       if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
         const h = parts[0];
@@ -1021,7 +1045,7 @@ export function analyzeHockey(scope: ScopeState): Analysis {
     });
   }
 
-  const bttsDirect = scope.markets.btts ? analyzeOddsMarket(scope.markets.btts, { yes: 'BTTS Yes', no: 'BTTS No' }) : [];
+  const bttsDirect = markets.btts ? analyzeOddsMarket(markets.btts, { yes: 'BTTS Yes', no: 'BTTS No' }) : [];
   const directBttsYes = bttsDirect.find((p) => p.label === 'BTTS Yes')?.probability ?? null;
 
   const combinedDiff = total && p1 && p2 ? round(p1.expected + p2.expected - total.expected, 1) : null;
@@ -1731,16 +1755,18 @@ export function analyzeBaseball(scope: ScopeState): Analysis {
   const isRT = scope.id === 'rt';
   const isF5 = scope.id === 'f5';
 
-  const regPicks = analyzeOddsMarket(scope.markets.regResult ?? { id: 'regResult', kind: 'threeway', title: '' }, { home: 'Home Win (9 Inn)', draw: 'Draw (9 Inn)', away: 'Away Win (9 Inn)' });
-  const winnerPicks = analyzeOddsMarket(scope.markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, { a: 'Home Win (incl. Extra Innings)', b: 'Away Win (incl. Extra Innings)' });
+  const markets = scope?.markets ?? {};
 
-  const gameTotalPicks = analyzeLines(scope.markets.gameTotal ?? { id: 'gameTotal', kind: 'ou', title: '' });
-  const homeTotalPicks = analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' });
-  const awayTotalPicks = analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' });
-  const handicapPicks = analyzeHandicap(scope.markets.handicap ?? { id: 'handicap', kind: 'handicap', title: '' }, 'Home', 'Away');
+  const regPicks = analyzeOddsMarket(markets.regResult ?? { id: 'regResult', kind: 'threeway', title: '' }, { home: 'Home Win (9 Inn)', draw: 'Draw (9 Inn)', away: 'Away Win (9 Inn)' });
+  const winnerPicks = analyzeOddsMarket(markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, { a: 'Home Win (incl. Extra Innings)', b: 'Away Win (incl. Extra Innings)' });
 
-  const extraInningPicks = analyzeOddsMarket(scope.markets.extraInnings ?? { id: 'extraInnings', kind: 'yesno', title: '' }, { yes: 'Extra Inning — Yes', no: 'Extra Inning — No' });
-  const marginPicks = analyzeOddsMarket(scope.markets.winningMargin ?? { id: 'winningMargin', kind: 'threeway', title: '' }, {
+  const gameTotalPicks = analyzeLines(markets.gameTotal ?? { id: 'gameTotal', kind: 'ou', title: '' });
+  const homeTotalPicks = analyzeLines(markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' });
+  const awayTotalPicks = analyzeLines(markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' });
+  const handicapPicks = analyzeHandicap(markets.handicap ?? { id: 'handicap', kind: 'handicap', title: '' }, 'Home', 'Away');
+
+  const extraInningPicks = analyzeOddsMarket(markets.extraInnings ?? { id: 'extraInnings', kind: 'yesno', title: '' }, { yes: 'Extra Inning — Yes', no: 'Extra Inning — No' });
+  const marginPicks = analyzeOddsMarket(markets.winningMargin ?? { id: 'winningMargin', kind: 'threeway', title: '' }, {
     h1: 'Home by 1',
     h2: 'Home by 2',
     h3: 'Home by 3+',
@@ -1755,9 +1781,9 @@ export function analyzeBaseball(scope: ScopeState): Analysis {
   const directExtraProb = extraInningPicks.find((p) => p.label.includes('Yes'))?.probability;
 
   // Fair-Number Interpolation for Baseball Run Lines
-  const total = bestExpectedLine(scope.markets.gameTotal?.pairs ?? [], 1.5);
-  const p1 = bestExpectedLine(scope.markets.homeTotal?.pairs ?? [], 1.5);
-  const p2 = bestExpectedLine(scope.markets.awayTotal?.pairs ?? [], 1.5);
+  const total = bestExpectedLine(markets.gameTotal?.pairs ?? [], 1.5);
+  const p1 = bestExpectedLine(markets.homeTotal?.pairs ?? [], 1.5);
+  const p2 = bestExpectedLine(markets.awayTotal?.pairs ?? [], 1.5);
   const combinedDiff = total && p1 && p2 ? round(p1.expected + p2.expected - total.expected, 1) : null;
 
   const profiles: Profile[] = [
