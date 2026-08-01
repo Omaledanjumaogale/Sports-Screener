@@ -426,8 +426,8 @@
                         lineOptions={lineOptionsFor(sportId, scope.id, m.id)}
                         index={index}
                         onChange={onChangeAny}
-                        onAutoFillLine={(i, field, v) => {
-                          if (m.pairs) autoFillLinePairs(m.pairs, i, field, v);
+                        onAutoFillLine={(i, v) => {
+                          if (m.pairs) autoFillLinePairs(m.pairs, i, v);
                           refresh();
                         }}
                       />
@@ -443,8 +443,8 @@
                         sideBLabel={handicapLabels[sportId]?.[1] ?? 'B'}
                         index={index}
                         onChange={onChangeAny}
-                        onAutoFillLine={(i, field, v) => {
-                          if (m.handicapPairs) autoFillHandicapPairs(m.handicapPairs, i, field, v);
+                        onAutoFillLine={(i, v) => {
+                          if (m.handicapPairs) autoFillHandicapPairs(m.handicapPairs, i, v);
                           refresh();
                         }}
                       />

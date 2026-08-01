@@ -160,77 +160,50 @@ export function emptyHandicaps(count: number, lines: number[] = []): HandicapPai
 
 // ── Smart Auto-fill: line cascade ────────────────────────────────────────────
 // When any LinePair.line is set, all other rows fill with (val ± diff * step).
-// When Over/Under odds are set, all rows fill with ±0.10 per row interval.
 export function autoFillLinePairs(
   pairs: LinePair[],
   changedIndex: number,
-  field: 'line' | 'over' | 'under',
   val: number | null
 ): void {
   if (val === null || !pairs || pairs.length < 2) return;
 
-  if (field === 'line') {
-    // Infer step from first two defined lines, default to 1.0
-    let step = 1.0;
-    const existing = pairs.filter((p) => p.line !== null);
-    if (existing.length >= 2) {
-      const idxA = pairs.indexOf(existing[0]);
-      const idxB = pairs.indexOf(existing[1]);
-      if (idxA !== idxB) {
-        step = Math.abs((existing[1].line! - existing[0].line!) / (idxB - idxA));
-      }
+  // Infer step from first two defined lines, default to 1.0
+  let step = 1.0;
+  const existing = pairs.filter((p) => p.line !== null);
+  if (existing.length >= 2) {
+    const idxA = pairs.indexOf(existing[0]);
+    const idxB = pairs.indexOf(existing[1]);
+    if (idxA !== idxB) {
+      step = Math.abs((existing[1].line! - existing[0].line!) / (idxB - idxA));
     }
-    if (!step || step <= 0) step = 1.0;
-    for (let i = 0; i < pairs.length; i++) {
-      if (i === changedIndex || pairs[i].lineLocked) continue;
-      pairs[i].line = round(val + (i - changedIndex) * step, 1);
-    }
-  } else if (field === 'over') {
-    for (let i = 0; i < pairs.length; i++) {
-      if (i === changedIndex || pairs[i].overLocked) continue;
-      pairs[i].over = round(Math.max(1.01, val + (i - changedIndex) * 0.20), 2);
-    }
-  } else if (field === 'under') {
-    for (let i = 0; i < pairs.length; i++) {
-      if (i === changedIndex || pairs[i].underLocked) continue;
-      pairs[i].under = round(Math.max(1.01, val - (i - changedIndex) * 0.20), 2);
-    }
+  }
+  if (!step || step <= 0) step = 1.0;
+  for (let i = 0; i < pairs.length; i++) {
+    if (i === changedIndex || pairs[i].lineLocked) continue;
+    pairs[i].line = round(val + (i - changedIndex) * step, 1);
   }
 }
 
 export function autoFillHandicapPairs(
   pairs: HandicapPair[],
   changedIndex: number,
-  field: 'line' | 'sideA' | 'sideB',
   val: number | null
 ): void {
   if (val === null || !pairs || pairs.length < 2) return;
 
-  if (field === 'line') {
-    let step = 1.0;
-    const existing = pairs.filter((p) => p.line !== null);
-    if (existing.length >= 2) {
-      const idxA = pairs.indexOf(existing[0]);
-      const idxB = pairs.indexOf(existing[1]);
-      if (idxA !== idxB) {
-        step = Math.abs((existing[1].line! - existing[0].line!) / (idxB - idxA));
-      }
+  let step = 1.0;
+  const existing = pairs.filter((p) => p.line !== null);
+  if (existing.length >= 2) {
+    const idxA = pairs.indexOf(existing[0]);
+    const idxB = pairs.indexOf(existing[1]);
+    if (idxA !== idxB) {
+      step = Math.abs((existing[1].line! - existing[0].line!) / (idxB - idxA));
     }
-    if (!step || step <= 0) step = 1.0;
-    for (let i = 0; i < pairs.length; i++) {
-      if (i === changedIndex || pairs[i].lineLocked) continue;
-      pairs[i].line = round(val + (i - changedIndex) * step, 1);
-    }
-  } else if (field === 'sideA') {
-    for (let i = 0; i < pairs.length; i++) {
-      if (i === changedIndex || pairs[i].sideALocked) continue;
-      pairs[i].sideA = round(Math.max(1.01, val + (i - changedIndex) * 0.20), 2);
-    }
-  } else if (field === 'sideB') {
-    for (let i = 0; i < pairs.length; i++) {
-      if (i === changedIndex || pairs[i].sideBLocked) continue;
-      pairs[i].sideB = round(Math.max(1.01, val - (i - changedIndex) * 0.20), 2);
-    }
+  }
+  if (!step || step <= 0) step = 1.0;
+  for (let i = 0; i < pairs.length; i++) {
+    if (i === changedIndex || pairs[i].lineLocked) continue;
+    pairs[i].line = round(val + (i - changedIndex) * step, 1);
   }
 }
 

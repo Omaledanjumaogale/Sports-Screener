@@ -10,7 +10,7 @@
     sideBLabel = 'B/Away',
     index = 0,
     onChange = () => {},
-    onAutoFillLine = null as ((i: number, field: 'line'|'sideA'|'sideB', v: number|null) => void) | null
+    onAutoFillLine = null as ((i: number, v: number|null) => void) | null
   }: {
     pair: HandicapPair;
     lineOptions?: number[];
@@ -18,7 +18,7 @@
     sideBLabel?: string;
     index?: number;
     onChange?: () => void;
-    onAutoFillLine?: ((i: number, field: 'line'|'sideA'|'sideB', v: number|null) => void) | null;
+    onAutoFillLine?: ((i: number, v: number|null) => void) | null;
   } = $props();
 </script>
 
@@ -41,7 +41,7 @@
         }}
         onChange={(v) => {
           pair.line = v;
-          if (onAutoFillLine) onAutoFillLine(index, 'line', v);
+          if (onAutoFillLine) onAutoFillLine(index, v);
           onChange();
         }}
       />
@@ -58,7 +58,6 @@
         }}
         onChange={(v) => {
           pair.sideA = v;
-          if (onAutoFillLine) onAutoFillLine(index, 'sideA', v);
           onChange();
         }}
       />
@@ -73,7 +72,6 @@
         }}
         onChange={(v) => {
           pair.sideB = v;
-          if (onAutoFillLine) onAutoFillLine(index, 'sideB', v);
           onChange();
         }}
       />

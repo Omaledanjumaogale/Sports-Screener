@@ -8,13 +8,13 @@
     lineOptions = [] as number[],
     index = 0,
     onChange = () => {},
-    onAutoFillLine = null as ((i: number, field: 'line'|'over'|'under', v: number|null) => void) | null
+    onAutoFillLine = null as ((i: number, v: number|null) => void) | null
   }: {
     pair: LinePair;
     lineOptions?: number[];
     index?: number;
     onChange?: () => void;
-    onAutoFillLine?: ((i: number, field: 'line'|'over'|'under', v: number|null) => void) | null;
+    onAutoFillLine?: ((i: number, v: number|null) => void) | null;
   } = $props();
 </script>
 
@@ -37,7 +37,7 @@
         }}
         onChange={(v) => {
           pair.line = v;
-          if (onAutoFillLine) onAutoFillLine(index, 'line', v);
+          if (onAutoFillLine) onAutoFillLine(index, v);
           onChange();
         }}
       />
@@ -54,7 +54,6 @@
         }}
         onChange={(v) => {
           pair.over = v;
-          if (onAutoFillLine) onAutoFillLine(index, 'over', v);
           onChange();
         }}
       />
@@ -69,7 +68,6 @@
         }}
         onChange={(v) => {
           pair.under = v;
-          if (onAutoFillLine) onAutoFillLine(index, 'under', v);
           onChange();
         }}
       />
