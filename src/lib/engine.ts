@@ -1441,31 +1441,25 @@ export function analyzeScope(sportId: SportId, scope: ScopeState): Analysis {
 export function analyzeInstantFootball(scope: ScopeState): Analysis {
   const targetPicks: Pick[] = [];
 
-  // 1. Match Goals Over/Under 0.5
-  const m05 = scope.markets.mainTotal05;
-  if (m05?.pairs?.[0]) {
-    targetPicks.push(...analyzeLines(m05));
+  // 1. Match Total Goals (0.5 → 5.5)
+  const mainTotal = scope.markets.mainTotal;
+  if (mainTotal?.pairs?.length) {
+    targetPicks.push(...analyzeLines(mainTotal));
   }
 
-  // 2. Match Goals Over/Under 1.5
-  const m15 = scope.markets.mainTotal15;
-  if (m15?.pairs?.[0]) {
-    targetPicks.push(...analyzeLines(m15));
+  // 2. Home Team Goals (0.5 → 5.5)
+  const homeTotal = scope.markets.homeTotal;
+  if (homeTotal?.pairs?.length) {
+    targetPicks.push(...analyzeLines(homeTotal));
   }
 
-  // 3. Home Team Over/Under 0.5
-  const h05 = scope.markets.homeTotal05;
-  if (h05?.pairs?.[0]) {
-    targetPicks.push(...analyzeLines(h05));
+  // 3. Away Team Goals (0.5 → 5.5)
+  const awayTotal = scope.markets.awayTotal;
+  if (awayTotal?.pairs?.length) {
+    targetPicks.push(...analyzeLines(awayTotal));
   }
 
-  // 4. Away Team Over/Under 0.5
-  const a05 = scope.markets.awayTotal05;
-  if (a05?.pairs?.[0]) {
-    targetPicks.push(...analyzeLines(a05));
-  }
-
-  // 5. BTTS (GG/NG)
+  // 4. BTTS (GG/NG)
   const btts = scope.markets.btts;
   if (btts) {
     targetPicks.push(...analyzeOddsMarket(btts, { yes: 'BTTS Yes (GG)', no: 'BTTS No (NG)' }));
@@ -1489,9 +1483,7 @@ export function analyzeInstantFootball(scope: ScopeState): Analysis {
   const allPicks = [...targetPicks, ...ttsPicks, ...resultPicks].map(withEv).sort((a, b) => b.probability - a.probability);
 
   // Fair-Number Interpolation for Instant Football Goal Pace
-  const goalLinesList: LinePair[] = [];
-  if (m05?.pairs?.[0]) goalLinesList.push(m05.pairs[0]);
-  if (m15?.pairs?.[0]) goalLinesList.push(m15.pairs[0]);
+  const goalLinesList: LinePair[] = mainTotal?.pairs ?? [];
   const expectedGoals = bestExpectedLine(goalLinesList, 1.0);
 
   const bestOver = allPicks.find((p) => p.label.toLowerCase().includes('over 0.5') || p.label.toLowerCase().includes('over 1.5'));
@@ -2047,16 +2039,17 @@ export function createHockeyScopes(): ScopeState[] {
   return [createHockeyScope('rt', 'Regular Time'), createHockeyScope('p1', '1st Period')];
 }
 
+const INSTANT_FOOTBALL_TOTAL_LINES = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5];
+
 export function createInstantFootballScopes(): ScopeState[] {
   return [
     {
       id: 'round',
       title: 'Instant Match Round',
       markets: {
-        mainTotal05: market('mainTotal05', 'Match Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]) }),
-        mainTotal15: market('mainTotal15', 'Match Goals — Over / Under 1.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]) }),
-        homeTotal05: market('homeTotal05', 'Home Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]) }),
-        awayTotal05: market('awayTotal05', 'Away Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]) }),
+        mainTotal: market('mainTotal', 'Match Total Goals', 'ou', { primary: true, pairs: emptyPairs(INSTANT_FOOTBALL_TOTAL_LINES.length, INSTANT_FOOTBALL_TOTAL_LINES) }),
+        homeTotal: market('homeTotal', 'Home Team Goals — Over / Under', 'ou', { primary: true, pairs: emptyPairs(INSTANT_FOOTBALL_TOTAL_LINES.length, INSTANT_FOOTBALL_TOTAL_LINES) }),
+        awayTotal: market('awayTotal', 'Away Team Goals — Over / Under', 'ou', { primary: true, pairs: emptyPairs(INSTANT_FOOTBALL_TOTAL_LINES.length, INSTANT_FOOTBALL_TOTAL_LINES) }),
         btts: market('btts', 'Both Teams to Score (BTTS GG/NG)', 'yesno', { primary: true, odds: oddsMap(['yes', 'no']) }),
         tts: market('tts', 'Teams To Score (4-Way)', 'threeway', { odds: oddsMap(['neither', 'homeOnly', 'awayOnly', 'both']) }),
         result: market('result', 'Match Result 1X2', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) }),
@@ -2151,7 +2144,13 @@ export function lineOptionsFor(sportId: SportId, scopeId: string, marketId: stri
 }
 
 function computeLineOptions(sportId: SportId, scopeId: string, marketId: string): number[] {
-  if (sportId === 'football' || sportId === 'instant-football' || sportId === 'vfootball') {
+  if (sportId === 'instant-football') {
+    if (marketId === 'mainTotal' || marketId === 'homeTotal' || marketId === 'awayTotal') {
+      return [0.5, 1.5, 2.5, 3.5, 4.5, 5.5];
+    }
+    return [];
+  }
+  if (sportId === 'football' || sportId === 'vfootball') {
     if (marketId.includes('mainTotal') || marketId.includes('Total')) {
       return [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5];
     }
