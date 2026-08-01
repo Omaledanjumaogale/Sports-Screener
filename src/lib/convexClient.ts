@@ -64,11 +64,14 @@ export function getConvexUrl(): string {
 type HttpClientLike = {
   query: (name: string, args: any) => Promise<any>;
   mutation: (name: string, args: any) => Promise<any>;
-  action?: (name: string, args: any) => Promise<any>;
+  action: (name: string, args: any) => Promise<any>;
+  setAuth: (token: string) => void;
+  clearAuth: () => void;
 };
 
 let cachedClient: HttpClientLike | null = null;
 let cachedUrl: string | null = null;
+let pendingAuthToken: string | null = null;
 
 export async function getConvexClient(): Promise<HttpClientLike> {
   const url = getConvexUrl();
@@ -76,7 +79,29 @@ export async function getConvexClient(): Promise<HttpClientLike> {
   const mod = await import('convex/browser');
   cachedUrl = url;
   cachedClient = new mod.ConvexHttpClient(url) as HttpClientLike;
+  if (pendingAuthToken) cachedClient.setAuth(pendingAuthToken);
   return cachedClient;
+}
+
+// Attach (or clear) the Convex auth token on the shared client. This is what
+// lets the backend see `ctx.auth.getUserIdentity()` on subsequent calls.
+// Only real Convex JWTs are attached — the legacy emulated sessions use fake
+// `token_...` strings, and sending those would 401 every anonymous call.
+function isRealConvexToken(token: string | null | undefined): token is string {
+  return typeof token === 'string' && token.length > 40 && !token.startsWith('token_');
+}
+
+export function setConvexAuthToken(token: string | null | undefined) {
+  const real = isRealConvexToken(token) ? token : null;
+  pendingAuthToken = real;
+  if (cachedClient) {
+    if (real) cachedClient.setAuth(real);
+    else cachedClient.clearAuth();
+  }
+}
+
+export function clearConvexAuthToken() {
+  setConvexAuthToken(null);
 }
 
 export async function callConvex<Ret = any>(name: string, args: any = {}): Promise<Ret> {
@@ -90,6 +115,15 @@ export async function queryConvex<Ret = any>(name: string, args: any = {}): Prom
 }
 
 export const api = {
+  auth: {
+    signIn: 'auth:signIn',
+    signOut: 'auth:signOut'
+  },
+  drafts: {
+    get: 'drafts:get',
+    save: 'drafts:save',
+    remove: 'drafts:remove'
+  },
   savedScreeners: {
     list: 'savedScreeners:list',
     get: 'savedScreeners:get',
@@ -104,3 +138,46 @@ export const api = {
     checkSubscription: 'users:checkSubscription'
   }
 };
+
+export interface DraftDoc {
+  _id: Id<'drafts'>;
+  owner: string;
+  sessionId: string;
+  userId?: string;
+  sportId: ConvexSportId;
+  scopes: any;
+  updatedAt: number;
+}
+
+// Authenticated Convex signIn/signOut helpers (Password provider).
+export async function convexSignIn(opts: {
+  email: string;
+  password: string;
+  flow: 'signIn' | 'signUp';
+}): Promise<{ token: string; subject: string | null } | null> {
+  try {
+    const client = await getConvexClient();
+    const res: any = await client.action(api.auth.signIn, {
+      provider: 'password',
+      params: { flow: opts.flow, email: opts.email, password: opts.password }
+    });
+    const tokens: any[] = Array.isArray(res?.tokens) ? res.tokens : [];
+    const authToken = tokens.find((t) => t?.name === 'auth')?.value ?? tokens[0]?.value;
+    if (authToken) {
+      setConvexAuthToken(authToken);
+      return { token: authToken, subject: res?.signedIn?.user?.subject ?? null };
+    }
+    return null;
+  } catch (err: any) {
+    console.warn('[Convex] auth:signIn failed, falling back to local session:', err?.message || err);
+    return null;
+  }
+}
+
+export async function convexSignOut(): Promise<void> {
+  try {
+    const client = await getConvexClient();
+    await client.action(api.auth.signOut, {});
+  } catch (_) { /* ignore */ }
+  clearConvexAuthToken();
+}

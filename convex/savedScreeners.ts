@@ -18,39 +18,53 @@ export const list = query({
     userId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    let results;
-    if (args.userId) {
-      if (args.sportId) {
-        results = await ctx.db
+    const identity = await ctx.auth.getUserIdentity();
+    const effectiveUserId = identity?.subject ?? args.userId;
+
+    const seen = new Set<string>();
+    const merged: any[] = [];
+    const push = (doc: any) => {
+      if (doc && !seen.has(doc._id)) {
+        seen.add(doc._id);
+        merged.push(doc);
+      }
+    };
+
+    // 1. Records owned by the signed-in user (real identity or user-arg).
+    if (effectiveUserId) {
+      const userDocs = args.sportId
+        ? await ctx.db
+            .query('savedScreeners')
+            .withIndex('by_sport_and_user', (q) =>
+              q.eq('sportId', args.sportId!).eq('userId', effectiveUserId!)
+            )
+            .order('desc')
+            .collect()
+        : await ctx.db
+            .query('savedScreeners')
+            .withIndex('by_user', (q) => q.eq('userId', effectiveUserId!))
+            .order('desc')
+            .collect();
+      for (const d of userDocs) push(d);
+    }
+
+    // 2. Records owned by this browser session (covers pre-login saves).
+    const sessionDocs = args.sportId
+      ? await ctx.db
           .query('savedScreeners')
-          .withIndex('by_sport_and_user', (q) =>
-            q.eq('sportId', args.sportId!).eq('userId', args.userId!)
+          .withIndex('by_sport_and_session', (q) =>
+            q.eq('sportId', args.sportId!).eq('sessionId', args.sessionId)
           )
           .order('desc')
-          .collect();
-      } else {
-        results = await ctx.db
+          .collect()
+      : await ctx.db
           .query('savedScreeners')
-          .withIndex('by_user', (q) => q.eq('userId', args.userId!))
+          .withIndex('by_session', (q) => q.eq('sessionId', args.sessionId))
           .order('desc')
           .collect();
-      }
-    } else if (args.sportId) {
-      results = await ctx.db
-        .query('savedScreeners')
-        .withIndex('by_sport_and_session', (q) =>
-          q.eq('sportId', args.sportId!).eq('sessionId', args.sessionId)
-        )
-        .order('desc')
-        .collect();
-    } else {
-      results = await ctx.db
-        .query('savedScreeners')
-        .withIndex('by_session', (q) => q.eq('sessionId', args.sessionId))
-        .order('desc')
-        .collect();
-    }
-    return results;
+    for (const d of sessionDocs) push(d);
+
+    return merged;
   }
 });
 
@@ -83,16 +97,18 @@ export const save = mutation({
     _id: v.optional(v.id('savedScreeners'))
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    const effectiveUserId = identity?.subject ?? args.userId;
     const now = Date.now();
     if (args._id) {
       const existing = await ctx.db.get(args._id);
-      if (existing && (existing.sessionId === args.sessionId || (args.userId && existing.userId === args.userId))) {
+      if (existing && (existing.sessionId === args.sessionId || (effectiveUserId && existing.userId === effectiveUserId))) {
         await ctx.db.patch(args._id, {
           title: args.title,
           notes: args.notes,
           scopes: args.scopes,
           verdict: args.verdict,
-          userId: args.userId ?? existing.userId,
+          userId: effectiveUserId ?? existing.userId,
           updatedAt: now
         });
         return args._id;
@@ -105,7 +121,7 @@ export const save = mutation({
       scopes: args.scopes,
       verdict: args.verdict,
       sessionId: args.sessionId,
-      userId: args.userId,
+      userId: effectiveUserId,
       createdAt: now,
       updatedAt: now
     });
@@ -123,15 +139,17 @@ export const update = mutation({
     verdict: v.optional(v.any())
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    const effectiveUserId = identity?.subject ?? args.userId;
     const existing = await ctx.db.get(args.id);
     if (!existing) return null;
-    if (existing.sessionId !== args.sessionId && (!args.userId || existing.userId !== args.userId)) return null;
+    if (existing.sessionId !== args.sessionId && (!effectiveUserId || existing.userId !== effectiveUserId)) return null;
     const patch: Record<string, any> = { updatedAt: Date.now() };
     if (args.title !== undefined) patch.title = args.title;
     if (args.notes !== undefined) patch.notes = args.notes;
     if (args.scopes !== undefined) patch.scopes = args.scopes;
     if (args.verdict !== undefined) patch.verdict = args.verdict;
-    if (args.userId !== undefined) patch.userId = args.userId;
+    if (effectiveUserId !== undefined) patch.userId = effectiveUserId;
     await ctx.db.patch(args.id, patch);
   }
 });
@@ -143,8 +161,10 @@ export const remove = mutation({
     userId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    const effectiveUserId = identity?.subject ?? args.userId;
     const existing = await ctx.db.get(args.id);
-    if (existing && (existing.sessionId === args.sessionId || (args.userId && existing.userId === args.userId))) {
+    if (existing && (existing.sessionId === args.sessionId || (effectiveUserId && existing.userId === effectiveUserId))) {
       await ctx.db.delete(args.id);
     }
     return null;

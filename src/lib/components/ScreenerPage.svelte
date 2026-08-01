@@ -37,6 +37,10 @@
     type SportId
   } from '../engine';
   import type { SavedScreenerDoc, ConvexSportId } from '../convexClient';
+  import { pushDraft, pullDraft, flushPendingDrafts } from '../draftSync';
+  import { authState, setSubscribedStatus } from '$lib/authStore.svelte';
+  import { notify } from '$lib/notificationStore';
+  import { getConvexClient, api } from '$lib/convexClient';
 
   let {
     sportId,
@@ -62,6 +66,8 @@
   let mounted: boolean = $state(false);
   let loadBanner: string | null = $state(null);
   let restoredAiResult: any = $state(null);
+  let aiResult: any = $state(null);
+  let draftPushTimer: ReturnType<typeof setTimeout> | null = null;
 
   let scope: ScopeState | null = $derived(scopes[selectedScopeIndex] ?? null);
 
@@ -74,7 +80,7 @@
   function allScopesSignature(): string {
     let parts: string[] = [];
     for (const s of scopes) parts.push(scopeSignature(s));
-    return parts.join('~');
+    return String(selectedScopeIndex) + '|' + parts.join('~');
   }
 
   function runAnalysis(sid: SportId, s: ScopeState, _t: number): Analysis {
@@ -86,6 +92,26 @@
     const value: Analysis = { ...res, masterLedger, masterRankings };
     analysisCache = { sig, value };
     return value;
+  }
+
+  // Push the live draft to Convex (debounced) so work syncs across devices.
+  function scheduleDraftPush() {
+    if (draftPushTimer) clearTimeout(draftPushTimer);
+    draftPushTimer = setTimeout(() => {
+      draftPushTimer = null;
+      void pushDraft(sportId, scopes, authState.user?.id);
+    }, 900);
+  }
+
+  function scopesHaveData(list: ScopeState[]): boolean {
+    return list.some((s) => {
+      if (s.teamA || s.teamB || s.leaguePreset) return true;
+      return Object.values(s.markets || {}).some((m: any) =>
+        m.odds && typeof m.odds === 'object'
+          ? Object.values(m.odds).some((o: any) => Number(o) > 0)
+          : false
+      );
+    });
   }
 
   $effect(() => {
@@ -106,23 +132,30 @@
 
   function refresh() {
     refreshTick += 1;
-    if (mounted) saveScopesDebounced(sportId, scopes);
+    if (mounted) {
+      saveScopesDebounced(sportId, scopes);
+      scheduleDraftPush();
+    }
   }
 
   function clearCurrent() {
     if (!scope) return;
     clearScopeState(scope);
     saveScopes(sportId, scopes);
+    void pushDraft(sportId, scopes, authState.user?.id);
     loadBanner = null;
     restoredAiResult = null;
+    aiResult = null;
     refresh();
   }
 
   function clearAll() {
     scopes.forEach(clearScopeState);
     clearScopes(sportId);
+    void pushDraft(sportId, scopes, authState.user?.id);
     loadBanner = null;
     restoredAiResult = null;
+    aiResult = null;
     refresh();
   }
 
@@ -161,10 +194,6 @@
     }
     refresh();
   }
-
-  import { authState, setSubscribedStatus } from '$lib/authStore.svelte';
-  import { notify } from '$lib/notificationStore';
-  import { getConvexClient, api } from '$lib/convexClient';
 
   onMount(async () => {
     // Flush any pending debounced save when the page is closed or hidden.
@@ -221,10 +250,35 @@
     if (!scopes.length) scopes = factory();
     mounted = true;
     analysis = runAnalysis(sportId, scope, refreshTick);
+
+    // ── Convex draft sync (non-blocking, best-effort) ─────────────────────
+    // If the server holds a draft and this device has no local data, restore
+    // it (new device / cleared storage). Otherwise push local state up so it
+    // is available on the user's other devices. Offline => localStorage only.
+    (async () => {
+      try {
+        const remote = await pullDraft(sportId, authState.user?.id);
+        if (remote?.scopes && Array.isArray(remote.scopes) && !scopesHaveData(scopes)) {
+          const fresh = factory();
+          for (let i = 0; i < fresh.length; i += 1) {
+            const dst = fresh[i];
+            const src = remote.scopes[i] ?? remote.scopes.find((s: any) => s?.id === dst.id);
+            if (src) mergeScopeOnto(dst, src);
+          }
+          scopes = fresh;
+          saveScopes(sportId, scopes);
+          loadBanner = 'Restored your draft from the cloud';
+        } else {
+          void pushDraft(sportId, scopes, authState.user?.id);
+        }
+        await flushPendingDrafts(authState.user?.id);
+      } catch (_) { /* offline — skip Convex draft sync */ }
+    })();
   });
 
   onDestroy(() => {
     if (analysisTimer) { clearTimeout(analysisTimer); analysisTimer = null; }
+    if (draftPushTimer) { clearTimeout(draftPushTimer); draftPushTimer = null; }
     if (typeof window !== 'undefined') {
       window.removeEventListener('beforeunload', flushSaveScopes);
       window.removeEventListener('pagehide', flushSaveScopes);
@@ -314,6 +368,7 @@
         picks={analysis.masterRankings ?? analysis.picks}
         metrics={analysis.metrics}
         initialResult={restoredAiResult}
+        onResultChange={(r) => { aiResult = r; }}
         {accent}
       />
 
@@ -420,6 +475,7 @@
         sportTitle={sportTitle}
         scopes={scopes}
         analysis={analysis}
+        aiResult={aiResult}
         {accent}
         on:load={onLoadFromHistory}
       />

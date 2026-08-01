@@ -4,6 +4,8 @@ export const TESTER_EMAIL = 'tester@gmail.com';
 export const TESTER_PASSWORD = 'Share&getbloacked#';
 const TESTER_TRIAL_START_KEY = 'pulseodds_tester_trial_start_v1';
 
+import { setConvexAuthToken, clearConvexAuthToken } from './convexClient';
+
 export function isSuperAdminEmail(email?: string): boolean {
   if (!email) return false;
   return email.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
@@ -85,6 +87,7 @@ export function initAuth() {
         authState.isAuthenticated = true;
         authState.user = data.user;
         authState.token = data.token;
+        setConvexAuthToken(data.token);
       }
     }
   } catch (e) {
@@ -112,6 +115,7 @@ export function setAuthenticated(user: UserSession, token: string) {
   authState.user = user;
   authState.token = token;
   authState.isLoading = false;
+  setConvexAuthToken(token);
 
   try {
     if (typeof window !== 'undefined') {
@@ -152,6 +156,7 @@ export function setUnauthenticated() {
   authState.user = null;
   authState.token = null;
   authState.isLoading = false;
+  clearConvexAuthToken();
   try {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(AUTH_STORAGE_KEY);

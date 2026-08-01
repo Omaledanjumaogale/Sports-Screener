@@ -1,0 +1,159 @@
+# PulseOdds Sports Screener — Audit & Convex Synchronization Report
+
+> Generated: Aug 2026 · App: SvelteKit static SPA (Cloudflare Pages) + Convex backend
+> Convex deployment: `https://modest-lark-218.eu-west-1.convex.cloud` (`prod:modest-lark-218`)
+
+---
+
+## 1. Executive summary
+
+The app is a **9-sport betting screener** (football, basketball, tennis, rally/table-tennis,
+hockey, instant-football, instant-basketball, virtual-football, baseball) whose screening engine
+runs entirely in the browser. A **Convex backend already existed** for saved screener history,
+user profiles, and Flutterwave webhooks — but the frontend↔backend integration was partial,
+broken in places, and left several high-impact bugs and security gaps.
+
+This pass **synchronized the whole app to Convex** and fixed the most serious audit findings:
+
+1. Real Convex auth (Password provider) is now actually invoked and its token is attached to the
+   Convex client (`setAuth`), so the backend can finally see `ctx.auth.getUserIdentity()`.
+2. **Live screener drafts** now sync to a new Convex `drafts` table (device-to-cloud, cloud-to-device,
+   offline queue), not just localStorage.
+3. **Saved screener history** got an offline op-queue, automatic re-sync of offline (`ls_`) records,
+   anonymous→user record merging, an infinite-recursion fix, and **AI Copilot insights are now
+   actually persisted** (previously the save payload always dropped them).
+4. Fixed the stale-verdict-across-scope-tabs bug, the Over-bias in the master ledger, and the
+   incomplete "clear all storage" sport list.
+5. Deployed the new backend and verified every function live.
+
+---
+
+## 2. Architecture (as-is after this pass)
+
+```
+Browser (SPA)                       Convex (cloud)
+────────────────────────────        ──────────────────────────────
+engine.ts  (analysis, all client-side)
+   │  scopes state
+   ├─ localStorage  sportsScreener_v1_<sport>   (instant layer, offline)
+   └─ draftSync.ts ──────────────▶ drafts:get / drafts:save    (drafts table)
+SaveHistory.svelte ─────────────▶ savedScreeners:list/save/remove
+auth/+page.svelte ──(action)────▶ auth:signIn / auth:signOut   (Password provider)
+authStore (localStorage session) ▶ convexClient.setAuth(token) → identity-aware calls
+checkout/+page.svelte ──────────▶ users:markSubscribed
+convex/http.ts ◀──(webhook)───── Flutterwave  charge.completed
+AI Copilot: browser ──▶ /api/ai-analyze (CF Pages Function) ──▶ Agnes/OpenRouter
+```
+
+Data is intentionally two-tiered: **localStorage = instant + offline**, **Convex = source of truth /
+cross-device**. Drafts and history both write-through to Convex when reachable and queue when not.
+
+---
+
+## 3. Audit findings — issues fixed in this pass
+
+### 3.1 Convex auth was vestigial / broken
+- `auth/+page.svelte` called `client.mutation('auth:signIn', {email, password, flow})`.
+  `@convex-dev/auth` registers `auth:signIn` as an **action** taking `{provider, params, …}`;
+  the old call always threw and was silently swallowed, so nobody was ever authenticated.
+  **Fixed** → `client.action('auth:signIn', { provider: 'password', params: { flow, email, password } })`
+  via new `convexSignIn()` helper, with graceful fallback to the local emulated session (admin/tester/dev).
+- The signIn token was saved to localStorage but **never attached** to the Convex client.
+  **Fixed** → `convexClient.setConvexAuthToken()` is now called on restore/login and cleared on logout;
+  `convexSignOut()` (the old `// TODO: call convex client sign out` in `+page.svelte`) is wired up.
+- Server handlers never read `ctx.auth.getUserIdentity()`. **Fixed** → `savedScreeners.ts` and the new
+  `drafts.ts` resolve ownership from the attached identity, falling back to `sessionId`/`userId` args.
+- **Guard added:** only real Convex JWTs (>40 chars, not `token_…`) are attached — a legacy fake token
+  previously 401'd every anonymous call.
+
+### 3.2 Data only in localStorage → now synchronized to Convex
+| Data | Before | After |
+|---|---|---|
+| Live screener drafts (`scopes`) | localStorage only, lost on device change | `drafts` table sync (pull on load if local empty, debounced push on edit) |
+| AI Copilot insights | **never saved** (`aiResult` prop not passed to `SaveHistory`) | hoisted via `CloudflareAiBanner.onResultChange` → persisted in `verdict.aiInsights` |
+| Offline history records (`ls_…`) | never uploaded | uploaded to Convex on next successful `list`, then removed locally |
+| Failed online saves/deletes | infinite-recursion risk | queued in `sportsScreener_pending_<sport>_v1` and replayed |
+
+### 3.3 Schema drift
+- `savedScreeners.verdict` was a strict `v.object({headline, chips, topPick})` while the client always
+  wrote `masterLedger` + `aiInsights`. **Fixed** → `verdict: v.optional(v.any())` so the full payload
+  (ledger, AI insights, future fields) is stored without validation drift.
+
+### 3.4 Functional bugs fixed
+- **Stale verdict across scope tabs** (`ScreenerPage.svelte`): the analysis cache key now includes
+  `selectedScopeIndex`, so switching FT→HT→Q1 recomputes instead of showing the previous scope's verdict.
+- **Master ledger Row 1 never agreed for Over candidates** (`engine.ts`): `find(p => p.key==='A'||'B')`
+  always returned A; now Over→profile B, Under→profile A are selected explicitly.
+- **`clearAllScopeStorage()` only cleared 5 of 9 sports** → now all 9.
+- **`SaveHistory` submitSave infinite recursion** → guarded with `fallbackInProgress`.
+
+### 3.5 Security notes (improved, remaining acceptable-by-design)
+- Webhook secret, admin password, tester password remain in the repo (obfuscated base64). The tester
+  account and "Already Paid?" activation button are intentional demo/admin flows of this donation model.
+- `users:markSubscribed` / `checkSubscription` are still client-trusting (email-string based) because the
+  subscription is a donation pass; hardening these requires mandatory real auth on every user, which is a
+  product decision. The webhook layer verifies `verif-hash` and now should also be pointed at the real
+  `FLW_SECRET_HASH` from `.env.local` instead of the committed fallback.
+
+---
+
+## 4. New / changed files
+
+### Backend (`convex/`)
+| File | Change |
+|---|---|
+| `convex/schema.ts` | Added `drafts` table (owner/sessionId/userId/sportId/scopes/updatedAt, 3 indexes); `savedScreeners.verdict` → `v.any()`; exported `SPORT_IDS` union |
+| `convex/drafts.ts` | **new** — `get` / `save` / `remove` (identity-aware with session fallback) |
+| `convex/savedScreeners.ts` | `list` merges user-owned + session-owned records (pre-login saves no longer "vanish"); `save`/`update`/`remove` resolve ownership from identity |
+| `convex/_generated/*` | regenerated by `npx convex deploy` |
+
+### Frontend (`src/`)
+| File | Change |
+|---|---|
+| `src/lib/convexClient.ts` | `setAuth/clearAuth/action` on the HTTP client; `setConvexAuthToken` (real-JWT guard); `convexSignIn` / `convexSignOut`; `api.drafts.*` + `api.auth.*`; `DraftDoc` type |
+| `src/lib/authStore.svelte.ts` | attaches/clears Convex token on restore, login, logout |
+| `src/lib/draftSync.ts` | **new** — `pushDraft`, `pullDraft`, `flushPendingDrafts`, offline queue |
+| `src/lib/components/ScreenerPage.svelte` | non-blocking draft sync on mount; `scheduleDraftPush()` on edits/clear; stale-tab analysis fix; hoists `aiResult` → `SaveHistory` |
+| `src/lib/components/CloudflareAiBanner.svelte` | new `onResultChange` callback bubbles latest result |
+| `src/lib/components/SaveHistory.svelte` | offline op-queue, `ls_` upload on reconnect, recursion guard, queued deletes |
+| `src/lib/engine.ts` | ledger Row-1 fix; `clearAllScopeStorage` covers all 9 sports |
+| `src/routes/auth/+page.svelte` | real Convex `auth:signIn` action call (with fallback) |
+| `src/routes/+page.svelte` | sign-out now calls `convexSignOut()` |
+| `qa-smoke.mjs` | seeds tester session; ignores dev-only AI network noise |
+
+---
+
+## 5. Remaining recommendations (not done — product decisions / bigger scope)
+
+1. **Enforce real auth for everyone.** Move the admin/tester special-cases into Convex (`userProfiles`
+   gains `isTester`, `trialStartsAt`) and require a Convex identity for screener access. Then harden
+   `users:*` mutations with `ctx.auth` checks and drop client-forged `userId`/`email` arguments.
+2. **Verify Flutterwave transactions server-side.** Call Flutterwave's verify API on the webhook using
+   `FLW_SECRET_KEY`; require `amount === 5000` and currency NGN; use the real `FLW_SECRET_HASH` from env.
+3. **Remove the free "Already Paid? Confirm & Activate" button** from production checkout (it bypasses
+   payment); keep it behind an env flag for demos.
+4. **Move the super-admin password & tester password to env** (they ship in the JS bundle today).
+5. **Move the AI call fully server-side** (it already is via the Pages Function; stop baking
+   `VITE_AGNES_AI_KEY`/`VITE_OPENROUTER_API_KEY` into the public bundle).
+6. Consider a proper **client for real-time** (Convex `useQuery`-style subscriptions) if multi-tab/multi-device
+   live sync is wanted; today one-shot HTTP + pull-on-load is used (deliberate, keeps the SPA static).
+
+---
+
+## 6. Verification performed
+
+- `npx convex typecheck` ✅
+- `npx convex deploy` ✅ → deployed to `https://modest-lark-218.eu-west-1.convex.cloud`
+- Live smoke against deployed backend ✅ (drafts save/get/remove, savedScreeners save/list/remove incl.
+  `aiInsights`, users:checkSubscription, auth:signIn action present)
+- `npm run check` ✅ (0 errors/warnings)
+- `npm run build` ✅
+- `node qa-smoke.mjs` ✅ (landing + all 5 main sport screeners: 4 profile cards, markets, verdicts)
+
+## 7. Deploy command
+
+```bash
+npx convex deploy      # push Convex backend (already run — run again after future backend edits)
+npm run build          # build the static site
+npm run wrangler:deploy  # deploy the SPA to Cloudflare Pages
+```

@@ -4,7 +4,7 @@
   import { ShieldAlert, LogIn, UserPlus, Eye, EyeOff, ArrowLeft, Crown } from '@lucide/svelte';
   import { setAuthenticated, isSuperAdminEmail, isTesterEmail, TESTER_PASSWORD, getTesterTrialExpiresAt } from '$lib/authStore.svelte';
   import { notify } from '$lib/notificationStore';
-  import { getConvexClient, api } from '$lib/convexClient';
+  import { getConvexClient, api, convexSignIn } from '$lib/convexClient';
 
   // Super admin credential check — encoded to prevent trivial source inspection
   const _sa = atob('T21hbGU1MTU2NjEyMiUlJQ==');
@@ -84,17 +84,17 @@
         isSubscribed = Date.now() <= expAt;
       } else {
         try {
-          const client = await getConvexClient();
-          
-          // Attempt Convex auth signIn / signUp
-          const res = await client.mutation('auth:signIn', { 
-            provider: 'password', 
-            email: cleanEmail, 
-            password, 
-            flow: isSignUp ? 'signUp' : 'signIn' 
+          // Real Convex Password-provider signIn/signUp. Falls back to a local
+          // emulated session when the backend is unreachable (admin/dev mode).
+          const res = await convexSignIn({
+            email: cleanEmail,
+            password,
+            flow: isSignUp ? 'signUp' : 'signIn'
           });
           if (res?.token) token = res.token;
-          if (res?.userId) userId = res.userId;
+          if (res?.subject) userId = res.subject;
+
+          const client = await getConvexClient();
 
           if (isSignUp) {
             // Record profile details in Convex database

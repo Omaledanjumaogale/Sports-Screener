@@ -8,6 +8,7 @@
   import SEO from '$lib/components/SEO.svelte';
   import MasterModelShowcase from '$lib/components/MasterModelShowcase.svelte';
   import { authState, setUnauthenticated } from '$lib/authStore.svelte';
+  import { convexSignOut } from '$lib/convexClient';
   import { notify } from '$lib/notificationStore';
   import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User } from '@lucide/svelte';
   import type { PageData } from './$types';
@@ -213,8 +214,7 @@
         <ThemeToggle />
         {#if authState.isAuthenticated}
           <button class="auth-btn logout-btn" onclick={() => {
-            // TODO: call convex client sign out
-            setUnauthenticated();
+            void convexSignOut().finally(() => setUnauthenticated());
           }}>
             <LogOut size={16} /> Sign Out
           </button>

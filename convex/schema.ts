@@ -2,8 +2,32 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import { authTables } from "@convex-dev/auth/server";
 
+export const SPORT_IDS = v.union(
+  v.literal('football'),
+  v.literal('basketball'),
+  v.literal('tennis'),
+  v.literal('rally'),
+  v.literal('hockey'),
+  v.literal('instant-football'),
+  v.literal('instant-basketball'),
+  v.literal('vfootball'),
+  v.literal('baseball')
+);
+
 export default defineSchema({
   ...authTables,
+  drafts: defineTable({
+    owner: v.string(),
+    sessionId: v.string(),
+    userId: v.optional(v.string()),
+    sportId: SPORT_IDS,
+    scopes: v.any(),
+    updatedAt: v.number()
+  })
+    .index('by_owner_sport', ['owner', 'sportId'])
+    .index('by_session_sport', ['sessionId', 'sportId'])
+    .index('by_user_sport', ['userId', 'sportId']),
+
   savedScreeners: defineTable({
     sportId: v.union(
       v.literal('football'),
@@ -19,22 +43,10 @@ export default defineSchema({
     title: v.string(),
     notes: v.optional(v.string()),
     scopes: v.any(),
-    verdict: v.optional(v.object({
-      headline: v.string(),
-      chips: v.array(v.object({
-        label: v.string(),
-        value: v.string(),
-        status: v.union(v.literal('green'), v.literal('amber'), v.literal('red'), v.literal('empty'))
-      })),
-      topPick: v.optional(v.object({
-        marketId: v.string(),
-        marketTitle: v.string(),
-        label: v.string(),
-        probability: v.number(),
-        odds: v.number(),
-        ev: v.optional(v.number())
-      }))
-    })),
+    // Free-form verdict payload (headline, chips, topPick, masterLedger,
+    // aiInsights, metrics, masterRankings). Stored as `any` so legacy docs and
+    // future additions never drift out of sync with the client.
+    verdict: v.optional(v.any()),
     sessionId: v.string(),
     userId: v.optional(v.string()),
     createdAt: v.number(),

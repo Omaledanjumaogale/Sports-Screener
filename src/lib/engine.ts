@@ -1180,11 +1180,14 @@ export function buildConfluenceLedger(
   const isUnder = candidateLabel.toLowerCase().includes('under');
 
   // Row 1: Primary Scope Verdict
-  const primaryProfile = currentAnalysis.profiles.find((p) => p.key === 'A' || p.key === 'B');
+  // For Over candidates the value read lives in profile B (EV-ordered best
+  // value); for Under candidates profile A (safest) is the match. Pick the
+  // correct profile explicitly so Over picks can actually earn an Agree vote.
+  const primaryProfile = (isOver
+    ? currentAnalysis.profiles.find((p) => p.key === 'B')
+    : currentAnalysis.profiles.find((p) => p.key === 'A')) ?? null;
   if (primaryProfile && primaryProfile.completed >= 2) {
-    const isPrimaryAgree =
-      (isOver && primaryProfile.key === 'B' && primaryProfile.ratio >= 0.55) ||
-      (isUnder && primaryProfile.key === 'A' && primaryProfile.ratio >= 0.55);
+    const isPrimaryAgree = primaryProfile.ratio >= 0.55;
     rows.push({
       name: 'Primary Scope Verdict',
       vote: isPrimaryAgree ? 'Agree' : 'N/A',
@@ -2333,7 +2336,18 @@ export function clearScopes(sportId: SportId): void {
 export function clearAllScopeStorage(): void {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return;
-    (['football', 'basketball', 'tennis', 'rally', 'hockey'] as SportId[]).forEach((s) => clearScopes(s));
+    const ALL_SPORTS: SportId[] = [
+      'football',
+      'basketball',
+      'tennis',
+      'rally',
+      'hockey',
+      'instant-football',
+      'instant-basketball',
+      'vfootball',
+      'baseball'
+    ];
+    ALL_SPORTS.forEach((s) => clearScopes(s));
   } catch (_e) {
     // ignore
   }

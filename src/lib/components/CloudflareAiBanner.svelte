@@ -24,7 +24,8 @@
     accent = '#38bdf8',
     autoFetch = true,
     compact = false,
-    initialResult = null as AiAnalysisResult | null
+    initialResult = null as AiAnalysisResult | null,
+    onResultChange = null as ((r: AiAnalysisResult | null) => void) | null
   }: {
     sportId?: SportId;
     sportTitle?: string;
@@ -37,6 +38,7 @@
     autoFetch?: boolean;
     compact?: boolean;
     initialResult?: AiAnalysisResult | null;
+    onResultChange?: ((r: AiAnalysisResult | null) => void) | null;
   } = $props();
 
   let online: boolean = $state(true);
@@ -112,6 +114,13 @@
   $effect(() => {
     if (initialResult && !result) {
       result = initialResult;
+    }
+  });
+
+  // Bubble the latest result up (used to persist AI insights with saved screeners).
+  $effect(() => {
+    if (typeof onResultChange === 'function') {
+      onResultChange(result);
     }
   });
 

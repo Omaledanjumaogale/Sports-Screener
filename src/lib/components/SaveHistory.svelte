@@ -61,6 +61,18 @@
   let sessionId: string = $state('');
   let usingOffline: boolean = $state(false);
 
+  // ── Offline operation queue (replayed against Convex when back online) ──
+  const PENDING_KEY = () => `sportsScreener_pending_${sportId}_v1`;
+  let fallbackInProgress = false;
+
+  function lsPendingLoad(): any[] {
+    if (typeof window === 'undefined') return [];
+    try { const raw = localStorage.getItem(PENDING_KEY()); return raw ? JSON.parse(raw) : []; } catch { return []; }
+  }
+  function lsPendingSave(ops: any[]) {
+    try { localStorage.setItem(PENDING_KEY(), JSON.stringify(ops)); } catch { /* ignore */ }
+  }
+
   onMount(() => {
     sessionId = getSessionId();
     void refresh();
@@ -71,15 +83,73 @@
     error = null;
     try {
       const userId = authState.user?.id;
-      records = await queryConvex<any[]>(api.savedScreeners.list, { sportId, sessionId, userId }) as SavedScreenerDoc[];
+      const remote = await queryConvex<any[]>(api.savedScreeners.list, { sportId, sessionId, userId }) as SavedScreenerDoc[];
       usingOffline = false;
+      await syncLocalWithConvex(remote);
+      records = remote;
     } catch (e: any) {
-      // Silently fall back to localStorage
+      // Convex unreachable — show the localStorage mirror for now.
       usingOffline = true;
       records = lsLoad();
     } finally {
       loading = false;
     }
+  }
+
+  // Replay queued operations and upload offline (`ls_`) records once Convex is up.
+  async function syncLocalWithConvex(remote: SavedScreenerDoc[]) {
+    const remoteIds = new Set((remote || []).map((r) => String(r._id)));
+    const pending = lsPendingLoad();
+
+    // 1. Replay queued ops (failed online saves/deletes) in order.
+    if (pending.length) {
+      const remaining: any[] = [];
+      for (const op of pending) {
+        try {
+          if (op.op === 'save') {
+            await callConvex(api.savedScreeners.save, op.args);
+          } else if (op.op === 'delete') {
+            await callConvex(api.savedScreeners.remove, op.args);
+          }
+          if (op.ref) removeLocalDoc(op.ref);
+        } catch {
+          remaining.push(op); // keep for next sync attempt
+        }
+      }
+      lsPendingSave(remaining);
+    }
+
+    // 2. Upload orphaned offline records (never queued) and drop them locally.
+    const local = lsLoad();
+    const toUpload = local.filter(
+      (r) => String(r._id).startsWith('ls_') && !(r as any)._pendingSync && !remoteIds.has(String(r._id))
+    );
+    if (toUpload.length) {
+      const uploaded = new Set<string>();
+      for (const doc of toUpload) {
+        try {
+          await callConvex(api.savedScreeners.save, {
+            sportId: doc.sportId ?? sportId,
+            title: doc.title,
+            notes: doc.notes,
+            scopes: doc.scopes,
+            verdict: doc.verdict,
+            sessionId,
+            userId: authState.user?.id
+          });
+          uploaded.add(String(doc._id));
+        } catch { /* keep locally; retry later */ }
+      }
+      if (uploaded.size) {
+        lsSave(local.filter((r) => !uploaded.has(String(r._id))));
+      }
+    }
+  }
+
+  function removeLocalDoc(id: string) {
+    if (typeof window === 'undefined') return;
+    lsSave(lsLoad().filter((r) => String(r._id) !== String(id)));
+    records = lsLoad();
   }
 
   function stampTitle(): string {
@@ -109,8 +179,10 @@
     if (!titleInput.trim()) return;
     working = true;
     error = null;
+    let verdictPayload: any = null;
+    let args: any = null;
     try {
-      const verdictPayload = analysis
+      verdictPayload = analysis
         ? {
             headline: analysis.headline,
             chips: analysis.chips?.map((c) => ({ label: c.label, value: c.value, status: c.status })),
@@ -137,7 +209,7 @@
         : undefined;
 
       if (usingOffline) {
-        // Save to localStorage
+        // Save to localStorage only; syncLocalWithConvex uploads it later.
         const now = Date.now();
         const existing = lsLoad();
         let found: SavedScreenerDoc | undefined;
@@ -168,7 +240,7 @@
         mode = 'list';
         if (found) dispatch('saved', { doc: found });
       } else {
-        const args: any = {
+        args = {
           sportId,
           title: titleInput.trim(),
           notes: notesInput.trim() || undefined,
@@ -185,10 +257,39 @@
         if (found2) dispatch('saved', { doc: found2 });
       }
     } catch (e: any) {
-      // Try localStorage fallback if convex fails mid-session
-      usingOffline = true;
-      error = null;
-      await submitSave();
+      // Convex failed mid-save: queue the operation and mirror it locally so it
+      // is never lost. Guarded so a failure while offline cannot recurse forever.
+      if (fallbackInProgress) {
+        error = 'Failed to save screener. Check your connection and try again.';
+      } else {
+        fallbackInProgress = true;
+        try {
+          const lsDoc: any = {
+            _id: ('ls_' + Date.now().toString(36) + Math.random().toString(36).slice(2)),
+            sportId,
+            title: titleInput.trim(),
+            notes: notesInput.trim() || undefined,
+            scopes: JSON.parse(JSON.stringify(scopes)),
+            verdict: verdictPayload,
+            sessionId,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            _pendingSync: true
+          };
+          const existing = lsLoad();
+          existing.unshift(lsDoc);
+          lsSave(existing);
+          records = existing;
+          if (args) {
+            lsPendingSave([...lsPendingLoad(), { op: 'save', args, ref: lsDoc._id }]);
+          }
+          usingOffline = true;
+          mode = 'list';
+          error = 'Saved to this device — will sync to the cloud when you are back online.';
+        } finally {
+          fallbackInProgress = false;
+        }
+      }
     } finally {
       working = false;
     }
@@ -200,14 +301,25 @@
     working = true;
     error = null;
     try {
-      if (usingOffline || String(doc._id).startsWith('ls_')) {
-        const existing = lsLoad().filter((r) => r._id !== doc._id);
-        lsSave(existing);
-        records = existing;
+      const isLocal = String(doc._id).startsWith('ls_');
+      if (usingOffline || isLocal) {
+        // If this local record was created by a queued online save, drop the op too.
+        const pending = lsPendingLoad();
+        if (isLocal && (doc as any)._pendingSync) {
+          lsPendingSave(pending.filter((p) => String(p.ref) !== String(doc._id)));
+        }
+        removeLocalDoc(String(doc._id));
       } else {
-        await callConvex(api.savedScreeners.remove, { id: doc._id, sessionId, userId: authState.user?.id });
-        if (expandedId === String(doc._id)) expandedId = null;
-        await refresh();
+        try {
+          await callConvex(api.savedScreeners.remove, { id: doc._id, sessionId, userId: authState.user?.id });
+          if (expandedId === String(doc._id)) expandedId = null;
+          await refresh();
+        } catch {
+          // Queue the delete so it completes when Convex is reachable again.
+          lsPendingSave([...lsPendingLoad(), { op: 'delete', args: { id: doc._id, sessionId, userId: authState.user?.id }, ref: String(doc._id) }]);
+          error = 'Queued delete — will sync when you are back online.';
+          removeLocalDoc(String(doc._id));
+        }
       }
     } catch (e: any) {
       error = e?.message ?? 'Failed to delete screener';
