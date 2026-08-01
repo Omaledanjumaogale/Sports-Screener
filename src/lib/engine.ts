@@ -1637,17 +1637,15 @@ export function analyzeInstantBasketball(scope: ScopeState): Analysis {
 /* ========================= VIRTUAL FOOTBALL (PULSE LINE) ========================= */
 
 export function analyzeVirtualFootball(scope: ScopeState): Analysis {
-  const m15 = scope.markets.mainTotal15;
-  const m25 = scope.markets.mainTotal25;
-  const h05 = scope.markets.homeTotal05;
-  const a05 = scope.markets.awayTotal05;
+  const mainTotal = scope.markets.mainTotal;
+  const homeTotal = scope.markets.homeTotal;
+  const awayTotal = scope.markets.awayTotal;
   const btts = scope.markets.btts;
 
   const targetPicks: Pick[] = [
-    ...(m15?.pairs?.[0] ? analyzeLines(m15) : []),
-    ...(m25?.pairs?.[0] ? analyzeLines(m25) : []),
-    ...(h05?.pairs?.[0] ? analyzeLines(h05) : []),
-    ...(a05?.pairs?.[0] ? analyzeLines(a05) : []),
+    ...(mainTotal?.pairs?.length ? analyzeLines(mainTotal) : []),
+    ...(homeTotal?.pairs?.length ? analyzeLines(homeTotal) : []),
+    ...(awayTotal?.pairs?.length ? analyzeLines(awayTotal) : []),
     ...(btts ? analyzeOddsMarket(btts, { yes: 'BTTS Yes (GG)', no: 'BTTS No (NG)' }) : [])
   ];
 
@@ -1656,10 +1654,14 @@ export function analyzeVirtualFootball(scope: ScopeState): Analysis {
 
   const allPicks = [...targetPicks, ...csGrid, ...resultPicks].map(withEv).sort((a, b) => b.probability - a.probability);
 
+  // Fair-Number Interpolation for Virtual Football Goal Pace
+  const goalLinesList: LinePair[] = mainTotal?.pairs ?? [];
+  const expectedGoals = bestExpectedLine(goalLinesList, 1.0);
+
   const profiles: Profile[] = [
     {
       key: 'A',
-      title: 'Virtual Goal Lines (1.5 / 2.5)',
+      title: 'Match Total Goals (0.5 – 5.5)',
       tag: 'Match Goals',
       score: targetPicks.length,
       completed: targetPicks.length,
@@ -1668,8 +1670,13 @@ export function analyzeVirtualFootball(scope: ScopeState): Analysis {
       checks: [
         {
           title: 'Goal Lines Entry',
-          detail: targetPicks.length ? `Best Goal Line: ${targetPicks[0].label} @ ${pct(targetPicks[0].probability, 1)}` : 'Enter Over 1.5 or Over 2.5 odds',
+          detail: targetPicks.length ? `Best Goal Line: ${targetPicks[0].label} @ ${pct(targetPicks[0].probability, 1)}` : 'Enter Match Total Goals odds',
           status: targetPicks.length ? 'green' : 'empty'
+        },
+        {
+          title: 'True Expected Goal Pace',
+          detail: expectedGoals ? `Expected Goals: ${expectedGoals.expected} goals` : 'Enter Over/Under lines for all match totals',
+          status: expectedGoals ? 'green' : 'empty'
         }
       ],
       top: topPick(targetPicks)
@@ -1695,12 +1702,12 @@ export function analyzeVirtualFootball(scope: ScopeState): Analysis {
       key: 'C',
       title: 'Team Goals & BTTS',
       tag: 'Team / BTTS',
-      score: targetPicks.filter((p) => p.marketId === 'homeTotal05' || p.marketId === 'awayTotal05' || p.marketId === 'btts').length,
-      completed: targetPicks.filter((p) => p.marketId === 'homeTotal05' || p.marketId === 'awayTotal05' || p.marketId === 'btts').length,
+      score: targetPicks.filter((p) => p.marketId === 'homeTotal' || p.marketId === 'awayTotal' || p.marketId === 'btts').length,
+      completed: targetPicks.filter((p) => p.marketId === 'homeTotal' || p.marketId === 'awayTotal' || p.marketId === 'btts').length,
       ratio: targetPicks.length ? 1 : 0,
       status: targetPicks.length ? 'green' : 'empty',
       checks: [],
-      top: topPick(targetPicks.filter((p) => p.marketId === 'btts' || p.marketId === 'homeTotal05' || p.marketId === 'awayTotal05'))
+      top: topPick(targetPicks.filter((p) => p.marketId === 'btts' || p.marketId === 'homeTotal' || p.marketId === 'awayTotal'))
     },
     {
       key: 'D',
@@ -1836,8 +1843,7 @@ export function analyzeBaseball(scope: ScopeState): Analysis {
 
 const OU_LINE_COUNT = 11;
 
-const footballLines = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5];
-const footballHomeAwayLines = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5];
+const FOOTBALL_TOTAL_LINES = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5];
 
 export function createFootballScope(id: 'h1' | 'h2' | 'ft', title: string): ScopeState {
   const state: ScopeState = {
@@ -1845,9 +1851,9 @@ export function createFootballScope(id: 'h1' | 'h2' | 'ft', title: string): Scop
     title,
     leaguePreset: 'balanced',
     markets: {
-      mainTotal: market('mainTotal', 'Match Total Goals', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, footballLines) }),
-      homeTotal: market('homeTotal', 'Home Team Total Goals', 'ou', { pairs: emptyPairs(OU_LINE_COUNT, footballHomeAwayLines) }),
-      awayTotal: market('awayTotal', 'Away Team Total Goals', 'ou', { pairs: emptyPairs(OU_LINE_COUNT, footballHomeAwayLines) }),
+      mainTotal: market('mainTotal', 'Match Total Goals', 'ou', { primary: true, pairs: emptyPairs(FOOTBALL_TOTAL_LINES.length, FOOTBALL_TOTAL_LINES) }),
+      homeTotal: market('homeTotal', 'Home Team Goals — Over / Under', 'ou', { pairs: emptyPairs(FOOTBALL_TOTAL_LINES.length, FOOTBALL_TOTAL_LINES) }),
+      awayTotal: market('awayTotal', 'Away Team Goals — Over / Under', 'ou', { pairs: emptyPairs(FOOTBALL_TOTAL_LINES.length, FOOTBALL_TOTAL_LINES) }),
       result: market('result', '1X2 Result', 'threeway', { primary: true, odds: oddsMap(['home', 'draw', 'away']) }),
       doubleChance: market('doubleChance', 'Double Chance', 'threeway', { odds: oddsMap(['hd', 'ha', 'da']) }),
       handicap: market('handicap', 'Asian Handicap', 'handicap', { handicapPairs: emptyHandicaps(OU_LINE_COUNT, [-5.0, -4.0, -3.0, -2.0, -1.0, -0.5, 0, 0.5, 1.0, 2.0, 3.0]) }),
@@ -1979,8 +1985,8 @@ export function createRallyScopes(): ScopeState[] {
 
 export function createHockeyScope(id: 'rt' | 'p1', title: string): ScopeState {
   const isRT = id === 'rt';
-  const gameLines = isRT ? range(3.5, 9.5, 0.5) : range(0.5, 3.5, 0.5);
-  const teamLines = isRT ? range(0.5, 5.5, 0.5) : range(0.5, 2.5, 0.5);
+  const gameLines = isRT ? [3.5, 4.5, 5.5, 6.5, 7.5, 8.5] : [0.5, 1, 1.5, 2, 2.5, 3];
+  const teamLines = isRT ? [0.5, 1.5, 2.5, 3.5, 4.5, 5.5] : [0.5, 1, 1.5, 2, 2.5, 3];
   const hdpLines = isRT ? [-3.5, -2.5, -1.5, -0.5, 0, 0.5, 1.5, 2.5, 3.5] : [-1.5, -0.5, 0, 0.5, 1.5];
   const csKeys = isRT ? HOCKEY_SCORES_RT : HOCKEY_SCORES_P1;
 
@@ -1989,9 +1995,9 @@ export function createHockeyScope(id: 'rt' | 'p1', title: string): ScopeState {
     title,
     leaguePreset: 'nhl',
     markets: {
-      mainTotal: market('mainTotal', isRT ? 'Game Total Goals' : '1st Period Total Goals', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, gameLines.slice(0, OU_LINE_COUNT)) }),
-      homeTotal: market('homeTotal', isRT ? 'Team 1 Total Goals' : '1st Period T1 Goals', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, teamLines.slice(0, OU_LINE_COUNT)) }),
-      awayTotal: market('awayTotal', isRT ? 'Team 2 Total Goals' : '1st Period T2 Goals', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, teamLines.slice(0, OU_LINE_COUNT)) }),
+      mainTotal: market('mainTotal', isRT ? 'Game Total Goals' : '1st Period Total Goals', 'ou', { primary: true, pairs: emptyPairs(gameLines.length, gameLines) }),
+      homeTotal: market('homeTotal', isRT ? 'Team 1 Total Goals' : '1st Period T1 Goals', 'ou', { primary: true, pairs: emptyPairs(teamLines.length, teamLines) }),
+      awayTotal: market('awayTotal', isRT ? 'Team 2 Total Goals' : '1st Period T2 Goals', 'ou', { primary: true, pairs: emptyPairs(teamLines.length, teamLines) }),
       result: market('result', isRT ? '1X2 Regulation Result' : '1st Period 1X2', 'threeway', { primary: true, odds: oddsMap(['home', 'draw', 'away']) }),
       handicap: market('handicap', isRT ? 'Puck Line Handicap' : '1st Period Handicap', 'handicap', { handicapPairs: emptyHandicaps(OU_LINE_COUNT, isRT ? [-5.0, -3.5, -2.5, -1.5, -0.5, 0, 0.5, 1.5, 2.5, 3.5, 5.0] : [-1.5, -1.0, -0.5, 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5]) }),
       correctScore: market('correctScore', 'Correct Score Grid', 'correctScore', { odds: oddsMap(csKeys) })
@@ -2013,6 +2019,7 @@ export function createHockeyScopes(): ScopeState[] {
 }
 
 const INSTANT_FOOTBALL_TOTAL_LINES = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5];
+const VIRTUAL_FOOTBALL_TOTAL_LINES = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5];
 
 export function createInstantFootballScopes(): ScopeState[] {
   return [
@@ -2055,10 +2062,9 @@ export function createVirtualFootballScopes(): ScopeState[] {
       id: 'round',
       title: 'Virtual Round',
       markets: {
-        mainTotal15: market('mainTotal15', 'Match Goals — Over / Under 1.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]) }),
-        mainTotal25: market('mainTotal25', 'Match Goals — Over / Under 2.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5]) }),
-        homeTotal05: market('homeTotal05', 'Home Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]) }),
-        awayTotal05: market('awayTotal05', 'Away Team Goals — Over / Under 0.5', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]) }),
+        mainTotal: market('mainTotal', 'Match Total Goals', 'ou', { primary: true, pairs: emptyPairs(VIRTUAL_FOOTBALL_TOTAL_LINES.length, VIRTUAL_FOOTBALL_TOTAL_LINES) }),
+        homeTotal: market('homeTotal', 'Home Team Goals — Over / Under', 'ou', { primary: true, pairs: emptyPairs(VIRTUAL_FOOTBALL_TOTAL_LINES.length, VIRTUAL_FOOTBALL_TOTAL_LINES) }),
+        awayTotal: market('awayTotal', 'Away Team Goals — Over / Under', 'ou', { primary: true, pairs: emptyPairs(VIRTUAL_FOOTBALL_TOTAL_LINES.length, VIRTUAL_FOOTBALL_TOTAL_LINES) }),
         btts: market('btts', 'Both Teams to Score (BTTS GG/NG)', 'yesno', { primary: true, odds: oddsMap(['yes', 'no']) }),
         result: market('result', 'Match Result 1X2', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) }),
         correctScore: market('correctScore', 'Correct Score Grid (16 + Other)', 'correctScore', { odds: oddsMap([...FOOTBALL_SCORES, 'Other']) })
@@ -2124,8 +2130,8 @@ function computeLineOptions(sportId: SportId, scopeId: string, marketId: string)
     return [];
   }
   if (sportId === 'football' || sportId === 'vfootball') {
-    if (marketId.includes('mainTotal') || marketId.includes('Total')) {
-      return [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5];
+    if (marketId === 'mainTotal' || marketId === 'homeTotal' || marketId === 'awayTotal') {
+      return FOOTBALL_TOTAL_LINES;
     }
     if (marketId === 'handicap') return [-3.5, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3.5];
     return [];
@@ -2162,8 +2168,8 @@ function computeLineOptions(sportId: SportId, scopeId: string, marketId: string)
     return [];
   }
   if (sportId === 'hockey') {
-    if (marketId === 'mainTotal') return range(2.5, 10.5, 0.5);
-    if (marketId === 'homeTotal' || marketId === 'awayTotal') return range(0.5, 6.5, 0.5);
+    if (marketId === 'mainTotal') return scopeId === 'rt' ? [3.5, 4.5, 5.5, 6.5, 7.5, 8.5] : [0.5, 1, 1.5, 2, 2.5, 3];
+    if (marketId === 'homeTotal' || marketId === 'awayTotal') return scopeId === 'rt' ? [0.5, 1.5, 2.5, 3.5, 4.5, 5.5] : [0.5, 1, 1.5, 2, 2.5, 3];
     if (marketId === 'handicap') return [-3.5, -2.5, -1.5, -0.5, 0, 0.5, 1.5, 2.5, 3.5];
     return [];
   }
