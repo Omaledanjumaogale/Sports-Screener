@@ -1885,16 +1885,17 @@ export function createMetScope(id: string, title: string, sport: 'basketball' | 
     const last = mainLines11.length ? mainLines11[mainLines11.length - 1] : 10;
     mainLines11.push(round(last + (isTennis ? 1 : 5), 1));
   }
-  const playerLines11 = playerLines.slice(0, OU_LINE_COUNT);
-  while (playerLines11.length < OU_LINE_COUNT) {
+  const playerLineCount = isTennis ? 7 : OU_LINE_COUNT;
+  const playerLines11 = playerLines.slice(0, playerLineCount);
+  while (playerLines11.length < playerLineCount) {
     const last = playerLines11.length ? playerLines11[playerLines11.length - 1] : 10;
     playerLines11.push(round(last + (isTennis ? 0.5 : 2), 1));
   }
   const playerLines11offset = playerLines.slice(
-    Math.max(0, Math.floor(playerLines.length / 2) - 5),
-    Math.max(0, Math.floor(playerLines.length / 2) - 5 + OU_LINE_COUNT)
+    Math.max(0, Math.floor(playerLines.length / 2) - Math.floor(playerLineCount / 2)),
+    Math.max(0, Math.floor(playerLines.length / 2) - Math.floor(playerLineCount / 2) + playerLineCount)
   );
-  while (playerLines11offset.length < OU_LINE_COUNT) {
+  while (playerLines11offset.length < playerLineCount) {
     const last = playerLines11offset.length ? playerLines11offset[playerLines11offset.length - 1] : 10;
     playerLines11offset.push(round(last + (isTennis ? 0.5 : 2), 1));
   }
@@ -1905,8 +1906,8 @@ export function createMetScope(id: string, title: string, sport: 'basketball' | 
     ...(isTennis ? { surface: 'hard', format: 'bo3' } : {}),
     markets: {
       mainTotal: market('mainTotal', isTennis ? 'Total Games' : 'Game Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, mainLines11) }),
-      homeTotal: market('homeTotal', isTennis ? 'Player 1 Total Games' : 'Team 1 Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, playerLines11) }),
-      awayTotal: market('awayTotal', isTennis ? 'Player 2 Total Games' : 'Team 2 Total Points', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, playerLines11offset) }),
+      homeTotal: market('homeTotal', isTennis ? 'Player 1 Total Games' : 'Team 1 Total Points', 'ou', { primary: true, pairs: emptyPairs(playerLineCount, playerLines11) }),
+      awayTotal: market('awayTotal', isTennis ? 'Player 2 Total Games' : 'Team 2 Total Points', 'ou', { primary: true, pairs: emptyPairs(playerLineCount, playerLines11offset) }),
       handicap: market('handicap', isTennis ? 'Game Handicap' : 'Spread / Handicap', 'handicap', { handicapPairs: emptyHandicaps(OU_LINE_COUNT, isTennis ? [-5.5, -4.5, -3.5, -2.5, -1.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5] : [-15.5, -10.5, -6.5, -3.5, -1.5, 0.5, 1.5, 3.5, 6.5, 10.5, 15.5]) }),
       winner: market('winner', isTennis ? 'Match / Set Winner' : 'Moneyline Winner', 'winner', { primary: true, odds: oddsMap(['a', 'b']) })
     }
