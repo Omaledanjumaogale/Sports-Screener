@@ -2024,12 +2024,12 @@ export function createInstantFootballScopes(): ScopeState[] {
       id: 'round',
       title: 'Instant Match Round',
       markets: {
+        result: market('result', 'Match Result 1X2', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) }),
         mainTotal: market('mainTotal', 'Match Total Goals', 'ou', { primary: true, pairs: emptyPairs(INSTANT_FOOTBALL_TOTAL_LINES.length, INSTANT_FOOTBALL_TOTAL_LINES) }),
         homeTotal: market('homeTotal', 'Home Team Goals — Over / Under', 'ou', { primary: true, pairs: emptyPairs(INSTANT_FOOTBALL_TOTAL_LINES.length, INSTANT_FOOTBALL_TOTAL_LINES) }),
         awayTotal: market('awayTotal', 'Away Team Goals — Over / Under', 'ou', { primary: true, pairs: emptyPairs(INSTANT_FOOTBALL_TOTAL_LINES.length, INSTANT_FOOTBALL_TOTAL_LINES) }),
         btts: market('btts', 'Both Teams to Score (BTTS GG/NG)', 'yesno', { primary: true, odds: oddsMap(['yes', 'no']) }),
         tts: market('tts', 'Teams To Score (4-Way)', 'threeway', { odds: oddsMap(['neither', 'homeOnly', 'awayOnly', 'both']) }),
-        result: market('result', 'Match Result 1X2', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) }),
         correctScore: market('correctScore', 'Correct Score Grid (16 + Other)', 'correctScore', { odds: oddsMap([...FOOTBALL_SCORES, 'Other']) })
       }
     }
@@ -2059,11 +2059,11 @@ export function createVirtualFootballScopes(): ScopeState[] {
       id: 'round',
       title: 'Virtual Round',
       markets: {
+        result: market('result', 'Match Result 1X2', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) }),
         mainTotal: market('mainTotal', 'Match Total Goals', 'ou', { primary: true, pairs: emptyPairs(VIRTUAL_FOOTBALL_TOTAL_LINES.length, VIRTUAL_FOOTBALL_TOTAL_LINES) }),
         homeTotal: market('homeTotal', 'Home Team Goals — Over / Under', 'ou', { primary: true, pairs: emptyPairs(VIRTUAL_FOOTBALL_TOTAL_LINES.length, VIRTUAL_FOOTBALL_TOTAL_LINES) }),
         awayTotal: market('awayTotal', 'Away Team Goals — Over / Under', 'ou', { primary: true, pairs: emptyPairs(VIRTUAL_FOOTBALL_TOTAL_LINES.length, VIRTUAL_FOOTBALL_TOTAL_LINES) }),
         btts: market('btts', 'Both Teams to Score (BTTS GG/NG)', 'yesno', { primary: true, odds: oddsMap(['yes', 'no']) }),
-        result: market('result', 'Match Result 1X2', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) }),
         correctScore: market('correctScore', 'Correct Score Grid (16 + Other)', 'correctScore', { odds: oddsMap([...FOOTBALL_SCORES, 'Other']) })
       }
     }
