@@ -226,7 +226,7 @@
   }
 
   .lock-btn:hover {
-    color: #f59e0b;
+    color: var(--c-amber);
     border-color: color-mix(in srgb, #f59e0b 40%, transparent);
     background: color-mix(in srgb, #f59e0b 8%, transparent);
   }
@@ -234,7 +234,7 @@
   .lock-btn.locked {
     background: color-mix(in srgb, #f59e0b 16%, transparent);
     border-color: color-mix(in srgb, #f59e0b 40%, transparent);
-    color: #f59e0b;
+    color: var(--c-amber);
   }
 
   .line-picker.is-locked .custom-inline input {

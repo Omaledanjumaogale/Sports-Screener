@@ -81,12 +81,12 @@
   }
 
   :global(.moon-icon) {
-    color: #38bdf8;
+    color: var(--c-sky);
     filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.6));
   }
 
   :global(.sun-icon) {
-    color: #f59e0b;
+    color: var(--c-amber);
     filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.8));
   }
 

@@ -198,9 +198,9 @@
     line-height: 1;
     color: var(--c-text, #f1f5ff);
   }
-  .status-green .score { color: #4ade80; }
-  .status-amber .score { color: #fbbf24; }
-  .status-red   .score { color: #fb7185; }
+  .status-green .score { color: var(--c-green); }
+  .status-amber .score { color: var(--c-amber); }
+  .status-red   .score { color: var(--c-red); }
 
   .status-badge {
     display: inline-flex;

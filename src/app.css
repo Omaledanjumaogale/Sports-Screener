@@ -32,6 +32,16 @@
   --c-text-2:     #c8d6ee;
   --c-muted:      #8899bb;
   --c-faint:      #5a6e8a;
+  --c-text-sub:   #c5d0e3;
+
+  /* Elevated / inset surfaces (were hardcoded dark in components) */
+  --c-surface-elevated: rgba(30, 41, 59, 0.5);
+  --c-surface-1:        rgba(0, 0, 0, 0.22);
+
+  /* Semantic accent helpers for theme-adaptive readability */
+  --c-sky:       #38bdf8;
+  --c-purple:    #a78bfa;
+  --c-on-accent: #ffffff;
 
   /* Brand Orange & Orange-Greenish Gradients */
   --c-orange:         #f97316;
@@ -128,6 +138,16 @@ html[data-theme='light'] {
   --c-text-2:     #1e293b;
   --c-muted:      #374151;
   --c-faint:      #64748b;
+  --c-text-sub:   #334155;
+
+  /* Elevated / inset surfaces for light backgrounds */
+  --c-surface-elevated: rgba(255, 255, 255, 0.92);
+  --c-surface-1:        rgba(255, 255, 255, 0.72);
+
+  /* Semantic accent helpers for theme-adaptive readability */
+  --c-sky:       #0284c7;
+  --c-purple:    #7c3aed;
+  --c-on-accent: #0f172a;
 
   /* Brand Orange & Orange-Greenish Gradients */
   --c-orange:         #ea580c;

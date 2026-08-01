@@ -94,7 +94,7 @@
   .ranking {
     padding: 18px;
     border-radius: 18px;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--c-surface);
     backdrop-filter: blur(16px) saturate(160%);
     -webkit-backdrop-filter: blur(16px) saturate(160%);
     content-visibility: auto;
@@ -213,12 +213,12 @@
     padding: 1px 6px;
     border-radius: 999px;
     background: rgba(148, 163, 184, 0.15);
-    color: #94a3b8;
+    color: var(--c-muted);
     border: 1px solid rgba(148, 163, 184, 0.3);
   }
-  .tier-mini-pill.t1 { background: rgba(34, 197, 94, 0.15); color: #4ade80; border-color: rgba(34, 197, 94, 0.4); }
-  .tier-mini-pill.t2 { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); }
-  .tier-mini-pill.t-conflict { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.4); }
+  .tier-mini-pill.t1 { background: rgba(34, 197, 94, 0.15); color: var(--c-green); border-color: rgba(34, 197, 94, 0.4); }
+  .tier-mini-pill.t2 { background: rgba(56, 189, 248, 0.15); color: var(--c-sky); border-color: rgba(56, 189, 248, 0.4); }
+  .tier-mini-pill.t-conflict { background: rgba(239, 68, 68, 0.15); color: var(--c-red); border-color: rgba(239, 68, 68, 0.4); }
 
   .rank-meta {
     display: block;

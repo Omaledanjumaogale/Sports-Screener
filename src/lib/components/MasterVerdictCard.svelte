@@ -140,23 +140,23 @@
     padding: 4px 10px;
     border-radius: 999px;
     background: rgba(148, 163, 184, 0.15);
-    color: #94a3b8;
+    color: var(--c-muted);
     border: 1px solid rgba(148, 163, 184, 0.3);
     white-space: nowrap;
   }
   .tier-pill.tier-1 {
     background: rgba(34, 197, 94, 0.15);
-    color: #4ade80;
+    color: var(--c-green);
     border-color: rgba(34, 197, 94, 0.4);
   }
   .tier-pill.tier-2 {
     background: rgba(56, 189, 248, 0.15);
-    color: #38bdf8;
+    color: var(--c-sky);
     border-color: rgba(56, 189, 248, 0.4);
   }
   .tier-pill.tier-conflicted {
     background: rgba(239, 68, 68, 0.15);
-    color: #f87171;
+    color: var(--c-red);
     border-color: rgba(239, 68, 68, 0.4);
   }
 
@@ -178,7 +178,7 @@
   }
   .m-label {
     font-size: 11px;
-    color: #94a3b8;
+    color: var(--c-muted);
     font-weight: 600;
 
   }
@@ -187,12 +187,12 @@
     font-weight: 900;
     margin: 2px 0;
   }
-  .prob-val { color: #38bdf8; }
-  .margin-val { color: #fbbf24; }
-  .agree-val { color: #4ade80; }
+  .prob-val { color: var(--c-sky); }
+  .margin-val { color: var(--c-amber); }
+  .agree-val { color: var(--c-green); }
   .m-sub {
     font-size: 10px;
-    color: #64748b;
+    color: var(--c-faint);
   }
 
   .ledger-section {
@@ -201,7 +201,7 @@
   .ledger-title {
     font-size: 12px;
     font-weight: 700;
-    color: #94a3b8;
+    color: var(--c-muted);
     margin: 0 0 8px 0;
     text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -240,7 +240,7 @@
   }
   .row-detail {
     font-size: 11px;
-    color: #94a3b8;
+    color: var(--c-muted);
   }
 
   .vote-badge {
@@ -255,15 +255,15 @@
   }
   .badge-agree {
     background: rgba(34, 197, 94, 0.2);
-    color: #4ade80;
+    color: var(--c-green);
   }
   .badge-disagree {
     background: rgba(239, 68, 68, 0.2);
-    color: #f87171;
+    color: var(--c-red);
   }
   .badge-na {
     background: rgba(148, 163, 184, 0.15);
-    color: #94a3b8;
+    color: var(--c-muted);
   }
 
   .conflict-alert {
@@ -274,14 +274,14 @@
     border: 1px solid rgba(239, 68, 68, 0.3);
     border-radius: 10px;
     padding: 10px 12px;
-    color: #fca5a5;
+    color: var(--c-red);
     margin-bottom: 12px;
   }
   .alert-text strong {
     font-size: 12px;
     display: block;
     margin-bottom: 2px;
-    color: #ef4444;
+    color: var(--c-red);
   }
   .alert-text p {
     margin: 0;
@@ -290,14 +290,14 @@
 
   .missing-fields {
     font-size: 11px;
-    color: #64748b;
+    color: var(--c-faint);
     margin-bottom: 10px;
   }
   .missing-label {
     font-weight: 600;
   }
   .missing-list {
-    color: #94a3b8;
+    color: var(--c-muted);
   }
 
   .master-footnote {
@@ -305,7 +305,7 @@
     align-items: center;
     gap: 6px;
     font-size: 10px;
-    color: #64748b;
+    color: var(--c-faint);
     padding-top: 8px;
     border-top: 1px dashed var(--c-border, rgba(255, 255, 255, 0.08));
   }

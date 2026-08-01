@@ -472,7 +472,7 @@
     border-radius: 9px;
     background: color-mix(in srgb, #f38020 16%, transparent);
     border: 1px solid color-mix(in srgb, #f38020 30%, transparent);
-    color: #f38020;
+    color: var(--c-orange);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -487,7 +487,7 @@
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #f38020;
+    color: var(--c-orange);
     line-height: 1.2;
   }
 
@@ -524,7 +524,7 @@
   .status-chip.analyzing {
     background: color-mix(in srgb, #f38020 12%, transparent);
     border: 1px solid color-mix(in srgb, #f38020 28%, transparent);
-    color: #f38020;
+    color: var(--c-orange);
   }
 
   .status-chip.done {
@@ -668,7 +668,7 @@
   .insight-box.verdict .box-head { color: var(--cf-accent, #38bdf8); }
   .insight-box.value .box-head { color: var(--c-green, #4ade80); }
   .insight-box.risk .box-head { color: var(--c-orange, #fb923c); }
-  .insight-box.action .box-head { color: #f38020; }
+  .insight-box.action .box-head { color: var(--c-orange); }
 
   .box-content { margin: 0; font-size: 12.5px; color: var(--c-text, #f1f5ff); line-height: 1.48; font-weight: 500; }
 
@@ -691,10 +691,10 @@
     color: var(--cf-accent, #38bdf8);
     margin-bottom: 8px;
   }
-  .section-badge.gold { color: #f59e0b; }
+  .section-badge.gold { color: var(--c-amber); }
   .section-badge.edge { color: var(--c-green, #4ade80); }
-  .section-badge.warning-badge { color: #fb923c; }
-  .section-badge.stake-badge { color: #a78bfa; }
+  .section-badge.warning-badge { color: var(--c-orange); }
+  .section-badge.stake-badge { color: var(--c-purple); }
 
   .detail-text {
     margin: 0;
@@ -761,7 +761,7 @@
   .rank-num {
     font-size: 11px;
     font-weight: 900;
-    color: #f59e0b;
+    color: var(--c-amber);
     background: color-mix(in srgb, #f59e0b 16%, transparent);
     border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
     padding: 1px 6px;
@@ -843,8 +843,8 @@
   }
 
   .model-tag {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.07);
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border-sm);
     padding: 2px 8px;
     border-radius: 6px;
     font-size: 10px;
@@ -867,7 +867,7 @@
     cursor: pointer;
     transition: color 120ms, border-color 120ms, background 120ms;
   }
-  .refresh-btn:hover:not(:disabled) { color: #f38020; border-color: color-mix(in srgb, #f38020 40%, transparent); background: color-mix(in srgb, #f38020 6%, transparent); }
+  .refresh-btn:hover:not(:disabled) { color: var(--c-orange); border-color: color-mix(in srgb, #f38020 40%, transparent); background: color-mix(in srgb, #f38020 6%, transparent); }
   .refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* Manual generate button */
