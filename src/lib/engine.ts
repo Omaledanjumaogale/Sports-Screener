@@ -1938,7 +1938,11 @@ export function createBasketballScopes(): ScopeState[] {
 }
 
 export function createTennisScopes(): ScopeState[] {
-  return [createMetScope('rt', 'Regular Time (Match)', 'tennis'), createMetScope('s1', '1st Set', 'tennis')];
+  const order = ['winner', 'mainTotal', 'handicap', 'tiebreak', 'homeTotal', 'awayTotal', 'correctScore'];
+  return [
+    createMetScope('rt', 'Regular Time (Match)', 'tennis'),
+    createMetScope('s1', '1st Set', 'tennis')
+  ].map((s) => ({ ...s, markets: orderMarkets(s.markets, order) }));
 }
 
 export function createRallyScope(): ScopeState {
