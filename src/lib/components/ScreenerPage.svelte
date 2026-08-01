@@ -73,7 +73,7 @@
   let scope: ScopeState | null = $derived(scopes[selectedScopeIndex] ?? null);
 
   // Debounced analysis: inputs mutate `scopes` instantly (fast typing); the full
-  // engine only recomputes ~90ms after the last keystroke so panels never block input.
+  // engine only recomputes ~40ms after the last change so panels never block input.
   let analysis: Analysis | null = $state(null);
   let analysisTimer: ReturnType<typeof setTimeout> | null = null;
   let analysisCache: { sig: string; value: Analysis } | null = null;
@@ -101,7 +101,7 @@
     draftPushTimer = setTimeout(() => {
       draftPushTimer = null;
       void pushDraft(sportId, scopes, authState.user?.id);
-    }, 900);
+    }, 1500);
   }
 
   function scopesHaveData(list: ScopeState[]): boolean {
@@ -127,7 +127,7 @@
     const run = () => { analysis = runAnalysis(sportId, s, t); };
     if (!analysis) { run(); return; }
     if (analysisTimer) clearTimeout(analysisTimer);
-    analysisTimer = setTimeout(run, 90);
+    analysisTimer = setTimeout(run, 40);
     return () => { if (analysisTimer) { clearTimeout(analysisTimer); analysisTimer = null; } };
   });
 
@@ -365,7 +365,7 @@
       <ScopeTabs
         tabs={scopes.map((s) => ({ id: s.id, title: s.title }))}
         selectedIndex={selectedScopeIndex}
-        onSelect={(i) => { selectedScopeIndex = i; refresh(); }}
+        onSelect={(i) => { selectedScopeIndex = i; }}
       />
 
       <VerdictHero headline={analysis.headline} chips={analysis.chips} />
