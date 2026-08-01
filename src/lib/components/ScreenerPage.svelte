@@ -161,10 +161,7 @@
   }
 
   function backHome() {
-    try { void goto('/'); } catch (_) { /* ignore */ }
-    if (typeof window !== 'undefined') {
-      setTimeout(() => { if (window.location.pathname !== '/') window.location.assign('/'); }, 60);
-    }
+    void goto('/');
   }
 
   function onChangeAny() {

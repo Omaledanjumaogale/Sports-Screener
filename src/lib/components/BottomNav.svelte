@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import SportSvgIcon from './SportSvgIcon.svelte';
 
   type SportDef = {
@@ -19,7 +20,7 @@
   ];
 
   function navigate(path: string) {
-    if (typeof window !== 'undefined') window.location.assign(path);
+    void goto(path);
   }
 
   let currentPath = $derived($page.url.pathname);

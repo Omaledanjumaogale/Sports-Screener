@@ -138,12 +138,7 @@
   const comingSoonSports: Array<{ short: string; title: string; description: string; accent: string; emoji: string }> = [];
 
   function nav(p: string) {
-    try {
-      if (typeof goto === 'function') { void (async () => { await goto(p); })(); }
-    } catch (_) { /* ignore */ }
-    if (typeof window !== 'undefined') {
-      setTimeout(() => { if (window.location.pathname !== p) window.location.assign(p); }, 40);
-    }
+    void goto(p);
   }
 
   const features = [

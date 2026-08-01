@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ChevronRight, Lock } from '@lucide/svelte';
+  import { goto } from '$app/navigation';
   import SportSvgIcon from './SportSvgIcon.svelte';
 
   type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball';
@@ -29,8 +30,8 @@
     if (props.comingSoon) return;
     if (typeof props.onClick === 'function') {
       try { props.onClick(); } catch (_) { /* swallow */ }
-    } else if (props.path && typeof window !== 'undefined') {
-      window.location.assign(props.path);
+    } else if (props.path) {
+      void goto(props.path);
     }
   }}
 >
