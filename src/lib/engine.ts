@@ -504,8 +504,8 @@ export function analyzeFootball(scope: ScopeState): Analysis {
     ...totalPicks,
     ...analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' }),
     ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' }),
-    ...(scope.id === 'ft'
-      ? analyzeOddsMarket(scope.markets.btts ?? { id: 'btts', kind: 'yesno', title: '' }, { yes: 'BTTS Yes (GG)', no: 'BTTS No (NG)' })
+    ...(scope.markets.btts
+      ? analyzeOddsMarket(scope.markets.btts, { yes: 'BTTS Yes (GG)', no: 'BTTS No (NG)' })
       : [])
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
@@ -1856,10 +1856,9 @@ export function createFootballScope(id: 'h1' | 'h2' | 'ft', title: string): Scop
       mainTotal: market('mainTotal', 'Match Total Goals', 'ou', { primary: true, pairs: emptyPairs(FOOTBALL_TOTAL_LINES.length, FOOTBALL_TOTAL_LINES) }),
       homeTotal: market('homeTotal', 'Home Team Goals — Over / Under', 'ou', { pairs: emptyPairs(FOOTBALL_TOTAL_LINES.length, FOOTBALL_TOTAL_LINES) }),
       awayTotal: market('awayTotal', 'Away Team Goals — Over / Under', 'ou', { pairs: emptyPairs(FOOTBALL_TOTAL_LINES.length, FOOTBALL_TOTAL_LINES) }),
+      btts: market('btts', 'BTTS / Goal Goal', 'yesno', { odds: oddsMap(['yes', 'no']) }),
       handicap: market('handicap', 'Asian Handicap', 'handicap', { handicapPairs: emptyHandicaps(7, [0, -0.5, 0.5, -1, 1, -1.5, 1.5]) }),
-      ...(id === 'ft'
-        ? { btts: market('btts', 'BTTS / Goal Goal', 'yesno', { odds: oddsMap(['yes', 'no']) }) }
-        : { noneOdds: market('noneOdds', '"None" (no goal in half)', 'yesno', { odds: oddsMap(['none', 'goal']) }) }),
+      ...(id === 'ft' ? {} : { noneOdds: market('noneOdds', '"None" (no goal in half)', 'yesno', { odds: oddsMap(['none', 'goal']) }) }),
       correctScore: market('correctScore', 'Correct Score Grid (9 cells)', 'correctScore', { odds: oddsMap(FOOTBALL_SCORES) })
     }
   };
