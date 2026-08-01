@@ -1921,8 +1921,20 @@ export function createMetScope(id: string, title: string, sport: 'basketball' | 
   return state;
 }
 
+function orderMarkets(markets: Record<string, MarketInput>, order: string[]): Record<string, MarketInput> {
+  const out: Record<string, MarketInput> = {};
+  for (const k of order) if (markets[k]) out[k] = markets[k];
+  for (const [k, v] of Object.entries(markets)) if (!out[k]) out[k] = v;
+  return out;
+}
+
 export function createBasketballScopes(): ScopeState[] {
-  return [createMetScope('ft', 'Full Time', 'basketball'), createMetScope('q1', '1st Quarter', 'basketball'), createMetScope('h1', '1st Half', 'basketball')];
+  const order = ['winner', 'mainTotal', 'handicap', 'homeTotal', 'awayTotal', 'correctScore', 'tiebreak'];
+  return [
+    createMetScope('ft', 'Full Time', 'basketball'),
+    createMetScope('q1', '1st Quarter', 'basketball'),
+    createMetScope('h1', '1st Half', 'basketball')
+  ].map((s) => ({ ...s, markets: orderMarkets(s.markets, order) }));
 }
 
 export function createTennisScopes(): ScopeState[] {
@@ -2042,12 +2054,12 @@ export function createInstantBasketballScopes(): ScopeState[] {
       id: 'game',
       title: 'Instant Match Game',
       markets: {
+        regResult: market('regResult', 'Regulation Result (1X2)', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) }),
+        winner: market('winner', 'Winner (incl. OT)', 'winner', { odds: oddsMap(['a', 'b']) }),
         gameTotal: market('gameTotal', 'Match Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [189.5, 194.5, 199.5, 204.5, 209.5, 214.5, 219.5, 224.5, 229.5, 234.5, 239.5]) }),
         handicap: market('handicap', 'Match Handicap (incl. OT)', 'handicap', { primary: true, handicapPairs: emptyHandicaps(OU_LINE_COUNT, [-12.5, -9.5, -6.5, -4.5, -2.5, -0.5, 0.5, 2.5, 4.5, 6.5, 9.5]) }),
         homeTotal: market('homeTotal', 'Home Team Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [88.5, 93.5, 98.5, 103.5, 108.5, 113.5, 118.5, 123.5, 128.5, 133.5, 138.5]) }),
-        awayTotal: market('awayTotal', 'Away Team Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [88.5, 93.5, 98.5, 103.5, 108.5, 113.5, 118.5, 123.5, 128.5, 133.5, 138.5]) }),
-        winner: market('winner', 'Winner (incl. OT)', 'winner', { odds: oddsMap(['a', 'b']) }),
-        regResult: market('regResult', 'Regulation Result (1X2)', 'threeway', { odds: oddsMap(['home', 'draw', 'away']) })
+        awayTotal: market('awayTotal', 'Away Team Total Points (incl. OT)', 'ou', { primary: true, pairs: emptyPairs(OU_LINE_COUNT, [88.5, 93.5, 98.5, 103.5, 108.5, 113.5, 118.5, 123.5, 128.5, 133.5, 138.5]) })
       }
     }
   ];
