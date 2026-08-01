@@ -69,9 +69,61 @@ type HttpClientLike = {
   clearAuth: () => void;
 };
 
+// Realtime (WebSocket) Convex client — powers live query subscriptions. It is
+// created lazily on first subscribe and kept alongside the one-shot HTTP client.
+type RealtimeClientLike = {
+  setAuth: (
+    fetchToken: () => string | null | undefined | Promise<string | null | undefined>,
+    onChange?: () => void
+  ) => void;
+  onUpdate: (
+    query: string,
+    args: any,
+    callback: (result: any) => void,
+    onError?: (err?: any) => void
+  ) => (() => void) & { getCurrentValue?: () => any };
+  close?: () => void;
+};
+
 let cachedClient: HttpClientLike | null = null;
 let cachedUrl: string | null = null;
 let pendingAuthToken: string | null = null;
+
+let realtimeClient: RealtimeClientLike | null = null;
+let realtimePendingAuth: string | null = null;
+
+async function getRealtimeClient(): Promise<RealtimeClientLike> {
+  if (realtimeClient) return realtimeClient;
+  const mod = await import('convex/browser');
+  realtimeClient = new mod.ConvexClient(getConvexUrl()) as RealtimeClientLike;
+  realtimeClient.setAuth(() => realtimePendingAuth, () => {});
+  return realtimeClient;
+}
+
+// Subscribe to a live Convex query. Resolves to an unsubscribe function. If the
+// realtime client cannot be created (offline/SSR) a no-op unsubscribe is
+// returned and the error is routed to `onError`.
+export async function subscribeConvexQuery<Result = any>(
+  name: string,
+  args: any,
+  onChange: (result: Result | null) => void,
+  onError?: (err: unknown) => void
+): Promise<() => void> {
+  try {
+    const client = await getRealtimeClient();
+    const unsub = client.onUpdate(name, args, onChange, (err) => {
+      const msg = (err as any)?.message || err;
+      console.warn(`[Convex] realtime query '${name}' failed:`, msg);
+      onError?.(err);
+    });
+    return typeof unsub === 'function' ? unsub : () => {};
+  } catch (err) {
+    const msg = (err as any)?.message || err;
+    console.warn('[Convex] realtime client unavailable:', msg);
+    onError?.(err);
+    return () => {};
+  }
+}
 
 export async function getConvexClient(): Promise<HttpClientLike> {
   const url = getConvexUrl();
@@ -97,6 +149,10 @@ export function setConvexAuthToken(token: string | null | undefined) {
   if (cachedClient) {
     if (real) cachedClient.setAuth(real);
     else cachedClient.clearAuth();
+  }
+  realtimePendingAuth = real;
+  if (realtimeClient) {
+    realtimeClient.setAuth(() => realtimePendingAuth, () => {});
   }
 }
 
@@ -135,7 +191,10 @@ export const api = {
     registerProfile: 'users:registerProfile',
     getProfile: 'users:getProfile',
     markSubscribed: 'users:markSubscribed',
-    checkSubscription: 'users:checkSubscription'
+    checkSubscription: 'users:checkSubscription',
+    me: 'users:me',
+    syncAccess: 'users:syncAccess',
+    verifyFlutterwaveCharge: 'users:verifyFlutterwaveCharge'
   }
 };
 
@@ -161,15 +220,26 @@ export async function convexSignIn(opts: {
       provider: 'password',
       params: { flow: opts.flow, email: opts.email, password: opts.password }
     });
-    const tokens: any[] = Array.isArray(res?.tokens) ? res.tokens : [];
-    const authToken = tokens.find((t) => t?.name === 'auth')?.value ?? tokens[0]?.value;
+    // The auth action returns `tokens` as an object ({ token, refreshToken })
+    // nested under either `res.tokens` or `res.signedIn.tokens`. Cover both, plus
+    // the legacy `[{name,value}]` array form, so sign-in never depends on a
+    // specific backend shape.
+    const tok = res?.tokens?.token ?? res?.signedIn?.tokens?.token;
+    let authToken: string | undefined = typeof tok === 'string' ? tok : undefined;
+    if (!authToken && Array.isArray(res?.tokens)) {
+      const arr = res.tokens as any[];
+      authToken = arr.find((t) => t?.name === 'auth')?.value ?? arr[0]?.value;
+    }
     if (authToken) {
       setConvexAuthToken(authToken);
-      return { token: authToken, subject: res?.signedIn?.user?.subject ?? null };
+      return {
+        token: authToken,
+        subject: res?.signedIn?.userId ?? res?.userId ?? null
+      };
     }
     return null;
   } catch (err: any) {
-    console.warn('[Convex] auth:signIn failed, falling back to local session:', err?.message || err);
+    console.warn('[Convex] auth:signIn failed:', err?.message || err);
     return null;
   }
 }

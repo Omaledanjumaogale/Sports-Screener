@@ -10,16 +10,17 @@ auth.addHttpRoutes(http);
 
 // Flutterwave Webhook Listener
 // Webhook URL: https://modest-lark-218.eu-west-1.convex.site/webhooks/flutterwave
-// Secret Hash: Ewin@ProjectEcosystemadmin_Secr3t2026!
+// Secret Hash is read from the FLW_SECRET_HASH Convex environment variable.
 http.route({
   path: "/webhooks/flutterwave",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     const signature = request.headers.get("verif-hash");
-    const secretHash = process.env.FLW_SECRET_HASH || "Ewin@ProjectEcosystemadmin_Secr3t2026!";
+    const secretHash = process.env.FLW_SECRET_HASH;
 
-    // Verify webhook signature
-    if (!signature || signature !== secretHash) {
+    // Verify webhook signature against the configured secret hash. No hardcoded
+    // fallback — a missing env secret must fail closed.
+    if (!secretHash || !signature || signature !== secretHash) {
       console.warn("Flutterwave Webhook Signature Mismatch");
       return new Response(JSON.stringify({ status: "error", message: "Unauthorized signature" }), {
         status: 401,
@@ -35,14 +36,26 @@ http.route({
       if (event === "charge.completed" && data?.status === "successful") {
         const customerEmail = data?.customer?.email;
         const txRef = data?.tx_ref || data?.flw_ref || `flw_${Date.now()}`;
-        const amount = data?.amount || 5000;
+        const amount = Number(data?.amount) || 0;
+        const currency = String(data?.currency || "").toUpperCase();
+
+        // Only honor the configured plan amount/currency (₦5,000 NGN).
+        if (amount < 5000 || currency !== "NGN") {
+          console.warn(`[Flutterwave Webhook] Rejected non-plan charge: ${amount} ${currency}`);
+          return new Response(JSON.stringify({ status: "error", message: "Invalid amount or currency" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
 
         if (customerEmail) {
           await ctx.runMutation(api.users.markSubscribed, {
             email: customerEmail,
             txRef,
+            transactionId: data?.id ? String(data.id) : undefined,
             amount,
-            durationDays: 30
+            durationDays: 30,
+            webhookSecret: secretHash
           });
           console.log(`[Flutterwave Webhook] Subscription activated for ${customerEmail} (txRef: ${txRef})`);
         }

@@ -2,12 +2,9 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { ShieldAlert, LogIn, UserPlus, Eye, EyeOff, ArrowLeft, Crown } from '@lucide/svelte';
-  import { setAuthenticated, isSuperAdminEmail, isTesterEmail, TESTER_PASSWORD, getTesterTrialExpiresAt } from '$lib/authStore.svelte';
+  import { setAuthenticated, isSuperAdminEmail, isTesterEmail } from '$lib/authStore.svelte';
   import { notify } from '$lib/notificationStore';
   import { getConvexClient, api, convexSignIn } from '$lib/convexClient';
-
-  // Super admin credential check — encoded to prevent trivial source inspection
-  const _sa = atob('T21hbGU1MTU2NjEyMiUlJQ==');
 
   let isSignUp = $derived($page.url.searchParams.get('mode') === 'signup');
   let redirectTarget = $derived($page.url.searchParams.get('redirect') || '');
@@ -41,31 +38,6 @@
     const isAdmin = isSuperAdminEmail(cleanEmail);
     const isTester = isTesterEmail(cleanEmail);
 
-    // Enforce super admin password — email alone is not sufficient
-    if (isAdmin && password !== _sa) {
-      error = 'Invalid credentials. Access denied.';
-      notify('Invalid credentials. Access denied.', 'error', 'Authentication Error');
-      loading = false;
-      return;
-    }
-
-    // Enforce tester account password and 1-month trial period check
-    if (isTester) {
-      if (password !== TESTER_PASSWORD) {
-        error = 'Invalid credentials for tester account. Access denied.';
-        notify('Invalid password for tester account.', 'error', 'Authentication Error');
-        loading = false;
-        return;
-      }
-      const expAt = getTesterTrialExpiresAt();
-      if (Date.now() > expAt) {
-        error = 'The 1-month free trial period for tester@gmail.com has expired. Please sign up with your own account and subscribe.';
-        notify('Tester free trial period has expired. Please create your own account and subscribe.', 'warning', 'Trial Expired');
-        loading = false;
-        return;
-      }
-    }
-
     if (isSignUp && !isAdmin && !isTester) {
       if (!fullName.trim() || !mobile.trim() || !dob.trim() || !stateOfResidence || !consentAccepted) {
         error = 'Please fill out all required fields and accept the consent agreement.';
@@ -75,51 +47,45 @@
     }
 
     try {
-      let token = 'token_' + Math.random().toString(36).slice(2, 10);
-      let userId = 'user_' + Math.random().toString(36).slice(2, 10);
-      let isSubscribed = isAdmin;
+      // Real Convex Password-provider auth. Admin/tester accounts are provisioned
+      // server-side (seeded) and always log in — never sign up. No local
+      // emulation fallback: credentials are validated by the backend.
+      const flow = isAdmin || isTester ? 'signIn' : isSignUp ? 'signUp' : 'signIn';
+      const res = await convexSignIn({ email: cleanEmail, password, flow });
+      if (!res?.token) {
+        throw new Error(isSignUp ? 'Could not create account. Please try again.' : 'Invalid credentials. Access denied.');
+      }
+      const token = res.token;
+      const userId = res.subject || 'user_' + Math.random().toString(36).slice(2, 10);
 
-      if (isTester) {
-        const expAt = getTesterTrialExpiresAt();
-        isSubscribed = Date.now() <= expAt;
-      } else {
+      // Fetch the authoritative access state (admin/tester/subscription) from
+      // the server now that the real token is attached.
+      let access: any = {};
+      const client = await getConvexClient();
+      try {
+        access = await client.mutation(api.users.syncAccess, {});
+      } catch (err: any) {
+        console.warn('syncAccess skipped:', err?.message || err);
+      }
+
+      if (isSignUp && !isAdmin && !isTester) {
         try {
-          // Real Convex Password-provider signIn/signUp. Falls back to a local
-          // emulated session when the backend is unreachable (admin/dev mode).
-          const res = await convexSignIn({
+          await client.mutation(api.users.registerProfile, {
             email: cleanEmail,
-            password,
-            flow: isSignUp ? 'signUp' : 'signIn'
+            fullName: fullName.trim(),
+            mobile: mobile.trim(),
+            dob,
+            stateOfResidence,
+            consentAccepted: true,
+            userId
           });
-          if (res?.token) token = res.token;
-          if (res?.subject) userId = res.subject;
-
-          const client = await getConvexClient();
-
-          if (isSignUp) {
-            // Record profile details in Convex database
-            await client.mutation(api.users.registerProfile, {
-              email: cleanEmail,
-              fullName: fullName.trim() || 'Super Admin',
-              mobile: mobile.trim() || '+2348000000000',
-              dob: dob || '1990-01-01',
-              stateOfResidence: stateOfResidence || 'Lagos',
-              consentAccepted: true,
-              userId
-            });
-          } else if (!isAdmin) {
-            // Check subscription status on login for normal users
-            const sub = await client.query((api as any).users.checkSubscription, { email: cleanEmail });
-            if (sub?.isSubscribed) {
-              isSubscribed = true;
-            }
-          }
-        } catch (_e) {
-          console.warn('Convex backend offline or dev mode fallback active');
+        } catch (err: any) {
+          console.warn('registerProfile skipped:', err?.message || err);
         }
       }
 
-      const testerExpAt = isTester ? getTesterTrialExpiresAt() : undefined;
+      const isSubscribed = !!(access.isAdmin || access.isTester || access.isSubscribed);
+      const testerExpired = access.isTester && !access.isSubscribed;
 
       const user = {
         id: userId,
@@ -130,10 +96,10 @@
         stateOfResidence: stateOfResidence || undefined,
         consentAccepted: true,
         name: isAdmin ? 'Super Admin' : isTester ? 'Tester User' : (fullName.trim() || cleanEmail.split('@')[0]),
-        isSubscribed: isAdmin || isSubscribed,
+        isSubscribed: isAdmin || isTester || isSubscribed,
         isAdmin,
         isTester,
-        subscriptionExpiresAt: testerExpAt,
+        subscriptionExpiresAt: access.subscriptionExpiresAt ?? access.trialExpiresAt,
         createdAt: Date.now()
       };
 
@@ -147,7 +113,7 @@
           6000
         );
         void goto('/');
-      } else if (isTester) {
+      } else if (isTester && !testerExpired) {
         notify(
           'Welcome, Tester! 1-month free trial pass active. Full unrestricted access granted to all screeners.',
           'success',
@@ -155,6 +121,13 @@
           7000
         );
         void goto('/football');
+      } else if (testerExpired) {
+        notify(
+          'Your 1-month tester trial has expired. Please subscribe to continue using the screeners.',
+          'warning',
+          'Trial Expired'
+        );
+        void goto('/checkout');
       } else if (isSignUp) {
         notify(
           'Account created successfully! Redirecting you to complete your ₦5,000 monthly subscription donation to unlock sports screeners.',

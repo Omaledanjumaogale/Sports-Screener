@@ -2,12 +2,12 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { authState, setSubscribedStatus } from '$lib/authStore.svelte';
+  import { authState, setSubscribedStatus, refreshAccess } from '$lib/authStore.svelte';
   import { notify } from '$lib/notificationStore';
   import { getConvexClient, api } from '$lib/convexClient';
-  import { ShieldCheck, HeartHandshake, CheckCircle2, Lock, ArrowLeft, ExternalLink, Sparkles, RefreshCw } from '@lucide/svelte';
+  import { ShieldCheck, HeartHandshake, CheckCircle2, Lock, ArrowLeft, ExternalLink, RefreshCw } from '@lucide/svelte';
 
-  const DIRECT_PAYMENT_LINK = 'https://flutterwave.com/pay/ndypongylu8q';
+  const DIRECT_PAYMENT_LINK = (import.meta as any).env?.VITE_FLW_PAYMENT_LINK || 'https://flutterwave.com/pay/ndypongylu8q';
   const FLW_PUBLIC_KEY = (import.meta as any).env?.VITE_FLW_PUBLIC_KEY || 'FLWPUBK-3d7724be-0c38-4ba7-bbb0-6bfab94637b1-X';
 
   let verifying = $state(false);
@@ -23,10 +23,11 @@
     const params = $page.url.searchParams;
     const status = params.get('status');
     const txRef = params.get('tx_ref') || params.get('transaction_id') || params.get('flw_ref');
+    const transactionId = params.get('transaction_id') || undefined;
 
     // If returning from payment with status=successful
     if (status === 'successful' || status === 'completed' || params.get('verified') === 'true') {
-      await handlePaymentSuccess(txRef || `flw_${Date.now()}`);
+      await handlePaymentSuccess(txRef || `flw_${Date.now()}`, transactionId);
       return;
     }
 
@@ -37,30 +38,26 @@
     }
   });
 
-  async function handlePaymentSuccess(txRef: string) {
+  async function handlePaymentSuccess(txRef: string, transactionId?: string) {
     verifying = true;
     verifyingError = null;
 
     try {
-      if (userEmail) {
-        try {
-          const client = await getConvexClient();
-          await client.mutation(api.users.markSubscribed, {
-            email: userEmail,
-            txRef,
-            amount: 5000,
-            durationDays: 30
-          });
-        } catch (e) {
-          console.warn('Convex backend offline fallback active during subscription mark');
-        }
-      }
+      // Server-side verification: the Convex action re-verifies the charge with
+      // Flutterwave before granting access, so a forged/local txRef is rejected.
+      const client = await getConvexClient();
+      const result: any = await client.action(api.users.verifyFlutterwaveCharge, {
+        txRef,
+        transactionId,
+        email: userEmail
+      });
 
       setSubscribedStatus(true, txRef, 30);
+      void refreshAccess();
       verifyingSuccess = true;
 
       notify(
-        'Payment completed successfully! Your ₦5,000 monthly pass is now active with full access to all sports screeners.',
+        'Payment verified and completed successfully! Your ₦5,000 monthly pass is now active with full access to all sports screeners.',
         'success',
         'Subscription Activated!',
         6000
@@ -130,7 +127,7 @@
       },
       callback: async (data: any) => {
         if (data && (data.status === 'successful' || data.status === 'completed')) {
-          await handlePaymentSuccess(data.tx_ref || txRef);
+          await handlePaymentSuccess(data.tx_ref || txRef, data.transaction_id || data.id);
         } else {
           notify('Payment was not completed. Please try again.', 'warning', 'Payment Pending');
         }
@@ -139,12 +136,6 @@
         console.log('Checkout modal closed');
       }
     });
-  }
-
-  // Manual fallback activation button for demo/testing
-  async function simulateActivation() {
-    const mockTx = 'sim_' + Date.now();
-    await handlePaymentSuccess(mockTx);
   }
 </script>
 
@@ -269,17 +260,6 @@
       >
         <Lock size={16} />
         <span>Pay In-App with Card / Bank Transfer / USSD</span>
-      </button>
-
-      <!-- Direct Verification Simulation button -->
-      <button
-        type="button"
-        class="btn-sim-checkout"
-        onclick={simulateActivation}
-        disabled={verifying}
-      >
-        <Sparkles size={14} />
-        <span>Already Paid? Confirm &amp; Activate Pass Immediately</span>
       </button>
     </div>
 
@@ -486,27 +466,7 @@
     color: var(--c-orange, #f97316);
   }
 
-  .btn-sim-checkout {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    width: 100%;
-    padding: 10px 16px;
-    border-radius: 10px;
-    background: transparent;
-    border: 1px dashed color-mix(in srgb, var(--c-green, #22c55e) 40%, transparent);
-    color: var(--c-green, #22c55e);
-    font-size: 12.5px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 140ms ease;
-  }
-  .btn-sim-checkout:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--c-green, #22c55e) 12%, transparent);
-  }
-
-  .btn-primary-checkout:disabled, .btn-secondary-checkout:disabled, .btn-sim-checkout:disabled {
+  .btn-primary-checkout:disabled, .btn-secondary-checkout:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }

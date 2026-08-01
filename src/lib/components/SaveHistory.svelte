@@ -4,6 +4,7 @@
     api,
     callConvex,
     queryConvex,
+    subscribeConvexQuery,
     getSessionId,
     type ConvexSportId,
     type SavedScreenerDoc
@@ -76,6 +77,39 @@
   onMount(() => {
     sessionId = getSessionId();
     void refresh();
+  });
+
+  // ── Live history sync ──────────────────────────────────────────────────
+  // Subscribes to `savedScreeners:list` over the realtime Convex client so the
+  // list updates in-place when a record changes on the server (same account on
+  // another device, webhook, etc.). Re-subscribes when the signed-in user
+  // changes. The effect cleanup tears the subscription down on unmount.
+  let historyUnsub: (() => void) | null = null;
+
+  $effect(() => {
+    const userId = authState.user?.id;
+    const sport = sportId;
+    const sess = getSessionId();
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+    subscribeConvexQuery<SavedScreenerDoc[]>(
+      api.savedScreeners.list,
+      { sportId: sport, sessionId: sess, userId },
+      (remote) => {
+        if (remote) {
+          usingOffline = false;
+          records = remote;
+          loading = false;
+        }
+      }
+    ).then((unsub) => {
+      if (cancelled) unsub();
+      else historyUnsub = unsub;
+    });
+    return () => {
+      cancelled = true;
+      if (historyUnsub) { historyUnsub(); historyUnsub = null; }
+    };
   });
 
   async function refresh() {

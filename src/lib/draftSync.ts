@@ -6,7 +6,7 @@
 // in-progress work follows them across devices, while localStorage stays as the
 // instant/offline layer.
 
-import { callConvex, queryConvex, getSessionId, api, type DraftDoc, type ConvexSportId } from './convexClient';
+import { callConvex, queryConvex, subscribeConvexQuery, getSessionId, api, type DraftDoc, type ConvexSportId } from './convexClient';
 import type { SportId } from './engine';
 
 const DRAFT_PENDING_KEY = 'sportsScreener_draft_pending_v1';
@@ -98,4 +98,27 @@ export async function flushPendingDrafts(authUserId?: string | null): Promise<vo
     } catch { /* keep queued; retry next time */ }
   }
   writePending(pending);
+}
+
+// Live-subscribe to the server draft for a sport. The realtime (WebSocket)
+// Convex client pushes updates whenever a draft changes anywhere (e.g. the same
+// account on another device), so the UI can restore/refresh without polling.
+// Resolves to an unsubscribe function.
+export async function subscribeDraft(
+  sportId: SportId | ConvexSportId,
+  authUserId?: string | null,
+  onChange?: (draft: { scopes: any; updatedAt: number } | null) => void
+): Promise<() => void> {
+  const sessionId = getSessionId();
+  return subscribeConvexQuery<DraftDoc | null>(
+    api.drafts.get,
+    { sportId, sessionId, userId: authUserId ?? undefined },
+    (doc) => {
+      if (doc?.scopes && Array.isArray(doc.scopes)) {
+        onChange?.({ scopes: doc.scopes, updatedAt: doc.updatedAt });
+      } else {
+        onChange?.(null);
+      }
+    }
+  );
 }

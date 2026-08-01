@@ -37,7 +37,7 @@
     type SportId
   } from '../engine';
   import type { SavedScreenerDoc, ConvexSportId } from '../convexClient';
-  import { pushDraft, pullDraft, flushPendingDrafts } from '../draftSync';
+  import { pushDraft, pullDraft, flushPendingDrafts, subscribeDraft } from '../draftSync';
   import { authState, setSubscribedStatus } from '$lib/authStore.svelte';
   import { notify } from '$lib/notificationStore';
   import { getConvexClient, api } from '$lib/convexClient';
@@ -68,6 +68,7 @@
   let restoredAiResult: any = $state(null);
   let aiResult: any = $state(null);
   let draftPushTimer: ReturnType<typeof setTimeout> | null = null;
+  let draftUnsub: (() => void) | null = null;
 
   let scope: ScopeState | null = $derived(scopes[selectedScopeIndex] ?? null);
 
@@ -272,6 +273,23 @@
           void pushDraft(sportId, scopes, authState.user?.id);
         }
         await flushPendingDrafts(authState.user?.id);
+
+        // Live draft subscription: push updates from other devices. Only applied
+        // when this device has no local data, so we never clobber active edits.
+        draftUnsub = await subscribeDraft(sportId, authState.user?.id, (draft) => {
+          if (!draft?.scopes || !Array.isArray(draft.scopes)) return;
+          if (scopesHaveData(scopes)) return;
+          const fresh = factory();
+          for (let i = 0; i < fresh.length; i += 1) {
+            const dst = fresh[i];
+            const src = draft.scopes[i] ?? draft.scopes.find((s: any) => s?.id === dst.id);
+            if (src) mergeScopeOnto(dst, src);
+          }
+          scopes = fresh;
+          saveScopes(sportId, scopes);
+          loadBanner = 'Live draft update applied';
+          refreshTick += 1;
+        });
       } catch (_) { /* offline — skip Convex draft sync */ }
     })();
   });
@@ -279,6 +297,7 @@
   onDestroy(() => {
     if (analysisTimer) { clearTimeout(analysisTimer); analysisTimer = null; }
     if (draftPushTimer) { clearTimeout(draftPushTimer); draftPushTimer = null; }
+    if (draftUnsub) { draftUnsub(); draftUnsub = null; }
     if (typeof window !== 'undefined') {
       window.removeEventListener('beforeunload', flushSaveScopes);
       window.removeEventListener('pagehide', flushSaveScopes);
