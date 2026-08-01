@@ -1866,7 +1866,7 @@ export function createFootballScope(id: 'h1' | 'h2' | 'ft', title: string): Scop
 }
 
 export function createFootballScopes(): ScopeState[] {
-  return [createFootballScope('h1', '1st Half'), createFootballScope('h2', '2nd Half'), createFootballScope('ft', 'Full Time')];
+  return [createFootballScope('ft', 'Full Time'), createFootballScope('h1', '1st Half'), createFootballScope('h2', '2nd Half')];
 }
 
 export function createMetScope(id: string, title: string, sport: 'basketball' | 'tennis'): ScopeState {
