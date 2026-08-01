@@ -22,7 +22,7 @@
 </script>
 
 <div class="odds-grid-wrap" style={`--cols:${colNum}`}>
-  {#each keys as key, i}
+  {#each keys as key, i (key)}
     <OddsPicker
       id={`og-${i}`}
       label={labels[key] ?? key}

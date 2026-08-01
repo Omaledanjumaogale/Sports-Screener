@@ -1160,18 +1160,10 @@ export function analyzeHockey(scope: ScopeState): Analysis {
 export function buildConfluenceLedger(
   sportId: SportId,
   currentScope: ScopeState,
-  allScopes: ScopeState[]
+  allScopes: ScopeState[],
+  precomputedAnalysis?: Analysis | null
 ): MasterConfluenceLedger | null {
-  const currentAnalysis =
-    sportId === 'football'
-      ? analyzeFootball(currentScope)
-      : sportId === 'basketball'
-      ? analyzeBasketball(currentScope)
-      : sportId === 'tennis'
-      ? analyzeTennis(currentScope)
-      : sportId === 'rally'
-      ? analyzeRally(currentScope)
-      : analyzeHockey(currentScope);
+  const currentAnalysis = precomputedAnalysis ?? analyzeScope(sportId, currentScope);
 
   const safest = currentAnalysis.profiles.find((p) => p.key === 'A')?.top ?? currentAnalysis.picks[0];
   if (!safest) return null;
@@ -1210,16 +1202,7 @@ export function buildConfluenceLedger(
   // Row 2: Cross-Scope Verdict
   const otherScope = allScopes.find((s) => s.id !== currentScope.id);
   if (otherScope) {
-    const otherAnalysis =
-      sportId === 'football'
-        ? analyzeFootball(otherScope)
-        : sportId === 'basketball'
-        ? analyzeBasketball(otherScope)
-        : sportId === 'tennis'
-        ? analyzeTennis(otherScope)
-        : sportId === 'rally'
-        ? analyzeRally(otherScope)
-        : analyzeHockey(otherScope);
+    const otherAnalysis = analyzeScope(sportId, otherScope);
 
     const otherTop = otherAnalysis.picks[0];
     if (otherTop) {
@@ -1401,6 +1384,53 @@ function finishAnalysis(scope: ScopeState, profiles: Profile[], picks: Pick[], r
     picks: picks.sort((a, b) => b.probability - a.probability).slice(0, 20),
     metrics: []
   };
+}
+
+/* ========================= ANALYSIS DISPATCH + CACHE ========================= */
+
+const _analyzeCache = new WeakMap<ScopeState, { sig: string; analysis: Analysis }>();
+
+export function scopeSignature(scope: ScopeState): string {
+  const parts: string[] = [];
+  parts.push(scope.id || '');
+  parts.push(scope.leaguePreset || '');
+  parts.push(scope.surface || '');
+  parts.push(scope.format || '');
+  const markets = scope.markets ?? ({} as Record<string, MarketInput>);
+  for (const id of Object.keys(markets)) {
+    const mk = markets[id];
+    if (!mk) continue;
+    parts.push(id);
+    if (mk.pairs) {
+      for (const p of mk.pairs) parts.push(`${p.line}|${p.over}|${p.under}`);
+    }
+    if (mk.handicapPairs) {
+      for (const p of mk.handicapPairs) parts.push(`${p.line}|${p.sideA}|${p.sideB}`);
+    }
+    if (mk.odds) {
+      const keys = Object.keys(mk.odds).sort();
+      for (const k of keys) parts.push(`${k}=${mk.odds[k] ?? ''}`);
+    }
+  }
+  return parts.join(',');
+}
+
+export function analyzeScope(sportId: SportId, scope: ScopeState): Analysis {
+  const sig = scopeSignature(scope);
+  const cached = _analyzeCache.get(scope);
+  if (cached && cached.sig === sig) return cached.analysis;
+  let res: Analysis;
+  if (sportId === 'football') res = analyzeFootball(scope);
+  else if (sportId === 'basketball') res = analyzeBasketball(scope);
+  else if (sportId === 'tennis') res = analyzeTennis(scope);
+  else if (sportId === 'hockey') res = analyzeHockey(scope);
+  else if (sportId === 'instant-football') res = analyzeInstantFootball(scope);
+  else if (sportId === 'instant-basketball') res = analyzeInstantBasketball(scope);
+  else if (sportId === 'vfootball') res = analyzeVirtualFootball(scope);
+  else if (sportId === 'baseball') res = analyzeBaseball(scope);
+  else res = analyzeRally(scope);
+  _analyzeCache.set(scope, { sig, analysis: res });
+  return res;
 }
 
 /* ========================= INSTANT FOOTBALL (FLASH LINE) ========================= */
@@ -2106,7 +2136,18 @@ export function createBaseballScopes(): ScopeState[] {
 
 /* ========================= LINE OPTIONS ========================= */
 
+const _lineOptionsCache = new Map<string, number[]>();
+
 export function lineOptionsFor(sportId: SportId, scopeId: string, marketId: string): number[] {
+  const cacheKey = `${sportId}|${scopeId}|${marketId}`;
+  const cached = _lineOptionsCache.get(cacheKey);
+  if (cached) return cached;
+  const opts = computeLineOptions(sportId, scopeId, marketId);
+  _lineOptionsCache.set(cacheKey, opts);
+  return opts;
+}
+
+function computeLineOptions(sportId: SportId, scopeId: string, marketId: string): number[] {
   if (sportId === 'football' || sportId === 'instant-football' || sportId === 'vfootball') {
     if (marketId.includes('mainTotal') || marketId.includes('Total')) {
       return [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5];
@@ -2167,6 +2208,34 @@ export const STORAGE_PREFIX = 'sportsScreener_v1_';
 
 export function storageKey(sportId: SportId): string {
   return `${STORAGE_PREFIX}${sportId}`;
+}
+
+let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+let _pendingSaveSport: SportId | null = null;
+let _pendingSaveScopes: ScopeState[] | null = null;
+
+export function saveScopesDebounced(sportId: SportId, scopes: ScopeState[]): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  _pendingSaveSport = sportId;
+  _pendingSaveScopes = scopes;
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null;
+    const sid = _pendingSaveSport;
+    const s = _pendingSaveScopes;
+    _pendingSaveSport = null;
+    _pendingSaveScopes = null;
+    if (sid && s) saveScopes(sid, s);
+  }, 400);
+}
+
+export function flushSaveScopes(): void {
+  if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
+  const sid = _pendingSaveSport;
+  const s = _pendingSaveScopes;
+  _pendingSaveSport = null;
+  _pendingSaveScopes = null;
+  if (sid && s) saveScopes(sid, s);
 }
 
 export function saveScopes(sportId: SportId, scopes: ScopeState[]): void {

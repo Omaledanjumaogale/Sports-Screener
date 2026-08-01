@@ -94,6 +94,8 @@
     padding: 16px;
     margin-bottom: 20px;
     backdrop-filter: blur(12px);
+    content-visibility: auto;
+    contain-intrinsic-size: auto 400px;
     transition: all 0.2s ease;
   }
   .master-card.is-tier1 {

@@ -418,6 +418,8 @@
     border-radius: 18px;
     padding: 18px;
     display: grid;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 400px;
     gap: 14px;
   }
 

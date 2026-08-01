@@ -97,6 +97,8 @@
     background: rgba(255, 255, 255, 0.04);
     backdrop-filter: blur(16px) saturate(160%);
     -webkit-backdrop-filter: blur(16px) saturate(160%);
+    content-visibility: auto;
+    contain-intrinsic-size: auto 400px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     animation: slide-up 0.4s ease both;
   }

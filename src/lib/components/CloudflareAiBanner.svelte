@@ -431,6 +431,8 @@
     padding: 16px 18px;
     margin: 14px 0;
     position: relative;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 400px;
     overflow: hidden;
     transition: border-color 180ms ease;
   }
