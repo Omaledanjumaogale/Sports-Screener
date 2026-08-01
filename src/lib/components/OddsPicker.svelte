@@ -28,6 +28,7 @@
 
   let isCustom = $state(false);
   let customValue = $state('');
+  let isFocused = $state(false);
 
   onMount(() => {
     if (storageKey) {
@@ -50,6 +51,7 @@
   });
 
   $effect(() => {
+    if (isFocused) return;
     if (value !== null) {
       if (value > 10 || !oddsOptions.includes(value)) {
         isCustom = true;
@@ -63,14 +65,34 @@
     onChange(v === '' ? null : Number(v));
   }
 
-  function handleCustomInput(val: string) {
-    customValue = val;
-    const num = parseFloat(val);
-    if (!isNaN(num) && num > 1) {
-      onChange(Math.round(num * 100) / 100);
-    } else if (val === '') {
+  function commitCustomInput() {
+    const val = customValue.trim();
+    if (val === '') {
+      isCustom = false;
+      customValue = '';
       onChange(null);
+      return;
     }
+    const num = parseFloat(val);
+    if (isNaN(num) || num <= 1) {
+      customValue = value !== null ? String(value) : '';
+      isCustom = value !== null && (value > 10 || !oddsOptions.includes(value));
+      return;
+    }
+    const rounded = Math.round(num * 100) / 100;
+    isCustom = true;
+    customValue = String(rounded);
+    onChange(rounded);
+  }
+
+  function onFocusCustom() {
+    isFocused = true;
+    customValue = value !== null ? String(value) : '';
+  }
+
+  function onBlurCustom() {
+    isFocused = false;
+    commitCustomInput();
   }
 
   function nudge(delta: number) {
@@ -129,15 +151,12 @@
         min="1.01"
         id={id ? `${id}-custom` : 'odds-custom'}
         placeholder="e.g. 11.50"
-        value={isCustom ? customValue : (value !== null ? String(value) : '')}
+        value={isFocused ? customValue : (isCustom ? customValue : (value !== null ? String(value) : ''))}
         disabled={disabled || locked}
-        oninput={(e) => {
-          const val = e.currentTarget.value;
-          if (val === '') { isCustom = false; onChange(null); return; }
-          isCustom = true;
-          customValue = val;
-          handleCustomInput(val);
-        }}
+        oninput={(e) => { customValue = e.currentTarget.value; }}
+        onfocus={onFocusCustom}
+        onblur={onBlurCustom}
+        onkeydown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
         aria-label={`Custom ${label}`}
       />
       {#if isCustom && !locked}

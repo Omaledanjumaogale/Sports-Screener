@@ -31,6 +31,7 @@
 
   let customInput = $state('');
   let isCustom = $state(false);
+  let isFocused = $state(false);
 
   onMount(() => {
     if (storageKey) {
@@ -52,8 +53,9 @@
     }
   });
 
-  // Reflect value in custom input when set externally
+  // Reflect value in custom input when set externally (not while typing)
   $effect(() => {
+    if (isFocused) return;
     if (value !== null && !options.includes(value)) {
       isCustom = true;
       customInput = String(value);
@@ -66,15 +68,34 @@
     onChange(v === '' ? null : Number(v));
   }
 
-  function handleCustomInput(val: string) {
-    customInput = val;
-    if (val === '') { onChange(null); return; }
-    const num = parseFloat(val);
-    if (!isNaN(num)) {
-      const clamped = Math.max(min, Math.min(max, Math.round(num * 100) / 100));
-      isCustom = true;
-      onChange(clamped);
+  function commitCustomInput() {
+    const val = customInput.trim();
+    if (val === '') {
+      isCustom = false;
+      customInput = '';
+      onChange(null);
+      return;
     }
+    const num = parseFloat(val);
+    if (isNaN(num)) {
+      customInput = value !== null ? String(value) : '';
+      isCustom = value !== null && !options.includes(value);
+      return;
+    }
+    const clamped = Math.max(min, Math.min(max, Math.round(num * 100) / 100));
+    isCustom = true;
+    customInput = String(clamped);
+    onChange(clamped);
+  }
+
+  function onFocusCustom() {
+    isFocused = true;
+    customInput = value !== null ? String(value) : '';
+  }
+
+  function onBlurCustom() {
+    isFocused = false;
+    commitCustomInput();
   }
 
   function nudge(delta: number) {
@@ -131,13 +152,12 @@
         {max}
         id={`lp-custom-${label.replace(/\s+/g, '-')}`}
         placeholder={`e.g. ${options[0] ?? 2.5}`}
-        value={isCustom ? customInput : (value !== null ? String(value) : '')}
+        value={isFocused ? customInput : (isCustom ? customInput : (value !== null ? String(value) : ''))}
         disabled={disabled || locked}
-        oninput={(e) => {
-          const val = e.currentTarget.value;
-          if (val === '') { isCustom = false; customInput = ''; onChange(null); return; }
-          handleCustomInput(val);
-        }}
+        oninput={(e) => { customInput = e.currentTarget.value; }}
+        onfocus={onFocusCustom}
+        onblur={onBlurCustom}
+        onkeydown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
         aria-label={`Custom ${label}`}
       />
       {#if isCustom && !locked}
