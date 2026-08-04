@@ -17,6 +17,7 @@
   import BottomNav from './BottomNav.svelte';
   import MasterVerdictCard from './MasterVerdictCard.svelte';
   import CloudflareAiBanner from './CloudflareAiBanner.svelte';
+  import AiPredictorButton from './AiPredictorButton.svelte';
   import {
     analyzeScope,
     scopeSignature,
@@ -349,6 +350,7 @@
           </svg>
           Clear {scope.title}
         </button>
+        <AiPredictorButton sportId={sportId} {accent} />
       </div>
 
       {#if loadBanner}
@@ -537,6 +539,8 @@
   .scope-toolbar {
     display: flex;
     justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
     margin: 8px 0 2px;
   }
 

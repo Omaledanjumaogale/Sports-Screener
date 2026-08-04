@@ -14,6 +14,15 @@ export const SPORT_IDS = v.union(
   v.literal('baseball')
 );
 
+export const PREDICTOR_SPORT_IDS = v.union(
+  v.literal('football'),
+  v.literal('basketball'),
+  v.literal('tennis'),
+  v.literal('rally'),
+  v.literal('hockey'),
+  v.literal('baseball')
+);
+
 export default defineSchema({
   ...authTables,
   drafts: defineTable({
@@ -88,5 +97,78 @@ export default defineSchema({
     updatedAt: v.number()
   })
     .index('by_email', ['email'])
-    .index('by_txRef', ['txRef'])
+    .index('by_txRef', ['txRef']),
+
+  predictorDays: defineTable({
+    dayKey: v.string(),
+    sportId: PREDICTOR_SPORT_IDS,
+    status: v.union(
+      v.literal('pending'),
+      v.literal('refreshing'),
+      v.literal('ready'),
+      v.literal('partial'),
+      v.literal('stale'),
+      v.literal('error')
+    ),
+    lastRefreshAt: v.optional(v.number()),
+    expiresAt: v.number(),
+    runId: v.optional(v.string()),
+    cap: v.number(),
+    sourcesUsed: v.array(v.string()),
+    message: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index('by_sport_day', ['sportId', 'dayKey'])
+    .index('by_day', ['dayKey', 'createdAt']),
+
+  predictorRuns: defineTable({
+    runId: v.string(),
+    dayKey: v.string(),
+    sportId: PREDICTOR_SPORT_IDS,
+    progress: v.number(),
+    stage: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('running'),
+      v.literal('complete'),
+      v.literal('error')
+    ),
+    message: v.optional(v.string()),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    updatedAt: v.number()
+  })
+    .index('by_sport_day', ['sportId', 'dayKey', 'startedAt'])
+    .index('by_runId', ['runId']),
+
+  predictorMatches: defineTable({
+    dayKey: v.string(),
+    sportId: PREDICTOR_SPORT_IDS,
+    matchId: v.string(),
+    league: v.string(),
+    homeTeam: v.string(),
+    awayTeam: v.string(),
+    startTime: v.number(),
+    source: v.string(),
+    marketsAvailable: v.array(v.string()),
+    scopes: v.any(),
+    oddsSnapshot: v.optional(v.any()),
+    createdAt: v.number()
+  })
+    .index('by_sport_day', ['sportId', 'dayKey', 'startTime'])
+    .index('by_day_match', ['dayKey', 'matchId'])
+    .index('by_sport_day_team', ['sportId', 'dayKey', 'homeTeam', 'awayTeam']),
+
+  predictorVerdicts: defineTable({
+    dayKey: v.string(),
+    sportId: PREDICTOR_SPORT_IDS,
+    matchId: v.string(),
+    aiReport: v.any(),
+    agentsRun: v.array(v.string()),
+    citations: v.array(v.string()),
+    updatedAt: v.number()
+  })
+    .index('by_day_match', ['dayKey', 'matchId'])
+    .index('by_sport_day', ['sportId', 'dayKey', 'matchId'])
 });

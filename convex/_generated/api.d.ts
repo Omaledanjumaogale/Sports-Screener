@@ -8,10 +8,23 @@
  * @module
  */
 
+import type * as agents_agentDefinitions from "../agents/agentDefinitions.js";
+import type * as agents_smoa from "../agents/smoa.js";
+import type * as agents_specialists from "../agents/specialists.js";
 import type * as auth from "../auth.js";
+import type * as cron from "../cron.js";
 import type * as drafts from "../drafts.js";
 import type * as http from "../http.js";
+import type * as predictor from "../predictor.js";
+import type * as predictorOrchestrator from "../predictorOrchestrator.js";
 import type * as savedScreeners from "../savedScreeners.js";
+import type * as scrapers_betwatch from "../scrapers/betwatch.js";
+import type * as scrapers_brightdata from "../scrapers/brightdata.js";
+import type * as scrapers_firecrawl from "../scrapers/firecrawl.js";
+import type * as scrapers_jinaReader from "../scrapers/jinaReader.js";
+import type * as scrapers_normalize from "../scrapers/normalize.js";
+import type * as scrapers_serper from "../scrapers/serper.js";
+import type * as scrapers_sources from "../scrapers/sources.js";
 import type * as users from "../users.js";
 
 import type {
@@ -21,10 +34,23 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "agents/agentDefinitions": typeof agents_agentDefinitions;
+  "agents/smoa": typeof agents_smoa;
+  "agents/specialists": typeof agents_specialists;
   auth: typeof auth;
+  cron: typeof cron;
   drafts: typeof drafts;
   http: typeof http;
+  predictor: typeof predictor;
+  predictorOrchestrator: typeof predictorOrchestrator;
   savedScreeners: typeof savedScreeners;
+  "scrapers/betwatch": typeof scrapers_betwatch;
+  "scrapers/brightdata": typeof scrapers_brightdata;
+  "scrapers/firecrawl": typeof scrapers_firecrawl;
+  "scrapers/jinaReader": typeof scrapers_jinaReader;
+  "scrapers/normalize": typeof scrapers_normalize;
+  "scrapers/serper": typeof scrapers_serper;
+  "scrapers/sources": typeof scrapers_sources;
   users: typeof users;
 }>;
 

@@ -1,0 +1,128 @@
+// betwatch.fr scraper — primary fixture feed for the AI Predictor.
+// Uses Jina Reader first, Firecrawl as fallback. Output is normalized into
+// ScrapeMatch records which the normalize stage turns into engine scopes.
+
+import { jinaRead } from './jinaReader';
+import { firecrawlRead } from './firecrawl';
+import { PRIMARY_SOURCE, type ScraperSource } from './sources';
+
+export interface ScrapeMatch {
+  source: string;
+  sourceUrl: string;
+  league: string;
+  homeTeam: string;
+  awayTeam: string;
+  startTime: number;
+  markets: string[];
+  oddsText?: string;
+}
+
+const SPORT_LEAGUES: Record<string, string[]> = {
+  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'Primeira Liga'],
+  basketball: ['NBA', 'EuroLeague', 'ACB', 'LNB'],
+  tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000'],
+  rally: ['WRC', 'ERC', 'World Rally'],
+  hockey: ['NHL', 'KHL', 'SHL', 'Liiga'],
+  baseball: ['MLB', 'NPB', 'KBO']
+};
+
+function clean(name: string): string {
+  return String(name || '').replace(/[|#*_`~]/g, '').trim();
+}
+
+function parseTime(raw: string | undefined | null, fallback: number): number {
+  if (!raw) return fallback;
+  const iso = raw.match(/20\d{2}-\d{2}-\d{2}[T ]\d{2}:\d{2}/);
+  if (iso) {
+    const ms = Date.parse(iso[0].replace(' ', 'T'));
+    if (!Number.isNaN(ms)) return ms;
+  }
+  const hm = raw.match(/(\d{1,2}):(\d{2})/);
+  if (hm) {
+    const d = new Date();
+    d.setHours(Number(hm[1]), Number(hm[2]), 0, 0);
+    return d.getTime();
+  }
+  return fallback;
+}
+
+// A naive-but-robust line parser: split scraped markdown on blank lines and
+// numeric "vs" rows into fixture candidates.
+export function parseBetwatchMarkdown(text: string, sportId: string): ScrapeMatch[] {
+  const lines = (text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const leagues = SPORT_LEAGUES[sportId] ?? [];
+  const out: ScrapeMatch[] = [];
+  let currentLeague = '';
+  const now = Date.now();
+
+  const leaguePattern = /^#{1,3}\s+(.+)$/;
+  const vsPattern = /^(.+?)\s+vs\.?\s+(.+)$/i;
+
+  for (const line of lines) {
+    const lmatch = line.match(leaguePattern);
+    if (lmatch && leagues.some((l) => lmatch[1].toLowerCase().includes(l.toLowerCase()))) {
+      currentLeague = clean(lmatch[1]);
+      continue;
+    }
+    const vm = line.match(vsPattern);
+    if (vm) {
+      const home = clean(vm[1]);
+      const away = clean(vm[2]);
+      if (home.length < 2 || away.length < 2) continue;
+      out.push({
+        source: 'BetWatch',
+        sourceUrl: PRIMARY_SOURCE,
+        league: currentLeague || (leagues[0] ?? 'Top League'),
+        homeTeam: home,
+        awayTeam: away,
+        startTime: parseTime(line.match(/(\d{1,2}:\d{2})/)?.[0], now + 24 * 60 * 60 * 1000),
+        markets: ['mainTotal', 'result']
+      });
+    }
+  }
+  return out;
+}
+
+export async function scrapeBetwatchFixtures(sportId: string): Promise<ScrapeMatch[]> {
+  const jr = await jinaRead(PRIMARY_SOURCE);
+  if (jr.ok && jr.text && jr.text.length > 50) {
+    const parsed = parseBetwatchMarkdown(jr.text, sportId);
+    if (parsed.length > 0) return parsed;
+  }
+  const fc = await firecrawlRead(PRIMARY_SOURCE);
+  if (fc.ok && fc.text && fc.text.length > 50) {
+    const parsed = parseBetwatchMarkdown(fc.text, sportId);
+    if (parsed.length > 0) return parsed;
+  }
+  return [];
+}
+
+// Deterministic development fallback so the feature is testable without a live
+// scrape. Marked clearly so production data is never mistaken for this.
+export function syntheticFixtures(sportId: string): ScrapeMatch[] {
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  const leagues = SPORT_LEAGUES[sportId] ?? ['Top League'];
+  const known: Record<string, [string, string][]> = {
+    football: [['Arsenal', 'Chelsea'], ['Liverpool', 'Man City'], ['Real Madrid', 'Barcelona'], ['Inter', 'AC Milan']],
+    basketball: [['Lakers', 'Celtics'], ['Warriors', 'Bucks'], ['Real Madrid', 'Barcelona']],
+    tennis: [['Alcaraz', 'Sinner'], ['Djokovic', 'Zverev']],
+    rally: [['Neuville', 'Rovanpera'], ['Ogier', 'Evans']],
+    hockey: [['Rangers', 'Bruins'], ['Maple Leafs', 'Canadiens']],
+    baseball: [['Yankees', 'Red Sox'], ['Dodgers', 'Giants']]
+  };
+  const pairs = known[sportId] ?? [];
+  return pairs.map(([h, a], i) => ({
+    source: 'SyntheticDev',
+    sourceUrl: PRIMARY_SOURCE,
+    league: leagues[0],
+    homeTeam: h,
+    awayTeam: a,
+    startTime: now + day + i * 3 * 60 * 60 * 1000,
+    markets: ['mainTotal', 'result']
+  }));
+}
+
+export function oddsTextFor(match: ScrapeMatch, source: ScraperSource): string {
+  return `${match.homeTeam} vs ${match.awayTeam} — ${match.league} @ ${source.url}`;
+}

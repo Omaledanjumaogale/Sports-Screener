@@ -277,6 +277,16 @@ export function statusFromRatio(value: number, strong = 0.72, borderline = 0.45)
   return 'red';
 }
 
+// Return only picks whose Real Win Chance meets the confidence floor. Used by
+// the AI Predictor to surface only high-confidence selections (default 60%).
+export function filterHighConfidence(analysis: Analysis | null | undefined, min = 60): Pick[] {
+  if (!analysis) return [];
+  const src = analysis.masterRankings && analysis.masterRankings.length
+    ? analysis.masterRankings
+    : analysis.picks;
+  return (src || []).filter((p) => Number(p.probability) >= min);
+}
+
 export function scoreChecks(checks: Check[], strong = 0.72, borderline = 0.45) {
   const completed = checks.filter((c) => c.status !== 'empty');
   const greens = completed.filter((c) => c.status === 'green').length;

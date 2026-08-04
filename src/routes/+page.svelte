@@ -7,6 +7,8 @@
   import EWINBanner from '$lib/components/EWINBanner.svelte';
   import SEO from '$lib/components/SEO.svelte';
   import MasterModelShowcase from '$lib/components/MasterModelShowcase.svelte';
+  import AiPredictorButton from '$lib/components/AiPredictorButton.svelte';
+  import { AGENT_DEFS } from '$lib/agentUi';
   import { authState, setUnauthenticated } from '$lib/authStore.svelte';
   import { convexSignOut } from '$lib/convexClient';
   import { notify } from '$lib/notificationStore';
@@ -296,6 +298,46 @@
             onClick={() => nav(s.path)}
           />
         {/each}
+      </div>
+    </section>
+
+    <!-- ── AI Predictor Section ─────────────────────────────── -->
+    <section class="ai-predictor-section" aria-label="AI Predictor by the PulseOdds agent team">
+      <div class="section-head">
+        <h2 class="section-title">AI Predictor — Powered by the PulseOdds Agent Team</h2>
+        <span class="predictor-badge">60% Confidence Floor</span>
+      </div>
+
+      <div class="predictor-card">
+        <p class="predictor-copy">
+          The <strong>AI Predictor</strong> is a nightly multi-agent service that watches the markets for you. Every midnight
+          (00:00 UTC) the agent team — led by orchestrator <strong>Eze Ugo</strong> — pulls fixtures and odds from
+          <strong>betwatch.fr</strong> and cross-reference odds, betting and prediction registries across all six real sports.
+          The team then runs the numbers through the PulseOdds engine and surfaces <strong>only matches whose selection
+          probability clears the 60% Real Win Chance floor</strong> — no noise, no near-misses, just high-confidence picks.
+        </p>
+
+        <div class="predictor-agents">
+          {#each AGENT_DEFS as agent}
+            <span class="agent-pill" title={agent.description}>
+              <span class="agent-dot"></span>
+              {agent.name}
+            </span>
+          {/each}
+        </div>
+
+        <div class="predictor-steps">
+          <ol>
+            <li><b>Pick a sport</b> — Football, Basketball, Tennis, Table Tennis, Ice Hockey or Baseball.</li>
+            <li><b>Watch the meter</b> — the agent team shows live progress from 0% to 100% while they work.</li>
+            <li><b>Review the picks</b> — only matches above the 60% floor appear, with top selections, punter edge and risk warnings.</li>
+            <li><b>Stake responsibly</b> — refresh anytime; the cache is rebuilt automatically each night.</li>
+          </ol>
+        </div>
+
+        <div class="predictor-cta">
+          <AiPredictorButton label="Open the AI Predictor" accent="#6366f1" />
+        </div>
       </div>
     </section>
 
@@ -702,7 +744,7 @@
   }
 
   /* ── Common Section Headers — Centered ─────────────────────── */
-  .sport-section, .coming-soon-section, .how-to-use-section, .pricing-section, .disclaimer-section, .master-model-section {
+  .sport-section, .coming-soon-section, .how-to-use-section, .pricing-section, .disclaimer-section, .master-model-section, .ai-predictor-section {
     width: 100%;
     display: flex;
     flex-direction: column;
@@ -1024,6 +1066,88 @@
     color: #ffffff;
   }
   .btn-whatsapp:active { transform: scale(0.98); }
+
+  /* ── AI Predictor Section ─────────────────────────────────── */
+  .predictor-badge {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--c-rally);
+    background: color-mix(in srgb, var(--c-rally) 14%, var(--c-surface));
+    border: 1px solid color-mix(in srgb, var(--c-rally) 30%, transparent);
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+
+  .predictor-card {
+    width: min(100%, 720px);
+    padding: 24px;
+    border-radius: 20px;
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--c-rally) 10%, transparent), transparent 55%),
+      var(--c-surface-2);
+    border: 1px solid color-mix(in srgb, var(--c-rally) 35%, transparent);
+    box-shadow: var(--c-card-shadow);
+    text-align: left;
+  }
+
+  .predictor-copy {
+    margin: 0 0 16px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--c-text-2);
+  }
+  .predictor-copy strong { color: var(--c-text); }
+
+  .predictor-agents {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-bottom: 18px;
+  }
+
+  .agent-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--c-text-2);
+  }
+
+  .agent-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--c-rally);
+    box-shadow: 0 0 6px var(--c-rally);
+  }
+
+  .predictor-steps {
+    margin-bottom: 20px;
+  }
+
+  .predictor-steps ol {
+    margin: 0;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .predictor-steps li {
+    font-size: 12.5px;
+    color: var(--c-text-2);
+    line-height: 1.55;
+  }
+
+  .predictor-cta {
+    display: flex;
+    justify-content: center;
+  }
 
   /* ── Disclaimer Section ────────────────────────────────────── */
   .disclaimer-card {

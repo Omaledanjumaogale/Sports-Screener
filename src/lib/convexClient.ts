@@ -195,6 +195,16 @@ export const api = {
     me: 'users:me',
     syncAccess: 'users:syncAccess',
     verifyFlutterwaveCharge: 'users:verifyFlutterwaveCharge'
+  },
+  predictor: {
+    getDay: 'predictor:getDay',
+    listMatches: 'predictor:listMatches',
+    getVerdict: 'predictor:getVerdict',
+    getActiveRun: 'predictor:getActiveRun',
+    startRefresh: 'predictor:startRefresh'
+  },
+  predictorOrchestrator: {
+    runRefresh: 'predictorOrchestrator:runRefresh'
   }
 };
 

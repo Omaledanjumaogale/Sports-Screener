@@ -74,6 +74,60 @@ export const GET: RequestHandler = async () => {
       lastmod: today,
       changefreq: 'weekly',
       priority: '0.9'
+    },
+    {
+      url: `${SITE_URL}/hockey`,
+      lastmod: today,
+      changefreq: 'weekly',
+      priority: '0.9'
+    },
+    {
+      url: `${SITE_URL}/baseball`,
+      lastmod: today,
+      changefreq: 'weekly',
+      priority: '0.9'
+    },
+    {
+      url: `${SITE_URL}/predictor`,
+      lastmod: today,
+      changefreq: 'daily',
+      priority: '0.8'
+    },
+    {
+      url: `${SITE_URL}/predictor/football`,
+      lastmod: today,
+      changefreq: 'daily',
+      priority: '0.8'
+    },
+    {
+      url: `${SITE_URL}/predictor/basketball`,
+      lastmod: today,
+      changefreq: 'daily',
+      priority: '0.8'
+    },
+    {
+      url: `${SITE_URL}/predictor/tennis`,
+      lastmod: today,
+      changefreq: 'daily',
+      priority: '0.8'
+    },
+    {
+      url: `${SITE_URL}/predictor/rally`,
+      lastmod: today,
+      changefreq: 'daily',
+      priority: '0.8'
+    },
+    {
+      url: `${SITE_URL}/predictor/hockey`,
+      lastmod: today,
+      changefreq: 'daily',
+      priority: '0.8'
+    },
+    {
+      url: `${SITE_URL}/predictor/baseball`,
+      lastmod: today,
+      changefreq: 'daily',
+      priority: '0.8'
     }
     // NOTE: /auth is intentionally excluded from sitemap (private, disallowed in robots.txt)
   ];
