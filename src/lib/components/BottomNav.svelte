@@ -11,6 +11,7 @@
   };
 
   const sports: SportDef[] = [
+    { id: 'predictor', path: '/predictor', label: 'AI Predictor', accent: '#a78bfa' },
     { id: 'football',   path: '/football',   label: 'Football',   accent: '#22c55e' },
     { id: 'basketball', path: '/basketball', label: 'Basketball', accent: '#f97316' },
     { id: 'tennis',     path: '/tennis',     label: 'Tennis',     accent: '#e879f9' },
@@ -70,7 +71,7 @@
 
   .nav-scroll {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(7, 1fr);
     width: 100%;
     align-items: center;
     padding: 0 2px;

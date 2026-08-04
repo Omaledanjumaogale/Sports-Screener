@@ -1,5 +1,5 @@
 <script lang="ts">
-  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball';
+  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball' | 'predictor';
 
   let {
     sport = 'football' as SportId,
@@ -80,6 +80,15 @@
     <line x1="5" y1="24" x2="23" y2="6" stroke={color} stroke-width="1.8" stroke-linecap="round"/>
     <!-- Puck -->
     <ellipse cx="14" cy="20" rx="5" ry="2.5" fill={color} opacity="0.9"/>
+  </svg>
+
+{:else if sport === 'predictor'}
+  <!-- Sparkles: AI prediction -->
+  <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-hidden="true">
+    <path d="M14 3 L16.5 10 L24 14 L16.5 18 L14 25 L11.5 18 L4 14 L11.5 10 Z" stroke={color} stroke-width="1.6" stroke-linejoin="round" fill={color} opacity="0.2"/>
+    <path d="M14 3 L16.5 10 L24 14 L16.5 18 L14 25 L11.5 18 L4 14 L11.5 10 Z" stroke={color} stroke-width="1.6" stroke-linejoin="round" fill="none"/>
+    <path d="M21 3 L22 6.5 L25.5 7.5 L22 8.5 L21 12 L20 8.5 L16.5 7.5 L20 6.5 Z" stroke={color} stroke-width="1.2" stroke-linejoin="round" fill={color}/>
+    <path d="M7 17 L8 20 L11 21 L8 22 L7 25 L6 22 L3 21 L6 20 Z" stroke={color} stroke-width="1.2" stroke-linejoin="round" fill={color}/>
   </svg>
 
 {:else}

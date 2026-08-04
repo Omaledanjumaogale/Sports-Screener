@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Trophy, Clock3, ShieldCheck, TrendingUp } from '@lucide/svelte';
+  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check } from '@lucide/svelte';
   import type { PredictorMatch } from '$lib/predictorTypes';
   import type { Analysis, Pick } from '$lib/engine';
 
@@ -8,13 +8,21 @@
     analysis = null as Analysis | null,
     qualifying = [] as Pick[],
     accent = '#6366f1',
-    expanded = false
+    expanded = false,
+    selectable = false,
+    selected = false,
+    disabled = false,
+    onSelect = () => {}
   }: {
     match: PredictorMatch;
     analysis?: Analysis | null;
     qualifying?: Pick[];
     accent?: string;
     expanded?: boolean;
+    selectable?: boolean;
+    selected?: boolean;
+    disabled?: boolean;
+    onSelect?: () => void;
   } = $props();
 
   const kickoff = $derived(
@@ -29,14 +37,46 @@
   const bestPct = $derived(top ? Number(top.probability).toFixed(1) : null);
 </script>
 
-<article class="match-card" style={`--accent:${accent}`}>
+<article
+  class="match-card"
+  class:is-selected={selected}
+  class:is-disabled={disabled}
+  class:is-selectable={selectable}
+  style={`--accent:${accent}`}
+  onclick={selectable && !disabled ? onSelect : undefined}
+  aria-hidden={selectable ? 'false' : undefined}
+>
   <header class="match-head">
     <div class="matchup">
+      {#if selectable}
+        <button
+          class="pick-toggle"
+          class:on={selected}
+          type="button"
+          role="checkbox"
+          aria-checked={selected}
+          aria-disabled={disabled}
+          disabled={disabled}
+          aria-label={`${selected ? 'Remove' : 'Add'} ${match.homeTeam} vs ${match.awayTeam} ${disabled ? '(already in play)' : ''}`}
+          title={disabled ? 'Match already in play — pre-match model not valid' : selected ? 'Remove from analysis' : 'Add to analysis'}
+          onclick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
+        >
+          {#if selected}
+            <Check size={14} stroke-width={3} />
+          {/if}
+        </button>
+      {/if}
       <span class="home">{match.homeTeam}</span>
       <span class="vs">vs</span>
       <span class="away">{match.awayTeam}</span>
     </div>
     <div class="meta">
+      {#if disabled}
+        <span class="chip live">In play</span>
+      {/if}
       <span class="chip league" title={match.league}>{match.league}</span>
       <span class="chip time"><Clock3 size={12} stroke-width={2.2} />{kickoff}</span>
       <span class="chip source">{match.source}</span>
@@ -91,12 +131,64 @@
     border-radius: 16px;
     background: var(--c-surface-2);
     padding: 14px 16px;
-    transition: box-shadow var(--t-base, 180ms ease), border-color var(--t-base, 180ms ease);
+    transition: box-shadow var(--t-base, 180ms ease), border-color var(--t-base, 180ms ease), transform 120ms ease;
   }
 
   .match-card:hover {
     border-color: color-mix(in srgb, var(--accent) 40%, transparent);
     box-shadow: 0 4px 24px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  .match-card.is-selected {
+    border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+    box-shadow: 0 4px 24px color-mix(in srgb, var(--accent) 22%, transparent);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%),
+      var(--c-surface-2);
+  }
+
+  .match-card.is-disabled {
+    opacity: 0.55;
+  }
+  .match-card.is-disabled:hover {
+    border-color: var(--c-border-md);
+    box-shadow: none;
+  }
+
+  .match-card.is-selectable { cursor: pointer; }
+
+  .pick-toggle {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 2px solid var(--c-border-2);
+    background: transparent;
+    color: var(--c-surface-2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition:
+      background var(--t-base, 180ms ease),
+      border-color var(--t-base, 180ms ease),
+      transform 80ms ease;
+  }
+
+  .pick-toggle:hover { border-color: var(--accent); }
+  .pick-toggle:active { transform: scale(0.88); }
+  .pick-toggle:disabled { cursor: not-allowed; }
+
+  .pick-toggle.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+
+  .chip.live {
+    color: #f43f5e;
+    border-color: color-mix(in srgb, #f43f5e 40%, transparent);
+    background: color-mix(in srgb, #f43f5e 10%, transparent);
   }
 
   .match-head { display: flex; flex-direction: column; gap: 10px; }
