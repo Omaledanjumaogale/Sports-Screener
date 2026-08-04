@@ -30,14 +30,48 @@ export async function startPredictorRefresh(sportId: PredictorSportId, dayKey: s
   return callConvex<{ runId: string; alreadyRunning: boolean }>(api.predictor.startRefresh, { sportId, dayKey });
 }
 
+export function emptyAnalysis(): Analysis {
+  return {
+    headline: 'Unavailable',
+    chips: [],
+    profiles: [],
+    picks: [],
+    metrics: [],
+    masterLedger: null,
+    masterRankings: []
+  };
+}
+
+// Coerce an arbitrary persisted scope into something the engine can traverse
+// without throwing. The predictor only ever stores CachedScope-shaped scopes,
+// but stale/corrupt rows must degrade gracefully instead of producing a 500.
+function sanitizeScope(raw: unknown): ScopeState {
+  if (!raw || typeof raw !== 'object') return { id: '', title: '', teamA: '', teamB: '', markets: {} };
+  const s = raw as Record<string, unknown>;
+  const markets = (s.markets && typeof s.markets === 'object' ? s.markets : {}) as Record<string, unknown>;
+  return {
+    id: typeof s.id === 'string' ? s.id : '',
+    title: typeof s.title === 'string' ? s.title : '',
+    teamA: typeof s.teamA === 'string' ? s.teamA : '',
+    teamB: typeof s.teamB === 'string' ? s.teamB : '',
+    leaguePreset: typeof s.leaguePreset === 'string' ? s.leaguePreset : undefined,
+    markets
+  } as ScopeState;
+}
+
 // Run the existing deterministic engine over a cached scope and keep only
 // selections that clear the confidence floor (Amara Obi's filter).
 export function analyzeCachedMatch(match: PredictorMatch, floor = DEFAULT_CONFIDENCE_FLOOR): {
   analysis: Analysis;
   qualifying: ReturnType<typeof filterHighConfidence>;
 } {
-  const scope = (match.scopes ?? {}) as ScopeState;
-  const analysis = analyzeScope(predictorSportToSportId(match.sportId), scope);
+  const scope = sanitizeScope(match.scopes);
+  let analysis: Analysis;
+  try {
+    analysis = analyzeScope(predictorSportToSportId(match.sportId), scope);
+  } catch {
+    analysis = emptyAnalysis();
+  }
   const qualifying = filterHighConfidence(analysis, floor);
   return { analysis, qualifying };
 }

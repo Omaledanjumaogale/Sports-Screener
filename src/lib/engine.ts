@@ -309,7 +309,7 @@ export function tier3(v: number, green: number, amber: number, lowIsGreen: boole
 }
 
 export function analyzeLines(market: MarketInput): Pick[] {
-  if (!market.pairs) return [];
+  if (!market?.pairs) return [];
   return market.pairs.flatMap((pair) => {
     const norm = normalizeTwo(pair.over, pair.under);
     if (pair.line === null || !pair.over || !pair.under || !norm) return [];
@@ -335,7 +335,7 @@ export function analyzeLines(market: MarketInput): Pick[] {
 }
 
 export function analyzeHandicap(market: MarketInput, sideALabel = 'Side A', sideBLabel = 'Side B'): Pick[] {
-  if (!market.handicapPairs) return [];
+  if (!market?.handicapPairs) return [];
   return market.handicapPairs.flatMap((pair) => {
     const norm = normalizeTwo(pair.sideA, pair.sideB);
     if (pair.line === null || !pair.sideA || !pair.sideB || !norm) return [];
@@ -362,7 +362,7 @@ export function analyzeHandicap(market: MarketInput, sideALabel = 'Side A', side
 }
 
 export function analyzeOddsMarket(market: MarketInput, labels: Record<string, string>): Pick[] {
-  const entries = Object.entries(market.odds ?? {}).filter(([, odds]) => odds && odds > 1) as [string, number][];
+  const entries = Object.entries(market?.odds ?? {}).filter(([, odds]) => odds && odds > 1) as [string, number][];
   if (entries.length < 2) return [];
   const norm = normalizeN(entries.map(([key, odds]) => ({ key, odds })));
   if (!norm) return [];
@@ -502,7 +502,7 @@ function buildFootballCfg(scopeId: string, presetKey: string) {
 export function analyzeFootball(scope: ScopeState): Analysis {
   const cfg = buildFootballCfg(scope.id, scope.leaguePreset ?? 'balanced');
 
-  const mainTotal = scope.markets.mainTotal;
+  const mainTotal = scope.markets?.mainTotal ?? ({} as MarketInput);
   const totalPicks = analyzeLines(mainTotal);
   const targetLine = scope.id === 'ft' ? 2.5 : 1.5;
   const primaryLine =
