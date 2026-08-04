@@ -30,6 +30,8 @@ export async function jinaRead(url: string, opts: FetchPageOptions = {}): Promis
     const res = await fetch(`https://r.jina.ai/${url}`, { headers, signal: controller.signal });
     const text = await res.text().catch(() => '');
     return { ok: res.ok, status: res.status, text };
+  } catch {
+    return { ok: false, status: 0, text: '' };
   } finally {
     clearTimeout(timeout);
   }

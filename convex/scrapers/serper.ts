@@ -33,6 +33,8 @@ export async function serperSearch(query: string, num = 5): Promise<SerperResult
       snippet: String(it.snippet || '')
     }));
     return { ok: true, items, text: items.map((i) => `${i.title}: ${i.snippet}`).join('\n') };
+  } catch {
+    return { ok: false, items: [], text: '' };
   } finally {
     clearTimeout(timeout);
   }

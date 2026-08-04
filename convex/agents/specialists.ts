@@ -16,7 +16,12 @@ export interface FixturesResult {
 }
 
 export async function tundeFetchFixtures(sportId: string): Promise<FixturesResult> {
-  const scraped = await scrapeBetwatchFixtures(sportId);
+  let scraped: ScrapeMatch[] = [];
+  try {
+    scraped = await scrapeBetwatchFixtures(sportId);
+  } catch (err) {
+    console.warn('[Tunde Onitiri] fixture scrape failed; falling back to dev fixtures.', err);
+  }
   if (scraped.length > 0) {
     const countsByLeague: Record<string, number> = {};
     for (const m of scraped) countsByLeague[m.league] = (countsByLeague[m.league] ?? 0) + 1;

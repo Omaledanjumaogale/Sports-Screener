@@ -20,6 +20,8 @@ export async function brightDataRead(url: string, timeoutMs = 25_000): Promise<B
     });
     const text = await res.text().catch(() => '');
     return { ok: res.ok, text };
+  } catch {
+    return { ok: false, text: '' };
   } finally {
     clearTimeout(timeout);
   }

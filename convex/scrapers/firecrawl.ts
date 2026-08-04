@@ -31,6 +31,8 @@ export async function firecrawlRead(url: string, timeoutMs = 30_000): Promise<Fi
     const data = await res.json().catch(() => null);
     const text = data?.data?.markdown ?? data?.data?.content ?? '';
     return { ok: true, status: 200, text: String(text) };
+  } catch {
+    return { ok: false, status: 0, text: '' };
   } finally {
     clearTimeout(timeout);
   }

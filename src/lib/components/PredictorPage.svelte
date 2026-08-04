@@ -75,6 +75,11 @@
   const agentsRun = $derived(AGENT_DEFS.map((a) => a.name));
   const sourcesUsed = $derived(day?.sourcesUsed ?? []);
   const warnings = $derived(run?.message ? [run.message] : []);
+  const runError = $derived(
+    (run?.status === 'error' ? run.message || 'Agent refresh failed.' : '') ||
+      (day?.status === 'error' ? day.message || 'Day cache refresh failed.' : '') ||
+      ''
+  );
 
   const byLeague = $derived.by(() => {
     const groups: Record<string, PredictorMatch[]> = {};
@@ -314,7 +319,7 @@
         progress={phase === 'analyzing' ? agentProgress : isRunning ? refreshProgress : day?.status === 'ready' ? 100 : 0}
         stage={phase === 'analyzing' ? agentStage : ''}
         running={phase === 'analyzing' || isRunning}
-        {error}
+        error={error || runError}
       />
 
       {#if phase === 'select'}

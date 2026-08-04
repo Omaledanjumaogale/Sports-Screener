@@ -127,11 +127,42 @@ export const startRefresh = mutation({
       });
 
     // Fire-and-forget: kick off the orchestrator without blocking the mutation.
-    ctx.scheduler.runAfter(0, internal.predictorOrchestrator.runRefreshInternal, {
-      sportId: args.sportId,
-      dayKey: args.dayKey,
-      runId
-    });
+    // If scheduling fails (e.g. the internal action is missing/not deployed),
+    // degrade the run/day to 'error' gracefully instead of 500-ing the mutation.
+    try {
+      ctx.scheduler.runAfter(0, internal.predictorOrchestrator.runRefreshInternal, {
+        sportId: args.sportId,
+        dayKey: args.dayKey,
+        runId
+      });
+    } catch (err: any) {
+      console.error('[predictor] failed to schedule refresh:', err?.message || err);
+      await ctx.db
+        .query('predictorRuns')
+        .withIndex('by_runId', (q) => q.eq('runId', runId))
+        .first()
+        .then(async (run) => {
+          if (run) {
+            await ctx.db.patch(run._id, {
+              status: 'error',
+              stage: 'Failed',
+              message: String(err?.message || err).slice(0, 300),
+              completedAt: Date.now(),
+              updatedAt: Date.now()
+            });
+          }
+        });
+      await ctx.db
+        .query('predictorDays')
+        .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey))
+        .order('desc')
+        .first()
+        .then(async (day) => {
+          if (day) {
+            await ctx.db.patch(day._id, { status: 'error', message: String(err?.message || err).slice(0, 300), updatedAt: Date.now() });
+          }
+        });
+    }
 
     return { runId, alreadyRunning: false };
   }

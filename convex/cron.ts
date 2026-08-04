@@ -9,14 +9,15 @@ const crons = cronJobs();
 // Every 24h purge days older than 7 days.
 crons.interval('predictor-purge-daily', { minutes: 1440 }, internal.predictor.purgeAndMarkStale, {});
 
-// Refresh each sport's day cache just after midnight so the morning browse is
-// pre-cached. Minute offsets keep the six refreshes from clashing.
+// Refresh each sport's day cache between 12:00am and 01:00am WAT (UTC+1), which
+// is 23:00–24:00 UTC the previous day. Staggered minute offsets keep the six
+// refreshes (plus scrubbing work per sport) from clashing with each other.
 const SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball'];
 
 SPORTS.forEach((sport, i) => {
   crons.daily(
     `predictor-refresh-${sport}`,
-    { hourUTC: 0, minuteUTC: 12 + i * 6 },
+    { hourUTC: 23, minuteUTC: 2 + i * 8 },
     internal.predictorOrchestrator.runRefreshInternal,
     { sportId: sport as any, dayKey: '', floor: 60 }
   );
