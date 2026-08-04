@@ -7,7 +7,7 @@ import { normalizeMatches, type NormalizedMatch } from '../scrapers/normalize';
 import { serperSearch } from '../scrapers/serper';
 import { brightDataRead } from '../scrapers/brightdata';
 import { jinaRead } from '../scrapers/jinaReader';
-import { PREDICTION_SOURCES, ODDS_SOURCES, BETTING_SOURCES } from '../scrapers/sources';
+import { PREDICTION_SOURCES, ODDS_SOURCES } from '../scrapers/sources';
 
 export interface FixturesResult {
   raw: ScrapeMatch[];
@@ -36,13 +36,18 @@ export interface OddsResult {
 export async function kunleCollectOdds(fixtures: ScrapeMatch[]): Promise<OddsResult> {
   const sourcesQueried: string[] = [];
   const samples: OddsResult['samples'] = [];
-  for (const m of fixtures.slice(0, 12)) {
-    const src = ODDS_SOURCES[Math.floor(Math.random() * ODDS_SOURCES.length)] ?? ODDS_SOURCES[0];
-    sourcesQueried.push(src.url);
-    const jr = await jinaRead(src.url, { timeoutMs: 10_000 });
-    if (jr.ok && jr.text) samples.push({ match: `${m.homeTeam} vs ${m.awayTeam}`, text: jr.text.slice(0, 400) });
-  }
-  return { sourcesQueried, samples };
+  const batch = fixtures.slice(0, 12);
+
+  await Promise.all(
+    batch.map(async (m) => {
+      const src = ODDS_SOURCES[Math.floor(Math.random() * ODDS_SOURCES.length)] ?? ODDS_SOURCES[0];
+      sourcesQueried.push(src.url);
+      const jr = await jinaRead(src.url, { timeoutMs: 8_000 });
+      if (jr.ok && jr.text) samples.push({ match: `${m.homeTeam} vs ${m.awayTeam}`, text: jr.text.slice(0, 400) });
+    })
+  );
+
+  return { sourcesQueried: Array.from(new Set(sourcesQueried)), samples };
 }
 
 export interface VolumeResult {
@@ -67,13 +72,16 @@ export interface ResearchResult {
 export async function bolanleResearch(sportId: string, fixtures: ScrapeMatch[]): Promise<ResearchResult> {
   const citations: string[] = [];
   let serpOk = false;
-  for (const src of PREDICTION_SOURCES) {
-    if (src.sport && src.sport !== sportId) continue;
-    const s = await serperSearch(`${src.name} ${sportId} predictions today`);
-    serpOk = serpOk || s.ok;
-    if (s.items.length > 0) citations.push(`${src.name}: ${s.items[0].link}`);
-  }
-  const extra = BETTING_SOURCES.map((b) => b.url);
+
+  await Promise.all(
+    PREDICTION_SOURCES.map(async (src) => {
+      if (src.sport && src.sport !== sportId) return;
+      const s = await serperSearch(`${src.name} ${sportId} predictions today`, 3);
+      serpOk = serpOk || s.ok;
+      if (s.items.length > 0) citations.push(`${src.name}: ${s.items[0].link}`);
+    })
+  );
+
   return { citations, serpOk };
 }
 
