@@ -1,5 +1,5 @@
 {
   "actions": {
-    "timeoutMs": 80000
+    "timeoutMs": 300000
   }
 }

@@ -15,7 +15,7 @@ import {
   consolidateOdds,
   findOddsFor,
   matchOddsText,
-  ODDS_SPORT_KEY,
+  resolveOddsSportKey,
   hasAnyApiKey
 } from '../apis/sportsApis';
 
@@ -102,7 +102,7 @@ export async function kunleCollectOdds(fixtures: ScrapeMatch[], sportId?: string
   // 1. Real bookmaker odds via The Odds API (verified live provider). Matches the
   //    fixtures by team name and stamps the real h2h/totals onto each match so the
   //    normalize stage builds a genuine scope for the LLM.
-  const oddsKey = ODDS_SPORT_KEY[sportId ?? 'football'];
+  const oddsKey = await resolveOddsSportKey(sportId ?? 'football');
   if (oddsKey) {
     try {
       const raw = await fetchOddsMarkets(oddsKey);

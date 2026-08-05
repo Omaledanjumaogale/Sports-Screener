@@ -98,14 +98,21 @@ async function callProvider(
   }
 }
 
-// Ask the provider chain. Returns the first successful completion.
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Ask the provider chain. Transient failures retry with backoff so a flaky
+// HTTP 5xx / timeout doesn't silently degrade a verdict to the summary fallback.
 export async function chatComplete(
   messages: LlmMessage[],
   opts: { temperature?: number; maxTokens?: number } = {}
 ): Promise<LlmResult> {
-  for (const p of providerChain()) {
-    const res = await callProvider(p, messages, opts);
-    if (res.ok) return res;
+  const chain = providerChain();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (const p of chain) {
+      const res = await callProvider(p, messages, opts);
+      if (res.ok) return res;
+    }
+    if (attempt === 0 && chain.length) await sleep(800);
   }
   return { ok: false, text: '', provider: 'none', model: '' };
 }

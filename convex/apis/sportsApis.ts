@@ -16,13 +16,18 @@ declare const process: { env: Record<string, string | undefined> };
 
 const TSDB_PUBLIC_KEY = '123';
 
-export const ODDS_SPORT_KEY: Record<string, string> = {
-  football: 'soccer_epl',
-  basketball: 'basketball_nba',
-  tennis: 'tennis_atp',
-  hockey: 'icehockey_nhl',
-  baseball: 'baseball_mlb'
+// Preferred Odds API sport keys (first active match wins). Tennis keys rotate by
+// tournament (e.g. tennis_atp_canadian_open) and NBA vanishes in the off-season,
+// so resolution is dynamic against the live /v4/sports/ list.
+const ODDS_SPORT_PREFERENCE: Record<string, RegExp[]> = {
+  football: [/^soccer_epl$/, /^soccer_england_/, /^soccer_/],
+  basketball: [/^basketball_nba$/, /^basketball_wnba$/, /^basketball_/],
+  tennis: [/^tennis_.*(?:grand_slam|atp)/, /^tennis_.*wta/, /^tennis_/],
+  hockey: [/^icehockey_nhl$/, /^icehockey_/],
+  baseball: [/^baseball_mlb$/, /^baseball_/]
 };
+
+let oddsSportsCache: { at: number; keys: string[] } | null = null;
 
 export const TSDB_SPORT: Record<string, string> = {
   football: 'Soccer',
@@ -94,11 +99,11 @@ export function mapSportsDbEvents(events: any[], sportId: string): ApiFixture[] 
 }
 
 // ── The Odds API (real bookmaker odds) ───────────────────────────────────────
-export async function fetchOddsMarkets(sportKey: string): Promise<any[]> {
+export async function fetchOddsMarkets(sportKey: string, markets = 'h2h,totals,spreads'): Promise<any[]> {
   const key = apiKeyFor(SportsApi.TheOddsApi);
   if (!key) return [];
   try {
-    const url = `${apiUrl(SportsApi.TheOddsApi)}/sports/${sportKey}/odds/?apiKey=${key}&regions=uk,eu,us&markets=h2h,totals,spreads&oddsFormat=decimal`;
+    const url = `${apiUrl(SportsApi.TheOddsApi)}/sports/${sportKey}/odds/?apiKey=${key}&regions=uk,eu,us&markets=${markets}&oddsFormat=decimal`;
     const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
     if (!res.ok) return [];
     const data: any = await res.json().catch(() => null);
@@ -108,10 +113,55 @@ export async function fetchOddsMarkets(sportKey: string): Promise<any[]> {
   }
 }
 
+// Active sport keys from The Odds API, cached for a few minutes per process.
+export async function fetchOddsSportKeys(): Promise<string[]> {
+  const key = apiKeyFor(SportsApi.TheOddsApi);
+  if (!key) return [];
+  if (oddsSportsCache && Date.now() - oddsSportsCache.at < 5 * 60 * 1000) return oddsSportsCache.keys;
+  try {
+    const url = `${apiUrl(SportsApi.TheOddsApi)}/sports/?apiKey=${key}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) return [];
+    const data: any = await res.json().catch(() => null);
+    const active = Array.isArray(data)
+      ? data.filter((s: any) => s?.active && typeof s?.key === 'string').map((s: any) => s.key)
+      : [];
+    oddsSportsCache = { at: Date.now(), keys: active };
+    return active;
+  } catch {
+    return [];
+  }
+}
+
+// Resolve the best Odds API key for a sport against the live /v4/sports/ list so
+// tournament rotations (tennis) and off-season windows (NBA) don't yield
+// UNKNOWN_SPORT / empty results. Falls back to the static preference otherwise.
+export async function resolveOddsSportKey(sportId: string): Promise<string | undefined> {
+  const prefs = ODDS_SPORT_PREFERENCE[sportId];
+  if (!prefs) return undefined;
+  const keys = await fetchOddsSportKeys();
+  if (keys.length) {
+    const futures = /winner|championship|outright/i;
+    for (const re of prefs) {
+      const match = keys.find((k) => re.test(k) && !futures.test(k));
+      if (match) return match;
+    }
+    return undefined;
+  }
+  const fallback: Record<string, string> = {
+    football: 'soccer_epl',
+    basketball: 'basketball_nba',
+    tennis: 'tennis_atp_canadian_open',
+    hockey: 'icehockey_nhl',
+    baseball: 'baseball_mlb'
+  };
+  return fallback[sportId];
+}
+
 export interface ConsolidatedOdds {
   home: string;
   away: string;
-  h2h?: [number, number, number]; // home, draw (if present), away
+  h2h?: number[]; // [home, away] for 2-way, [home, draw, away] for 1X2
   total?: { line: number; over: number; under: number };
   drawPresent: boolean;
 }
@@ -146,12 +196,18 @@ export function consolidateOdds(raw: any[]): ConsolidatedOdds[] {
       h2hByName.set(p.name.toLowerCase(), p.price);
       if (/^(draw|tie|equalia)/i.test(p.name)) drawPresent = true;
     }
-    let h2h: [number, number, number] | undefined;
+    let h2h: number[] | undefined;
     const hp = h2hByName.get(home.toLowerCase());
     const ap = h2hByName.get(away.toLowerCase());
     if (hp && ap) {
-      const dp = h2hByName.get('draw') ?? h2hByName.get('tie') ?? 3.4;
-      h2h = [hp, dp, ap];
+      if (drawPresent) {
+        const dp = h2hByName.get('draw') ?? h2hByName.get('tie') ?? 3.4;
+        h2h = [hp, dp, ap];
+      } else {
+        // 2-way moneyline sport (baseball/basketball/hockey/tennis/rally) —
+        // no draw leg, so never fabricate one.
+        h2h = [hp, ap];
+      }
     }
 
     let total: { line: number; over: number; under: number } | undefined;
@@ -279,7 +335,7 @@ export function mapSportsDataNbaGames(games: any[]): ApiFixture[] {
 export async function apiFixturesFor(sportId: string, date: string): Promise<ApiFixture[]> {
   const results: ApiFixture[][] = [];
 
-  const sportKey = ODDS_SPORT_KEY[sportId];
+  const sportKey = await resolveOddsSportKey(sportId);
   if (sportKey) {
     results.push(mapOddsApiFixtures(await fetchOddsMarkets(sportKey)));
   }

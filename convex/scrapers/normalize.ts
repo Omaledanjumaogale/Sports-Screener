@@ -88,6 +88,15 @@ export function parseOddsText(oddsText: string): ParsedOdds {
   return out;
 }
 
+const RESULT_HAS_DRAW: Record<string, boolean> = {
+  football: true,
+  basketball: false,
+  tennis: false,
+  rally: false,
+  hockey: false,
+  baseball: false
+};
+
 // Deterministic market odds derived from the fixture seed so cached scopes are
 // stable across refreshes even before a live odds scrape succeeds.
 export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch {
@@ -103,9 +112,17 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
     pairs[0] = { ...pairs[0], over: parsed.total.over, under: parsed.total.under };
   }
 
-  const resultOdds: Record<string, number | null> = parsed.h2h
-    ? { home: parsed.h2h[0], draw: parsed.h2h[1] ?? null, away: parsed.h2h[2] ?? null }
-    : { home: 1.85, draw: 3.4, away: 2.1 };
+  const hasDraw = RESULT_HAS_DRAW[sportId] ?? false;
+  let resultOdds: Record<string, number | null>;
+  if (parsed.h2h && parsed.h2h.length >= 2) {
+    // 3-element h2h = 1X2 (home, draw, away); 2-element = moneyline (home, away).
+    resultOdds =
+      parsed.h2h.length === 3
+        ? { home: parsed.h2h[0], draw: parsed.h2h[1], away: parsed.h2h[2] }
+        : { home: parsed.h2h[0], draw: null, away: parsed.h2h[1] };
+  } else {
+    resultOdds = hasDraw ? { home: 1.85, draw: 3.4, away: 2.1 } : { home: 1.9, draw: null, away: 1.9 };
+  }
 
   const mainTotal = {
     id: 'mainTotal',

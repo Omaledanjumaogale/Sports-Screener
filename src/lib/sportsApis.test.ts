@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseOddsText } from '../../convex/scrapers/normalize';
-import { consolidateOdds } from '../../convex/apis/sportsApis';
+import { parseOddsText, normalizeMatches } from '../../convex/scrapers/normalize';
+import { consolidateOdds, matchOddsText } from '../../convex/apis/sportsApis';
 
 describe('parseOddsText (normalize)', () => {
   it('parses the explicit Odds API form (h2h + totals)', () => {
@@ -59,5 +59,61 @@ describe('consolidateOdds (The Odds API)', () => {
 
   it('skips malformed matches', () => {
     expect(consolidateOdds([{ bookmakers: [] }])).toEqual([]);
+  });
+
+  it('emits a 2-way moneyline (no draw) for 2-outcome h2h markets', () => {
+    const raw = [
+      {
+        home_team: 'Kansas City Royals',
+        away_team: 'Minnesota Twins',
+        bookmakers: [
+          {
+            markets: [
+              {
+                key: 'h2h',
+                outcomes: [
+                  { name: 'Kansas City Royals', price: 1.85 },
+                  { name: 'Minnesota Twins', price: 2.1 }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ];
+    const odds = consolidateOdds(raw);
+    expect(odds[0].drawPresent).toBe(false);
+    expect(odds[0].h2h).toEqual([1.85, 2.1]);
+  });
+
+  it('round-trips a 2-way moneyline through matchOddsText + parseOddsText into a null-draw scope', () => {
+    const consolidated = consolidateOdds([
+      {
+        home_team: 'Kansas City Royals',
+        away_team: 'Minnesota Twins',
+        bookmakers: [
+          {
+            markets: [
+              {
+                key: 'h2h',
+                outcomes: [
+                  { name: 'Kansas City Royals', price: 1.85 },
+                  { name: 'Minnesota Twins', price: 2.1 }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]);
+    const text = matchOddsText(consolidated[0]);
+    expect(text).toBe('h2h=1.85,2.10');
+    const parsed = parseOddsText(text);
+    expect(parsed.h2h).toEqual([1.85, 2.1]);
+    const [normalized] = normalizeMatches(
+      [{ homeTeam: 'Kansas City Royals', awayTeam: 'Minnesota Twins', league: 'MLB', startTime: 1, source: 'LiveAPI', sourceUrl: '', markets: ['result', 'mainTotal'], oddsText: text }],
+      'baseball'
+    );
+    expect(normalized.scope.markets.result.odds).toEqual({ home: 1.85, draw: null, away: 2.1 });
   });
 });
