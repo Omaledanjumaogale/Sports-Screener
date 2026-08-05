@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseOddsText, normalizeMatches } from '../../convex/scrapers/normalize';
 import { consolidateOdds, matchOddsText } from '../../convex/apis/sportsApis';
+import { amaraFilter } from '../../convex/agents/specialists';
 
 describe('parseOddsText (normalize)', () => {
   it('parses the explicit Odds API form (h2h + totals)', () => {
@@ -86,7 +87,7 @@ describe('consolidateOdds (The Odds API)', () => {
     expect(odds[0].h2h).toEqual([1.85, 2.1]);
   });
 
-  it('round-trips a 2-way moneyline through matchOddsText + parseOddsText into a null-draw scope', () => {
+  it('round-trips a 2-way moneyline into a full multi-market null-draw scope', () => {
     const consolidated = consolidateOdds([
       {
         home_team: 'Kansas City Royals',
@@ -100,6 +101,20 @@ describe('consolidateOdds (The Odds API)', () => {
                   { name: 'Kansas City Royals', price: 1.85 },
                   { name: 'Minnesota Twins', price: 2.1 }
                 ]
+              },
+              {
+                key: 'totals',
+                outcomes: [
+                  { name: 'Over', point: 8.5, price: 1.9 },
+                  { name: 'Under', point: 8.5, price: 1.9 }
+                ]
+              },
+              {
+                key: 'spreads',
+                outcomes: [
+                  { name: 'Kansas City Royals', point: -1.5, price: 1.9 },
+                  { name: 'Minnesota Twins', point: 1.5, price: 1.9 }
+                ]
               }
             ]
           }
@@ -107,13 +122,80 @@ describe('consolidateOdds (The Odds API)', () => {
       }
     ]);
     const text = matchOddsText(consolidated[0]);
-    expect(text).toBe('h2h=1.85,2.10');
+    expect(text).toBe('h2h=1.85,2.10 totals=8.5:1.90/1.90 spread=-1.5:1.90,1.90');
     const parsed = parseOddsText(text);
     expect(parsed.h2h).toEqual([1.85, 2.1]);
+    expect(parsed.total).toEqual({ line: 8.5, over: 1.9, under: 1.9 });
+    expect(parsed.spread).toEqual({ point: -1.5, home: 1.9, away: 1.9 });
+
     const [normalized] = normalizeMatches(
-      [{ homeTeam: 'Kansas City Royals', awayTeam: 'Minnesota Twins', league: 'MLB', startTime: 1, source: 'LiveAPI', sourceUrl: '', markets: ['result', 'mainTotal'], oddsText: text }],
+      [{ homeTeam: 'Kansas City Royals', awayTeam: 'Minnesota Twins', league: 'MLB', startTime: 1, source: 'LiveAPI', sourceUrl: '', markets: ['winner', 'handicap', 'gameTotal', 'regResult'], oddsText: text }],
       'baseball'
     );
-    expect(normalized.scope.markets.result.odds).toEqual({ home: 1.85, draw: null, away: 2.1 });
+    const scope = normalized.scope;
+    // Moneyline lives on winner/regResult (2-way, draw null) — no fabricated draw.
+    expect(scope.markets.winner!.odds).toEqual({ a: 1.85, b: 2.1 });
+    expect(scope.markets.regResult!.odds).toEqual({ home: 1.85, draw: null, away: 2.1 });
+    // Real spread mapped to the handicap market.
+    expect(scope.markets.handicap!.handicapPairs).toEqual([{ line: -1.5, sideA: 1.9, sideB: 1.9 }]);
+    // Real total line.
+    expect(scope.markets.gameTotal!.pairs![0]).toEqual({ line: 8.5, over: 1.9, under: 1.9 });
+    expect(scope._meta!.oddsIsReal).toBe(true);
+  });
+
+  it('builds Double Chance + Asian Handicap from real 1X2 odds for football', () => {
+    const [normalized] = normalizeMatches(
+      [{ homeTeam: 'Arsenal', awayTeam: 'Coventry City', league: 'English Premier League', startTime: 1, source: 'LiveAPI', sourceUrl: '', markets: ['result', 'doubleChance', 'handicap', 'mainTotal'], oddsText: 'h2h=1.14,7.00,18.00 totals=2.5:1.85/1.95' }],
+      'football'
+    );
+    const scope = normalized.scope;
+    expect(scope.markets.result!.odds).toEqual({ home: 1.14, draw: 7, away: 18 });
+    expect(scope.markets.mainTotal!.pairs![0]).toEqual({ line: 2.5, over: 1.85, under: 1.95 });
+    // Double Chance derived (Shutov): home/draw is the short-priced safe leg.
+    const dc = scope.markets.doubleChance!.odds!;
+    expect(dc.hd).toBeLessThan(dc.da!);
+    expect(dc.hd).toBeGreaterThan(1);
+    expect(dc.da).toBeGreaterThan(3);
+    // Asian Handicap -0.5/+0.5: home -0.5 (wins on home win only) is longer than
+    // the 1.14 ML; away +0.5 (wins on draw or away win) is shorter than the 18 ML.
+    const ah = scope.markets.handicap!.handicapPairs![0];
+    expect(ah.line).toBe(-0.5);
+    expect(ah.sideA).toBeGreaterThan(1.14);
+    expect(ah.sideA).toBeLessThan(1.4);
+    expect(ah.sideB).toBeGreaterThan(3);
+    expect(ah.sideB).toBeLessThan(7);
+    expect(scope._meta!.oddsIsReal).toBe(true);
+  });
+
+  it('marks live and non-real scopes', () => {
+    const [live] = normalizeMatches(
+      [{ homeTeam: 'A', awayTeam: 'B', league: 'EPL', startTime: 1, source: 'LiveAPI', sourceUrl: '', markets: ['result', 'mainTotal'], oddsText: 'h2h=2.0,3.2,3.6 live=1' }],
+      'football'
+    );
+    expect(live.scope._meta!.live).toBe(true);
+    const [noOdds] = normalizeMatches(
+      [{ homeTeam: 'A', awayTeam: 'B', league: 'EPL', startTime: 1, source: 'SyntheticDev', sourceUrl: '', markets: ['result', 'mainTotal'] }],
+      'football'
+    );
+    expect(noOdds.scope._meta!.oddsIsReal).toBe(false);
+  });
+
+  it('amaraFilter keeps matches that clear the floor on ANY market (result, not just totals)', () => {
+    // Arsenal @ 1.14 result clears 60% even though the 2.5 total is ~51/49.
+    const [favorite] = normalizeMatches(
+      [{ homeTeam: 'Arsenal', awayTeam: 'Coventry City', league: 'English Premier League', startTime: 1, source: 'LiveAPI', sourceUrl: '', markets: ['result', 'doubleChance', 'handicap', 'mainTotal'], oddsText: 'h2h=1.14,7.00,18.00 totals=2.5:1.85/1.95' }],
+      'football'
+    );
+    const kept = amaraFilter([favorite], 60).matchIds;
+    expect(kept).toContain(favorite.matchId);
+  });
+
+  it('amaraFilter drops coin-flip matches with no market at or above the floor', () => {
+    // Pure pick-em: both sides 1.90, total 1.90/1.90, no 60% side anywhere.
+    const [pickem] = normalizeMatches(
+      [{ homeTeam: 'A', awayTeam: 'B', league: 'EPL', startTime: 1, source: 'LiveAPI', sourceUrl: '', markets: ['result', 'doubleChance', 'handicap', 'mainTotal'], oddsText: 'h2h=1.90,3.40,3.60 totals=2.5:1.90/1.90' }],
+      'football'
+    );
+    expect(amaraFilter([pickem], 60).matchIds).not.toContain(pickem.matchId);
   });
 });

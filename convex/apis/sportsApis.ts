@@ -98,19 +98,36 @@ export function mapSportsDbEvents(events: any[], sportId: string): ApiFixture[] 
   return out;
 }
 
+const RETRYABLE_CODES = new Set([429, 500, 502, 503, 504]);
+
+async function retryingJson(url: string, timeoutMs: number, attempts: number): Promise<any[]> {
+  let last: any = [];
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+      if (res.ok) {
+        const data: any = await res.json().catch(() => null);
+        if (Array.isArray(data)) return data;
+        last = [];
+        continue;
+      }
+      // Only the transient statuses warrant a retry; keep last result but retry.
+      last = [];
+      if (!RETRYABLE_CODES.has(res.status) || i === attempts - 1) return [];
+    } catch {
+      // Network/timeout — retry.
+    }
+    await new Promise((r) => setTimeout(r, 700 * (i + 1)));
+  }
+  return last;
+}
+
 // ── The Odds API (real bookmaker odds) ───────────────────────────────────────
 export async function fetchOddsMarkets(sportKey: string, markets = 'h2h,totals,spreads'): Promise<any[]> {
   const key = apiKeyFor(SportsApi.TheOddsApi);
   if (!key) return [];
-  try {
-    const url = `${apiUrl(SportsApi.TheOddsApi)}/sports/${sportKey}/odds/?apiKey=${key}&regions=uk,eu,us&markets=${markets}&oddsFormat=decimal`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
-    if (!res.ok) return [];
-    const data: any = await res.json().catch(() => null);
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
+  const url = `${apiUrl(SportsApi.TheOddsApi)}/sports/${sportKey}/odds/?apiKey=${key}&regions=uk,eu,us&markets=${markets}&oddsFormat=decimal`;
+  return retryingJson(url, 20_000, 3);
 }
 
 // Active sport keys from The Odds API, cached for a few minutes per process.
@@ -118,19 +135,26 @@ export async function fetchOddsSportKeys(): Promise<string[]> {
   const key = apiKeyFor(SportsApi.TheOddsApi);
   if (!key) return [];
   if (oddsSportsCache && Date.now() - oddsSportsCache.at < 5 * 60 * 1000) return oddsSportsCache.keys;
-  try {
-    const url = `${apiUrl(SportsApi.TheOddsApi)}/sports/?apiKey=${key}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-    if (!res.ok) return [];
-    const data: any = await res.json().catch(() => null);
-    const active = Array.isArray(data)
-      ? data.filter((s: any) => s?.active && typeof s?.key === 'string').map((s: any) => s.key)
-      : [];
-    oddsSportsCache = { at: Date.now(), keys: active };
-    return active;
-  } catch {
-    return [];
+  const url = `${apiUrl(SportsApi.TheOddsApi)}/sports/?apiKey=${key}`;
+  let active: any[] = [];
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      if (res.ok) {
+        const data: any = await res.json().catch(() => null);
+        active = Array.isArray(data)
+          ? data.filter((s: any) => s?.active && typeof s?.key === 'string').map((s: any) => s.key)
+          : [];
+        break;
+      }
+      if (!RETRYABLE_CODES.has(res.status)) break;
+    } catch {
+      // retry
+    }
+    await new Promise((r) => setTimeout(r, 700 * (i + 1)));
   }
+  oddsSportsCache = { at: Date.now(), keys: active };
+  return active;
 }
 
 // Resolve the best Odds API key for a sport against the live /v4/sports/ list so
@@ -163,7 +187,54 @@ export interface ConsolidatedOdds {
   away: string;
   h2h?: number[]; // [home, away] for 2-way, [home, draw, away] for 1X2
   total?: { line: number; over: number; under: number };
+  spread?: { point: number; home: number; away: number };
   drawPresent: boolean;
+  live?: boolean;
+}
+
+// Human-readable league for a resolved The Odds API sport key so each fixture is
+// labelled with its real competition, not a lumped generic.
+export function leagueForOddsSportKey(key: string | undefined): string {
+  if (!key) return '';
+  const map: Record<string, string> = {
+    soccer_epl: 'English Premier League',
+    soccer_efl_champ: 'EFL Championship',
+    soccer_england_league1: 'EFL League One',
+    soccer_england_league2: 'EFL League Two',
+    soccer_england_efl_cup: 'EFL Cup',
+    soccer_spain_la_liga: 'La Liga',
+    soccer_spain_segunda_division: 'Spain Segunda',
+    soccer_germany_bundesliga: 'Bundesliga',
+    soccer_germany_bundesliga2: 'Bundesliga 2',
+    soccer_italy_serie_a: 'Serie A',
+    soccer_italy_serie_b: 'Serie B',
+    soccer_france_ligue_one: 'Ligue 1',
+    soccer_france_ligue_two: 'Ligue 2',
+    soccer_portugal_primeira_liga: 'Primeira Liga',
+    soccer_netherlands_eredivisie: 'Eredivisie',
+    soccer_brazil_campeonato: 'Brazil Serie A',
+    soccer_argentina_primera_division: 'Argentina Primera',
+    soccer_usa_mls: 'MLS',
+    soccer_uefa_champs_league_qualification: 'UEFA CL Qualifying',
+    basketball_nba: 'NBA',
+    basketball_wnba: 'WNBA',
+    basketball_ncaab: 'NCAAB',
+    baseball_mlb: 'MLB',
+    baseball_npb: 'NPB',
+    baseball_kbo: 'KBO',
+    icehockey_nhl: 'NHL',
+    icehockey_khl: 'KHL'
+  };
+  if (map[key]) return map[key];
+  if (key.startsWith('soccer_')) return 'Soccer League';
+  if (key.startsWith('basketball_')) return 'Basketball League';
+  if (key.startsWith('baseball_')) return 'Baseball League';
+  if (key.startsWith('icehockey_')) return 'Hockey League';
+  if (key.startsWith('tennis_')) {
+    const parts = key.replace('tennis_', '').split('_');
+    return parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') || 'Tennis';
+  }
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function pickBookmakerPrices(raw: any[], marketKey: string): { name: string; price: number; point: number }[] {
@@ -219,7 +290,15 @@ export function consolidateOdds(raw: any[]): ConsolidatedOdds[] {
       total = { line, over: over.price, under: under.price };
     }
 
-    out.push({ home, away, h2h, total, drawPresent });
+    let spread: { point: number; home: number; away: number } | undefined;
+    const spreads = pickBookmakerPrices(m.bookmakers, 'spreads');
+    const homeSpread = spreads.find((s) => String(s.name).toLowerCase() === home.toLowerCase());
+    const awaySpread = spreads.find((s) => String(s.name).toLowerCase() === away.toLowerCase());
+    if (homeSpread && awaySpread) {
+      spread = { point: homeSpread.point, home: homeSpread.price, away: awaySpread.price };
+    }
+
+    out.push({ home, away, h2h, total, spread, drawPresent, live: m?.live === true });
   }
   return out;
 }
@@ -231,6 +310,8 @@ export function matchOddsText(odds: ConsolidatedOdds): string {
   const parts: string[] = [];
   if (odds.h2h) parts.push(`h2h=${odds.h2h.map((n) => n.toFixed(2)).join(',')}`);
   if (odds.total) parts.push(`totals=${odds.total.line}:${odds.total.over.toFixed(2)}/${odds.total.under.toFixed(2)}`);
+  if (odds.spread) parts.push(`spread=${odds.spread.point}:${odds.spread.home.toFixed(2)},${odds.spread.away.toFixed(2)}`);
+  if (odds.live) parts.push('live=1');
   return parts.join(' ');
 }
 
@@ -242,9 +323,10 @@ export function findOddsFor(odds: ConsolidatedOdds[], home: string, away: string
 
 // The Odds API response also carries the real fixtures (home_team, away_team,
 // commence_time) — feed them into the fixture agent so fixtures and odds match.
-export function mapOddsApiFixtures(matches: any[]): ApiFixture[] {
+export function mapOddsApiFixtures(matches: any[], sportKey?: string): ApiFixture[] {
   const out: ApiFixture[] = [];
   const now = Date.now();
+  const league = leagueForOddsSportKey(sportKey);
   const seen = new Set<string>();
   for (const m of matches ?? []) {
     const home = String(m?.home_team || '').trim();
@@ -257,7 +339,7 @@ export function mapOddsApiFixtures(matches: any[]): ApiFixture[] {
     out.push({
       home,
       away,
-      league: 'Live Odds Fixtures',
+      league,
       startTime: startTime > now * 0.5 ? startTime : now + out.length * 2 * 60 * 60 * 1000,
       sourceUrl: 'https://api.the-odds-api.com/v4'
     });
@@ -329,15 +411,22 @@ export function mapSportsDataNbaGames(games: any[]): ApiFixture[] {
   return out;
 }
 
-// Aggregate real fixtures for a sport across the working APIs. The Odds API
-// fixtures come first (they carry matching real odds); then TheSportsDB
-// multi-sport; then the NBA providers for basketball.
-export async function apiFixturesFor(sportId: string, date: string): Promise<ApiFixture[]> {
+// Aggregate real fixtures + their real consolidated odds for a sport across the
+// working APIs. The Odds API fixtures come first (they carry matching real odds).
+// Odds are returned alongside fixtures so the fixture agent can embed them
+// directly, instead of relying on a later fragile team-name re-match.
+export async function apiFixturesFor(
+  sportId: string,
+  date: string
+): Promise<{ fixtures: ApiFixture[]; odds: ConsolidatedOdds[] }> {
   const results: ApiFixture[][] = [];
+  let odds: ConsolidatedOdds[] = [];
 
   const sportKey = await resolveOddsSportKey(sportId);
   if (sportKey) {
-    results.push(mapOddsApiFixtures(await fetchOddsMarkets(sportKey)));
+    const raw = await fetchOddsMarkets(sportKey);
+    results.push(mapOddsApiFixtures(raw, sportKey));
+    odds = consolidateOdds(raw);
   }
 
   const tsdbEvents = await fetchTheSportsDbEvents(date);
@@ -358,7 +447,7 @@ export async function apiFixturesFor(sportId: string, date: string): Promise<Api
       out.push(f);
     }
   }
-  return out;
+  return { fixtures: out, odds };
 }
 
 export function hasAnyApiKey(): boolean {

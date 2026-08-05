@@ -185,29 +185,131 @@ function safeStr(val: unknown, fallback = ''): string {
   return String(val);
 }
 
-// Summarise the stored scope markets (implied probabilities from decimal odds)
-// so the LLM gets concrete, real numbers to reason about.
-function summarizeScope(scope: unknown): { lines: string[]; markets: string[] } {
+// Summarise the stored scope markets so the LLM gets concrete, real numbers to
+// reason about. Every market is de-vigged: Real Win Chance (fair prob), implied
+// prob (1/odds), Bookies Profit Cut (overround) and the punter edge per option.
+function devigItems(entries: { label: string; odds: number }[]) {
+  const valid = entries.filter((e) => e.odds > 1);
+  if (valid.length < 2) return { items: [], overround: 0 };
+  const inv = valid.map((e) => 1 / e.odds);
+  const sum = inv.reduce((a, b) => a + b, 0);
+  const overround = (sum - 1) * 100;
+  const items = valid.map((e, i) => {
+    const fair = (inv[i] / sum) * 100;
+    const implied = inv[i] * 100;
+    return { label: e.label, odds: e.odds, implied, fair, edge: fair - implied };
+  });
+  return { items, overround };
+}
+
+function humanLeg(marketTitle: string, key: string): string {
+  if (marketTitle.toLowerCase().includes('double chance')) {
+    if (key === 'hd') return 'Home or Draw';
+    if (key === 'ha') return 'Home or Away';
+    if (key === 'da') return 'Draw or Away';
+  }
+  if (key === 'home') return 'Home';
+  if (key === 'away') return 'Away';
+  if (key === 'draw') return 'Draw';
+  if (key === 'a') return 'Home';
+  if (key === 'b') return 'Away';
+  if (key === 'hd') return 'Home or Draw';
+  if (key === 'da') return 'Draw or Away';
+  return key;
+}
+
+function pushTop(item: { label: string; odds: number; edge: number }, marketTitle: string, out: string[]) {
+  const line = `${item.edge >= 0 ? '+' : ''}${item.edge.toFixed(1)}% edge | ${marketTitle}: ${item.label} @ ${item.odds.toFixed(2)}`;
+  out.push(line);
+}
+
+function summarizeScope(scope: unknown): { lines: string[]; markets: string[]; topValue: string[]; note: string } {
   const markets = (scope as any)?.markets ?? {};
+  const meta = (scope as any)?._meta ?? {};
   const lines: string[] = [];
-  const mt = markets.mainTotal;
-  if (Array.isArray(mt?.pairs)) {
-    for (const p of mt.pairs) {
-      const over = Number(p?.over);
-      const under = Number(p?.under);
-      if (p?.line == null || !over || !under) continue;
-      const overProb = (1 / over) / (1 / over + 1 / under) * 100;
-      const underProb = 100 - overProb;
-      lines.push(`Total ${p.line} → Over ${over.toFixed(2)} (Real Win Chance ~${overProb.toFixed(1)}%), Under ${under.toFixed(2)} (~${underProb.toFixed(1)}%)`);
+  const marketsStr: string[] = [];
+  const topValue: string[] = [];
+
+  let note = meta.live ? 'IN-PLAY: this match has started — odds are live and moving.' : '';
+  if (meta.oddsIsReal === false) note = (note ? note + ' ' : '') + 'WARNING: no live odds mapped for this match — reference odds only.';
+
+  for (const [key, mkt] of Object.entries(markets) as [string, any][]) {
+    // Line markets (totals) and handicap lines.
+    if (Array.isArray(mkt?.pairs)) {
+      const title = mkt?.title || key;
+      for (const p of mkt.pairs) {
+        const over = Number(p?.over);
+        const under = Number(p?.under);
+        if (p?.line == null || !over || !under) continue;
+        const { items, overround } = devigItems([
+          { label: `Over ${p.line}`, odds: over },
+          { label: `Under ${p.line}`, odds: under }
+        ]);
+        const ov = items[0];
+        const un = items[1];
+        if (!ov || !un) continue;
+        lines.push(
+          `${title} ${p.line}: Over @ ${over.toFixed(2)} (implied ${ov.implied.toFixed(1)}%, real ${ov.fair.toFixed(1)}%, edge ${ov.edge >= 0 ? '+' : ''}${ov.edge.toFixed(1)}%) vs Under @ ${under.toFixed(2)} (real ${un.fair.toFixed(1)}%, edge ${un.edge >= 0 ? '+' : ''}${un.edge.toFixed(1)}%)` +
+            (overround ? ` | Bookies Profit Cut ${overround.toFixed(1)}%` : '')
+        );
+        pushTop(ov, title, topValue);
+        pushTop(un, title, topValue);
+      }
+    }
+    if (Array.isArray(mkt?.handicapPairs)) {
+      const title = mkt?.title || key;
+      for (const pair of mkt.handicapPairs) {
+        const sideA = Number(pair?.sideA);
+        const sideB = Number(pair?.sideB);
+        if (pair?.line == null || !sideA || !sideB) continue;
+        const { items, overround } = devigItems([
+          { label: `Home ${pair.line}`, odds: sideA },
+          { label: `Away ${pair.line > 0 ? '-' : '+'}${Math.abs(pair.line)}`, odds: sideB }
+        ]);
+        const h = items[0];
+        const a = items[1];
+        if (!h || !a) continue;
+        lines.push(
+          `${title} ${pair.line}: Home @ ${sideA.toFixed(2)} (real ${h.fair.toFixed(1)}%, edge ${h.edge >= 0 ? '+' : ''}${h.edge.toFixed(1)}%) vs Away @ ${sideB.toFixed(2)} (real ${a.fair.toFixed(1)}%, edge ${a.edge >= 0 ? '+' : ''}${a.edge.toFixed(1)}%)` +
+            (overround ? ` | Bookies Profit Cut ${overround.toFixed(1)}%` : '')
+        );
+        pushTop(h, title, topValue);
+        pushTop(a, title, topValue);
+      }
+    }
+    // Odds markets (result / winner / doubleChance / regResult).
+    if (mkt?.odds && typeof mkt.odds === 'object') {
+      const title = mkt?.title || key;
+      const entries = Object.entries(mkt.odds)
+        .map(([k, o]) => ({ label: humanLeg(title, k), odds: Number(o) }))
+        .filter((e) => e.odds > 1);
+      if (entries.length < 2) continue;
+      const { items, overround } = devigItems(entries);
+      const parts = items.map(
+        (i) => `${i.label} @ ${i.odds.toFixed(2)} (implied ${i.implied.toFixed(1)}%, real ${i.fair.toFixed(1)}%, edge ${i.edge >= 0 ? '+' : ''}${i.edge.toFixed(1)}%)`
+      );
+      marketsStr.push(`${title}: ${parts.join(' | ')}` + (overround ? ` | Bookies Profit Cut ${overround.toFixed(1)}%` : ''));
+      for (const i of items) pushTop(i, title, topValue);
     }
   }
-  const outMarkets: string[] = [];
-  const result = markets.result?.odds ?? {};
-  const resultBits = Object.entries(result)
-    .filter(([, o]) => Number(o) > 0)
-    .map(([k, o]) => `${k} @ ${Number(o).toFixed(2)} (~${(100 / Number(o)).toFixed(1)}%)`);
-  if (resultBits.length) outMarkets.push(`Result: ${resultBits.join(', ')}`);
-  return { lines, markets: outMarkets };
+
+  // De-dupe and keep the strongest punter edges for the prompt's value section.
+  const seen = new Set<string>();
+  const ranked: string[] = [];
+  for (const t of topValue) {
+    const base = t.replace(/,? edge.*/, '');
+    const key = base.split('@')[0].trim();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ranked.push(t);
+  }
+  ranked.sort((x, y) => {
+    const ex = Number((x.match(/^([+-][\d.]+)%/) ?? [])[1]) || 0;
+    const ey = Number((y.match(/^([+-][\d.]+)%/) ?? [])[1]) || 0;
+    return ey - ex;
+  });
+
+  return { lines, markets: marketsStr, topValue: ranked.slice(0, 6), note };
 }
 
 function fallbackVerdict(match: VerdictMatchInput, fallbackSummary: string): PredictorAiReport {
@@ -291,8 +393,10 @@ export async function generatePredictorVerdict(
   );
 
   const s = summarizeScope(match.scopes);
-  const linesStr = s.lines.join('\n  ') || 'No main-total lines available this cycle.';
-  const marketsStr = s.markets.join('\n  ') || 'No result-market odds available this cycle.';
+  const marketsStr = s.markets.join('\n  ') || 'No result/winner odds available this cycle.';
+  const linesStr = s.lines.join('\n  ') || 'No handicap or total lines available this cycle.';
+  const topStr = s.topValue.length ? '\n  ' + s.topValue.map((t) => `- ${t}`).join('\n  ') : '';
+  const noteStr = s.note ? `\n${s.note}` : '';
 
   // Real source URLs the agents actually scraped — so the verdict reasons over
   // (and cites) the live pages, not generic boilerplate.
@@ -306,24 +410,30 @@ export async function generatePredictorVerdict(
 
   const userContent = `SPORT: ${sport}
 SCORING SCALE: ${scale}
+STATUS:${noteStr}
 
 MATCH: ${match.homeTeam} vs ${match.awayTeam} (${match.league})
 SOURCE URLS (scraped this cycle, verify here):${sourceList}
 
-MARKET / ODDS DATA (Real Win Chance = de-vigged implied probability; Bookies Profit Cut = overround):
-${linesStr}
+MARKET / ODDS DATA (Real Win Chance = de-vigged fair probability; implied = 1/odds; edge = Real Win Chance − implied; Bookies Profit Cut = overround):
 ${marketsStr}
+${linesStr}
+
+TOP VALUE OPPORTUNITIES (highest punter edge first):${topStr}
 
 --- INSTRUCTIONS ---
 You are PulseOdds AI Predictor — an expert sports betting analyst backed by a multi-agent screen (fixture, odds, volume, research, normalization, filter, risk-review). Analyse ONLY the data above and produce a clear, plain-English verdict.
 
 RULES:
-1. Use simple plain English. Use "Real Win Chance" for fair probability and "Bookies Profit Cut" for the bookmaker's margin / overround.
-2. Reference the actual odds and implied probabilities above — never invent numbers.
-3. When a SOURCE URL is provided, name the source(s) you consulted in the verdictSummary / valueAssessment.
-4. The crossCheckSteps list must contain at least 4 distinct checks.
-5. The top3Selections must be data-driven from the totals/result above.
-6. Never recommend betting beyond a small stake; always flag risk.
+1. Use simple plain English. Use "Real Win Chance" for fair probability, "implied probability" for 1/odds, "Bookies Profit Cut" for the bookmaker's margin / overround, and "punter edge" for Real Win Chance minus implied.
+2. Reference the actual odds, implied probabilities and edge numbers above — never invent numbers.
+3. PICK THE BEST MARKET FOR THIS MATCH. Each match is different: some win with Over/Under, some with Asian Handicap / Spread, some with Double Chance, some with a straight win. Evaluate EVERY market above and choose the one(s) where the punter edge is highest for THIS match — do NOT default to the total market for every game.
+4. The top3Selections must come from DIFFERENT market options (e.g. one from the result/winner market, one from a total line, one from Double Chance or Handicap) ranked by punter edge. Never repeat the same market for all three.
+5. For each selection show the metric-strip numbers: its Real Win Chance, implied probability and punter edge (e.g. "Home @ 1.90: real 52.0%, implied 52.6%, edge +0.6%"). Project the punter's edge over the bookie explicitly in "punterEdge".
+6. If STATUS notes IN-PLAY, flag that odds are live/moving and reflect it in tacticalRecommendation; otherwise treat as pre-match.
+7. Cross-reference the odds across markets: note where the Double Chance / Handicap line gives a lower-risk angle vs the straight win, and where the total line disagrees with the result market.
+8. The crossCheckSteps list must contain at least 4 distinct checks.
+9. Never recommend betting beyond a small stake; always flag risk.
 
 RESPOND ONLY with a valid JSON object, no markdown, no code fences:
 {

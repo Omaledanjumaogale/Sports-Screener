@@ -34,7 +34,54 @@ export async function tundeFetchFixtures(sportId: string, dayKey?: string): Prom
     return c;
   };
 
-  // 1. Primary feed.
+  // 1. Verified sports data APIs (TheSportsDB multi-sport, BallDontLie/SportsData
+  //    for basketball, The Odds API for real bookmaker odds) — real fixtures for
+  //    the target date. Each fixture keeps its own league (e.g. English Premier
+  //    League, MLB, ATP Canadian Open) rather than being lumped into one generic
+  //    label, and carries its real odds so the scope never falls back to defaults.
+  //    The Odds API feed is rolling (no date filter), so this is the primary path
+  //    whenever it is reachable.
+  try {
+    const date = dayKey || new Date().toISOString().slice(0, 10);
+    const { fixtures: apiFixtures, odds } = await apiFixturesFor(sportId, date);
+    if (apiFixtures.length > 0) {
+      const fallbackLeague: Record<string, string> = {
+        basketball: 'NBA',
+        football: 'Soccer',
+        tennis: 'Tennis',
+        hockey: 'NHL',
+        baseball: 'MLB',
+        rally: 'Rally'
+      };
+      const marketKeys =
+        sportId === 'football'
+          ? ['result', 'doubleChance', 'handicap', 'mainTotal']
+          : sportId === 'hockey' || sportId === 'baseball'
+            ? ['winner', 'handicap', 'gameTotal', 'regResult']
+            : ['winner', 'handicap', 'mainTotal'];
+      const raw: ScrapeMatch[] = apiFixtures.map((f) => {
+        const o = findOddsFor(odds, f.home, f.away);
+        return {
+          source: 'LiveAPI',
+          sourceUrl: f.sourceUrl,
+          league: f.league || fallbackLeague[sportId] || 'League',
+          homeTeam: f.home,
+          awayTeam: f.away,
+          startTime: f.startTime,
+          markets: marketKeys,
+          // Embed the real odds from the same response so the scope never falls
+          // back to defaults even if the later odds re-match is missed.
+          oddsText: o ? matchOddsText(o) : undefined
+        };
+      });
+      const citations = Array.from(new Set(apiFixtures.map((f) => f.sourceUrl)));
+      return { raw, usedSynthetic: false, countsByLeague: countsByLeague(raw), citations };
+    }
+  } catch (err) {
+    console.warn('[Tunde Onitiri] sports-data API fetch failed.', err);
+  }
+
+  // 2. Primary feed.
   try {
     const primary = await scrapeBetwatchFixtures(sportId);
     if (primary.length > 0) {
@@ -44,7 +91,7 @@ export async function tundeFetchFixtures(sportId: string, dayKey?: string): Prom
     console.warn('[Tunde Onitiri] primary feed scrape failed.', err);
   }
 
-  // 2. URL directory — read every primary/odds/betting/prediction source page for
+  // 3. URL directory — read every primary/odds/betting/prediction source page for
   //    the sport through the reader chain.
   let dirCitations: string[] = [];
   try {
@@ -62,28 +109,6 @@ export async function tundeFetchFixtures(sportId: string, dayKey?: string): Prom
     console.warn('[Tunde Onitiri] no parseable fixtures in the source directory.', dir.pagesFetched.filter((p) => p.ok).length, 'pages readable');
   } catch (err) {
     console.warn('[Tunde Onitiri] source-directory scrape failed.', err);
-  }
-
-  // 3. Verified sports data APIs (TheSportsDB multi-sport, BallDontLie/SportsData
-  //    for basketball) — real fixtures for the target date.
-  try {
-    const date = dayKey || new Date().toISOString().slice(0, 10);
-    const apiFixtures = await apiFixturesFor(sportId, date);
-    if (apiFixtures.length > 0) {
-      const raw: ScrapeMatch[] = apiFixtures.map((f) => ({
-        source: 'LiveAPI',
-        sourceUrl: f.sourceUrl,
-        league: f.league || (sportId === 'basketball' ? 'NBA' : sportId === 'football' ? 'Top League' : sportId === 'tennis' ? 'ATP' : sportId === 'hockey' ? 'NHL' : 'League'),
-        homeTeam: f.home,
-        awayTeam: f.away,
-        startTime: f.startTime,
-        markets: ['mainTotal', 'result']
-      }));
-      const citations = Array.from(new Set(apiFixtures.map((f) => f.sourceUrl)));
-      return { raw, usedSynthetic: false, countsByLeague: countsByLeague(raw), citations };
-    }
-  } catch (err) {
-    console.warn('[Tunde Onitiri] sports-data API fetch failed.', err);
   }
 
   const synthetic = syntheticFixtures(sportId);
@@ -182,22 +207,59 @@ export interface FilterResult {
   underFloor: number;
 }
 
-// Amara Obi — surfaces only matches whose selection probability clears the 60%
-// confidence floor. The client actually computes probabilities via analyzeScope;
-// here we persist the floor and pre-filter on simple implied-odds heuristics so
-// the cache stores only candidates worth rendering.
+// Amara Obi — surfaces only matches where at least one market option clears the
+// 60% confidence floor. Scans EVERY real market (result/winner, double chance,
+// totals, handicap/spread) so a match qualifies on any confident selection —
+// not just the (near-50/50) total line. The client still computes exact
+// probabilities via analyzeScope; this just gates which matches are worth caching.
 export function amaraFilter(matches: NormalizedMatch[], floor = 60): FilterResult {
   const matchIds: string[] = [];
   for (const m of matches) {
-    const pairs = m.scope.markets.mainTotal?.pairs ?? [];
-    const hasHighProb = pairs.some((p: any) => {
-      const over = Number(p?.over || 0);
-      const under = Number(p?.under || 0);
-      if (!over || !under) return false;
-      const overProb = (1 / over) / (1 / over + 1 / under) * 100;
-      return overProb >= floor || 100 - overProb >= floor;
-    });
-    if (hasHighProb) matchIds.push(m.matchId);
+    const mk = m.scope.markets;
+    let high = false;
+    outer: for (const key of Object.keys(mk)) {
+      const market = mk[key];
+      // Derived markets (Double Chance / derived Asian Handicap) always carry a
+      // ~75%+ safe side — they must NOT gate the floor, only primary markets do.
+      if (market?.derived) continue;
+      const odds = market?.odds;
+      if (odds && typeof odds === 'object') {
+        for (const o of Object.values(odds)) {
+          const n = Number(o);
+          if (n > 1 && (1 / n) * 100 >= floor) {
+            high = true;
+            break outer;
+          }
+        }
+      }
+      const pairs = market?.pairs;
+      if (Array.isArray(pairs)) {
+        for (const p of pairs) {
+          const over = Number(p?.over || 0);
+          const under = Number(p?.under || 0);
+          if (!over || !under) continue;
+          const overProb = (1 / over) / (1 / over + 1 / under) * 100;
+          if (overProb >= floor || 100 - overProb >= floor) {
+            high = true;
+            break outer;
+          }
+        }
+      }
+      const handicapPairs = market?.handicapPairs;
+      if (Array.isArray(handicapPairs)) {
+        for (const h of handicapPairs) {
+          const sideA = Number(h?.sideA || 0);
+          const sideB = Number(h?.sideB || 0);
+          if (!sideA || !sideB) continue;
+          const sideAProb = (1 / sideA) / (1 / sideA + 1 / sideB) * 100;
+          if (sideAProb >= floor || 100 - sideAProb >= floor) {
+            high = true;
+            break outer;
+          }
+        }
+      }
+    }
+    if (high) matchIds.push(m.matchId);
   }
   return { matchIds, underFloor: floor };
 }
