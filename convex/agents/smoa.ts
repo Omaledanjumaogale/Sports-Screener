@@ -29,6 +29,7 @@ export interface SmoaReport {
   floor: number;
   countsByLeague: Record<string, number>;
   sourcesUsed: string[];
+  pagesFetched?: { url: string; ok: boolean; engine: string }[];
 }
 
 export async function runSmoaPipeline(
@@ -41,16 +42,16 @@ export async function runSmoaPipeline(
   const sourcesUsed: string[] = ['https://betwatch.fr/'];
 
   // 1. Tunde Onitiri — fixtures
-  const fixturesRes = await tundeFetchFixtures(sportId);
+  const fixturesRes = await tundeFetchFixtures(sportId, dayKey);
   agentsRun.push('Tunde Onitiri');
-  sourcesUsed.push(...Object.keys(fixturesRes.countsByLeague).length ? [] : []);
+  if (fixturesRes.citations?.length) sourcesUsed.push(...fixturesRes.citations);
   await report(AGENT_DEFS[0].weight, 'Tunde Onitiri — fetching fixtures',
-    fixturesRes.usedSynthetic ? 'Live scrape unavailable; dev fixtures used.' : `${fixturesRes.raw.length} fixtures found`);
+    fixturesRes.usedSynthetic ? 'Live scrape unavailable; dev fixtures used.' : `${fixturesRes.raw.length} fixtures found across the source directory and data APIs`);
 
   const capped = fixturesRes.raw.slice(0, dailyCap());
 
   // 2. Kunle Akin — odds
-  const oddsRes = await kunleCollectOdds(capped);
+  const oddsRes = await kunleCollectOdds(capped, sportId);
   agentsRun.push('Kunle Akin');
   sourcesUsed.push(...oddsRes.sourcesQueried.slice(0, 5));
   await report(AGENT_DEFS[0].weight + AGENT_DEFS[1].weight, 'Kunle Akin — collecting odds',
@@ -109,6 +110,7 @@ export async function runSmoaPipeline(
     warnings: riskRes.warnings,
     floor: filterRes.underFloor,
     countsByLeague: fixturesRes.countsByLeague,
-    sourcesUsed: Array.from(new Set(sourcesUsed))
+    sourcesUsed: Array.from(new Set(sourcesUsed)),
+    pagesFetched: fixturesRes.pagesFetched
   };
 }

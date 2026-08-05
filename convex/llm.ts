@@ -148,6 +148,8 @@ interface VerdictMatchInput {
   awayTeam: string;
   league: string;
   scopes: unknown;
+  sourceUrl?: string;
+  citations?: string[];
 }
 
 const VALID_SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball'];
@@ -285,10 +287,21 @@ export async function generatePredictorVerdict(
   const linesStr = s.lines.join('\n  ') || 'No main-total lines available this cycle.';
   const marketsStr = s.markets.join('\n  ') || 'No result-market odds available this cycle.';
 
+  // Real source URLs the agents actually scraped — so the verdict reasons over
+  // (and cites) the live pages, not generic boilerplate.
+  const citations = match.citations ?? [];
+  const sourceList =
+    citations.length > 0
+      ? '\n  ' + citations.map((c) => `- ${c}`).join('\n  ')
+      : match.sourceUrl
+        ? `\n  - ${match.sourceUrl}`
+        : '';
+
   const userContent = `SPORT: ${sport}
 SCORING SCALE: ${scale}
 
 MATCH: ${match.homeTeam} vs ${match.awayTeam} (${match.league})
+SOURCE URLS (scraped this cycle, verify here):${sourceList}
 
 MARKET / ODDS DATA (Real Win Chance = de-vigged implied probability; Bookies Profit Cut = overround):
 ${linesStr}
@@ -300,9 +313,10 @@ You are PulseOdds AI Predictor — an expert sports betting analyst backed by a 
 RULES:
 1. Use simple plain English. Use "Real Win Chance" for fair probability and "Bookies Profit Cut" for the bookmaker's margin / overround.
 2. Reference the actual odds and implied probabilities above — never invent numbers.
-3. The crossCheckSteps list must contain at least 4 distinct checks.
-4. The top3Selections must be data-driven from the totals/result above.
-5. Never recommend betting beyond a small stake; always flag risk.
+3. When a SOURCE URL is provided, name the source(s) you consulted in the verdictSummary / valueAssessment.
+4. The crossCheckSteps list must contain at least 4 distinct checks.
+5. The top3Selections must be data-driven from the totals/result above.
+6. Never recommend betting beyond a small stake; always flag risk.
 
 RESPOND ONLY with a valid JSON object, no markdown, no code fences:
 {

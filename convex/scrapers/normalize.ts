@@ -57,24 +57,68 @@ function stableId(seed: string): string {
   return Math.abs(h).toString(36);
 }
 
+export interface ParsedOdds {
+  h2h?: number[]; // [home, draw, away]
+  total?: { line: number; over: number; under: number };
+}
+
+// Parse an oddsText blob. Supports the explicit Odds API form
+// ("h2h=1.14,7.00,18.00 totals=2.5:1.85/1.95") as well as bare decimal runs
+// scraped from registry pages ("1.85, 3.40, 2.10" → 1X2, or "1.85, 2.10" → O/U).
+export function parseOddsText(oddsText: string): ParsedOdds {
+  const out: ParsedOdds = {};
+  const t = String(oddsText || '');
+  const h2h = t.match(/h2h=([\d.,\s]+)/i);
+  if (h2h) {
+    const nums = h2h[1].split(',').map((n) => Number(n.trim())).filter((n) => Number.isFinite(n) && n >= 1.01 && n <= 50);
+    if (nums.length >= 2) out.h2h = nums.slice(0, 3);
+  }
+  const tot = t.match(/totals=([\d.]+):([\d.]+)\/([\d.]+)/i);
+  if (tot) {
+    const line = Number(tot[1]);
+    const over = Number(tot[2]);
+    const under = Number(tot[3]);
+    if ([line, over, under].every((n) => Number.isFinite(n) && n > 0)) out.total = { line, over, under };
+  }
+  if (!out.h2h && !out.total) {
+    const nums = t.split(/[,;]/).map((s) => Number(s.replace(/[^\d.]/g, ''))).filter((n) => Number.isFinite(n) && n >= 1.01 && n <= 50);
+    if (nums.length >= 3) out.h2h = nums.slice(0, 3);
+    else if (nums.length === 2) out.total = { line: 0, over: nums[0], under: nums[1] };
+  }
+  return out;
+}
+
 // Deterministic market odds derived from the fixture seed so cached scopes are
 // stable across refreshes even before a live odds scrape succeeds.
 export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch {
   const lines = BASE_LINES[sportId] ?? BASE_LINES.football;
   const id = stableId(`${m.homeTeam}|${m.awayTeam}|${m.league}`);
 
+  const parsed = parseOddsText(m.oddsText ?? '');
+
+  const pairs = lines.map((l) => ({ line: l.line, over: l.over, under: l.under }));
+  if (parsed.total && parsed.total.line > 0) {
+    pairs[0] = { line: parsed.total.line, over: parsed.total.over, under: parsed.total.under };
+  } else if (parsed.total && parsed.total.line === 0) {
+    pairs[0] = { ...pairs[0], over: parsed.total.over, under: parsed.total.under };
+  }
+
+  const resultOdds: Record<string, number | null> = parsed.h2h
+    ? { home: parsed.h2h[0], draw: parsed.h2h[1] ?? null, away: parsed.h2h[2] ?? null }
+    : { home: 1.85, draw: 3.4, away: 2.1 };
+
   const mainTotal = {
     id: 'mainTotal',
     kind: 'lines',
     title: 'Match Total',
-    pairs: lines.map((l) => ({ line: l.line, over: l.over, under: l.under }))
+    pairs
   };
 
   const result = {
     id: 'result',
     kind: 'result',
     title: 'Result',
-    odds: { home: 1.85, draw: 3.4, away: 2.1 }
+    odds: resultOdds
   };
 
   const scope: NormalizedMatch['scope'] = {

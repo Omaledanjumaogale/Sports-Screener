@@ -11,6 +11,7 @@
 import type * as agents_agentDefinitions from "../agents/agentDefinitions.js";
 import type * as agents_smoa from "../agents/smoa.js";
 import type * as agents_specialists from "../agents/specialists.js";
+import type * as apis_sportsApis from "../apis/sportsApis.js";
 import type * as auth from "../auth.js";
 import type * as cron from "../cron.js";
 import type * as drafts from "../drafts.js";
@@ -22,8 +23,10 @@ import type * as savedScreeners from "../savedScreeners.js";
 import type * as scrapers_betwatch from "../scrapers/betwatch.js";
 import type * as scrapers_brightdata from "../scrapers/brightdata.js";
 import type * as scrapers_firecrawl from "../scrapers/firecrawl.js";
+import type * as scrapers_fixtures from "../scrapers/fixtures.js";
 import type * as scrapers_jinaReader from "../scrapers/jinaReader.js";
 import type * as scrapers_normalize from "../scrapers/normalize.js";
+import type * as scrapers_pages from "../scrapers/pages.js";
 import type * as scrapers_serper from "../scrapers/serper.js";
 import type * as scrapers_sources from "../scrapers/sources.js";
 import type * as users from "../users.js";
@@ -38,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   "agents/agentDefinitions": typeof agents_agentDefinitions;
   "agents/smoa": typeof agents_smoa;
   "agents/specialists": typeof agents_specialists;
+  "apis/sportsApis": typeof apis_sportsApis;
   auth: typeof auth;
   cron: typeof cron;
   drafts: typeof drafts;
@@ -49,8 +53,10 @@ declare const fullApi: ApiFromModules<{
   "scrapers/betwatch": typeof scrapers_betwatch;
   "scrapers/brightdata": typeof scrapers_brightdata;
   "scrapers/firecrawl": typeof scrapers_firecrawl;
+  "scrapers/fixtures": typeof scrapers_fixtures;
   "scrapers/jinaReader": typeof scrapers_jinaReader;
   "scrapers/normalize": typeof scrapers_normalize;
+  "scrapers/pages": typeof scrapers_pages;
   "scrapers/serper": typeof scrapers_serper;
   "scrapers/sources": typeof scrapers_sources;
   users: typeof users;

@@ -3,34 +3,91 @@
 // where a live scrape is unavailable a clearly-labelled fallback is used.
 
 import { scrapeBetwatchFixtures, syntheticFixtures, type ScrapeMatch } from '../scrapers/betwatch';
+import { scrapeRealFixtures } from '../scrapers/fixtures';
 import { normalizeMatches, type NormalizedMatch } from '../scrapers/normalize';
 import { serperSearch } from '../scrapers/serper';
 import { brightDataRead } from '../scrapers/brightdata';
 import { jinaRead } from '../scrapers/jinaReader';
 import { PREDICTION_SOURCES, ODDS_SOURCES } from '../scrapers/sources';
+import {
+  apiFixturesFor,
+  fetchOddsMarkets,
+  consolidateOdds,
+  findOddsFor,
+  matchOddsText,
+  ODDS_SPORT_KEY,
+  hasAnyApiKey
+} from '../apis/sportsApis';
 
 export interface FixturesResult {
   raw: ScrapeMatch[];
   usedSynthetic: boolean;
   countsByLeague: Record<string, number>;
+  pagesFetched?: { url: string; ok: boolean; engine: string }[];
+  citations?: string[];
 }
 
-export async function tundeFetchFixtures(sportId: string): Promise<FixturesResult> {
-  let scraped: ScrapeMatch[] = [];
+export async function tundeFetchFixtures(sportId: string, dayKey?: string): Promise<FixturesResult> {
+  const countsByLeague = (matches: ScrapeMatch[]): Record<string, number> => {
+    const c: Record<string, number> = {};
+    for (const m of matches) c[m.league] = (c[m.league] ?? 0) + 1;
+    return c;
+  };
+
+  // 1. Primary feed.
   try {
-    scraped = await scrapeBetwatchFixtures(sportId);
+    const primary = await scrapeBetwatchFixtures(sportId);
+    if (primary.length > 0) {
+      return { raw: primary, usedSynthetic: false, countsByLeague: countsByLeague(primary) };
+    }
   } catch (err) {
-    console.warn('[Tunde Onitiri] fixture scrape failed; falling back to dev fixtures.', err);
+    console.warn('[Tunde Onitiri] primary feed scrape failed.', err);
   }
-  if (scraped.length > 0) {
-    const countsByLeague: Record<string, number> = {};
-    for (const m of scraped) countsByLeague[m.league] = (countsByLeague[m.league] ?? 0) + 1;
-    return { raw: scraped, usedSynthetic: false, countsByLeague };
+
+  // 2. URL directory — read every primary/odds/betting/prediction source page for
+  //    the sport through the reader chain.
+  let dirCitations: string[] = [];
+  try {
+    const dir = await scrapeRealFixtures(sportId);
+    if (dir.matches.length > 0) {
+      return {
+        raw: dir.matches,
+        usedSynthetic: false,
+        countsByLeague: countsByLeague(dir.matches),
+        pagesFetched: dir.pagesFetched,
+        citations: dir.citations
+      };
+    }
+    dirCitations = dir.citations;
+    console.warn('[Tunde Onitiri] no parseable fixtures in the source directory.', dir.pagesFetched.filter((p) => p.ok).length, 'pages readable');
+  } catch (err) {
+    console.warn('[Tunde Onitiri] source-directory scrape failed.', err);
   }
+
+  // 3. Verified sports data APIs (TheSportsDB multi-sport, BallDontLie/SportsData
+  //    for basketball) — real fixtures for the target date.
+  try {
+    const date = dayKey || new Date().toISOString().slice(0, 10);
+    const apiFixtures = await apiFixturesFor(sportId, date);
+    if (apiFixtures.length > 0) {
+      const raw: ScrapeMatch[] = apiFixtures.map((f) => ({
+        source: 'LiveAPI',
+        sourceUrl: f.sourceUrl,
+        league: f.league || (sportId === 'basketball' ? 'NBA' : sportId === 'football' ? 'Top League' : sportId === 'tennis' ? 'ATP' : sportId === 'hockey' ? 'NHL' : 'League'),
+        homeTeam: f.home,
+        awayTeam: f.away,
+        startTime: f.startTime,
+        markets: ['mainTotal', 'result']
+      }));
+      const citations = Array.from(new Set(apiFixtures.map((f) => f.sourceUrl)));
+      return { raw, usedSynthetic: false, countsByLeague: countsByLeague(raw), citations };
+    }
+  } catch (err) {
+    console.warn('[Tunde Onitiri] sports-data API fetch failed.', err);
+  }
+
   const synthetic = syntheticFixtures(sportId);
-  const countsByLeague: Record<string, number> = {};
-  for (const m of synthetic) countsByLeague[m.league] = (countsByLeague[m.league] ?? 0) + 1;
-  return { raw: synthetic, usedSynthetic: true, countsByLeague };
+  return { raw: synthetic, usedSynthetic: true, countsByLeague: countsByLeague(synthetic), citations: dirCitations };
 }
 
 export interface OddsResult {
@@ -38,17 +95,39 @@ export interface OddsResult {
   samples: { match: string; text: string }[];
 }
 
-export async function kunleCollectOdds(fixtures: ScrapeMatch[]): Promise<OddsResult> {
+export async function kunleCollectOdds(fixtures: ScrapeMatch[], sportId?: string): Promise<OddsResult> {
   const sourcesQueried: string[] = [];
   const samples: OddsResult['samples'] = [];
-  const batch = fixtures.slice(0, 12);
 
+  // 1. Real bookmaker odds via The Odds API (verified live provider). Matches the
+  //    fixtures by team name and stamps the real h2h/totals onto each match so the
+  //    normalize stage builds a genuine scope for the LLM.
+  const oddsKey = ODDS_SPORT_KEY[sportId ?? 'football'];
+  if (oddsKey) {
+    try {
+      const raw = await fetchOddsMarkets(oddsKey);
+      const odds = consolidateOdds(raw);
+      if (odds.length > 0) sourcesQueried.push('https://api.the-odds-api.com/v4');
+      for (const m of fixtures) {
+        const o = findOddsFor(odds, m.homeTeam, m.awayTeam);
+        if (o) {
+          m.oddsText = matchOddsText(o);
+          samples.push({ match: `${m.homeTeam} vs ${m.awayTeam}`, text: matchOddsText(o) });
+        }
+      }
+    } catch (err) {
+      console.warn('[Kunle Akin] odds API fetch failed.', err);
+    }
+  }
+
+  // 2. Odds registry pages for cross-reference/citation context.
+  const batch = fixtures.slice(0, 6);
   await Promise.all(
     batch.map(async (m) => {
       const src = ODDS_SOURCES[Math.floor(Math.random() * ODDS_SOURCES.length)] ?? ODDS_SOURCES[0];
       sourcesQueried.push(src.url);
       const jr = await jinaRead(src.url, { timeoutMs: 8_000 });
-      if (jr.ok && jr.text) samples.push({ match: `${m.homeTeam} vs ${m.awayTeam}`, text: jr.text.slice(0, 400) });
+      if (jr.ok && jr.text) samples.push({ match: `${m.homeTeam} vs ${m.awayTeam}`, text: jr.text.slice(0, 300) });
     })
   );
 

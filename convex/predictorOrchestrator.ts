@@ -87,7 +87,15 @@ async function executeRefresh(
     const verdicts = await mapLimit(result.matches, 4, async (m) => {
       const fallbackSummary = `${m.homeTeam} vs ${m.awayTeam} (${m.league}) — confidence floor ${floor}%. Analysed by ${result.agentsRun.length} agents across ${result.sourcesUsed.length} sources.`;
       const llm: VerdictOutcome = await generatePredictorVerdict(
-        { matchId: m.matchId, homeTeam: m.homeTeam, awayTeam: m.awayTeam, league: m.league, scopes: m.scope },
+        {
+          matchId: m.matchId,
+          homeTeam: m.homeTeam,
+          awayTeam: m.awayTeam,
+          league: m.league,
+          scopes: m.scope,
+          sourceUrl: m.sourceUrl,
+          citations: result.citations
+        },
         { sportId: m.sportId, fallbackSummary }
       );
       return {
