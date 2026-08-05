@@ -294,7 +294,10 @@ export const insertVerdicts = internalMutation({
         agentsRun: v.array(v.string()),
         citations: v.array(v.string()),
         floor: v.number(),
-        scopeSummary: v.string()
+        scopeSummary: v.string(),
+        llmUsed: v.optional(v.boolean()),
+        llmProvider: v.optional(v.string()),
+        aiReport: v.optional(v.any())
       })
     )
   },
@@ -305,34 +308,37 @@ export const insertVerdicts = internalMutation({
         .query('predictorVerdicts')
         .withIndex('by_day_match', (q) => q.eq('dayKey', args.dayKey).eq('matchId', vv.matchId))
         .first();
-      const aiReport = {
-        verdictSummary: vv.scopeSummary,
-        valueAssessment: '',
-        riskWarning: '',
-        tacticalRecommendation: '',
-        crossCheckAnalysis: '',
-        crossCheckSteps: [],
-        top3Selections: [],
-        punterEdge: '',
-        bookmakerBiasNote: '',
-        stakeAdvice: ''
+      const aiReport =
+        vv.aiReport && typeof vv.aiReport === 'object'
+          ? vv.aiReport
+          : {
+              verdictSummary: vv.scopeSummary,
+              valueAssessment: '',
+              riskWarning: '',
+              tacticalRecommendation: '',
+              crossCheckAnalysis: '',
+              crossCheckSteps: [],
+              top3Selections: [],
+              punterEdge: '',
+              bookmakerBiasNote: '',
+              stakeAdvice: ''
+            };
+      const patch = {
+        aiReport,
+        llmUsed: vv.llmUsed ?? (vv.aiReport ? true : false),
+        llmProvider: vv.llmProvider ?? '',
+        updatedAt: now
       };
       if (existing) {
-        await ctx.db.patch(existing._id, {
-          agentsRun: vv.agentsRun,
-          citations: vv.citations,
-          aiReport,
-          updatedAt: now
-        });
+        await ctx.db.patch(existing._id, { ...patch, agentsRun: vv.agentsRun, citations: vv.citations });
       } else {
         await ctx.db.insert('predictorVerdicts', {
           dayKey: args.dayKey,
           sportId: args.sportId,
           matchId: vv.matchId,
-          aiReport,
+          ...patch,
           agentsRun: vv.agentsRun,
-          citations: vv.citations,
-          updatedAt: now
+          citations: vv.citations
         });
       }
     }

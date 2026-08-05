@@ -12,6 +12,7 @@
     todayKey,
     fetchPredictorDay,
     fetchPredictorMatches,
+    fetchPredictorVerdict,
     fetchActiveRun,
     startPredictorRefresh,
     analyzeCachedMatch
@@ -43,7 +44,12 @@
   } = $props();
 
   type Phase = 'select' | 'analyzing' | 'results';
-  type SelectedAnalysis = { match: PredictorMatch; analysis: Analysis; qualifying: Pick[] };
+  type SelectedAnalysis = {
+    match: PredictorMatch;
+    analysis: Analysis;
+    qualifying: Pick[];
+    insight?: Record<string, unknown> | null;
+  };
 
   const activeSport = $derived(sportId);
   const effectiveSport = $derived(activeSport ?? ('football' as PredictorSportId));
@@ -171,12 +177,37 @@
     if (selected.length === 0) return;
     results = selected.map((m) => {
       const res = analyzeMatch(m);
-      return { match: m, analysis: res.analysis, qualifying: res.qualifying };
+      return { match: m, analysis: res.analysis, qualifying: res.qualifying, insight: null };
     });
     phase = 'analyzing';
     agentProgress = 0;
     agentStage = AGENT_DEFS[0]?.stage ?? 'Fixtures fetched';
     animateAgents();
+    enrichWithLlmVerdicts(selected);
+  }
+
+  // Surface the stored LLM (Agnes/OpenRouter) verdict for each selected match
+  // when the cache has one; otherwise the deterministic insights render.
+  async function enrichWithLlmVerdicts(selected: PredictorMatch[]) {
+    const dk = dayKey;
+    const entries = await Promise.all(
+      selected.map(async (m) => {
+        let llmInsight: Record<string, unknown> | null = null;
+        try {
+          const verdict = await fetchPredictorVerdict(dk, m.matchId);
+          if (verdict?.aiReport && typeof verdict.aiReport === 'object') {
+            llmInsight = verdict.aiReport;
+          }
+        } catch (_) {
+          /* ignore — fall back to deterministic insights */
+        }
+        return { matchId: m.matchId, llmInsight };
+      })
+    );
+    results = results.map((r) => {
+      const hit = entries.find((e) => e.matchId === r.match.matchId);
+      return hit?.llmInsight ? { ...r, insight: hit.llmInsight } : r;
+    });
   }
 
   function backToSelection() {
@@ -422,7 +453,7 @@
             {#each results as r (r.match.matchId)}
               <PredictorMatchCard match={r.match} analysis={r.analysis} qualifying={r.qualifying} {accent} expanded />
               <PredictorVerdictPanel
-                insight={buildPredictorInsights(r.match, r.qualifying)}
+                insight={r.insight ? (r.insight as import('$lib/cloudflareAi').AiAnalysisResult['insights']) : buildPredictorInsights(r.match, r.qualifying)}
                 {agentsRun}
                 citations={sourcesUsed}
                 {warnings}

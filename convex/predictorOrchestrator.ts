@@ -7,6 +7,7 @@ import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { runSmoaPipeline } from './agents/smoa';
 import { dailyCap } from './scrapers/sources';
+import { generatePredictorVerdict, type VerdictOutcome } from './llm';
 
 const sportId = v.union(
   v.literal('football'),
@@ -23,6 +24,21 @@ const refreshArgs = {
   runId: v.optional(v.string()),
   floor: v.optional(v.number())
 };
+
+// Runs `fn` over `arr` with at most `limit` promises in flight. Kept matches
+// can be numerous, so we bound parallel LLM calls to stay under the timeout.
+async function mapLimit<T, R>(arr: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(arr.length);
+  let idx = 0;
+  const workers = new Array(Math.min(limit, arr.length)).fill(0).map(async () => {
+    while (idx < arr.length) {
+      const i = idx++;
+      results[i] = await fn(arr[i]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
 
 async function executeRefresh(
   ctx: any,
@@ -68,16 +84,28 @@ async function executeRefresh(
       }))
     });
 
-    await ctx.runMutation(internal.predictor.insertVerdicts, {
-      dayKey: dayKey,
-      sportId: args.sportId,
-      verdicts: result.matches.map((m) => ({
+    const verdicts = await mapLimit(result.matches, 4, async (m) => {
+      const fallbackSummary = `${m.homeTeam} vs ${m.awayTeam} (${m.league}) — confidence floor ${floor}%. Analysed by ${result.agentsRun.length} agents across ${result.sourcesUsed.length} sources.`;
+      const llm: VerdictOutcome = await generatePredictorVerdict(
+        { matchId: m.matchId, homeTeam: m.homeTeam, awayTeam: m.awayTeam, league: m.league, scopes: m.scope },
+        { sportId: m.sportId, fallbackSummary }
+      );
+      return {
         matchId: m.matchId,
         agentsRun: result.agentsRun,
         citations: result.citations,
         floor,
-        scopeSummary: `${m.homeTeam} vs ${m.awayTeam} (${m.league}) — confidence floor ${floor}%. Analysed by ${result.agentsRun.length} agents across ${result.sourcesUsed.length} sources.`
-      }))
+        scopeSummary: llm.summary,
+        llmUsed: llm.usedLlm,
+        llmProvider: llm.provider,
+        aiReport: llm.verdict
+      };
+    });
+
+    await ctx.runMutation(internal.predictor.insertVerdicts, {
+      dayKey: dayKey,
+      sportId: args.sportId,
+      verdicts
     });
 
     await ctx.runMutation(internal.predictor.upsertDay, {

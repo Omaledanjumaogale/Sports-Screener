@@ -15,6 +15,7 @@ import type * as auth from "../auth.js";
 import type * as cron from "../cron.js";
 import type * as drafts from "../drafts.js";
 import type * as http from "../http.js";
+import type * as llm from "../llm.js";
 import type * as predictor from "../predictor.js";
 import type * as predictorOrchestrator from "../predictorOrchestrator.js";
 import type * as savedScreeners from "../savedScreeners.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   cron: typeof cron;
   drafts: typeof drafts;
   http: typeof http;
+  llm: typeof llm;
   predictor: typeof predictor;
   predictorOrchestrator: typeof predictorOrchestrator;
   savedScreeners: typeof savedScreeners;

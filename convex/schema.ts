@@ -165,6 +165,8 @@ export default defineSchema({
     sportId: PREDICTOR_SPORT_IDS,
     matchId: v.string(),
     aiReport: v.any(),
+    llmUsed: v.optional(v.boolean()),
+    llmProvider: v.optional(v.string()),
     agentsRun: v.array(v.string()),
     citations: v.array(v.string()),
     updatedAt: v.number()

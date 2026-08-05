@@ -22,6 +22,14 @@ export async function fetchPredictorMatches(sportId: PredictorSportId, dayKey: s
   return queryConvex<PredictorMatch[]>(api.predictor.listMatches, { sportId, dayKey });
 }
 
+export async function fetchPredictorVerdict(dayKey: string, matchId: string): Promise<{
+  aiReport?: any;
+  llmUsed?: boolean;
+  llmProvider?: string;
+} | null> {
+  return queryConvex(api.predictor.getVerdict, { dayKey, matchId });
+}
+
 export async function fetchActiveRun(sportId: PredictorSportId, dayKey: string): Promise<PredictorRun | null> {
   return queryConvex<PredictorRun | null>(api.predictor.getActiveRun, { sportId, dayKey });
 }
