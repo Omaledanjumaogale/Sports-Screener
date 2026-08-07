@@ -2,7 +2,7 @@
 // reuses the existing `analyzeScope` engine + `filterHighConfidence` to compute
 // live probabilities from the cached scopes (no engine duplication).
 
-import { api, queryConvex, callConvex } from './convexClient';
+import { api, queryConvex, callConvex, actionConvex } from './convexClient';
 import { analyzeScope, filterHighConfidence, type Analysis, type ScopeState, type SportId } from './engine';
 import { DEFAULT_CONFIDENCE_FLOOR, type PredictorDay, type PredictorMatch, type PredictorRun, type PredictorSportId } from './predictorTypes';
 
@@ -96,7 +96,7 @@ export async function startPredictorRefresh(
 }
 
 export async function bootstrapTodayAllSports(): Promise<{ seeded: number; message: string }> {
-  return callConvex<{ seeded: number; message: string }>(api.predictor.bootstrapToday, {});
+  return actionConvex<{ seeded: number; message: string }>(api.predictor.bootstrapToday, {});
 }
 
 export function emptyAnalysis(): Analysis {

@@ -165,6 +165,11 @@ export async function callConvex<Ret = any>(name: string, args: any = {}): Promi
   return client.mutation(name, args) as Promise<Ret>;
 }
 
+export async function actionConvex<Ret = any>(name: string, args: any = {}): Promise<Ret> {
+  const client = await getConvexClient();
+  return client.action(name, args) as Promise<Ret>;
+}
+
 export async function queryConvex<Ret = any>(name: string, args: any = {}): Promise<Ret> {
   const client = await getConvexClient();
   return client.query(name, args) as Promise<Ret>;
@@ -205,7 +210,8 @@ export const api = {
     getDailyPnlSummary: 'predictor:getDailyPnlSummary',
     saveDailyPnlSummary: 'predictor:saveDailyPnlSummary',
     getActiveRun: 'predictor:getActiveRun',
-    startRefresh: 'predictor:startRefresh'
+    startRefresh: 'predictor:startRefresh',
+    bootstrapToday: 'predictor:bootstrapToday'
   },
   predictorOrchestrator: {
     runRefresh: 'predictorOrchestrator:runRefresh'
