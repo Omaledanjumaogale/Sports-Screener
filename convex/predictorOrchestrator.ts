@@ -70,6 +70,7 @@ async function executeRefresh(
 
     const result = await runSmoaPipeline(args.sportId, dayKey, report, floor);
 
+    // Cache EVERY parsed fixture (see smoa.ts) so the schedule always populates.
     await ctx.runMutation(internal.predictor.replaceMatches, {
       sportId: args.sportId,
       dayKey: dayKey,
@@ -86,19 +87,49 @@ async function executeRefresh(
     });
 
     const verdicts = await mapLimit(result.matches, 4, async (m) => {
-      const fallbackSummary = `${m.homeTeam} vs ${m.awayTeam} (${m.league}) — confidence floor ${floor}%. Analysed by ${result.agentsRun.length} agents across ${result.sourcesUsed.length} sources.`;
-      const llm: VerdictOutcome = await generatePredictorVerdict(
-        {
-          matchId: m.matchId,
-          homeTeam: m.homeTeam,
-          awayTeam: m.awayTeam,
-          league: m.league,
-          scopes: m.scope,
-          sourceUrl: m.sourceUrl,
-          citations: result.citations
-        },
-        { sportId: m.sportId, fallbackSummary }
-      );
+      // Generate a full LLM verdict only for matches that cleared the confidence
+      // floor (Amara's gate). Everything else gets a deterministic engine-built
+      // verdict so the schedule still populates with analysis without exhausting
+      // LLM quota on low-signal fixtures.
+      const qualifies = result.qualifyingIds.includes(m.matchId);
+      const fallbackSummary = qualifies
+        ? `${m.homeTeam} vs ${m.awayTeam} (${m.league}) — confidence floor ${floor}%. Analysed by ${result.agentsRun.length} agents across ${result.sourcesUsed.length} sources.`
+        : `${m.homeTeam} vs ${m.awayTeam} (${m.league}) — cached for review; no selection cleared the ${floor}% confidence floor.`;
+
+      let llm: VerdictOutcome;
+      if (qualifies) {
+        llm = await generatePredictorVerdict(
+          {
+            matchId: m.matchId,
+            homeTeam: m.homeTeam,
+            awayTeam: m.awayTeam,
+            league: m.league,
+            scopes: m.scope,
+            sourceUrl: m.sourceUrl,
+            citations: result.citations
+          },
+          { sportId: m.sportId, fallbackSummary }
+        );
+      } else {
+        llm = {
+          usedLlm: false,
+          provider: 'none',
+          model: 'deterministic',
+          verdict: {
+            verdictSummary: fallbackSummary,
+            valueAssessment: 'Below the confidence floor this cycle — treat as reference data, not a recommendation.',
+            riskWarning: 'No qualifying selection. Re-verify live odds before considering any bet.',
+            tacticalRecommendation: 'Skip or wait for stronger signals from the next refresh cycle.',
+            crossCheckAnalysis: 'Match cached from the agent screen but did not clear the probability floor.',
+            crossCheckSteps: ['Step 1: Markets scanned across the odds registries.', 'Step 2: De-vigged probabilities computed.', 'Step 3: Confidence floor applied.', 'Step 4: Below floor this cycle.'],
+            top3Selections: [],
+            punterEdge: 'No edge surfaced above the floor.',
+            bookmakerBiasNote: 'Reference data only.',
+            stakeAdvice: 'No bet recommended below the confidence floor.'
+          },
+          summary: fallbackSummary
+        };
+      }
       return {
         matchId: m.matchId,
         agentsRun: result.agentsRun,
@@ -120,12 +151,14 @@ async function executeRefresh(
     await ctx.runMutation(internal.predictor.upsertDay, {
       sportId: args.sportId,
       dayKey: dayKey,
-      status: result.matches.length > 0 ? 'ready' : 'partial',
+      status: result.qualifyingIds.length > 0 ? 'ready' : 'partial',
       runId,
       cap,
       sourcesUsed: result.sourcesUsed,
       message: result.matches.length > 0
-        ? `${result.matches.length} matches ready`
+        ? result.qualifyingIds.length > 0
+          ? `${result.matches.length} matches cached, ${result.qualifyingIds.length} qualifying`
+          : `${result.matches.length} matches cached (none cleared the ${floor}% floor)`
         : 'No matches cleared the confidence floor this cycle.'
     });
 

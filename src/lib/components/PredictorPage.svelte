@@ -340,14 +340,14 @@
     unsubs = [];
   }
 
-  async function loadRange(sid: PredictorSportId, from: number, to: number, epoch: number) {
+  async function loadRange(sid: PredictorSportId, fromDayArg: string, toDayArg: string, epoch: number) {
     loading = true;
     error = '';
     const [d, windowMatches, daysAll, r] = await Promise.all([
       fetchPredictorDay(sid, today).catch(() => null),
-      fetchPredictorMatchesInRange(sid, from, to).catch(() => []),
-      fetchPredictorDaysInRange(sid, fromDay, toDay).catch(() => []),
-      fetchActiveRun(sid, fromDay).catch(() => null)
+      fetchPredictorMatchesInRange(sid, fromDayArg, toDayArg).catch(() => []),
+      fetchPredictorDaysInRange(sid, fromDayArg, toDayArg).catch(() => []),
+      fetchActiveRun(sid, fromDayArg).catch(() => null)
     ]);
     if (epoch !== sportEpoch) return; // stale response after a switch
     day = d;
@@ -363,8 +363,8 @@
     loading = false;
   }
 
-  function subscribe(sid: PredictorSportId, from: number, to: number, epoch: number) {
-    void subscribeConvexQuery<PredictorRun | null>(api.predictor.getActiveRun, { sportId: sid, dayKey: fromDay }, (r) => {
+  function subscribe(sid: PredictorSportId, fromDayArg: string, toDayArg: string, epoch: number) {
+    void subscribeConvexQuery<PredictorRun | null>(api.predictor.getActiveRun, { sportId: sid, dayKey: fromDayArg }, (r) => {
       if (r && epoch === sportEpoch) run = r;
     }).then((u) => {
       if (epoch === sportEpoch) unsubs.push(u);
@@ -376,13 +376,13 @@
       if (epoch === sportEpoch) unsubs.push(u);
       else u();
     });
-    void subscribeConvexQuery<PredictorDay[]>(api.predictor.listDaysInRange, { sportId: sid, fromDay, toDay }, (d) => {
+    void subscribeConvexQuery<PredictorDay[]>(api.predictor.listDaysInRange, { sportId: sid, fromDay: fromDayArg, toDay: toDayArg }, (d) => {
       if (Array.isArray(d) && epoch === sportEpoch) daysInRange = d;
     }).then((u) => {
       if (epoch === sportEpoch) unsubs.push(u);
       else u();
     });
-    void subscribeConvexQuery<PredictorMatch[]>(api.predictor.listMatchesInRange, { sportId: sid, from, to }, (m) => {
+    void subscribeConvexQuery<PredictorMatch[]>(api.predictor.listMatchesInRange, { sportId: sid, fromDay: fromDayArg, toDay: toDayArg }, (m) => {
       if (Array.isArray(m) && epoch === sportEpoch) matches = m;
     }).then((u) => {
       if (epoch === sportEpoch) unsubs.push(u);
@@ -390,13 +390,13 @@
     });
   }
 
-  $effect(() => {
+$effect(() => {
     const sid = effectiveSport;
     if (!sid) return;
     // Slip the window (clamp to 7 days) so a reopened picker stays fresh.
     if (toDay < fromDay) toDay = fromDay;
-    const bounds0 = dayBounds(fromDay);
-    const bounds1 = dayBounds(toDay);
+    const fj = fromDay;
+    const tj = toDay;
     sportEpoch += 1;
     const epoch = sportEpoch;
     clearProgress();
@@ -404,8 +404,8 @@
     results = [];
     selectNotice = '';
     disposeSubs();
-    void loadRange(sid, bounds0.from, bounds1.to, epoch);
-    subscribe(sid, bounds0.from, bounds1.to, epoch);
+    void loadRange(sid, fj, tj, epoch);
+    subscribe(sid, fj, tj, epoch);
   });
 
   onMount(() => {

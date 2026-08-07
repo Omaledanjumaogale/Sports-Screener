@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseOddsText, normalizeMatches } from '../../convex/scrapers/normalize';
-import { consolidateOdds, matchOddsText } from '../../convex/apis/sportsApis';
+import { apiFixturesFor, consolidateOdds, consolidateSharp, matchOddsText } from '../../convex/apis/sportsApis';
 import { amaraFilter } from '../../convex/agents/specialists';
 
 describe('parseOddsText (normalize)', () => {
@@ -198,4 +198,54 @@ describe('consolidateOdds (The Odds API)', () => {
     );
     expect(amaraFilter([pickem], 60).matchIds).not.toContain(pickem.matchId);
   });
+});
+
+describe('consolidateSharp (SharpAPI flat odds)', () => {
+  it('builds h2h + spread + total from flat moneyline/spread/total_points rows', () => {
+    const rows = [
+      { home_team: 'Boston Celtics', away_team: 'Los Angeles Lakers', market_type: 'moneyline', selection_type: 'home', odds_decimal: 1.55, line: null },
+      { home_team: 'Boston Celtics', away_team: 'Los Angeles Lakers', market_type: 'moneyline', selection_type: 'away', odds_decimal: 2.45, line: null },
+      { home_team: 'Boston Celtics', away_team: 'Los Angeles Lakers', market_type: 'point_spread', selection_type: 'home', odds_decimal: 1.91, line: -5.5 },
+      { home_team: 'Boston Celtics', away_team: 'Los Angeles Lakers', market_type: 'point_spread', selection_type: 'away', odds_decimal: 1.91, line: 5.5 },
+      { home_team: 'Boston Celtics', away_team: 'Los Angeles Lakers', market_type: 'total_points', selection: 'Over', odds_decimal: 1.87, line: 226.5 },
+      { home_team: 'Boston Celtics', away_team: 'Los Angeles Lakers', market_type: 'total_points', selection: 'Under', odds_decimal: 1.95, line: 226.5 }
+    ];
+    const odds = consolidateSharp(rows);
+    expect(odds.length).toBe(1);
+    expect(odds[0].h2h).toEqual([1.55, 2.45]);
+    expect(odds[0].drawPresent).toBe(false);
+    expect(odds[0].spread).toEqual({ point: -5.5, home: 1.91, away: 1.91 });
+    expect(odds[0].total).toEqual({ line: 226.5, over: 1.87, under: 1.95 });
+  });
+
+  it('keeps a draw leg for soccer 1X2 rows', () => {
+    const rows = [
+      { home_team: 'Arsenal', away_team: 'Chelsea', market_type: 'moneyline', selection_type: 'home', odds_decimal: 2.1, line: null },
+      { home_team: 'Arsenal', away_team: 'Chelsea', market_type: 'moneyline', selection_type: 'draw', odds_decimal: 3.4, line: null },
+      { home_team: 'Arsenal', away_team: 'Chelsea', market_type: 'moneyline', selection_type: 'away', odds_decimal: 3.3, line: null }
+    ];
+    const odds = consolidateSharp(rows);
+    expect(odds[0].drawPresent).toBe(true);
+    expect(odds[0].h2h).toEqual([2.1, 3.4, 3.3]);
+  });
+
+  it('skips events with no parseable markets', () => {
+    expect(consolidateSharp([])).toEqual([]);
+    expect(consolidateSharp([{ home_team: 'A', away_team: 'B', market_type: 'moneyline', selection_type: 'home', odds_decimal: 2.0, line: null }])).toEqual([]);
+  });
+});
+
+describe('apiFixturesFor (live provider chain, requires Convex env keys)', () => {
+  // TS-safe env probe (tests run under node/vitest where process exists).
+  const hasKeys = !!(globalThis as any).process?.env.ODDS_PAPI_API_KEY || !!(globalThis as any).process?.env.SHARPAPI_API_KEY;
+  it.runIf(hasKeys)('returns real fixtures + odds for a sport via the chain', async () => {
+    const date = new Date().toISOString().slice(0, 10);
+    const { fixtures, odds } = await apiFixturesFor('football', date);
+    // The chain must surface something real — OddsPapi schedules or SharpAPI
+    // odds. It must never throw and must keep every result deduped.
+    expect(Array.isArray(fixtures)).toBe(true);
+    expect(Array.isArray(odds)).toBe(true);
+    const all = [...fixtures, ...odds.map((o) => o.home)];
+    expect(all.length).toBeGreaterThan(0);
+  }, 90_000);
 });

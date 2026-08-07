@@ -36,10 +36,10 @@ export function predictorSportToSportId(sportId: PredictorSportId): SportId {
 
 export async function fetchPredictorMatchesInRange(
   sportId: PredictorSportId,
-  from: number,
-  to: number
+  fromDay: string,
+  toDay: string
 ): Promise<PredictorMatch[]> {
-  return queryConvex<PredictorMatch[]>(api.predictor.listMatchesInRange, { sportId, from, to });
+  return queryConvex<PredictorMatch[]>(api.predictor.listMatchesInRange, { sportId, fromDay, toDay });
 }
 
 export async function fetchPredictorDaysInRange(

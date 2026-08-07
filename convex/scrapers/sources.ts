@@ -84,6 +84,9 @@ export const ODDS_SOURCES: ScraperSource[] = [
   { name: 'BetExplorer', url: 'https://www.betexplorer.com', kind: 'odds', type: 'History', desc: 'Odds statistics and historical odds archive' },
   { name: 'OddsMonkey', url: 'https://www.oddsmonkey.com', kind: 'odds', type: 'Matched', desc: 'Matched betting tools and arbitrage finder' },
   { name: 'The Odds API', url: 'https://the-odds-api.com', kind: 'odds', type: 'API', desc: 'Live odds API from 40+ international bookies' },
+  { name: 'OddsPapi', url: 'https://api.oddspapi.io', kind: 'odds', type: 'API', desc: 'Free sports data API — schedules & live odds for 69 sports / 370 books' },
+  { name: 'SharpAPI', url: 'https://api.sharpapi.io', kind: 'odds', type: 'API', desc: 'Flat real bookmaker odds (moneyline/spread/total) across major leagues' },
+  { name: 'SportsGameOdds', url: 'https://api.sportsgameodds.com', kind: 'odds', type: 'API', desc: 'Events + live odds for major leagues (NBA/NFL/MLB/NHL/MLS' },
   { name: 'BetFair Exchange', url: 'https://www.betfair.com/exchange', kind: 'odds', type: 'Exchange', desc: 'Direct market odds with back/lay functionality' },
   { name: 'Pinnacle', url: 'https://www.pinnacle.com', kind: 'odds', type: 'Sharp', desc: 'Sharp bookmaker with highest limits/accurate odds' },
   { name: 'LiveScore', url: 'https://www.livescore.com', kind: 'odds', type: 'Live', desc: 'Live scores and real-time market odds' }
@@ -299,11 +302,24 @@ export const AI_STRENGTH_LEVELS: { level: string; accuracy: string; color: strin
 ];
 
 // ── Verified working sports data APIs ────────────────────────────────────────
+// Provider priority for the live pipeline (see sportsApis.ts for the chain):
+//   1. OddsPapi       — free, 69 sports, generous fixture schedules (PRIMARY)
+//   2. SharpAPI       — flat real bookmaker odds (h2h/spread/total) across
+//                       soccer/basketball/hockey/baseball/tennis
+//   3. SportsGameOdds — events + odds for major leagues
+//   4. The Odds API   — the-odds-api (kept for drop-in parity, quota-capped)
+//   5. TheSportsDB / BallDontLie / SportsData.io — multi-sport + NBA coverage
+// The OddsPapi + SharpAPI + SportsGameOdds keys are configured as the
+// always-on data layer; the limited free-tier providers complement them.
 export enum SportsApi {
   TheSportsDB = 'thesportsdb', // multi-sport fixtures (free public key)
-  TheOddsApi = 'odds_api',     // ~78 sports, real bookmaker odds
+  TheOddsApi = 'odds_api',     // ~78 sports, real bookmaker odds (quota-capped)
   BallDontLie = 'balldontlie', // NBA games/stats
-  SportsDataIo = 'sportsdataio' // NBA scores
+  SportsDataIo = 'sportsdataio', // NBA scores
+  OddsPapi = 'oddspapi',       // free: 69 sports, fixtures/schedules + odds
+  SharpApi = 'sharpapi',       // flat real bookmaker odds (h2h/spread/total)
+  SportsGameOdds = 'sportsgameodds', // events + odds, major leagues
+  PinnApi = 'pinnapi'          // pinnacle-family odds (REST needs paid plan)
 }
 
 export const WORKING_APIS: { id: SportsApi; name: string; url: string; key: string }[] = [
@@ -330,6 +346,30 @@ export const WORKING_APIS: { id: SportsApi; name: string; url: string; key: stri
     name: 'SportsData.io',
     url: 'https://api.sportsdata.io/v3',
     key: 'SPORT_DATA_IO_KEY'
+  },
+  {
+    id: SportsApi.OddsPapi,
+    name: 'OddsPapi',
+    url: 'https://api.oddspapi.io/v4',
+    key: 'ODDS_PAPI_API_KEY'
+  },
+  {
+    id: SportsApi.SharpApi,
+    name: 'SharpAPI',
+    url: 'https://api.sharpapi.io/api/v1',
+    key: 'SHARPAPI_API_KEY'
+  },
+  {
+    id: SportsApi.SportsGameOdds,
+    name: 'SportsGameOdds',
+    url: 'https://api.sportsgameodds.com/v2',
+    key: 'SPORTS_GAME_ODDS_API_KEY'
+  },
+  {
+    id: SportsApi.PinnApi,
+    name: 'PinnAPI',
+    url: 'https://pinnapi.com',
+    key: 'PINNAPI_API_KEY'
   }
 ];
 

@@ -13,6 +13,8 @@ import {
   apiFixturesFor,
   fetchOddsMarkets,
   consolidateOdds,
+  consolidateSharp,
+  fetchSharpMarkets,
   findOddsFor,
   matchOddsText,
   resolveOddsSportKeys,
@@ -125,13 +127,19 @@ export async function kunleCollectOdds(fixtures: ScrapeMatch[], sportId?: string
   const sourcesQueried: string[] = [];
   const samples: OddsResult['samples'] = [];
 
-  // 1. Real bookmaker odds via The Odds API (verified live provider). Matches the
-  //    fixtures by team name and stamps the real h2h/totals onto each match so the
-  //    normalize stage builds a genuine scope for the LLM. Queries every active
-  //    league key for the sport so minor-league and non-flagship fixtures (not
-  //    just the flagship league) still get matched to real odds.
-  const oddsKeys = await resolveOddsSportKeys(sportId ?? 'football');
+  // 1. Real bookmaker odds across the provider chain. SharpAPI is the reliable
+  //    always-on source (flat moneyline/spread/total rows); The Odds API is kept
+  //    for drop-in parity when its key has credits. Odds are matched to the
+  //    fixtures by team name and stamped onto each match so the normalize stage
+  //    builds a genuine scope for the LLM.
   const odds: ConsolidatedOdds[] = [];
+  try {
+    odds.push(...consolidateSharp(await fetchSharpMarkets(sportId ?? 'football')));
+    if (odds.length > 0) sourcesQueried.push('https://api.sharpapi.io/api/v1/odds');
+  } catch {
+    // SharpAPI failing must not block the chain
+  }
+  const oddsKeys = await resolveOddsSportKeys(sportId ?? 'football');
   for (const key of oddsKeys) {
     try {
       const raw = await fetchOddsMarkets(key);
@@ -140,7 +148,7 @@ export async function kunleCollectOdds(fixtures: ScrapeMatch[], sportId?: string
       // one league failing must not drop the rest
     }
   }
-  if (odds.length > 0) sourcesQueried.push('https://api.the-odds-api.com/v4');
+  if (oddsKeys.length && odds.some((o) => o.h2h)) sourcesQueried.push('https://api.the-odds-api.com/v4');
   for (const m of fixtures) {
     const o = findOddsFor(odds, m.homeTeam, m.awayTeam);
     if (o) {

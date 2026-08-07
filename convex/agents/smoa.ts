@@ -23,6 +23,7 @@ export interface SmoaReport {
   sportId: string;
   dayKey: string;
   matches: NormalizedMatch[];
+  qualifyingIds: string[];
   usedSynthetic: boolean;
   citations: string[];
   agentsRun: string[];
@@ -99,12 +100,22 @@ export async function runSmoaPipeline(
   agentsRun.push('Emeka Obi');
   await report(100, 'Emeka Obi — caching day', 'Ready');
 
-  const kept = normalizeRes.matches.filter((m) => filterRes.matchIds.includes(m.matchId));
+  // Cache EVERY parsed fixture so the predictor always has a populated schedule
+  // for review, regardless of whether it clears the confidence floor. The floor
+  // still decides which selections are surfaced as "qualifying" in the UI (the
+  // client's filtered-matches report + oracle verdict), but it must NEVER empty
+  // the whole cache — otherwise a day with only reference/fallback odds shows
+  // "no scheduled matches" even though fixtures exist.
+  const kept = normalizeRes.matches;
+  // Qualifying matches (at least one market counsellor above floor) are used by
+  // the orchestrator to (a) generate an LLM verdict and (b) set day status.
+  const qualifyingIds = filterRes.matchIds;
 
   return {
     sportId,
     dayKey,
     matches: kept,
+    qualifyingIds,
     usedSynthetic: fixturesRes.usedSynthetic,
     citations: researchRes.citations,
     agentsRun,

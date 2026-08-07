@@ -56,14 +56,17 @@ export const listMatches = query({
 });
 
 // Range view for the AI Predictor date picker: every cached match for a sport
-// whose kickoff falls inside [from, to] (epoch ms). Backed by by_sport_startTime
-// so a 1–7 day window is fetched in a single query.
+// whose cache day falls inside [fromDay, toDay]. Matches are stored under their
+// dayKey (the day the agent ran for), NOT their kickoff startTime — a scraped or
+// synthetic fixture's startTime can land on the next calendar day, so querying by
+// startTime silently returned nothing. Day-key range matches listDaysInRange and
+// the per-day grouping the homepage renders.
 export const listMatchesInRange = query({
-  args: { sportId, from: v.number(), to: v.number() },
+  args: { sportId, fromDay: v.string(), toDay: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
       .query('predictorMatches')
-      .withIndex('by_sport_startTime', (q) => q.eq('sportId', args.sportId).gte('startTime', args.from).lte('startTime', args.to))
+      .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).gte('dayKey', args.fromDay).lte('dayKey', args.toDay))
       .order('asc')
       .collect();
   }

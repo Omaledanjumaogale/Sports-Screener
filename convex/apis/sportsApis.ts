@@ -359,6 +359,168 @@ export function mapOddsApiFixtures(matches: any[], sportKey?: string): ApiFixtur
   return out;
 }
 
+// ── OddsPapi (free, 69 sports — schedules + odds) ────────────────────────────
+// OddsPapi sport ids: 10 soccer, 11 basketball, 12 tennis, 13 baseball,
+// 14 american-football, 15 ice-hockey, 32 field-hockey, 43 rink-hockey.
+// Free tier is generous for /sports + /fixtures; /odds is book-live-gated, so
+// it is used opportunistically for pre-game fixtures whose market ids we can
+// recognise (in practice SharpAPI below is the reliable odds path).
+export const ODDSPAPI_SPORT: Record<string, number> = {
+  football: 10,
+  basketball: 11,
+  tennis: 12,
+  baseball: 13,
+  hockey: 15
+};
+
+// A full schedule window is ["M/d/yyyy", "M/d/yyyy"]. The API caps spans at 10
+// days, so we always fetch a single 1-day window for the target date.
+export async function fetchODDSPAPIFixtures(sportId: string, date: string): Promise<any[]> {
+  const key = apiKeyFor(SportsApi.OddsPapi);
+  const sid = ODDSPAPI_SPORT[sportId];
+  if (!key || !sid) return [];
+  let day = String(date || new Date().toISOString().slice(0, 10));
+  day = day.replace(/-/g, '/');
+  try {
+    const url = `${apiUrl(SportsApi.OddsPapi)}/fixtures?apiKey=${encodeURIComponent(key)}&sportId=${sid}&from=${encodeURIComponent(day)}&to=${encodeURIComponent(day)}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) return [];
+    const data: any = await res.json().catch(() => null);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+export function mapODDSPAPIFixtures(raw: any[], sportId: string): ApiFixture[] {
+  const out: ApiFixture[] = [];
+  const now = Date.now();
+  const seen = new Set<string>();
+  for (const f of raw ?? []) {
+    const home = String(f?.participant1Name || '').trim();
+    const away = String(f?.participant2Name || '').trim();
+    if (!home || !away) continue;
+    if (!/pre|live|sched/i.test(String(f?.statusName || ''))) continue;
+    const key = normalizeTeam(home) + '|' + normalizeTeam(away);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const startTime = Date.parse(String(f?.startTime || '').split(' ')[0]) || now + out.length * 2 * 60 * 60 * 1000;
+    out.push({
+      home,
+      away,
+      league: String(f?.tournamentName || ''),
+      startTime,
+      sourceUrl: 'https://api.oddspapi.io/v4/fixtures'
+    });
+  }
+  return out;
+}
+
+// ── SharpAPI (flat real bookmaker odds: moneyline/spread/total) ──────────────
+const SHARP_LEAGUES: Record<string, string[]> = {
+  football: ['england_-_premier_league', 'spain_-_la_liga', 'italy_-_serie_a', 'germany_-_bundesliga', 'netherlands_-_eredivisie', 'brazil_-_serie_a'],
+  basketball: ['nba', 'ncaab', 'euroleague', 'wnba'],
+  tennis: ['atp', 'wta'],
+  hockey: ['nhl', 'khl', 'sweden_-_shl', 'germany_-_del'],
+  baseball: ['mlb', 'npb', 'kbo']
+};
+
+export async function fetchSharpMarkets(sportId: string): Promise<any[]> {
+  const key = apiKeyFor(SportsApi.SharpApi);
+  const leagues = SHARP_LEAGUES[sportId];
+  if (!key || !leagues) return [];
+  const out: any[] = [];
+  for (const league of leagues) {
+    try {
+      const url = `${apiUrl(SportsApi.SharpApi)}/odds?league=${encodeURIComponent(league)}&market=moneyline,point_spread,total_points&limit=200`;
+      const res = await fetch(url, { headers: { 'X-API-Key': key }, signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) continue;
+      const data: any = await res.json().catch(() => null);
+      if (Array.isArray(data?.data)) out.push(...data.data);
+    } catch {
+      // one league failing must not drop the rest
+    }
+  }
+  return out;
+}
+
+// SharpAPI rows are flat: each row is one selection of one market
+// (HOME moneyline, AWAY moneyline, OVER total, etc.). Group rows by event key
+// and collapse into the shared ConsolidatedOdds shape.
+export function consolidateSharp(rows: any[]): ConsolidatedOdds[] {
+  const byEvent = new Map<string, any[]>();
+  for (const r of rows ?? []) {
+    const home = String(r?.home_team || '').trim();
+    const away = String(r?.away_team || '').trim();
+    if (!home || !away) continue;
+    const k = normalizeTeam(home) + '|' + normalizeTeam(away);
+    if (!byEvent.has(k)) byEvent.set(k, []);
+    byEvent.get(k)!.push(r);
+  }
+
+  const out: ConsolidatedOdds[] = [];
+  for (const rows of byEvent.values()) {
+    const home = String(rows[0]?.home_team || '').trim();
+    const away = String(rows[0]?.away_team || '').trim();
+    const ml = rows.filter((r) => r?.market_type === 'moneyline');
+    let h2h: number[] | undefined;
+    let drawPresent = false;
+    const hp = ml.find((r) => String(r?.selection_type || '').toLowerCase() === 'home' || String(r?.team_side || '') === 'home');
+    const ap = ml.find((r) => String(r?.selection_type || '').toLowerCase() === 'away' || String(r?.team_side || '') === 'away');
+    const dp = ml.find((r) => /draw/i.test(String(r?.selection_type || r?.selection || '')));
+    if (hp && ap) {
+      drawPresent = !!dp;
+      h2h = drawPresent && dp ? [Number(hp.odds_decimal), Number(dp.odds_decimal), Number(ap.odds_decimal)] : [Number(hp.odds_decimal), Number(ap.odds_decimal)];
+    }
+
+    let total: { line: number; over: number; under: number } | undefined;
+    const tots = rows.filter((r) => r?.market_type === 'total_points' && Number(r?.line) > 0);
+    const over = tots.find((r) => /over/i.test(String(r.selection)));
+    const under = tots.find((r) => /under/i.test(String(r.selection)));
+    if (over && under) {
+      total = { line: Number(over.line), over: Number(over.odds_decimal), under: Number(under.odds_decimal) };
+    }
+
+    let spread: { point: number; home: number; away: number } | undefined;
+    const sps = rows.filter((r) => r?.market_type === 'point_spread' && Number(r?.line) !== 0);
+    const sHome = sps.find((r) => String(r?.selection_type || '').toLowerCase() === 'home' || String(r?.team_side || '') === 'home');
+    const sAway = sps.find((r) => String(r?.selection_type || '').toLowerCase() === 'away' || String(r?.team_side || '') === 'away');
+    if (sHome && sAway) {
+      spread = { point: Number(sHome.line), home: Number(sHome.odds_decimal), away: Number(sAway.odds_decimal) };
+    }
+
+    if (h2h || total || spread) {
+      const liveRows = rows.filter((r) => r?.is_live === true);
+      out.push({ home, away, h2h, total, spread, drawPresent, live: liveRows.length > 0 });
+    }
+  }
+  return out;
+}
+
+// SharpAPI rows also carry real fixtures (home_team/away_team + start time).
+export function mapSharpFixtures(rows: any[], sportId: string): ApiFixture[] {
+  const out: ApiFixture[] = [];
+  const now = Date.now();
+  const seen = new Set<string>();
+  const lg: Record<string, string> = { football: 'Soccer', basketball: 'Basketball', tennis: 'Tennis', hockey: 'Hockey', baseball: 'Baseball', rally: 'Rally' };
+  for (const r of rows ?? []) {
+    const home = String(r?.home_team || '').trim();
+    const away = String(r?.away_team || '').trim();
+    if (!home || !away) continue;
+    const key = normalizeTeam(home) + '|' + normalizeTeam(away);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      home,
+      away,
+      league: String(r?.league || '') || (lg[sportId] ?? ''),
+      startTime: Date.parse(String(r?.event_start_time || '')) || now + out.length * 2 * 60 * 60 * 1000,
+      sourceUrl: 'https://api.sharpapi.io/api/v1/odds'
+    });
+  }
+  return out;
+}
+
 // ── BallDontLie (NBA) ────────────────────────────────────────────────────────
 export async function fetchBalldontlieGames(date: string): Promise<any[]> {
   const key = apiKeyFor(SportsApi.BallDontLie);
@@ -424,9 +586,11 @@ export function mapSportsDataNbaGames(games: any[]): ApiFixture[] {
 }
 
 // Aggregate real fixtures + their real consolidated odds for a sport across the
-// working APIs. The Odds API fixtures come first (they carry matching real odds).
-// Odds are returned alongside fixtures so the fixture agent can embed them
-// directly, instead of relying on a later fragile team-name re-match.
+// working APIs, with a provider failover chain. The always-on providers
+// (OddsPapi schedules + SharpAPI odds) come first; the quota-capped/free ones
+// (The Odds API, TheSportsDB, BallDontLie, SportsData.io) complement them. Odds
+// are returned alongside fixtures so the fixture agent can embed them directly,
+// instead of relying on a later fragile team-name re-match.
 export async function apiFixturesFor(
   sportId: string,
   date: string
@@ -434,9 +598,19 @@ export async function apiFixturesFor(
   const results: ApiFixture[][] = [];
   const oddsGroup: ConsolidatedOdds[][] = [];
 
-  // The Odds API feed is rolling (no date filter). Query EVERY active league key
-  // for the sport so minor leagues and non-flagship tournaments are included,
-  // then merge fixtures + their real odds (league-tagged per key).
+  // 1. OddsPapi — generous free schedules for every sport (preferred, always on).
+  const opRaw = await fetchODDSPAPIFixtures(sportId, date);
+  results.push(mapODDSPAPIFixtures(opRaw, sportId));
+
+  // 2. SharpAPI — flat real odds (moneyline/spread/total) + their fixtures.
+  const sharpRaw = await fetchSharpMarkets(sportId);
+  results.push(mapSharpFixtures(sharpRaw, sportId));
+  oddsGroup.push(consolidateSharp(sharpRaw));
+
+  // 3. The Odds API feed (quota-capped but kept for drop-in parity when the
+  //    key has credits). Query EVERY active league key for the sport so minor
+  //    leagues and non-flagship tournaments are included, then merge fixtures +
+  //    their real odds (league-tagged per key).
   const sportKeys = await resolveOddsSportKeys(sportId);
   if (sportKeys.length) {
     await Promise.all(
@@ -474,9 +648,16 @@ export async function apiFixturesFor(
 }
 
 export function hasAnyApiKey(): boolean {
-  return [SportsApi.TheSportsDB, SportsApi.TheOddsApi, SportsApi.BallDontLie, SportsApi.SportsDataIo].some(
-    (id) => !!apiKeyFor(id)
-  );
+  return [
+    SportsApi.TheSportsDB,
+    SportsApi.TheOddsApi,
+    SportsApi.BallDontLie,
+    SportsApi.SportsDataIo,
+    SportsApi.OddsPapi,
+    SportsApi.SharpApi,
+    SportsApi.SportsGameOdds,
+    SportsApi.PinnApi
+  ].some((id) => !!apiKeyFor(id));
 }
 
 export function isSportsDbReady(): boolean {
