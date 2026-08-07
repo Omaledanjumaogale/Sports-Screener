@@ -199,6 +199,8 @@ export const api = {
   predictor: {
     getDay: 'predictor:getDay',
     listMatches: 'predictor:listMatches',
+    listMatchesInRange: 'predictor:listMatchesInRange',
+    listDaysInRange: 'predictor:listDaysInRange',
     getVerdict: 'predictor:getVerdict',
     getDailyPnlSummary: 'predictor:getDailyPnlSummary',
     saveDailyPnlSummary: 'predictor:saveDailyPnlSummary',

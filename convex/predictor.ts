@@ -55,6 +55,33 @@ export const listMatches = query({
   }
 });
 
+// Range view for the AI Predictor date picker: every cached match for a sport
+// whose kickoff falls inside [from, to] (epoch ms). Backed by by_sport_startTime
+// so a 1–7 day window is fetched in a single query.
+export const listMatchesInRange = query({
+  args: { sportId, from: v.number(), to: v.number() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('predictorMatches')
+      .withIndex('by_sport_startTime', (q) => q.eq('sportId', args.sportId).gte('startTime', args.from).lte('startTime', args.to))
+      .order('asc')
+      .collect();
+  }
+});
+
+// Day-cache status for every day in a window (inclusive dayKey bounds). Lets the
+// homepage show which of the 1–7 days actually have cached data/verdicts.
+export const listDaysInRange = query({
+  args: { sportId, fromDay: v.string(), toDay: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('predictorDays')
+      .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).gte('dayKey', args.fromDay).lte('dayKey', args.toDay))
+      .order('asc')
+      .collect();
+  }
+});
+
 export const getVerdict = query({
   args: { dayKey: v.string(), matchId: v.string() },
   handler: async (ctx, args) => {

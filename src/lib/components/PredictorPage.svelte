@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { ArrowLeft, RefreshCw, Inbox, Clock3, Check, ChevronLeft, Wand2, Activity } from '@lucide/svelte';
   import PredictorTeamSelect from './PredictorTeamSelect.svelte';
+  import PredictorDateFilter, { type TimeBand } from './PredictorDateFilter.svelte';
   import PredictorStatusBanner from './PredictorStatusBanner.svelte';
   import PredictorMatchCard from './PredictorMatchCard.svelte';
   import PredictorVerdictPanel from './PredictorVerdictPanel.svelte';
@@ -11,8 +12,11 @@
   import { api, subscribeConvexQuery } from '$lib/convexClient';
   import {
     todayKey,
+    dayKeyFor,
+    dayBounds,
     fetchPredictorDay,
-    fetchPredictorMatches,
+    fetchPredictorMatchesInRange,
+    fetchPredictorDaysInRange,
     fetchPredictorVerdict,
     fetchActiveRun,
     startPredictorRefresh,
@@ -29,9 +33,9 @@
   import {
     PREDICTOR_MAX_SELECTIONS,
     clearSelection,
+    loadSelection,
     saveSelection,
-    toggleSelection,
-    pruneSelection
+    toggleSelection
   } from '$lib/predictorSelections';
   import { AGENT_DEFS } from '$lib/agentUi';
   import type { Analysis, Pick } from '$lib/engine';
@@ -59,9 +63,16 @@
 
   const activeSport = $derived(sportId);
   const effectiveSport = $derived(activeSport ?? ('football' as PredictorSportId));
-  const dayKey = $derived(todayKey());
+  const today = $derived(todayKey());
+
+  // Date window (defaults to today → +6 so the homepage shows up to 7 days where
+  // cached data exists). Range is bounded to 7 days and clamped as the user picks.
+  let fromDay = $state(dayKeyFor(0));
+  let toDay = $state(dayKeyFor(6));
+  let timeBand = $state<TimeBand>('all');
 
   let day = $state<PredictorDay | null>(null);
+  let daysInRange = $state<PredictorDay[]>([]);
   let matches = $state<PredictorMatch[]>([]);
   let run = $state<PredictorRun | null>(null);
   let loading = $state(true);
@@ -93,7 +104,7 @@
     if (verdictCache[m.matchId] !== undefined) return;
     verdictCache = { ...verdictCache, [m.matchId]: null };
     try {
-      const verdict = await fetchPredictorVerdict(dayKey, m.matchId);
+      const verdict = await fetchPredictorVerdict(m.dayKey, m.matchId);
       if (verdict?.aiReport && typeof verdict.aiReport === 'object') {
         verdictCache = { ...verdictCache, [m.matchId]: verdict.aiReport };
       }
@@ -116,16 +127,50 @@
       ''
   );
 
-  const byLeague = $derived.by(() => {
+  const filteredMatches = $derived.by(() => {
+    if (timeBand === 'all') return matches;
+    const band = timeBand;
+    const bandHour = (ms: number) => new Date(ms).getUTCHours();
+    return matches.filter((m) => {
+      const h = bandHour(m.startTime);
+      return band === 'morning' ? h < 12 : band === 'afternoon' ? h >= 12 && h < 18 : h >= 18;
+    });
+  });
+
+  // Group the (time-band-filtered) matches by their own cache day so the page can
+  // show a 1–7 day window with each day's fixtures and status.
+  const byDay = $derived.by(() => {
     const groups: Record<string, PredictorMatch[]> = {};
-    for (const m of matches) {
-      const key = m.league || 'Other';
+    for (const m of filteredMatches) {
+      const key = m.dayKey || today;
       (groups[key] ??= []).push(m);
     }
     return groups;
   });
 
+  const dayMatchCount = $derived.by(() => {
+    const map: Record<string, number> = {};
+    for (const m of matches) map[m.dayKey || today] = (map[m.dayKey || today] ?? 0) + 1;
+    return map;
+  });
+
   const isPast = (m: PredictorMatch) => m.startTime > 0 && m.startTime < now;
+  const dayHasData = $derived((dayKey: string) => daysInRange.some((d) => d.dayKey === dayKey && (d.status === 'ready' || d.status === 'partial')));
+
+  // Ordered list of dayKeys in the selected window (bounded to 7 days).
+  const windowDays = $derived.by(() => {
+    const keys: string[] = [];
+    let cur = fromDay;
+    // up to 7 iterations; stops early when the window is exceeded
+    for (let i = 0; i < 7; i++) {
+      const bounds = dayBounds(cur);
+      keys.push(cur);
+      if (cur >= toDay) break;
+      const next = new Date(bounds.to + 1);
+      cur = next.toISOString().slice(0, 10);
+    }
+    return keys;
+  });
 
   // ── Deterministic per-match screening (memoized) ─────────────────────────────
   const analysisCache = new Map<string, { analysis: any; qualifying: Pick[] }>();
@@ -137,8 +182,9 @@
   }
 
   // ── Selection controls ────────────────────────────────────────────────────────
-  function toggleMatch(matchId: string) {
-    const res = toggleSelection(effectiveSport, dayKey, matchId);
+  function toggleMatch(match: PredictorMatch) {
+    const dk = match.dayKey || today;
+    const res = toggleSelection(effectiveSport, dk, match.matchId);
     selectedIds = res.selection;
     selectNotice = res.capped
       ? `You can analyse up to ${PREDICTOR_MAX_SELECTIONS} matches at a time. Deselect one first to pick this one.`
@@ -146,9 +192,16 @@
   }
 
   function selectAll() {
-    const eligible = matches.filter((m) => !isPast(m));
-    selectedIds = eligible.slice(0, PREDICTOR_MAX_SELECTIONS).map((m) => m.matchId);
-    saveSelection(effectiveSport, dayKey, selectedIds);
+    const eligible = filteredMatches.filter((m) => !isPast(m));
+    const ids = eligible.slice(0, PREDICTOR_MAX_SELECTIONS).map((m) => m.matchId);
+    selectedIds = ids;
+    // Persist selections per day so switching windows keeps them.
+    const byDk: Record<string, string[]> = {};
+    for (const m of eligible.slice(0, PREDICTOR_MAX_SELECTIONS)) {
+      const dk = m.dayKey || today;
+      (byDk[dk] ??= []).push(m.matchId);
+    }
+    for (const [dk, idsList] of Object.entries(byDk)) saveSelection(effectiveSport, dk, idsList);
     selectNotice =
       eligible.length > PREDICTOR_MAX_SELECTIONS
         ? `Analysing the first ${PREDICTOR_MAX_SELECTIONS} matches. Deselect one to make room for another.`
@@ -157,7 +210,8 @@
 
   function clearAll() {
     selectedIds = [];
-    clearSelection(effectiveSport, dayKey);
+    const dks = new Set(matches.map((m) => m.dayKey || today));
+    for (const dk of dks) clearSelection(effectiveSport, dk);
     selectNotice = '';
   }
 
@@ -219,12 +273,11 @@
   // Surface the stored LLM (Agnes/OpenRouter) verdict for each selected match
   // when the cache has one; otherwise the deterministic insights render.
   async function enrichWithLlmVerdicts(selected: PredictorMatch[]) {
-    const dk = dayKey;
     const entries = await Promise.all(
       selected.map(async (m) => {
         let llmInsight: Record<string, unknown> | null = null;
         try {
-          const verdict = await fetchPredictorVerdict(dk, m.matchId);
+          const verdict = await fetchPredictorVerdict(m.dayKey || today, m.matchId);
           if (verdict?.aiReport && typeof verdict.aiReport === 'object') {
             llmInsight = verdict.aiReport;
           }
@@ -245,7 +298,40 @@
     phase = 'select';
   }
 
-  // ── Data loading + live subscriptions (reacts to sport/day changes) ──────────
+  function dayKeyLabel(key: string): string {
+    const [y, m, d] = key.split('-').map(Number);
+    if (!y || !m || !d) return key;
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+
+  function groupByLeague(list: PredictorMatch[]): Record<string, PredictorMatch[]> {
+    const groups: Record<string, PredictorMatch[]> = {};
+    for (const m of list) {
+      const k = m.league || 'Other';
+      (groups[k] ??= []).push(m);
+    }
+    return groups;
+  }
+
+  async function refreshDay(dk: string) {
+    const sid = effectiveSport;
+    if (!sid || busy) return;
+    busy = true;
+    error = '';
+    try {
+      await startPredictorRefresh(sid, dk);
+    } catch (err: any) {
+      error = String(err?.message || err);
+    } finally {
+      busy = false;
+    }
+  }
+
+  // ── Data loading + live subscriptions (reacts to sport/window changes) ───────
   let unsubs: (() => void)[] = [];
   let sportEpoch = 0;
 
@@ -254,36 +340,49 @@
     unsubs = [];
   }
 
-  async function load(sid: PredictorSportId, dk: string, epoch: number) {
+  async function loadRange(sid: PredictorSportId, from: number, to: number, epoch: number) {
     loading = true;
     error = '';
-    const [d, m, r] = await Promise.all([
-      fetchPredictorDay(sid, dk).catch(() => null),
-      fetchPredictorMatches(sid, dk).catch(() => []),
-      fetchActiveRun(sid, dk).catch(() => null)
+    const [d, windowMatches, daysAll, r] = await Promise.all([
+      fetchPredictorDay(sid, today).catch(() => null),
+      fetchPredictorMatchesInRange(sid, from, to).catch(() => []),
+      fetchPredictorDaysInRange(sid, fromDay, toDay).catch(() => []),
+      fetchActiveRun(sid, fromDay).catch(() => null)
     ]);
-    if (epoch !== sportEpoch) return; // stale response after a sport switch
+    if (epoch !== sportEpoch) return; // stale response after a switch
     day = d;
-    matches = m;
+    matches = windowMatches;
+    daysInRange = daysAll;
     run = r;
-    selectedIds = pruneSelection(sid, dk, m.map((x) => x.matchId));
+    // Prune stored selections that no longer appear in the window (per day).
+    const kept: string[] = [];
+    for (const m of windowMatches) {
+      if (loadSelection(effectiveSport, m.dayKey || today).includes(m.matchId)) kept.push(m.matchId);
+    }
+    selectedIds = kept;
     loading = false;
   }
 
-  function subscribe(sid: PredictorSportId, dk: string, epoch: number) {
-    void subscribeConvexQuery<PredictorRun | null>(api.predictor.getActiveRun, { sportId: sid, dayKey: dk }, (r) => {
+  function subscribe(sid: PredictorSportId, from: number, to: number, epoch: number) {
+    void subscribeConvexQuery<PredictorRun | null>(api.predictor.getActiveRun, { sportId: sid, dayKey: fromDay }, (r) => {
       if (r && epoch === sportEpoch) run = r;
     }).then((u) => {
       if (epoch === sportEpoch) unsubs.push(u);
       else u();
     });
-    void subscribeConvexQuery<PredictorDay | null>(api.predictor.getDay, { sportId: sid, dayKey: dk }, (d) => {
+    void subscribeConvexQuery<PredictorDay | null>(api.predictor.getDay, { sportId: sid, dayKey: today }, (d) => {
       if (d && epoch === sportEpoch) day = d;
     }).then((u) => {
       if (epoch === sportEpoch) unsubs.push(u);
       else u();
     });
-    void subscribeConvexQuery<PredictorMatch[]>(api.predictor.listMatches, { sportId: sid, dayKey: dk }, (m) => {
+    void subscribeConvexQuery<PredictorDay[]>(api.predictor.listDaysInRange, { sportId: sid, fromDay, toDay }, (d) => {
+      if (Array.isArray(d) && epoch === sportEpoch) daysInRange = d;
+    }).then((u) => {
+      if (epoch === sportEpoch) unsubs.push(u);
+      else u();
+    });
+    void subscribeConvexQuery<PredictorMatch[]>(api.predictor.listMatchesInRange, { sportId: sid, from, to }, (m) => {
       if (Array.isArray(m) && epoch === sportEpoch) matches = m;
     }).then((u) => {
       if (epoch === sportEpoch) unsubs.push(u);
@@ -293,8 +392,11 @@
 
   $effect(() => {
     const sid = effectiveSport;
-    const dk = dayKey;
     if (!sid) return;
+    // Slip the window (clamp to 7 days) so a reopened picker stays fresh.
+    if (toDay < fromDay) toDay = fromDay;
+    const bounds0 = dayBounds(fromDay);
+    const bounds1 = dayBounds(toDay);
     sportEpoch += 1;
     const epoch = sportEpoch;
     clearProgress();
@@ -302,8 +404,8 @@
     results = [];
     selectNotice = '';
     disposeSubs();
-    void load(sid, dk, epoch);
-    subscribe(sid, dk, epoch);
+    void loadRange(sid, bounds0.from, bounds1.to, epoch);
+    subscribe(sid, bounds0.from, bounds1.to, epoch);
   });
 
   onMount(() => {
@@ -323,11 +425,11 @@
     busy = true;
     error = '';
     try {
-      const res = await startPredictorRefresh(sid, dayKey);
+      const res = await startPredictorRefresh(sid, fromDay);
       if (!res.alreadyRunning) {
         run = {
           runId: res.runId,
-          dayKey,
+          dayKey: fromDay,
           sportId: sid,
           progress: 0,
           stage: 'Queued',
@@ -378,9 +480,11 @@
     {#if loading}
       <div class="placeholder">
         <span class="ph-icon"><Activity size={22} stroke-width={1.8} /></span>
-        Loading today's scheduled matches…
+        Loading scheduled matches for the selected window…
       </div>
     {:else}
+      <PredictorDateFilter bind:fromDay bind:toDay bind:timeBand />
+
       <PredictorStatusBanner
         {day}
         progress={phase === 'analyzing' ? agentProgress : isRunning ? refreshProgress : day?.status === 'ready' ? 100 : 0}
@@ -421,34 +525,68 @@
           </button>
         </div>
 
-        {#if matches.length > 0}
-          {#each Object.entries(byLeague) as [league, group] (league)}
-            <section class="league-group">
-              <h2 class="league-title">
-                <span class="league-name">{league}</span>
-                <span class="league-count">{group.length}</span>
+        {#if windowDays.length > 0}
+          {#each windowDays as dk (dk)}
+            {@const dayMatches = byDay[dk] ?? []}
+            <section class="day-group">
+              <h2 class="day-title">
+                <span class="day-name">{dk === today ? 'Today' : dayKeyLabel(dk)}</span>
+                <span class="day-key">{dk}</span>
+                {#if dayHasData(dk) && (dayMatches.length === 0 || timeBand !== 'all')}
+                  <span class="day-badge has">{dayMatchCount[dk] ?? 0} cached</span>
+                {/if}
+                {#if dayMatches.length > 0}
+                  <span class="day-badge">{dayMatches.length} shown</span>
+                {/if}
               </h2>
-              <div class="match-list">
-                {#each group as match (match.matchId)}
-                  {@const res = analyzeMatch(match)}
-                  <PredictorMatchCard
-                    match={match}
-                    analysis={res.analysis}
-                    qualifying={res.qualifying}
-                    insight={insightFor(match)}
-                    expanded={expandedMatches[match.matchId] ?? false}
-                    {accent}
-                    selectable
-                    selected={isSelected(match.matchId)}
-                    inPlay={isPast(match)}
-                    onSelect={() => toggleMatch(match.matchId)}
-                    onClick={() => {
-                      expandedMatches = { ...expandedMatches, [match.matchId]: !expandedMatches[match.matchId] };
-                      void revealMatch(match);
-                    }}
-                  />
+
+              {#if dayMatches.length > 0}
+                {#each Object.entries(groupByLeague(dayMatches)) as [league, group] (dk + ':' + league)}
+                  <div class="league-group">
+                    <h3 class="league-title">
+                      <span class="league-name">{league}</span>
+                      <span class="league-count">{group.length}</span>
+                    </h3>
+                    <div class="match-list">
+                      {#each group as match (match.matchId)}
+                        {@const res = analyzeMatch(match)}
+                        <PredictorMatchCard
+                          match={match}
+                          analysis={res.analysis}
+                          qualifying={res.qualifying}
+                          insight={insightFor(match)}
+                          expanded={expandedMatches[match.matchId] ?? false}
+                          {accent}
+                          selectable
+                          selected={isSelected(match.matchId)}
+                          inPlay={isPast(match)}
+                          onSelect={() => toggleMatch(match)}
+                          onClick={() => {
+                            expandedMatches = { ...expandedMatches, [match.matchId]: !expandedMatches[match.matchId] };
+                            void revealMatch(match);
+                          }}
+                        />
+                      {/each}
+                    </div>
+                  </div>
                 {/each}
-              </div>
+              {:else}
+                <div class="day-empty">
+                  <PredictorSportIcon sport={effectiveSport} size={22} strokeWidth={1.6} />
+                  <span>
+                    {timeBand !== 'all'
+                      ? 'No matches in this time band.'
+                      : dayHasData(dk)
+                        ? 'No matches for this day in the cache.'
+                        : 'No data cached for this day yet.'}
+                  </span>
+                  {#if !dayHasData(dk)}
+                    <button class="day-refresh" type="button" onclick={() => refreshDay(dk)} disabled={busy || isRunning}>
+                      Run agents
+                    </button>
+                  {/if}
+                </div>
+              {/if}
             </section>
           {/each}
         {:else}
@@ -456,7 +594,7 @@
             <div class="empty-ic">
               <PredictorSportIcon sport={effectiveSport} size={34} strokeWidth={1.6} />
             </div>
-            <p>No scheduled matches cached for today ({dayKey}).</p>
+            <p>No scheduled matches cached in the {fromDay}…{toDay} window.</p>
             <p class="hint">The midnight scheduler pre-caches all six sports. You can also run the agent team now.</p>
             <button class="cta" type="button" onclick={refresh} disabled={busy || isRunning}>Run agents now</button>
           </div>
@@ -487,7 +625,7 @@
               {results.length} match{results.length === 1 ? '' : 'es'} analysed
             </span>
             <span class="summary-chip">{qualifiedCount} over the {DEFAULT_CONFIDENCE_FLOOR}% floor</span>
-            <span class="summary-chip muted"><Clock3 size={14} stroke-width={2.2} /> Cache: {dayKey}</span>
+            <span class="summary-chip muted"><Clock3 size={14} stroke-width={2.2} /> Cache: {fromDay}…{toDay}</span>
           </div>
           <button class="link-btn" type="button" onclick={backToSelection}>Change selection</button>
         </div>
@@ -695,6 +833,75 @@
 
   /* ── League groups ── */
   .league-group { margin-bottom: 18px; }
+
+  /* ── Day groups (date-window view) ── */
+  .day-group { margin-bottom: 26px; }
+
+  .day-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--c-border);
+  }
+
+  .day-name {
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    color: var(--c-text);
+  }
+
+  .day-key {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--c-text-dim, var(--c-text));
+    font-variant-numeric: tabular-nums;
+  }
+
+  .day-badge {
+    font-size: 10.5px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border);
+    color: var(--c-text-dim, var(--c-text));
+  }
+
+  .day-badge.has { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+
+  .day-empty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px dashed var(--c-border-md);
+    background: var(--c-glass-sm);
+    color: var(--c-text-dim, var(--c-text));
+    font-size: 12.5px;
+  }
+
+  .day-empty span { flex: 1; min-width: 0; }
+
+  .day-refresh {
+    flex-shrink: 0;
+    border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 800;
+    padding: 7px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: box-shadow var(--t-base, 180ms ease), transform 80ms ease;
+  }
+  .day-refresh:hover { box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 26%, transparent); }
+  .day-refresh:active { transform: scale(0.97); }
+  .day-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .league-title {
     display: flex;

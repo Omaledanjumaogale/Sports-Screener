@@ -279,6 +279,114 @@ export function statusFromRatio(value: number, strong = 0.72, borderline = 0.45)
   return 'red';
 }
 
+// ── Derived match stats for the AI Predictor ─────────────────────────────────
+// Pure helpers that build a display-friendly "Match Stats" block straight from a
+// cached scope: de-vigged h2h (home/draw/away), over/under split, and spread/
+// handicap split. Probabilities are real-odds-derived (never fabricated).
+
+export interface DerivedStatBar {
+  key: string;
+  label: string;
+  left: { label: string; pct: number };
+  right: { label: string; pct: number };
+  center?: string;
+}
+
+type MarketLike = {
+  derived?: boolean;
+  odds?: Record<string, number | null>;
+  pairs?: { line: number; over: number; under: number }[];
+  handicapPairs?: { line: number; sideA: number; sideB: number }[];
+};
+
+function pctNum(v: number): number {
+  return Math.round(v * 1000) / 10;
+}
+
+export function splitBar(a: number, b: number): { a: number; b: number } {
+  const ia = 1 / a;
+  const ib = 1 / b;
+  const sum = ia + ib;
+  if (!sum) return { a: 50, b: 50 };
+  return { a: pctNum((ia / sum) * 100), b: pctNum((ib / sum) * 100) };
+}
+
+export function h2hStats(markets: Record<string, MarketLike>): DerivedStatBar[] {
+  const out: DerivedStatBar[] = [];
+  const result = markets.result || markets.winner;
+  if (result?.odds) {
+    const od = result.odds;
+    const home = Number(od.home ?? od.a);
+    const away = Number(od.away ?? od.b);
+    const draw = Number(od.draw ?? 0);
+    if (home > 1 && away > 1) {
+      if (draw > 0) {
+        const inv = [1 / home, 1 / draw, 1 / away];
+        const sum = inv.reduce((s, x) => s + x, 0);
+        out.push({
+          key: 'h2h',
+          label: '1X2 (de-vigged)',
+          left: { label: 'Home', pct: pctNum((inv[0] / sum) * 100) },
+          right: { label: 'Away', pct: pctNum((inv[2] / sum) * 100) },
+          center: `${pctNum((inv[1] / sum) * 100)}% Draw`
+        });
+      } else {
+        const s = splitBar(home, away);
+        out.push({
+          key: 'ml',
+          label: 'Moneyline (de-vigged)',
+          left: { label: 'Home', pct: s.a },
+          right: { label: 'Away', pct: s.b }
+        });
+      }
+    }
+  }
+  return out;
+}
+
+export function totalStats(markets: Record<string, MarketLike>): DerivedStatBar[] {
+  const out: DerivedStatBar[] = [];
+  const total = markets.mainTotal || markets.gameTotal;
+  const pair = total?.pairs?.[0];
+  if (pair && pair.over > 1 && pair.under > 1) {
+    const s = splitBar(pair.over, pair.under);
+    out.push({
+      key: `total:${pair.line}`,
+      label: `Total (${pair.line})`,
+      left: { label: 'Over', pct: s.a },
+      right: { label: 'Under', pct: s.b }
+    });
+  }
+  return out;
+}
+
+export function spreadStats(markets: Record<string, MarketLike>): DerivedStatBar[] {
+  const out: DerivedStatBar[] = [];
+  const hcp = markets.handicap || markets.spread;
+  const pair = hcp?.handicapPairs?.[0];
+  if (!pair) return out;
+  // A derived pick-'em (line 0 / -0.0) simply mirrors the moneyline — skip it so
+  // the stats block doesn't duplicate the h2h row. Derived Asian Handicap lines
+  // (e.g. -0.5/+0.5) and real spreads are kept for the extra insight.
+  if (hcp?.derived && pair.line === 0) return out;
+  if (pair.sideA > 1 && pair.sideB > 1) {
+    const s = splitBar(pair.sideA, pair.sideB);
+    const sign = pair.line > 0 ? '+' : '';
+    out.push({
+      key: `spread:${pair.line}`,
+      label: `Spread / Handicap (${sign}${pair.line})`,
+      left: { label: 'Team A', pct: s.a },
+      right: { label: 'Team B', pct: s.b }
+    });
+  }
+  return out;
+}
+
+export function derivedMatchStats(scope: { markets?: Record<string, MarketLike> }): DerivedStatBar[] {
+  const mk = scope?.markets ?? {};
+  return [...h2hStats(mk), ...totalStats(mk), ...spreadStats(mk)];
+}
+
 // Return only picks whose Real Win Chance meets the confidence floor. Used by
 // the AI Predictor to surface only high-confidence selections (default 60%).
 export function filterHighConfidence(analysis: Analysis | null | undefined, min = DEFAULT_CONFIDENCE_FLOOR): Pick[] {

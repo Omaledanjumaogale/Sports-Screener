@@ -157,6 +157,7 @@ export default defineSchema({
     createdAt: v.number()
   })
     .index('by_sport_day', ['sportId', 'dayKey', 'startTime'])
+    .index('by_sport_startTime', ['sportId', 'startTime'])
     .index('by_day_match', ['dayKey', 'matchId'])
     .index('by_sport_day_team', ['sportId', 'dayKey', 'homeTeam', 'awayTeam']),
 

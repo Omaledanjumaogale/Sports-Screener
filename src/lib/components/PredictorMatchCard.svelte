@@ -5,6 +5,7 @@
   import type { Analysis, Pick } from '$lib/engine';
   import { formatWAT } from '$lib/watTime';
   import PredictorPickChart from './PredictorPickChart.svelte';
+  import PredictorMatchStats from './PredictorMatchStats.svelte';
   import { generateGreatMindsDebate } from '$lib/greatMindsEngine';
 
   let {
@@ -191,6 +192,7 @@
 
   {#if open}
     <div class="expanded">
+      <PredictorMatchStats scopes={match.scopes} {accent} />
       <div class="exp-title">Research &amp; analysis summary</div>
       {#if insight?.verdictSummary}
         <p class="verdict-summary">{insight.verdictSummary}</p>

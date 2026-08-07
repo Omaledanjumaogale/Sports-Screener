@@ -10,8 +10,44 @@ export function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+export function dayKeyFor(offsetDays: number, base?: Date): string {
+  const d = base ? new Date(base) : new Date();
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+}
+
+export function dayKeyToLabel(key: string): string {
+  const [y, m, d] = key.split('-').map(Number);
+  if (!y || !m || !d) return key;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+// Start/end of a UTC dayKey in epoch ms.
+export function dayBounds(key: string): { from: number; to: number } {
+  const [y, m, d] = key.split('-').map(Number);
+  const from = Date.UTC(y || 0, (m || 1) - 1, d || 1);
+  return { from, to: from + 24 * 60 * 60 * 1000 - 1 };
+}
+
 export function predictorSportToSportId(sportId: PredictorSportId): SportId {
   return sportId as SportId;
+}
+
+export async function fetchPredictorMatchesInRange(
+  sportId: PredictorSportId,
+  from: number,
+  to: number
+): Promise<PredictorMatch[]> {
+  return queryConvex<PredictorMatch[]>(api.predictor.listMatchesInRange, { sportId, from, to });
+}
+
+export async function fetchPredictorDaysInRange(
+  sportId: PredictorSportId,
+  fromDay: string,
+  toDay: string
+): Promise<PredictorDay[]> {
+  return queryConvex<PredictorDay[]>(api.predictor.listDaysInRange, { sportId, fromDay, toDay });
 }
 
 export async function fetchPredictorDay(sportId: PredictorSportId, dayKey: string): Promise<PredictorDay | null> {
