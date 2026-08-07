@@ -218,5 +218,5 @@ export interface PredictorRun {
   updatedAt: number;
 }
 
-export const DEFAULT_CONFIDENCE_FLOOR = 60;
+export const DEFAULT_CONFIDENCE_FLOOR = 52;
 

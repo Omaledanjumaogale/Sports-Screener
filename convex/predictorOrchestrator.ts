@@ -7,6 +7,7 @@ import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { runSmoaPipeline } from './agents/smoa';
 import { dailyCap } from './scrapers/sources';
+import { FILTER_CONFIDENCE_FLOOR } from './scrapers/normalize';
 import { generatePredictorVerdict, type VerdictOutcome } from './llm';
 
 const sportId = v.union(
@@ -46,7 +47,7 @@ async function executeRefresh(
 ): Promise<{ ok: boolean; kept: number; runId: string; message: string }> {
   const dayKey = args.dayKey || new Date().toISOString().slice(0, 10);
   const runId = args.runId ?? `run_${args.sportId}_${dayKey}_${Date.now()}`;
-  const floor = args.floor ?? 60;
+  const floor = args.floor ?? FILTER_CONFIDENCE_FLOOR;
   const cap = dailyCap();
 
   const report = async (progress: number, stage: string, message?: string) => {

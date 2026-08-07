@@ -4,7 +4,7 @@
 
 import { scrapeBetwatchFixtures, syntheticFixtures, type ScrapeMatch } from '../scrapers/betwatch';
 import { scrapeRealFixtures } from '../scrapers/fixtures';
-import { normalizeMatches, type NormalizedMatch } from '../scrapers/normalize';
+import { normalizeMatches, devig, devigPair, type NormalizedMatch } from '../scrapers/normalize';
 import { serperSearch } from '../scrapers/serper';
 import { brightDataRead } from '../scrapers/brightdata';
 import { jinaRead } from '../scrapers/jinaReader';
@@ -15,8 +15,9 @@ import {
   consolidateOdds,
   findOddsFor,
   matchOddsText,
-  resolveOddsSportKey,
-  hasAnyApiKey
+  resolveOddsSportKeys,
+  hasAnyApiKey,
+  type ConsolidatedOdds
 } from '../apis/sportsApis';
 
 export interface FixturesResult {
@@ -126,22 +127,25 @@ export async function kunleCollectOdds(fixtures: ScrapeMatch[], sportId?: string
 
   // 1. Real bookmaker odds via The Odds API (verified live provider). Matches the
   //    fixtures by team name and stamps the real h2h/totals onto each match so the
-  //    normalize stage builds a genuine scope for the LLM.
-  const oddsKey = await resolveOddsSportKey(sportId ?? 'football');
-  if (oddsKey) {
+  //    normalize stage builds a genuine scope for the LLM. Queries every active
+  //    league key for the sport so minor-league and non-flagship fixtures (not
+  //    just the flagship league) still get matched to real odds.
+  const oddsKeys = await resolveOddsSportKeys(sportId ?? 'football');
+  const odds: ConsolidatedOdds[] = [];
+  for (const key of oddsKeys) {
     try {
-      const raw = await fetchOddsMarkets(oddsKey);
-      const odds = consolidateOdds(raw);
-      if (odds.length > 0) sourcesQueried.push('https://api.the-odds-api.com/v4');
-      for (const m of fixtures) {
-        const o = findOddsFor(odds, m.homeTeam, m.awayTeam);
-        if (o) {
-          m.oddsText = matchOddsText(o);
-          samples.push({ match: `${m.homeTeam} vs ${m.awayTeam}`, text: matchOddsText(o) });
-        }
-      }
-    } catch (err) {
-      console.warn('[Kunle Akin] odds API fetch failed.', err);
+      const raw = await fetchOddsMarkets(key);
+      odds.push(...consolidateOdds(raw));
+    } catch {
+      // one league failing must not drop the rest
+    }
+  }
+  if (odds.length > 0) sourcesQueried.push('https://api.the-odds-api.com/v4');
+  for (const m of fixtures) {
+    const o = findOddsFor(odds, m.homeTeam, m.awayTeam);
+    if (o) {
+      m.oddsText = matchOddsText(o);
+      samples.push({ match: `${m.homeTeam} vs ${m.awayTeam}`, text: matchOddsText(o) });
     }
   }
 
@@ -208,10 +212,12 @@ export interface FilterResult {
 }
 
 // Amara Obi — surfaces only matches where at least one market option clears the
-// 60% confidence floor. Scans EVERY real market (result/winner, double chance,
-// totals, handicap/spread) so a match qualifies on any confident selection —
-// not just the (near-50/50) total line. The client still computes exact
-// probabilities via analyzeScope; this just gates which matches are worth caching.
+// confidence floor. The floor is evaluated on DE-VIGGED probability exactly as
+// the client's `analyzeScope`/`filterHighConfidence` computes it (engine.ts
+// normalizeN / normalizeTwo), so a match cached here is one the UI will actually
+// qualify. Scans EVERY real market (result/winner, double chance, totals,
+// handicap/spread) so a match qualifies on any confident selection — not just
+// the (near-50/50) total line.
 export function amaraFilter(matches: NormalizedMatch[], floor = 60): FilterResult {
   const matchIds: string[] = [];
   for (const m of matches) {
@@ -224,9 +230,12 @@ export function amaraFilter(matches: NormalizedMatch[], floor = 60): FilterResul
       if (market?.derived) continue;
       const odds = market?.odds;
       if (odds && typeof odds === 'object') {
-        for (const o of Object.values(odds)) {
-          const n = Number(o);
-          if (n > 1 && (1 / n) * 100 >= floor) {
+        const valid = Object.values(odds).map((n) => Number(n)).filter((n) => n > 1);
+        if (valid.length >= 2) {
+          // De-vig the whole market (1X2 or moneyline) so a draw leg cannot
+          // suppress a genuine favourite below the floor.
+          const probs = devig(valid).map((p) => p * 100);
+          if (probs.some((p) => p >= floor)) {
             high = true;
             break outer;
           }
@@ -238,8 +247,8 @@ export function amaraFilter(matches: NormalizedMatch[], floor = 60): FilterResul
           const over = Number(p?.over || 0);
           const under = Number(p?.under || 0);
           if (!over || !under) continue;
-          const overProb = (1 / over) / (1 / over + 1 / under) * 100;
-          if (overProb >= floor || 100 - overProb >= floor) {
+          const { aPct, bPct } = devigPair(over, under);
+          if (aPct >= floor || bPct >= floor) {
             high = true;
             break outer;
           }
@@ -251,8 +260,8 @@ export function amaraFilter(matches: NormalizedMatch[], floor = 60): FilterResul
           const sideA = Number(h?.sideA || 0);
           const sideB = Number(h?.sideB || 0);
           if (!sideA || !sideB) continue;
-          const sideAProb = (1 / sideA) / (1 / sideA + 1 / sideB) * 100;
-          if (sideAProb >= floor || 100 - sideAProb >= floor) {
+          const { aPct, bPct } = devigPair(sideA, sideB);
+          if (aPct >= floor || bPct >= floor) {
             high = true;
             break outer;
           }

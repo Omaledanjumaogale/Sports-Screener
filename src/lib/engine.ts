@@ -1,3 +1,5 @@
+import { DEFAULT_CONFIDENCE_FLOOR } from './predictorTypes';
+
 export type Status = 'green' | 'amber' | 'red' | 'empty';
 export type SportId =
   | 'football'
@@ -279,12 +281,15 @@ export function statusFromRatio(value: number, strong = 0.72, borderline = 0.45)
 
 // Return only picks whose Real Win Chance meets the confidence floor. Used by
 // the AI Predictor to surface only high-confidence selections (default 60%).
-export function filterHighConfidence(analysis: Analysis | null | undefined, min = 60): Pick[] {
+export function filterHighConfidence(analysis: Analysis | null | undefined, min = DEFAULT_CONFIDENCE_FLOOR): Pick[] {
   if (!analysis) return [];
   const src = analysis.masterRankings && analysis.masterRankings.length
     ? analysis.masterRankings
     : analysis.picks;
-  return (src || []).filter((p) => Number(p.probability) >= min);
+  return (src || [])
+    .filter((p) => Number(p.probability) >= min)
+    .map(withEv)
+    .sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99));
 }
 
 export function scoreChecks(checks: Check[], strong = 0.72, borderline = 0.45) {

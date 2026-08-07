@@ -157,30 +157,42 @@ export async function fetchOddsSportKeys(): Promise<string[]> {
   return active;
 }
 
+// Resolve every active Odds API key for a sport against the live /v4/sports/
+// list, so MINOR leagues and tournaments (not just the flagship league) are
+// included in coverage. Returns keys ordered by the static preference, followed
+// by any remaining active keys of the same family. Falls back to the static
+// preference alone when the live list is unreachable.
+export async function resolveOddsSportKeys(sportId: string): Promise<string[]> {
+  const prefs = ODDS_SPORT_PREFERENCE[sportId];
+  if (!prefs) return [];
+  const keys = await fetchOddsSportKeys();
+  const futures = /winner|championship|outright/i;
+  if (keys.length) {
+    const matches: string[] = [];
+    for (const re of prefs) {
+      for (const k of keys) {
+        if (re.test(k) && !futures.test(k) && !matches.includes(k)) matches.push(k);
+      }
+    }
+    return matches.slice(0, 12);
+  }
+  return [ODDS_FALLBACK[sportId]].filter(Boolean);
+}
+
 // Resolve the best Odds API key for a sport against the live /v4/sports/ list so
 // tournament rotations (tennis) and off-season windows (NBA) don't yield
 // UNKNOWN_SPORT / empty results. Falls back to the static preference otherwise.
 export async function resolveOddsSportKey(sportId: string): Promise<string | undefined> {
-  const prefs = ODDS_SPORT_PREFERENCE[sportId];
-  if (!prefs) return undefined;
-  const keys = await fetchOddsSportKeys();
-  if (keys.length) {
-    const futures = /winner|championship|outright/i;
-    for (const re of prefs) {
-      const match = keys.find((k) => re.test(k) && !futures.test(k));
-      if (match) return match;
-    }
-    return undefined;
-  }
-  const fallback: Record<string, string> = {
-    football: 'soccer_epl',
-    basketball: 'basketball_nba',
-    tennis: 'tennis_atp_canadian_open',
-    hockey: 'icehockey_nhl',
-    baseball: 'baseball_mlb'
-  };
-  return fallback[sportId];
+  return (await resolveOddsSportKeys(sportId))[0];
 }
+
+const ODDS_FALLBACK: Record<string, string> = {
+  football: 'soccer_epl',
+  basketball: 'basketball_nba',
+  tennis: 'tennis_atp_canadian_open',
+  hockey: 'icehockey_nhl',
+  baseball: 'baseball_mlb'
+};
 
 export interface ConsolidatedOdds {
   home: string;
@@ -420,13 +432,24 @@ export async function apiFixturesFor(
   date: string
 ): Promise<{ fixtures: ApiFixture[]; odds: ConsolidatedOdds[] }> {
   const results: ApiFixture[][] = [];
-  let odds: ConsolidatedOdds[] = [];
+  const oddsGroup: ConsolidatedOdds[][] = [];
 
-  const sportKey = await resolveOddsSportKey(sportId);
-  if (sportKey) {
-    const raw = await fetchOddsMarkets(sportKey);
-    results.push(mapOddsApiFixtures(raw, sportKey));
-    odds = consolidateOdds(raw);
+  // The Odds API feed is rolling (no date filter). Query EVERY active league key
+  // for the sport so minor leagues and non-flagship tournaments are included,
+  // then merge fixtures + their real odds (league-tagged per key).
+  const sportKeys = await resolveOddsSportKeys(sportId);
+  if (sportKeys.length) {
+    await Promise.all(
+      sportKeys.map(async (sportKey) => {
+        try {
+          const raw = await fetchOddsMarkets(sportKey);
+          results.push(mapOddsApiFixtures(raw, sportKey));
+          oddsGroup.push(consolidateOdds(raw));
+        } catch {
+          // one league failing must not drop the rest
+        }
+      })
+    );
   }
 
   const tsdbEvents = await fetchTheSportsDbEvents(date);
@@ -447,7 +470,7 @@ export async function apiFixturesFor(
       out.push(f);
     }
   }
-  return { fixtures: out, odds };
+  return { fixtures: out, odds: oddsGroup.flat() };
 }
 
 export function hasAnyApiKey(): boolean {

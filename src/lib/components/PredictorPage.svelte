@@ -381,8 +381,6 @@
         Loading today's scheduled matches…
       </div>
     {:else}
-      <DailyPnlSummary />
-
       <PredictorStatusBanner
         {day}
         progress={phase === 'analyzing' ? agentProgress : isRunning ? refreshProgress : day?.status === 'ready' ? 100 : 0}
@@ -520,6 +518,8 @@
         {/if}
       {/if}
     {/if}
+
+    <DailyPnlSummary />
 
     <footer class="predictor-foot">
       <p>

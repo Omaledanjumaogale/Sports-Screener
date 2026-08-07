@@ -14,6 +14,7 @@ import {
   zainabReview
 } from './specialists';
 import type { NormalizedMatch } from '../scrapers/normalize';
+import { FILTER_CONFIDENCE_FLOOR } from '../scrapers/normalize';
 import { dailyCap } from '../scrapers/sources';
 
 export type ProgressReporter = (progress: number, stage: string, message?: string) => Promise<void> | void;
@@ -36,7 +37,7 @@ export async function runSmoaPipeline(
   sportId: string,
   dayKey: string,
   report: ProgressReporter,
-  floor = 60
+  floor = FILTER_CONFIDENCE_FLOOR
 ): Promise<SmoaReport> {
   const agentsRun: string[] = [];
   const sourcesUsed: string[] = ['https://betwatch.fr/'];
@@ -81,7 +82,7 @@ export async function runSmoaPipeline(
   const filterRes = amaraFilter(normalizeRes.matches, floor);
   agentsRun.push('Amara Obi');
   await report(AGENT_DEFS[0].weight + AGENT_DEFS[1].weight + AGENT_DEFS[2].weight + AGENT_DEFS[3].weight + AGENT_DEFS[4].weight + AGENT_DEFS[5].weight,
-    'Amara Obi — filtering ≥60%', `${filterRes.matchIds.length} matches over ${floor}% floor`);
+    'Amara Obi — filtering ≥ floor', `${filterRes.matchIds.length} matches over ${floor}% floor`);
 
   // 7. Zainab Bello — risk review
   const riskRes = zainabReview(normalizeRes.matches, filterRes);

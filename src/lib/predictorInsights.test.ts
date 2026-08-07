@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildPredictorInsights } from './predictorInsights';
+import { DEFAULT_CONFIDENCE_FLOOR } from './predictorTypes';
 import type { Pick } from './engine';
 
 function pick(partial: Partial<Pick> & { label: string; probability: number; odds: number }): Pick {
@@ -34,7 +35,7 @@ describe('buildPredictorInsights', () => {
 
   it('reports a no-qualifier verdict when nothing clears the floor', () => {
     const insight = buildPredictorInsights(match, []);
-    expect(insight.verdictSummary).toContain('no selection reached the 60% floor');
+    expect(insight.verdictSummary).toContain(`no selection reached the ${DEFAULT_CONFIDENCE_FLOOR}% floor`);
     expect(insight.top3Selections).toEqual([]);
     expect(insight.tacticalRecommendation).toContain('Hold this market');
   });

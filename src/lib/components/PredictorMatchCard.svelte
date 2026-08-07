@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge, X } from '@lucide/svelte';
   import type { PredictorMatch } from '$lib/predictorTypes';
+  import { DEFAULT_CONFIDENCE_FLOOR } from '$lib/predictorTypes';
   import type { Analysis, Pick } from '$lib/engine';
   import { formatWAT } from '$lib/watTime';
   import PredictorPickChart from './PredictorPickChart.svelte';
@@ -156,7 +157,7 @@
       <span class="shield"><ShieldCheck size={15} stroke-width={2.4} /></span>
       <div class="conf-text">
         <span class="conf-pct">{bestPct}%</span>
-        <span class="conf-label">Real Win Chance — cleared the {Math.round(Number(top!.probability)) >= 60 ? '60%' : '60%'} floor</span>
+        <span class="conf-label">Real Win Chance — cleared the {DEFAULT_CONFIDENCE_FLOOR}% floor</span>
       </div>
       <span class="edge"><TrendingUp size={14} stroke-width={2.2} />{top!.label}</span>
     </div>
@@ -228,7 +229,7 @@
           <span class="trophy-ic"><Trophy size={15} stroke-width={2.2} /></span>
           <span>
             Top pick <b>{top.label}</b> at {Number(top.odds).toFixed(2)} decimal odds.
-            {Number(top.probability) >= 60 ? 'Highest-confidence signal this cycle.' : ''}
+            {Number(top.probability) >= DEFAULT_CONFIDENCE_FLOOR ? 'Highest-confidence signal this cycle.' : ''}
           </span>
         </div>
       {/if}

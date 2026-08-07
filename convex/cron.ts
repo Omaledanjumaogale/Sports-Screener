@@ -4,6 +4,7 @@
 
 import { cronJobs } from 'convex/server';
 import { internal } from './_generated/api';
+import { FILTER_CONFIDENCE_FLOOR } from './scrapers/normalize';
 
 const crons = cronJobs();
 
@@ -27,7 +28,7 @@ SPORTS.forEach((sport, i) => {
       `${s.name}-${sport}`,
       { hourUTC: s.hourUTC, minuteUTC: 2 + i * 8 },
       internal.predictorOrchestrator.runRefreshInternal,
-      { sportId: sport as any, dayKey: '', floor: 60 }
+      { sportId: sport as any, dayKey: '', floor: FILTER_CONFIDENCE_FLOOR }
     );
   });
 });

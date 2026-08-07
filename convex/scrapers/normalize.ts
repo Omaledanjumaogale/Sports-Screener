@@ -130,11 +130,27 @@ export function parseOddsText(oddsText: string): ParsedOdds {
 }
 
 // De-vig implied probabilities from decimal odds (sum of inverse probs = 1).
-function devig(odds: number[]): number[] {
+// Returns shares in [0,1]. This is the canonical probability model shared by the
+// pipeline gate (Amara) and the client engine, so the cached set and the set the
+// UI qualifies never disagree.
+export function devig(odds: number[]): number[] {
   const inv = odds.map((o) => 1 / o);
   const s = inv.reduce((a, b) => a + b, 0) || 1;
   return inv.map((i) => i / s);
 }
+
+// De-vig probabilities in percent for a two-outcome pair (totals / spread).
+export function devigPair(a: number, b: number): { aPct: number; bPct: number } {
+  const [pa, pb] = devig([a, b]);
+  return { aPct: pa * 100, bPct: pb * 100 };
+}
+
+// Realistic de-vigged confidence floor. Real bookmaker prices carry margin, so a
+// balanced favourite (e.g. ~1.5–1.7 1X2) de-vigs far below 60% — the old raw
+// 1/odds gate silently excluded every realistic match. Gating on de-vigged
+// probability at this level surfaces real favourites, totals and spreads for BOTH
+// major and minor leagues while still dropping true coin-flips.
+export const FILTER_CONFIDENCE_FLOOR = 52;
 
 // Bookie-style price for a fair probability with a margin applied.
 function marginedPrice(fairProb: number, margin: number): number {
