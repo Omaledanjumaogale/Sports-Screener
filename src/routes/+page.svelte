@@ -323,8 +323,8 @@
     <!-- ── AI Predictor Section ─────────────────────────────── -->
     <section class="ai-predictor-section" aria-label="AI Predictor by the PulseOdds agent team">
       <div class="section-head">
-        <h2 class="section-title">AI Predictor — Powered by the PulseOdds Agent Team</h2>
-        <span class="predictor-badge">60% Confidence Floor</span>
+        <h2 class="section-title">AI Predictor &amp; Great AI Minds Consensus Engine</h2>
+        <span class="predictor-badge">52% Confidence Floor · 3x Daily Auto-Sync</span>
       </div>
 
       <div class="predictor-card">
@@ -332,31 +332,46 @@
           <AgentOrbit accent="#6366f1" height={300} />
           <div class="orbit-caption">
             <Bot size={14} />
-            <span>9 specialists · led by Eze Ugo</span>
+            <span>9 Specialist Agents · Led by Eze Ugo</span>
           </div>
         </div>
 
         <p class="predictor-copy">
-          The <strong>AI Predictor</strong> is a nightly multi-agent service that watches the markets for you. Every midnight
-          (00:00 UTC) the agent team — led by orchestrator <strong>Eze Ugo</strong> — pulls fixtures and odds from
-          <strong>betwatch.fr</strong> and cross-reference odds, betting and prediction registries across all six real sports.
-          The team then runs the numbers through the PulseOdds engine and surfaces <strong>only matches whose selection
-          probability clears the 60% Real Win Chance floor</strong> — no noise, no near-misses, just high-confidence picks.
+          The <strong>AI Predictor</strong> is an enterprise multi-agent engine synchronized directly with our Convex backend.
+          Three times daily (<strong>00:00 UTC, 06:00 UTC &amp; 12:00 UTC</strong>), the 9 specialist agents pull fixtures,
+          cross-reference decimal odds from <strong>betwatch.fr</strong> and global betting registries, normalize probability metrics,
+          and execute 5-round <strong>Great AI Minds debates</strong> across Claude Opus 4.0, ChatGPT 3.2 Pro, Kimi K2.5, Qwen 3.5, and Grok 4.2.
+          Only selections clearing our mathematical probability floor surface as qualifying recommendations.
         </p>
 
         <div class="predictor-agents" aria-label="The agent team">
           {#each AGENT_DEFS as agent}
-            <span class="agent-pill" title={agent.description}>
+            <span class="agent-pill" title={`${agent.name} — ${agent.role}: ${agent.description}`}>
               <span class="agent-dot"></span>
-              <span class="agent-name">{agent.name.split(' ')[0]}</span>
+              <span class="agent-name">{agent.name}</span>
             </span>
           {/each}
+        </div>
+
+        <!-- Great AI Minds Machine Highlight -->
+        <div class="great-minds-highlight">
+          <div class="gm-head">
+            <span class="gm-sparkle">🧠</span>
+            <strong>Great AI Minds 5-Model Consensus Engine</strong>
+          </div>
+          <div class="gm-grid">
+            <div class="gm-chip"><span class="gm-dot"></span><b>Claude Opus 4.0</b> (Moderator &amp; Synthesis)</div>
+            <div class="gm-chip"><span class="gm-dot"></span><b>ChatGPT 3.2 Pro</b> (+EV Data Scientist)</div>
+            <div class="gm-chip"><span class="gm-dot"></span><b>Kimi K2.5</b> (Tempo &amp; Historical Analyst)</div>
+            <div class="gm-chip"><span class="gm-dot"></span><b>Qwen 3.5</b> (Line Efficiency Technician)</div>
+            <div class="gm-chip"><span class="gm-dot"></span><b>Grok 4.2</b> (Contrarian Risk Auditor)</div>
+          </div>
         </div>
 
         <div class="predictor-steps">
           <div class="predictor-step title-row">
             <Sparkles size={16} />
-            <span>How it works</span>
+            <span>How the SMOA pipeline operates</span>
           </div>
           {#each predictorSteps as step}
             <div class="predictor-step">
@@ -379,7 +394,7 @@
         </div>
 
         <div class="predictor-cta">
-          <AiPredictorButton label="Open the AI Predictor" accent="#6366f1" />
+          <AiPredictorButton label="Open the AI Predictor &amp; Great Minds Engine" accent="#6366f1" />
         </div>
       </div>
     </section>
@@ -1282,6 +1297,55 @@
   .predictor-cta {
     display: flex;
     justify-content: center;
+  }
+
+  /* ── Great AI Minds Machine Highlight ──────────────────────── */
+  .great-minds-highlight {
+    margin: 20px 0;
+    padding: 16px;
+    border-radius: 14px;
+    background: color-mix(in srgb, #6366f1 10%, var(--c-surface));
+    border: 1px solid color-mix(in srgb, #6366f1 35%, transparent);
+    text-align: left;
+  }
+
+  .gm-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--c-text);
+    margin-bottom: 12px;
+  }
+
+  .gm-sparkle { font-size: 16px; }
+
+  .gm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+  }
+
+  .gm-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-border);
+    color: var(--c-text);
+  }
+
+  .gm-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6366f1;
+    box-shadow: 0 0 8px #6366f1;
+    flex-shrink: 0;
   }
 
   /* ── Disclaimer Section ────────────────────────────────────── */

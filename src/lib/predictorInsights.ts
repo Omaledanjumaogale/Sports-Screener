@@ -45,12 +45,12 @@ export function buildPredictorInsights(
     tacticalRecommendation: top
       ? `Focus on ${top.label} as your primary betslip line; prefer a single bet over combinations when confidence exceeds ${floor}%.`
       : 'Hold this market until a later refresh produces qualifying selections.',
-    crossCheckAnalysis: 'Primary markets were cross-checked across betwatch.fr and the odds/research registries; the confidence floor was applied by Amara Obi and risk reviewed by Zainab Bello.',
+    crossCheckAnalysis: 'Primary markets were cross-checked across betwatch.fr and odds/research registries; the confidence floor was applied by Amara Floor Gatekeeper and risk reviewed by Zainab Risk Auditor.',
     crossCheckSteps: [
-      'Step 1: Fixtures fetched from betwatch.fr by Tunde Onitiri.',
-      'Step 2: Odds collected and cross-referenced by Kunle Akin across odds registries.',
-      'Step 3: Real Win Chance computed from the cached market lines by Chinedu Eze.',
-      `Step 4: Amara Obi applied the confidence floor; only ≥${floor}% selections are shown.`
+      'Step 1: Fixtures fetched from betwatch.fr & sports registries by Tunde Fixtures (Tunde Onitiri).',
+      'Step 2: Odds collected and cross-referenced by Kunle Odds (Kunle Akin) across primary registries.',
+      'Step 3: Real Win Chance normalized from cached market lines by Chinedu Normalizer (Chinedu Eze).',
+      `Step 4: Amara Floor Gatekeeper (Amara Obi) applied the confidence floor; only ≥${floor}% selections surface.`
     ],
     top3Selections,
     punterEdge: top

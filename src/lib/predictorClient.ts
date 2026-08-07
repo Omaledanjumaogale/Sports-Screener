@@ -95,6 +95,10 @@ export async function startPredictorRefresh(
   return callConvex<{ runId: string; alreadyRunning: boolean }>(api.predictor.startRefresh, { sportId, dayKey, incremental });
 }
 
+export async function bootstrapTodayAllSports(): Promise<{ seeded: number; message: string }> {
+  return callConvex<{ seeded: number; message: string }>(api.predictor.bootstrapToday, {});
+}
+
 export function emptyAnalysis(): Analysis {
   return {
     headline: 'Unavailable',

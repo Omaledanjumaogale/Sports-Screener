@@ -2,7 +2,7 @@
 // Public queries/mutations are read/write for the predictor UI. Internal
 // mutations (marked `internal`) are called only by the SMOA orchestrator.
 
-import { query, mutation, internalMutation, internalAction, internalQuery } from './_generated/server';
+import { query, mutation, action, internalMutation, internalAction, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
 
@@ -444,7 +444,32 @@ export const purgeOld = internalMutation({
       .withIndex('by_day', (q) => q.lt('dayKey', cutoff))
       .collect();
     for (const d of oldDays) await ctx.db.delete(d._id);
-    return oldDays.length;
+
+    const oldMatches = await ctx.db
+      .query('predictorMatches')
+      .collect()
+      .then((items) => items.filter((m) => m.dayKey < cutoff));
+    for (const m of oldMatches) await ctx.db.delete(m._id);
+
+    const oldVerdicts = await ctx.db
+      .query('predictorVerdicts')
+      .collect()
+      .then((items) => items.filter((v) => v.dayKey < cutoff));
+    for (const v of oldVerdicts) await ctx.db.delete(v._id);
+
+    const oldStats = await ctx.db
+      .query('aiPredictorStats')
+      .withIndex('by_day', (q) => q.lt('dayKey', cutoff))
+      .collect();
+    for (const s of oldStats) await ctx.db.delete(s._id);
+
+    const oldRuns = await ctx.db
+      .query('predictorRuns')
+      .collect()
+      .then((items) => items.filter((r) => r.dayKey < cutoff));
+    for (const r of oldRuns) await ctx.db.delete(r._id);
+
+    return oldDays.length + oldMatches.length + oldVerdicts.length;
   }
 });
 
@@ -469,3 +494,87 @@ export const purgeAndMarkStale = internalAction({
     return { deleted };
   }
 });
+
+// ── Bootstrap actions: seed today's cache for all sports when DB is empty ─────
+
+const ALL_SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball'] as const;
+type AnySSport = typeof ALL_SPORTS[number];
+
+// Internal: seed a specific sport for today. Called by seedAllSports.
+export const seedSportForToday = internalAction({
+  args: { sportId: v.union(
+    v.literal('football'), v.literal('basketball'), v.literal('tennis'),
+    v.literal('rally'), v.literal('hockey'), v.literal('baseball')
+  )},
+  handler: async (ctx, args): Promise<{ ok: boolean; kept: number }> => {
+    const dayKey = new Date().toISOString().slice(0, 10);
+    // Check if already cached for today — skip if fresh (status ready/partial/refreshing).
+    const existing = await ctx.runQuery(internal.predictor.getDayInternal, {
+      sportId: args.sportId as AnySSport,
+      dayKey
+    });
+    if (existing && (existing.status === 'ready' || existing.status === 'partial' || existing.status === 'refreshing')) {
+      console.log(`[Bootstrap] ${args.sportId} already cached for ${dayKey} (${existing.status}), skipping.`);
+      return { ok: true, kept: 0 };
+    }
+    // Kick the full pipeline via the orchestrator.
+    const result: any = await ctx.runAction(internal.predictorOrchestrator.runRefreshInternal, {
+      sportId: args.sportId as AnySSport,
+      dayKey,
+      floor: 52
+    });
+    return { ok: result?.ok ?? false, kept: result?.kept ?? 0 };
+  }
+});
+
+// Internal query to check a predictor day without going through public API.
+export const getDayInternal = internalQuery({
+  args: { sportId: v.union(
+    v.literal('football'), v.literal('basketball'), v.literal('tennis'),
+    v.literal('rally'), v.literal('hockey'), v.literal('baseball')
+  ), dayKey: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('predictorDays')
+      .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey))
+      .order('desc')
+      .first();
+  }
+});
+
+// Internal: stagger-seed all 6 sports for today with a 30-second gap between each.
+export const seedAllSports = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ seeded: number }> => {
+    const dayKey = new Date().toISOString().slice(0, 10);
+    console.log(`[Bootstrap] Seeding all sports for ${dayKey}…`);
+    let seeded = 0;
+    const sports: AnySSport[] = [...ALL_SPORTS];
+    for (const sp of sports) {
+      try {
+        await ctx.runAction(internal.predictor.seedSportForToday, { sportId: sp });
+        seeded++;
+        // Stagger: wait 15 seconds between sports so the LLM/API providers
+        // are not hammered simultaneously by 6 parallel pipeline runs.
+        await new Promise((r) => setTimeout(r, 15_000));
+      } catch (err: any) {
+        console.error(`[Bootstrap] Failed to seed ${sp}:`, err?.message || err);
+      }
+    }
+    return { seeded };
+  }
+});
+
+// Public action: UI-callable — bootstraps today's data for all 6 sports.
+// Safe to call multiple times; already-fresh days are skipped.
+export const bootstrapToday = action({
+  args: {},
+  handler: async (ctx): Promise<{ seeded: number; message: string }> => {
+    const result: any = await ctx.runAction(internal.predictor.seedAllSports, {});
+    return {
+      seeded: result?.seeded ?? 0,
+      message: `Bootstrap started for ${result?.seeded ?? 0} sport(s). Data will populate over the next few minutes.`
+    };
+  }
+});
+
