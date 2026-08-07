@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Monochrome mask for Safari pinned tabs (single solid color, no gradients). -->
+  <path fill="#6366f1" d="M50 3c26 0 47 21 47 47S76 97 50 97 3 76 3 50 24 3 50 3z"/>
+  <path fill="#6366f1" d="M62 20 48 50h10L44 82 72 44H60z"/>
+</svg>

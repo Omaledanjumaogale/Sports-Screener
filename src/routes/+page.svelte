@@ -8,11 +8,14 @@
   import SEO from '$lib/components/SEO.svelte';
   import MasterModelShowcase from '$lib/components/MasterModelShowcase.svelte';
   import AiPredictorButton from '$lib/components/AiPredictorButton.svelte';
+  import AgentOrbit from '$lib/components/AgentOrbit.svelte';
+  import PredictorSportIcon from '$lib/components/PredictorSportIcon.svelte';
   import { AGENT_DEFS } from '$lib/agentUi';
+  import { PREDICTOR_SPORTS, type PredictorSportId } from '$lib/predictorTypes';
   import { authState, setUnauthenticated } from '$lib/authStore.svelte';
   import { convexSignOut } from '$lib/convexClient';
   import { notify } from '$lib/notificationStore';
-  import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User, MessageSquare } from '@lucide/svelte';
+  import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User, MessageSquare, Bot, Clock3, Target, ShieldCheck, TrendingUp } from '@lucide/svelte';
   import type { PageData } from './$types';
 
   function handleDonateClick() {
@@ -139,6 +142,15 @@
 
   const comingSoonSports: Array<{ short: string; title: string; description: string; accent: string; emoji: string }> = [];
 
+  const PREDICTOR_LABEL: Record<PredictorSportId, string> = {
+    football: 'Football',
+    basketball: 'Basketball',
+    tennis: 'Tennis',
+    rally: 'Table Tennis',
+    hockey: 'Ice Hockey',
+    baseball: 'Baseball'
+  };
+
   function nav(p: string) {
     void goto(p);
   }
@@ -187,6 +199,13 @@
       title: 'Beat the Bookies Together',
       desc: 'Lets beat the bookies together as Intelligent and informed punters.'
     }
+  ];
+
+  const predictorSteps = [
+    { icon: Target, title: 'Pick a sport', desc: 'Football, Basketball, Tennis, Table Tennis, Ice Hockey or Baseball.' },
+    { icon: Clock3, title: 'Watch the meter', desc: 'The agent team shows live 0% → 100% progress while they work.' },
+    { icon: ShieldCheck, title: 'Review the picks', desc: 'Only matches above the 60% Real Win Chance floor — with top selections, punter edge and risk warnings.' },
+    { icon: TrendingUp, title: 'Stake responsibly', desc: 'Refresh anytime; the cache rebuilds automatically each night.' }
   ];
 </script>
 
@@ -309,6 +328,14 @@
       </div>
 
       <div class="predictor-card">
+        <div class="predictor-orbit-wrap">
+          <AgentOrbit accent="#6366f1" height={300} />
+          <div class="orbit-caption">
+            <Bot size={14} />
+            <span>9 specialists · led by Eze Ugo</span>
+          </div>
+        </div>
+
         <p class="predictor-copy">
           The <strong>AI Predictor</strong> is a nightly multi-agent service that watches the markets for you. Every midnight
           (00:00 UTC) the agent team — led by orchestrator <strong>Eze Ugo</strong> — pulls fixtures and odds from
@@ -317,22 +344,38 @@
           probability clears the 60% Real Win Chance floor</strong> — no noise, no near-misses, just high-confidence picks.
         </p>
 
-        <div class="predictor-agents">
+        <div class="predictor-agents" aria-label="The agent team">
           {#each AGENT_DEFS as agent}
             <span class="agent-pill" title={agent.description}>
               <span class="agent-dot"></span>
-              {agent.name}
+              <span class="agent-name">{agent.name.split(' ')[0]}</span>
             </span>
           {/each}
         </div>
 
         <div class="predictor-steps">
-          <ol>
-            <li><b>Pick a sport</b> — Football, Basketball, Tennis, Table Tennis, Ice Hockey or Baseball.</li>
-            <li><b>Watch the meter</b> — the agent team shows live progress from 0% to 100% while they work.</li>
-            <li><b>Review the picks</b> — only matches above the 60% floor appear, with top selections, punter edge and risk warnings.</li>
-            <li><b>Stake responsibly</b> — refresh anytime; the cache is rebuilt automatically each night.</li>
-          </ol>
+          <div class="predictor-step title-row">
+            <Sparkles size={16} />
+            <span>How it works</span>
+          </div>
+          {#each predictorSteps as step}
+            <div class="predictor-step">
+              <span class="step-ic"><step.icon size={15} stroke-width={2.3} /></span>
+              <div class="step-body">
+                <b>{step.title}</b>
+                <span>{step.desc}</span>
+              </div>
+            </div>
+          {/each}
+        </div>
+
+        <div class="predictor-sports" aria-label="Supported predictor sports">
+          {#each PREDICTOR_SPORTS as sport}
+            <span class="psport-chip" title={PREDICTOR_LABEL[sport]}>
+              <PredictorSportIcon sport={sport} size={15} strokeWidth={2} />
+              {PREDICTOR_LABEL[sport]}
+            </span>
+          {/each}
         </div>
 
         <div class="predictor-cta">
@@ -1079,7 +1122,7 @@
   }
 
   .predictor-card {
-    width: min(100%, 720px);
+    width: min(100%, 760px);
     padding: 24px;
     border-radius: 20px;
     background:
@@ -1089,6 +1132,29 @@
     box-shadow: var(--c-card-shadow);
     text-align: left;
   }
+
+  .predictor-orbit-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: -8px 0 6px;
+  }
+
+  .orbit-caption {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: -6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--c-text-2, var(--c-text-dim));
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border);
+    padding: 5px 12px;
+    border-radius: 999px;
+  }
+
+  .orbit-caption :global(svg) { color: var(--c-rally); }
 
   .predictor-copy {
     margin: 0 0 16px;
@@ -1116,6 +1182,12 @@
     font-size: 11px;
     font-weight: 700;
     color: var(--c-text-2);
+    transition: border-color var(--t-base), color var(--t-base), background var(--t-base);
+  }
+  .agent-pill:hover {
+    border-color: color-mix(in srgb, var(--c-rally) 45%, transparent);
+    color: var(--c-text);
+    background: var(--c-glass-hover);
   }
 
   .agent-dot {
@@ -1127,22 +1199,85 @@
   }
 
   .predictor-steps {
-    margin-bottom: 20px;
-  }
-
-  .predictor-steps ol {
-    margin: 0;
-    padding-left: 20px;
+    margin-bottom: 18px;
     display: flex;
     flex-direction: column;
     gap: 8px;
   }
 
-  .predictor-steps li {
+  .predictor-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border);
+  }
+
+  .predictor-step.title-row {
+    align-items: center;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--c-rally);
+    background: transparent;
+    border: none;
+    padding: 0 2px 2px;
+  }
+
+  .predictor-step.title-row :global(svg) { color: var(--c-rally); }
+
+  .step-ic {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--c-rally) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c-rally) 32%, transparent);
+    color: var(--c-rally);
+  }
+
+  .step-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     font-size: 12.5px;
     color: var(--c-text-2);
-    line-height: 1.55;
+    line-height: 1.5;
   }
+  .step-body b { color: var(--c-text); }
+
+  .predictor-sports {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-bottom: 18px;
+  }
+
+  .psport-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--c-text-2);
+    transition: border-color var(--t-base), color var(--t-base), transform 80ms ease;
+  }
+  .psport-chip:hover {
+    border-color: color-mix(in srgb, var(--c-rally) 40%, transparent);
+    color: var(--c-text);
+    transform: translateY(-1px);
+  }
+  .psport-chip :global(svg) { color: var(--c-rally); }
 
   .predictor-cta {
     display: flex;

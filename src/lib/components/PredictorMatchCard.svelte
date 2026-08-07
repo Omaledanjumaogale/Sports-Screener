@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge } from '@lucide/svelte';
+  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge, X } from '@lucide/svelte';
   import type { PredictorMatch } from '$lib/predictorTypes';
   import type { Analysis, Pick } from '$lib/engine';
   import { formatWAT } from '$lib/watTime';
   import PredictorPickChart from './PredictorPickChart.svelte';
+  import { generateGreatMindsDebate } from '$lib/greatMindsEngine';
 
   let {
     match,
@@ -15,6 +16,7 @@
     selectable = false,
     selected = false,
     disabled = false,
+    inPlay = false,
     onSelect = () => {},
     onClick = () => {}
   }: {
@@ -27,6 +29,7 @@
     selectable?: boolean;
     selected?: boolean;
     disabled?: boolean;
+    inPlay?: boolean;
     onSelect?: () => void;
     onClick?: () => void;
   } = $props();
@@ -39,17 +42,20 @@
   const bestPct = $derived(top ? Number(top.probability).toFixed(1) : null);
   const bottomPicks = $derived(qualifying.length >= 3 ? qualifying.slice(0, 3) : qualifying);
   const metrics = $derived((analysis?.metrics ?? []).slice(0, 4));
+
+  const greatMindsData = $derived(generateGreatMindsDebate(match, analysis));
 </script>
 
 <div
   class="match-card"
   class:is-selected={selected}
   class:is-disabled={disabled}
+  class:is-in-play={inPlay}
   class:is-selectable={selectable}
   class:is-open={open}
   style={`--accent:${accent}`}
   role="button"
-  aria-label={`${match.homeTeam} vs ${match.awayTeam} — ${open ? 'Collapse' : 'Expand'} analysis`}
+  aria-label={`${match.homeTeam} vs ${match.awayTeam} — ${open ? 'Collapse' : 'Expand'} analysis${inPlay ? ' (in play)' : ''}`}
   tabindex={disabled ? -1 : 0}
   onclick={(e) => {
     if (disabled) return;
@@ -64,7 +70,6 @@
   }}
   aria-expanded={open ? 'true' : 'false'}
 >
->
   <header class="match-head">
     <div class="matchup">
       {#if selectable}
@@ -74,10 +79,18 @@
           type="button"
           role="checkbox"
           aria-checked={selected}
-          aria-disabled={disabled}
-          disabled={disabled}
+          aria-disabled={disabled || inPlay}
+          disabled={disabled || inPlay}
           aria-label={`${selected ? 'Remove' : 'Add'} ${match.homeTeam} vs ${match.awayTeam}`}
-          title={selected ? 'Remove from analysis' : 'Add to analysis'}
+          title={
+            disabled || inPlay
+              ? inPlay
+                ? 'This match is in play — cached verdict remains viewable below'
+                : 'Unavailable for selection'
+              : selected
+                ? 'Remove from analysis'
+                : 'Add to analysis'
+          }
           onclick={(e) => {
             e.stopPropagation();
             onSelect();
@@ -107,7 +120,7 @@
       </button>
     </div>
     <div class="meta">
-      {#if disabled}
+      {#if inPlay}
         <span class="chip live">In play</span>
       {/if}
       <span class="chip league" title={match.league}>{match.league}</span>
@@ -115,6 +128,28 @@
       <span class="chip source">{match.source}</span>
     </div>
   </header>
+
+  <!-- Great AI Minds Mini Badges -->
+  {#if greatMindsData}
+    <div class="gm-mini-badges">
+      <span class="gm-mini-title"><Trophy size={12} /> Great Minds Verdict:</span>
+      {#if greatMindsData.consensusPicks.winner}
+        <span class="gm-badge bg-winner">
+          {greatMindsData.consensusPicks.winner.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.winner.consensusRatio}</strong> <Check size={11} />
+        </span>
+      {/if}
+      {#if greatMindsData.consensusPicks.spread}
+        <span class="gm-badge bg-spread">
+          {greatMindsData.consensusPicks.spread.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.spread.consensusRatio}</strong> <Check size={11} />
+        </span>
+      {/if}
+      {#if greatMindsData.consensusPicks.total}
+        <span class="gm-badge bg-total">
+          {greatMindsData.consensusPicks.total.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.total.consensusRatio}</strong> <Check size={11} />
+        </span>
+      {/if}
+    </div>
+  {/if}r>
 
   {#if bestPct}
     <div class="confidence-band">
@@ -229,6 +264,14 @@
   .match-card.is-disabled:hover {
     border-color: var(--c-border-md);
     box-shadow: none;
+  }
+
+  .match-card.is-in-play {
+    border-color: color-mix(in srgb, #f43f5e 30%, var(--c-border-md));
+  }
+  .match-card.is-in-play:hover {
+    border-color: color-mix(in srgb, #f43f5e 55%, transparent);
+    box-shadow: 0 4px 24px color-mix(in srgb, #f43f5e 12%, transparent);
   }
 
   .match-card.is-selectable { cursor: pointer; }
