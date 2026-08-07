@@ -300,7 +300,7 @@ type MarketLike = {
 };
 
 function pctNum(v: number): number {
-  return Math.round(v * 1000) / 10;
+  return Math.round(v * 10) / 10;
 }
 
 export function splitBar(a: number, b: number): { a: number; b: number } {
@@ -360,14 +360,11 @@ export function totalStats(markets: Record<string, MarketLike>): DerivedStatBar[
   return out;
 }
 
-export function spreadStats(markets: Record<string, MarketLike>): DerivedStatBar[] {
+export function spreadStats(markets: Record<string, MarketLike>, nameA = 'Home', nameB = 'Away'): DerivedStatBar[] {
   const out: DerivedStatBar[] = [];
   const hcp = markets.handicap || markets.spread;
   const pair = hcp?.handicapPairs?.[0];
   if (!pair) return out;
-  // A derived pick-'em (line 0 / -0.0) simply mirrors the moneyline — skip it so
-  // the stats block doesn't duplicate the h2h row. Derived Asian Handicap lines
-  // (e.g. -0.5/+0.5) and real spreads are kept for the extra insight.
   if (hcp?.derived && pair.line === 0) return out;
   if (pair.sideA > 1 && pair.sideB > 1) {
     const s = splitBar(pair.sideA, pair.sideB);
@@ -375,16 +372,18 @@ export function spreadStats(markets: Record<string, MarketLike>): DerivedStatBar
     out.push({
       key: `spread:${pair.line}`,
       label: `Spread / Handicap (${sign}${pair.line})`,
-      left: { label: 'Team A', pct: s.a },
-      right: { label: 'Team B', pct: s.b }
+      left: { label: nameA, pct: s.a },
+      right: { label: nameB, pct: s.b }
     });
   }
   return out;
 }
 
-export function derivedMatchStats(scope: { markets?: Record<string, MarketLike> }): DerivedStatBar[] {
+export function derivedMatchStats(scope: { markets?: Record<string, MarketLike>; teamA?: string; teamB?: string }): DerivedStatBar[] {
   const mk = scope?.markets ?? {};
-  return [...h2hStats(mk), ...totalStats(mk), ...spreadStats(mk)];
+  const nameA = scope?.teamA || 'Home';
+  const nameB = scope?.teamB || 'Away';
+  return [...h2hStats(mk), ...totalStats(mk), ...spreadStats(mk, nameA, nameB)];
 }
 
 // Return only picks whose Real Win Chance meets the confidence floor. Used by
@@ -754,9 +753,11 @@ export function analyzeBasketball(scope: ScopeState): Analysis {
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
   const hdp = scope.markets.handicap;
+  const nameA = scope.teamA || 'Team 1';
+  const nameB = scope.teamB || 'Team 2';
   const rankPicks = [
-    ...(hdp ? analyzeHandicap(hdp, 'Team 1', 'Team 2') : []),
-    ...analyzeOddsMarket(scope.markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, { a: 'Team 1 Wins', b: 'Team 2 Wins' })
+    ...(hdp ? analyzeHandicap(hdp, nameA, nameB) : []),
+    ...analyzeOddsMarket(scope.markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, { a: `${nameA} Wins`, b: `${nameB} Wins` })
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
   const allBasketballPicks = [...ouPicks, ...rankPicks].sort((a, b) => b.probability - a.probability);
@@ -1103,6 +1104,8 @@ export function analyzeHockey(scope: ScopeState): Analysis {
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
   const hdp = markets.handicap;
+  const nameA = scope.teamA || 'Team 1';
+  const nameB = scope.teamB || 'Team 2';
   const resultPicks = analyzeOddsMarket(markets.result ?? { id: 'result', kind: 'threeway', title: '' }, {
     home: 'Home Win (Reg)',
     draw: 'Draw (Overtime)',
@@ -1116,7 +1119,7 @@ export function analyzeHockey(scope: ScopeState): Analysis {
     : [];
 
   const rankPicks = [
-    ...(hdp ? analyzeHandicap(hdp, 'Team 1', 'Team 2') : []),
+    ...(hdp ? analyzeHandicap(hdp, nameA, nameB) : []),
     ...resultPicks,
     ...mlPicks,
     ...(isRT && markets.doubleChance

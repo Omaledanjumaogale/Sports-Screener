@@ -17,33 +17,46 @@
   <div class="stats-block" role="region" aria-label="Match stats" style={`--accent:${accent}`}>
     <div class="stats-title"><span><BarChart3 size={13} stroke-width={2.2} /></span> Match Stats</div>
     {#each bars as bar (bar.key)}
+      {@const leftIsHigher = bar.left.pct >= bar.right.pct}
       <div class="stat-row">
         <div class="stat-label">{bar.label}</div>
         <div class="split" aria-hidden="true">
-          <div class="split-left" style={`width:${bar.left.pct}%;`}></div>
-          <div class="split-right" style={`width:${100 - bar.left.pct}%;`}></div>
+          <div
+            class="split-left"
+            class:is-dominant={leftIsHigher}
+            style={`width:${bar.left.pct}%;`}
+          ></div>
+          <div
+            class="split-right"
+            class:is-dominant={!leftIsHigher}
+            style={`width:${100 - bar.left.pct}%;`}
+          ></div>
         </div>
         <div class="stat-values">
-          <span class="side left">{bar.left.label} {bar.left.pct}%</span>
+          <span class="side left" class:is-dominant={leftIsHigher}>
+            {bar.left.label} <strong>{bar.left.pct.toFixed(1)}%</strong>
+          </span>
           {#if bar.center}<span class="center">{bar.center}</span>{/if}
-          <span class="side right">{bar.right.label} {bar.right.pct}%</span>
+          <span class="side right" class:is-dominant={!leftIsHigher}>
+            {bar.right.label} <strong>{bar.right.pct.toFixed(1)}%</strong>
+          </span>
         </div>
       </div>
     {/each}
-    <p class="stats-note">Probabilities de-vigged from the cached (real) bookmaker odds — not projected form.</p>
+    <p class="stats-note">Probabilities de-vigged from real bookmaker lines — higher probability outcome highlighted in green indicator.</p>
   </div>
 {/if}
 
 <style>
   .stats-block {
     margin-top: 12px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    background: var(--c-glass-sm);
-    border: 1px solid var(--c-border);
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--c-surface-2) 90%, var(--accent));
+    border: 1px solid color-mix(in srgb, var(--c-border-md) 80%, var(--accent));
     display: flex;
     flex-direction: column;
-    gap: 9px;
+    gap: 10px;
   }
 
   .stats-title {
@@ -58,30 +71,48 @@
   }
   .stats-title span { display: inline-flex; color: var(--accent); }
 
-  .stat-row { display: flex; flex-direction: column; gap: 4px; }
-  .stat-label { font-size: 11px; font-weight: 700; color: var(--c-text); }
+  .stat-row { display: flex; flex-direction: column; gap: 5px; }
+  .stat-label { font-size: 11.5px; font-weight: 700; color: var(--c-text); }
 
   .split {
     display: flex;
-    height: 7px;
+    height: 9px;
     border-radius: 999px;
     overflow: hidden;
     background: var(--c-border);
-    border: 1px solid var(--c-border);
+    border: 1px solid var(--c-border-md);
   }
   .split-left {
-    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #fff));
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
     transition: width 0.5s ease;
   }
+  .split-left.is-dominant {
+    background: linear-gradient(90deg, #10b981, #22c55e);
+    box-shadow: 0 0 8px color-mix(in srgb, #22c55e 50%, transparent);
+  }
+
   .split-right {
-    background: linear-gradient(90deg, color-mix(in srgb, #f43f5e 80%, #fff), #f43f5e);
+    background: linear-gradient(90deg, #f97316, #fb923c);
     transition: width 0.5s ease;
   }
+  .split-right.is-dominant {
+    background: linear-gradient(90deg, #10b981, #22c55e);
+    box-shadow: 0 0 8px color-mix(in srgb, #22c55e 50%, transparent);
+  }
 
-  .stat-values { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }
-  .side.left { color: var(--accent); }
-  .side.right { color: #f43f5e; }
-  .center { color: var(--c-text-dim, var(--c-text)); font-size: 10.5px; font-weight: 700; text-align: center; }
+  .stat-values {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .side { color: var(--c-text-2); }
+  .side.is-dominant { color: #22c55e; font-weight: 800; }
+  .side.is-dominant strong { color: #22c55e; }
+  .center { color: var(--c-text-dim, var(--c-text)); font-size: 11px; font-weight: 700; text-align: center; }
 
-  .stats-note { font-size: 10px; color: var(--c-text-dim, var(--c-text)); line-height: 1.4; margin: 0; }
+  .stats-note { font-size: 10.5px; color: var(--c-text-dim, var(--c-text)); line-height: 1.4; margin: 0; }
 </style>

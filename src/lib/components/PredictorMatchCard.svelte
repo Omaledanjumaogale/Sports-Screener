@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge, X } from '@lucide/svelte';
+  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge, X, Sparkles } from '@lucide/svelte';
   import type { PredictorMatch } from '$lib/predictorTypes';
   import { DEFAULT_CONFIDENCE_FLOOR } from '$lib/predictorTypes';
   import type { Analysis, Pick } from '$lib/engine';
@@ -128,13 +128,28 @@
       <span class="chip league" title={match.league}>{match.league}</span>
       <span class="chip time"><Clock3 size={12} stroke-width={2.2} /> <span class="wat-date">{kickoff}</span></span>
       <span class="chip source">{match.source}</span>
+      
+      <button
+        class="analyze-match-btn"
+        type="button"
+        aria-label={`${open ? 'Collapse' : 'Analyze'} match analysis`}
+        onclick={(e) => {
+          e.stopPropagation();
+          if (!disabled) {
+            onClick();
+          }
+        }}
+      >
+        <Sparkles size={13} stroke-width={2.4} />
+        <span>{open ? 'Collapse Analysis' : 'Analyze Match'}</span>
+      </button>
     </div>
   </header>
 
   <!-- Great AI Minds Mini Badges -->
   {#if greatMindsData}
     <div class="gm-mini-badges">
-      <span class="gm-mini-title"><Trophy size={12} /> Great Minds Verdict:</span>
+      <span class="gm-mini-title"><Trophy size={13} /> Great Minds Verdict:</span>
       {#if greatMindsData.consensusPicks.winner}
         <span class="gm-badge bg-winner">
           {greatMindsData.consensusPicks.winner.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.winner.consensusRatio}</strong> <Check size={11} />
@@ -151,7 +166,7 @@
         </span>
       {/if}
     </div>
-  {/if}r>
+  {/if}
 
   {#if bestPct}
     <div class="confidence-band">
@@ -511,4 +526,83 @@
   .trophy-ic { color: #f59e0b; flex-shrink: 0; display: inline-flex; }
 
   .muted { color: var(--c-text-dim, var(--c-text)); font-size: 12px; }
+
+  /* ── Analyze Match Action Button ────────────────────────────── */
+  .analyze-match-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 75%, #000));
+    border: 1px solid color-mix(in srgb, var(--accent) 50%, #fff);
+    box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 30%, transparent);
+    cursor: pointer;
+    margin-left: auto;
+    transition: transform 120ms ease, box-shadow 120ms ease, background 180ms ease;
+  }
+  .analyze-match-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  .analyze-match-btn:active {
+    transform: translateY(0);
+  }
+
+  /* ── Great AI Minds Mini Badges Bar ─────────────────────────── */
+  .gm-mini-badges {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, color-mix(in srgb, #6366f1 12%, var(--c-surface-2)), var(--c-surface-2));
+    border: 1px solid color-mix(in srgb, #6366f1 30%, transparent);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .gm-mini-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--c-text);
+  }
+  .gm-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 8px;
+    line-height: 1.3;
+  }
+  .gm-badge.bg-winner {
+    background: color-mix(in srgb, #10b981 16%, transparent);
+    border: 1px solid color-mix(in srgb, #10b981 40%, transparent);
+    color: #10b981;
+  }
+  .gm-badge.bg-spread {
+    background: color-mix(in srgb, #6366f1 16%, transparent);
+    border: 1px solid color-mix(in srgb, #6366f1 40%, transparent);
+    color: #818cf8;
+  }
+  .gm-badge.bg-total {
+    background: color-mix(in srgb, #a855f7 16%, transparent);
+    border: 1px solid color-mix(in srgb, #a855f7 40%, transparent);
+    color: #c084fc;
+  }
+  .ratio-text {
+    font-weight: 900;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 11px;
+    opacity: 0.95;
+  }
 </style>

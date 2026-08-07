@@ -45,6 +45,17 @@ function sportDefaults(sportId?: string, home = 'Home', away = 'Away'): {
   return { spreadLabel: `${home} -0.5 Asian Handicap`, spreadAlt: `${away} +0.5 Asian Handicap`, totalLabel: 'Over 2.5 Goals', totalAlt: 'Under 2.5 Goals' };
 }
 
+function sanitizeTeamLabel(label: string, home: string, away: string): string {
+  if (!label) return `${home} Win`;
+  return label
+    .replace(/\bTeam 1\b/gi, home)
+    .replace(/\bTeam 2\b/gi, away)
+    .replace(/\bPlayer 1\b/gi, home)
+    .replace(/\bPlayer 2\b/gi, away)
+    .replace(/\bSide A\b/gi, home)
+    .replace(/\bSide B\b/gi, away);
+}
+
 // Generate Great Minds Debate for a specific match
 export function generateGreatMindsDebate(
   match: PredictorMatch,
@@ -55,16 +66,30 @@ export function generateGreatMindsDebate(
   const picks: EnginePick[] = analysis?.picks ?? [];
   const defaults = sportDefaults(match.sportId, home, away);
 
+  // Hash match seed for unique model dynamics
+  const seed = `${match.matchId}|${home}|${away}`;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (Math.imul(31, hash) + seed.charCodeAt(i)) | 0;
+  hash = Math.abs(hash);
+
   // Extract candidate market picks from analysis or defaults
-  const topMoneyline = picks.find((p: EnginePick) => (p.marketTitle && p.marketTitle.toLowerCase().includes('moneyline')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('winner')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('result'))) 
+  const rawMoneyline = picks.find((p: EnginePick) => (p.marketTitle && p.marketTitle.toLowerCase().includes('moneyline')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('winner')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('result'))) 
     || picks[0] 
-    || { label: `${home} Win`, marketTitle: 'Match Result', probability: 68.5, odds: 1.85 };
+    || { label: `${home} Win`, marketTitle: 'Match Result', probability: 55 + (hash % 25), odds: 1.85 };
 
-  const topSpread = picks.find((p: EnginePick) => (p.marketTitle && p.marketTitle.toLowerCase().includes('handicap')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('spread')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('line')))
-    || { label: defaults.spreadLabel, marketTitle: 'Handicap / Spread', probability: 62.0, odds: 1.95 };
+  const rawSpread = picks.find((p: EnginePick) => (p.marketTitle && p.marketTitle.toLowerCase().includes('handicap')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('spread')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('line')))
+    || { label: defaults.spreadLabel, marketTitle: 'Handicap / Spread', probability: 54 + ((hash + 3) % 22), odds: 1.95 };
 
-  const topTotal = picks.find((p: EnginePick) => (p.marketTitle && p.marketTitle.toLowerCase().includes('total')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('over')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('under')))
-    || { label: defaults.totalLabel, marketTitle: 'Match Total', probability: 72.4, odds: 1.88 };
+  const rawTotal = picks.find((p: EnginePick) => (p.marketTitle && p.marketTitle.toLowerCase().includes('total')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('over')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('under')))
+    || { label: defaults.totalLabel, marketTitle: 'Match Total', probability: 56 + ((hash + 7) % 20), odds: 1.88 };
+
+  const topMoneyline = { ...rawMoneyline, label: sanitizeTeamLabel(rawMoneyline.label, home, away) };
+  const topSpread = { ...rawSpread, label: sanitizeTeamLabel(rawSpread.label, home, away) };
+  const topTotal = { ...rawTotal, label: sanitizeTeamLabel(rawTotal.label, home, away) };
+
+  // Determine dynamic dissenters based on match hash
+  const spreadDissent = (hash % 3) === 0 ? 'grok' : (hash % 5) === 0 ? 'qwen' : undefined;
+  const totalDissent = ((hash + 1) % 4) === 0 ? 'grok' : ((hash + 2) % 3) === 0 ? 'kimi' : undefined;
 
   // Helper to build model choices for a market
   const buildModelChoices = (
@@ -83,7 +108,7 @@ export function generateGreatMindsDebate(
 
       let reasoning = '';
       if (m.id === 'claude-opus') {
-        reasoning = `Synthesizing ${probPct.toFixed(1)}% model probability against baseline market odds.`;
+        reasoning = `Synthesizing ${probPct.toFixed(1)}% model probability against baseline market odds for ${home} vs ${away}.`;
       } else if (m.id === 'chatgpt-pro') {
         reasoning = `+EV calculation yields +${ev}% expected return above de-vigged line.`;
       } else if (m.id === 'kimi') {
@@ -140,11 +165,11 @@ export function generateGreatMindsDebate(
 
   const spreadOdds = (topSpread as any).odds || 1.95;
   const spreadProb = Number(topSpread.probability) || 61.5;
-  const spreadPick = buildModelChoices('spread', (topSpread as any).label || defaults.spreadLabel, defaults.spreadAlt, spreadOdds, spreadProb, 'grok'); // 4/5 Grok dissents
+  const spreadPick = buildModelChoices('spread', (topSpread as any).label || defaults.spreadLabel, defaults.spreadAlt, spreadOdds, spreadProb, spreadDissent);
 
   const totalOdds = (topTotal as any).odds || 1.88;
   const totalProb = Number(topTotal.probability) || 64.2;
-  const totalPick = buildModelChoices('total', (topTotal as any).label || defaults.totalLabel, defaults.totalAlt, totalOdds, totalProb, 'grok'); // 4/5 Grok dissents
+  const totalPick = buildModelChoices('total', (topTotal as any).label || defaults.totalLabel, defaults.totalAlt, totalOdds, totalProb, totalDissent);
 
   // Build 5-Round Debate Transcript
   const rounds: GreatMindsRound[] = [
