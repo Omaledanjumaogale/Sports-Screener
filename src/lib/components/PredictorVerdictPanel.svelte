@@ -4,8 +4,12 @@
   import type { Pick } from '$lib/engine';
   import PredictorPickChart from './PredictorPickChart.svelte';
 
+  import type { GreatMindsDebateResult } from '$lib/predictorTypes';
+  import GreatMindsDebatePanel from './GreatMindsDebatePanel.svelte';
+
   let {
     insight = null as AiAnalysisResult['insights'] | null,
+    greatMindsDebate = null as GreatMindsDebateResult | null,
     picks = [] as Pick[],
     metrics = [] as { label: string; value: string; note?: string; status?: string }[],
     agentsRun = [] as string[],
@@ -14,6 +18,7 @@
     accent = '#6366f1'
   }: {
     insight?: AiAnalysisResult['insights'] | null;
+    greatMindsDebate?: GreatMindsDebateResult | null;
     picks?: Pick[];
     metrics?: { label: string; value: string; note?: string; status?: string }[];
     agentsRun?: string[];
@@ -131,6 +136,11 @@
           {/each}
         </ul>
       </div>
+    {/if}
+
+    <!-- Great AI Minds Debate Panel -->
+    {#if greatMindsDebate}
+      <GreatMindsDebatePanel debate={greatMindsDebate} {accent} />
     {/if}
   </div>
 {/if}
