@@ -1,15 +1,21 @@
 <script lang="ts">
-  import { ShieldCheck, AlertTriangle, Link2, CheckCircle2 } from '@lucide/svelte';
+  import { ShieldCheck, AlertTriangle, Link2, CheckCircle2, BarChart3, Gauge } from '@lucide/svelte';
   import type { AiAnalysisResult } from '$lib/cloudflareAi';
+  import type { Pick } from '$lib/engine';
+  import PredictorPickChart from './PredictorPickChart.svelte';
 
   let {
     insight = null as AiAnalysisResult['insights'] | null,
+    picks = [] as Pick[],
+    metrics = [] as { label: string; value: string; note?: string; status?: string }[],
     agentsRun = [] as string[],
     citations = [] as string[],
     warnings = [] as string[],
     accent = '#6366f1'
   }: {
     insight?: AiAnalysisResult['insights'] | null;
+    picks?: Pick[];
+    metrics?: { label: string; value: string; note?: string; status?: string }[];
     agentsRun?: string[];
     citations?: string[];
     warnings?: string[];
@@ -29,6 +35,30 @@
 
     {#if insight.crossCheckAnalysis}
       <p class="sub">{insight.crossCheckAnalysis}</p>
+    {/if}
+
+    {#if picks.length > 0}
+      <div class="chart-block">
+        <div class="block-title"><BarChart3 size={13} stroke-width={2.2} /> Picks by Real Win Chance</div>
+        <PredictorPickChart picks={picks} limit={3} {accent} />
+      </div>
+    {/if}
+
+    {#if metrics.length > 0}
+      <div class="chart-block">
+        <div class="block-title"><BarChart3 size={13} stroke-width={2.2} /> Key metrics</div>
+        <div class="panel-metrics">
+          {#each metrics as metric}
+            <div class={`p-metric ${metric.status ? 'st-' + metric.status : 'st-empty'}`}>
+              <span class="pm-label">{metric.label}</span>
+              <strong class="pm-value">{metric.value}</strong>
+              {#if metric.note}
+                <span class="pm-note">{metric.note}</span>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      </div>
     {/if}
 
     {#if insight.top3Selections && insight.top3Selections.length > 0}
@@ -129,6 +159,47 @@
 
   .summary { font-size: 13.5px; line-height: 1.55; color: var(--c-text); margin: 6px 0; }
   .sub { font-size: 12.5px; line-height: 1.5; color: var(--c-text-dim, var(--c-text)); margin: 4px 0 10px; }
+
+  .chart-block { margin-top: 12px; }
+
+  .block-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--c-text-dim, var(--c-text));
+    margin-bottom: 8px;
+  }
+
+  .panel-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+    gap: 8px;
+  }
+
+  .p-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 11px;
+    border-radius: 12px;
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border);
+    min-width: 0;
+  }
+  .p-metric.st-green { border-color: color-mix(in srgb, #22c55e 30%, var(--c-border-md)); }
+  .p-metric.st-amber { border-color: color-mix(in srgb, #f59e0b 30%, var(--c-border-md)); }
+  .p-metric.st-red { border-color: color-mix(in srgb, #ef4444 30%, var(--c-border-md)); }
+
+  .pm-label { font-size: 10px; color: var(--c-text-dim, var(--c-text)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .p-metric.st-green .pm-value { color: #22c55e; }
+  .p-metric.st-amber .pm-value { color: #f59e0b; }
+  .p-metric.st-red .pm-value { color: #ef4444; }
+  .pm-value { font-size: 17px; font-weight: 900; color: var(--c-text); font-family: var(--font-mono, 'JetBrains Mono', monospace); line-height: 1; }
+  .pm-note { font-size: 10px; color: var(--c-text-dim, var(--c-text)); line-height: 1.3; }
 
   .top3 { margin-top: 10px; }
 

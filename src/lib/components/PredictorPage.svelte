@@ -73,6 +73,29 @@
   let progressTimer: ReturnType<typeof setInterval> | null = null;
   let revealTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // ── Per-match cached verdict reveal (clicking a card shows only that match) ──
+  let verdictCache = $state<Record<string, any | null>>({});
+  let expandedMatches = $state<Record<string, boolean>>({});
+
+  const insightFor = (m: PredictorMatch) => {
+    const hit = verdictCache[m.matchId];
+    return hit && typeof hit === 'object' ? hit : null;
+  };
+
+  async function revealMatch(m: PredictorMatch) {
+    expandedMatches = { ...expandedMatches, [m.matchId]: !expandedMatches[m.matchId] };
+    if (verdictCache[m.matchId] !== undefined) return;
+    verdictCache = { ...verdictCache, [m.matchId]: null };
+    try {
+      const verdict = await fetchPredictorVerdict(dayKey, m.matchId);
+      if (verdict?.aiReport && typeof verdict.aiReport === 'object') {
+        verdictCache = { ...verdictCache, [m.matchId]: verdict.aiReport };
+      }
+    } catch (_) {
+      /* leave null — card still shows engine picks/metrics */
+    }
+  }
+
   const isRunning = $derived(!!run && run.status === 'running');
   const refreshProgress = $derived(run?.progress ?? 0);
   const selectedSet = $derived(new Set(selectedIds));
@@ -399,11 +422,17 @@
                     match={match}
                     analysis={res.analysis}
                     qualifying={res.qualifying}
+                    insight={insightFor(match)}
+                    expanded={expandedMatches[match.matchId] ?? false}
                     {accent}
                     selectable
                     selected={isSelected(match.matchId)}
                     disabled={isPast(match)}
                     onSelect={() => toggleMatch(match.matchId)}
+                    onClick={() => {
+                      expandedMatches = { ...expandedMatches, [match.matchId]: !expandedMatches[match.matchId] };
+                      void revealMatch(match);
+                    }}
                   />
                 {/each}
               </div>
@@ -454,6 +483,8 @@
               <PredictorMatchCard match={r.match} analysis={r.analysis} qualifying={r.qualifying} {accent} expanded />
               <PredictorVerdictPanel
                 insight={r.insight ? (r.insight as import('$lib/cloudflareAi').AiAnalysisResult['insights']) : buildPredictorInsights(r.match, r.qualifying)}
+                picks={r.qualifying}
+                metrics={r.analysis?.metrics}
                 {agentsRun}
                 citations={sourcesUsed}
                 {warnings}
@@ -474,9 +505,9 @@
 
     <footer class="predictor-foot">
       <p>
-        Data refreshed nightly at 00:00 UTC from betwatch.fr and cross-reference odds, betting and prediction registries.
+        Data refreshed nightly at 00:00 WAT (23:00 UTC) from betwatch.fr and cross-reference odds, betting and prediction registries.
         Select any scheduled match to run the agent team, which surfaces only selections that clear the
-        {DEFAULT_CONFIDENCE_FLOOR}% Real Win Chance floor. Always gamble responsibly.
+        {DEFAULT_CONFIDENCE_FLOOR}% Real Win Chance floor. All match times shown in West Africa Time (WAT, UTC+1). Always gamble responsibly.
       </p>
     </footer>
   </div>

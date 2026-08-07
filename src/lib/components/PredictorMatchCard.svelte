@@ -1,50 +1,69 @@
 <script lang="ts">
-  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check } from '@lucide/svelte';
+  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge } from '@lucide/svelte';
   import type { PredictorMatch } from '$lib/predictorTypes';
   import type { Analysis, Pick } from '$lib/engine';
+  import { formatWAT } from '$lib/watTime';
+  import PredictorPickChart from './PredictorPickChart.svelte';
 
   let {
     match,
     analysis = null as Analysis | null,
     qualifying = [] as Pick[],
+    insight = null as any,
     accent = '#6366f1',
     expanded = false,
     selectable = false,
     selected = false,
     disabled = false,
-    onSelect = () => {}
+    onSelect = () => {},
+    onClick = () => {}
   }: {
     match: PredictorMatch;
     analysis?: Analysis | null;
     qualifying?: Pick[];
+    insight?: any;
     accent?: string;
     expanded?: boolean;
     selectable?: boolean;
     selected?: boolean;
     disabled?: boolean;
     onSelect?: () => void;
+    onClick?: () => void;
   } = $props();
 
-  const kickoff = $derived(
-    new Date(match.startTime).toLocaleString(undefined, {
-      weekday: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  );
+  let localOpen = $state(false);
+  const open = $derived(expanded);
 
+  const kickoff = $derived(formatWAT(match.startTime));
   const top = $derived(qualifying[0] ?? null);
   const bestPct = $derived(top ? Number(top.probability).toFixed(1) : null);
+  const bottomPicks = $derived(qualifying.length >= 3 ? qualifying.slice(0, 3) : qualifying);
+  const metrics = $derived((analysis?.metrics ?? []).slice(0, 4));
 </script>
 
-<article
+<div
   class="match-card"
   class:is-selected={selected}
   class:is-disabled={disabled}
   class:is-selectable={selectable}
+  class:is-open={open}
   style={`--accent:${accent}`}
-  onclick={selectable && !disabled ? onSelect : undefined}
-  aria-hidden={selectable ? 'false' : undefined}
+  role="button"
+  aria-label={`${match.homeTeam} vs ${match.awayTeam} — ${open ? 'Collapse' : 'Expand'} analysis`}
+  tabindex={disabled ? -1 : 0}
+  onclick={(e) => {
+    if (disabled) return;
+    onClick();
+  }}
+  onkeydown={(e) => {
+    if (disabled) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  }}
+  aria-expanded={open ? 'true' : 'false'}
+>
 >
   <header class="match-head">
     <div class="matchup">
@@ -57,8 +76,8 @@
           aria-checked={selected}
           aria-disabled={disabled}
           disabled={disabled}
-          aria-label={`${selected ? 'Remove' : 'Add'} ${match.homeTeam} vs ${match.awayTeam} ${disabled ? '(already in play)' : ''}`}
-          title={disabled ? 'Match already in play — pre-match model not valid' : selected ? 'Remove from analysis' : 'Add to analysis'}
+          aria-label={`${selected ? 'Remove' : 'Add'} ${match.homeTeam} vs ${match.awayTeam}`}
+          title={selected ? 'Remove from analysis' : 'Add to analysis'}
           onclick={(e) => {
             e.stopPropagation();
             onSelect();
@@ -72,13 +91,27 @@
       <span class="home">{match.homeTeam}</span>
       <span class="vs">vs</span>
       <span class="away">{match.awayTeam}</span>
+      <button
+        class="expand-toggle"
+        type="button"
+        aria-label={open ? 'Collapse match details' : 'Expand match details'}
+        title={open ? 'Collapse match details' : 'Expand match details'}
+        onclick={(e) => {
+          e.stopPropagation();
+          if (!disabled) {
+            onClick();
+          }
+        }}
+      >
+        <ChevronDown size={16} stroke-width={2.4} />
+      </button>
     </div>
     <div class="meta">
       {#if disabled}
         <span class="chip live">In play</span>
       {/if}
       <span class="chip league" title={match.league}>{match.league}</span>
-      <span class="chip time"><Clock3 size={12} stroke-width={2.2} />{kickoff}</span>
+      <span class="chip time"><Clock3 size={12} stroke-width={2.2} /> <span class="wat-date">{kickoff}</span></span>
       <span class="chip source">{match.source}</span>
     </div>
   </header>
@@ -96,10 +129,53 @@
     <div class="no-pick">No selection cleared the confidence floor this cycle.</div>
   {/if}
 
-  {#if expanded && analysis}
+  {#if bottomPicks.length > 0}
+    <div class="mini-section">
+      <div class="mini-title"><span><BarChart3 size={13} stroke-width={2.2} /></span> Top {bottomPicks.length} picks by Real Win Chance</div>
+      <PredictorPickChart picks={bottomPicks} limit={3} {accent} />
+    </div>
+  {/if}
+
+  {#if metrics.length > 0}
+    <div class="mini-metrics">
+      <div class="mini-title"><span><Gauge size={13} stroke-width={2.2} /></span> Key metrics</div>
+      <div class="mini-metric-grid">
+        {#each metrics as metric}
+          <div class={`mini-metric ${metric.status ? 'st-' + metric.status : 'st-empty'}`}>
+            <span class="mm-label">{metric.label}</span>
+            <strong class="mm-value">{metric.value}</strong>
+            {#if metric.note}
+              <span class="mm-note">{metric.note}</span>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
+  {#if open}
     <div class="expanded">
-      <div class="exp-title">Top qualifying selections</div>
-      {#if qualifying.length > 0}
+      <div class="exp-title">Research &amp; analysis summary</div>
+      {#if insight?.verdictSummary}
+        <p class="verdict-summary">{insight.verdictSummary}</p>
+      {/if}
+      {#if insight?.top3Selections && insight.top3Selections.length > 0}
+        <div class="insight-top3">
+          {#each insight.top3Selections.slice(0, 3) as t, i (i)}
+            <div class="insight-row">
+              <span class="rank">#{i + 1}</span>
+              <div class="insight-main">
+                <span class="selection">{t.selection}</span>
+                <span class="market">{t.marketTitle}</span>
+              </div>
+              <div class="insight-right">
+                <span class="confidence">{t.confidence}</span>
+                <span class="edge">{t.punterEdge}</span>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {:else if qualifying.length > 0}
         <ul class="pick-list">
           {#each qualifying.slice(0, 5) as p}
             <li>
@@ -123,7 +199,7 @@
       {/if}
     </div>
   {/if}
-</article>
+</div>
 
 <style>
   .match-card {
@@ -185,6 +261,23 @@
     box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 50%, transparent);
   }
 
+  .expand-toggle {
+    margin-left: auto;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--c-text-dim, var(--c-text));
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color var(--t-base, 180ms ease), transform 80ms ease;
+  }
+  .expand-toggle:hover { color: var(--accent); background: var(--c-glass-sm); }
+
   .chip.live {
     color: #f43f5e;
     border-color: color-mix(in srgb, #f43f5e 40%, transparent);
@@ -223,6 +316,8 @@
   }
 
   .chip.league { color: var(--accent); }
+  .chip.time { color: var(--c-text); }
+  .wat-date { white-space: normal; line-height: 1.3; }
 
   .confidence-band {
     margin-top: 12px;
@@ -268,9 +363,75 @@
     border: 1px dashed var(--c-border);
   }
 
+  .mini-section { margin-top: 14px; }
+  .mini-strip { margin-top: 14px; }
+
+  .mini-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--c-text-dim, var(--c-text));
+    margin-bottom: 8px;
+  }
+
+  .mini-title span { display: inline-flex; color: var(--accent); }
+
+  .mini-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 8px;
+  }
+
+  .mini-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 9px 10px;
+    border-radius: 12px;
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border);
+    min-width: 0;
+  }
+  .mini-metric.st-green { border-color: color-mix(in srgb, #22c55e 30%, var(--c-border-md)); }
+  .mini-metric.st-amber { border-color: color-mix(in srgb, #f59e0b 30%, var(--c-border-md)); }
+  .mini-metric.st-red { border-color: color-mix(in srgb, #ef4444 30%, var(--c-border-md)); }
+
+  .mm-label { font-size: 10px; color: var(--c-text-dim, var(--c-text)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .mini-metric.st-green .mm-value { color: #22c55e; }
+  .mini-metric.st-amber .mm-value { color: #f59e0b; }
+  .mini-metric.st-red .mm-value { color: #ef4444; }
+  .mm-value { font-size: 18px; font-weight: 900; color: var(--c-text); font-family: var(--font-mono, 'JetBrains Mono', monospace); line-height: 1; }
+  .mm-note { font-size: 10px; color: var(--c-text-dim, var(--c-text)); line-height: 1.3; }
+
   .expanded { margin-top: 14px; border-top: 1px solid var(--c-border); padding-top: 12px; }
 
   .exp-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-text-dim, var(--c-text)); margin-bottom: 8px; }
+
+  .verdict-summary { font-size: 13px; line-height: 1.55; color: var(--c-text); margin: 0 0 8px; }
+
+  .insight-top3 { display: flex; flex-direction: column; gap: 6px; }
+
+  .insight-row {
+    display: flex;
+    gap: 10px;
+    padding: 9px 11px;
+    border-radius: 12px;
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border);
+    align-items: flex-start;
+  }
+
+  .insight-row .rank { font-weight: 900; color: var(--accent); font-size: 13px; }
+  .insight-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .insight-main .selection { font-weight: 800; font-size: 12.5px; color: var(--c-text); }
+  .insight-main .market { font-size: 10.5px; color: var(--c-text-dim, var(--c-text)); }
+  .insight-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+  .insight-right .confidence { font-weight: 900; font-size: 12.5px; color: #22c55e; }
+  .insight-right .edge { font-size: 10px; color: #22c55e; font-weight: 700; max-width: none; }
 
   .pick-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 
