@@ -122,39 +122,82 @@ async function retryingJson(url: string, timeoutMs: number, attempts: number): P
   return last;
 }
 
-// ── The Odds API (real bookmaker odds) ───────────────────────────────────────
-export async function fetchOddsMarkets(sportKey: string, markets = 'h2h,totals,spreads'): Promise<any[]> {
-  const key = apiKeyFor(SportsApi.TheOddsApi);
-  if (!key) return [];
-  const url = `${apiUrl(SportsApi.TheOddsApi)}/sports/${sportKey}/odds/?apiKey=${key}&regions=uk,eu,us&markets=${markets}&oddsFormat=decimal`;
-  return retryingJson(url, 20_000, 3);
+// ── The Odds API / ParlayAPI (TOA-compatible, own their sport-key universe) ──
+// Both expose the same /sports + /sports/{key}/odds shape. They are quota-capped
+// free sources, so a rotation (below) alternates which one is the "primary"
+// against any single league each cycle — spreading monthly credits across the
+// month instead of exhausting one account up front. When one is out of credits
+// or unreachable the other takes over automatically (never a hard failure).
+
+const TOA_PROVIDERS: SportsApi[] = [SportsApi.ParlayApi, SportsApi.TheOddsApi];
+
+// Deterministic rotation: the first provider queried for a league flips each UTC
+// day, so across a month both capped accounts share the load instead of one
+// draining ahead of schedule.
+function toaOrderFor(sportKey: string): SportsApi[] {
+  let h = 0;
+  for (let i = 0; i < sportKey.length; i++) h = (h * 31 + sportKey.charCodeAt(i)) >>> 0;
+  const day = new Date().getUTCDate();
+  const order = [...TOA_PROVIDERS];
+  if (((h >>> 3) + day) % 2 === 0) order.reverse();
+  return order;
 }
 
-// Active sport keys from The Odds API, cached for a few minutes per process.
-export async function fetchOddsSportKeys(): Promise<string[]> {
-  const key = apiKeyFor(SportsApi.TheOddsApi);
+// GET a TOA-shaped JSON array from a provider, or [] on any failure.
+async function fetchToaProvider(provider: SportsApi, path: string, params: Record<string, string>): Promise<any[]> {
+  const key = apiKeyFor(provider);
   if (!key) return [];
-  if (oddsSportsCache && Date.now() - oddsSportsCache.at < 5 * 60 * 1000) return oddsSportsCache.keys;
-  const url = `${apiUrl(SportsApi.TheOddsApi)}/sports/?apiKey=${key}`;
-  let active: any[] = [];
-  for (let i = 0; i < 3; i++) {
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-      if (res.ok) {
-        const data: any = await res.json().catch(() => null);
-        active = Array.isArray(data)
-          ? data.filter((s: any) => s?.active && typeof s?.key === 'string').map((s: any) => s.key)
-          : [];
-        break;
-      }
-      if (!RETRYABLE_CODES.has(res.status)) break;
-    } catch {
-      // retry
-    }
-    await new Promise((r) => setTimeout(r, 700 * (i + 1)));
+  const qs = Object.entries(params)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&');
+  const url = `${apiUrl(provider)}/${path}?apiKey=${encodeURIComponent(key)}` + (qs ? `&${qs}` : '');
+  return retryingJson(url, 20_000, path === 'sports' ? 1 : 3);
+}
+
+// Active sport keys across the TOA-compatible providers, deduped.
+export async function fetchToASportKeys(): Promise<string[]> {
+  const keys = new Set<string>();
+  for (const p of TOA_PROVIDERS) {
+    if (!apiKeyFor(p)) continue;
+    const list = await fetchToaProvider(p, 'sports', {});
+    for (const s of list) if (s?.active && typeof s?.key === 'string') keys.add(s.key);
   }
-  oddsSportsCache = { at: Date.now(), keys: active };
-  return active;
+  return Array.from(keys);
+}
+
+// Real bookmaker odds for a sport key. Each account in `toaOrderFor` is queried
+// in rotation (credits spread across the month); events are merged so one account
+// exhausting its quota never strands coverage of that league.
+export async function fetchOddsMarkets(sportKey: string, markets = 'h2h,totals,spreads'): Promise<any[]> {
+  const merged = new Map<string, any>();
+  for (const p of toaOrderFor(sportKey)) {
+    const rows = await fetchToaProvider(p, `sports/${sportKey}/odds`, {
+      regions: 'uk,eu,us',
+      markets,
+      oddsFormat: 'decimal'
+    });
+    for (const r of rows ?? []) {
+      const home = String(r?.home_team || '').trim();
+      const away = String(r?.away_team || '').trim();
+      if (!home || !away) continue;
+      if (!merged.has(home + '|' + away)) merged.set(home + '|' + away, r);
+    }
+  }
+  return Array.from(merged.values());
+}
+
+// Active The Odds API sport keys, cached a few minutes per process. (ParlayAPI
+// is the primary TOA-compatible account, so its key universe is returned first.)
+export async function fetchOddsSportKeys(): Promise<string[]> {
+  if (oddsSportsCache && Date.now() - oddsSportsCache.at < 5 * 60 * 1000) return oddsSportsCache.keys;
+  try {
+    const keys = await fetchToASportKeys();
+    oddsSportsCache = { at: Date.now(), keys };
+    return keys;
+  } catch {
+    return oddsSportsCache?.keys ?? [];
+  }
 }
 
 // Resolve every active Odds API key for a sport against the live /v4/sports/
@@ -656,6 +699,7 @@ export function hasAnyApiKey(): boolean {
     SportsApi.OddsPapi,
     SportsApi.SharpApi,
     SportsApi.SportsGameOdds,
+    SportsApi.ParlayApi,
     SportsApi.PinnApi
   ].some((id) => !!apiKeyFor(id));
 }

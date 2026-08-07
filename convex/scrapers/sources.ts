@@ -307,10 +307,13 @@ export const AI_STRENGTH_LEVELS: { level: string; accuracy: string; color: strin
 //   2. SharpAPI       — flat real bookmaker odds (h2h/spread/total) across
 //                       soccer/basketball/hockey/baseball/tennis
 //   3. SportsGameOdds — events + odds for major leagues
-//   4. The Odds API   — the-odds-api (kept for drop-in parity, quota-capped)
-//   5. TheSportsDB / BallDontLie / SportsData.io — multi-sport + NBA coverage
-// The OddsPapi + SharpAPI + SportsGameOdds keys are configured as the
-// always-on data layer; the limited free-tier providers complement them.
+//   4. ParlayAPI      — TOA-compatible free odds (drop-in, 1000 credits/month)
+//   5. The Odds API   — the-odds-api (kept for drop-in parity, quota-capped)
+//   6. TheSportsDB / BallDontLie / SportsData.io — multi-sport + NBA coverage
+// The OddsPapi + SharpAPI keys are the always-on data layer; Parlay / TOA /
+// SportsGameOdds free credit buckets are rotated so monthly allocations are
+// spread across the whole month (see usage ledger in sportsApis.ts) instead of
+// being exhausted at the start of the month.
 export enum SportsApi {
   TheSportsDB = 'thesportsdb', // multi-sport fixtures (free public key)
   TheOddsApi = 'odds_api',     // ~78 sports, real bookmaker odds (quota-capped)
@@ -319,6 +322,7 @@ export enum SportsApi {
   OddsPapi = 'oddspapi',       // free: 69 sports, fixtures/schedules + odds
   SharpApi = 'sharpapi',       // flat real bookmaker odds (h2h/spread/total)
   SportsGameOdds = 'sportsgameodds', // events + odds, major leagues
+  ParlayApi = 'parlay_api',    // the-odds-api drop-in (free, 1000 credits/mo)
   PinnApi = 'pinnapi'          // pinnacle-family odds (REST needs paid plan)
 }
 
@@ -364,6 +368,12 @@ export const WORKING_APIS: { id: SportsApi; name: string; url: string; key: stri
     name: 'SportsGameOdds',
     url: 'https://api.sportsgameodds.com/v2',
     key: 'SPORTS_GAME_ODDS_API_KEY'
+  },
+  {
+    id: SportsApi.ParlayApi,
+    name: 'ParlayAPI',
+    url: 'https://parlay-api.com/v1',
+    key: 'PARLAY_API'
   },
   {
     id: SportsApi.PinnApi,

@@ -87,8 +87,12 @@ export async function fetchActiveRun(sportId: PredictorSportId, dayKey: string):
   return queryConvex<PredictorRun | null>(api.predictor.getActiveRun, { sportId, dayKey });
 }
 
-export async function startPredictorRefresh(sportId: PredictorSportId, dayKey: string): Promise<{ runId: string; alreadyRunning: boolean }> {
-  return callConvex<{ runId: string; alreadyRunning: boolean }>(api.predictor.startRefresh, { sportId, dayKey });
+export async function startPredictorRefresh(
+  sportId: PredictorSportId,
+  dayKey: string,
+  incremental = false
+): Promise<{ runId: string; alreadyRunning: boolean }> {
+  return callConvex<{ runId: string; alreadyRunning: boolean }>(api.predictor.startRefresh, { sportId, dayKey, incremental });
 }
 
 export function emptyAnalysis(): Analysis {

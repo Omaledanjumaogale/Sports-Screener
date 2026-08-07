@@ -235,6 +235,31 @@ describe('consolidateSharp (SharpAPI flat odds)', () => {
   });
 });
 
+describe('incremental refresh gate (cache-only re-score)', () => {
+  it('re-runs the floor deterministically from a STORED scope (no live odds refetch)', () => {
+    // Simulate a cached predictor match: the scope was persisted as-is by the
+    // orchestrator (markets only). The incremental path rebuilds Amara-shaped
+    // inputs from that cached scope and re-filters — it must reach the SAME
+    // qualifying verdict as the original normalize+filter pass.
+    const [original] = normalizeMatches(
+      [{ homeTeam: 'Arsenal', awayTeam: 'Coventry City', league: 'English Premier League', startTime: 1, source: 'LiveAPI', sourceUrl: '', markets: ['result', 'doubleChance', 'handicap', 'mainTotal'], oddsText: 'h2h=1.14,7.00,18.00 totals=2.5:1.85/1.95' }],
+      'football'
+    );
+    const cached = { matchId: original.matchId, scopes: { markets: original.scope.markets } };
+    const rebuilt = { matchId: cached.matchId, scope: { markets: cached.scopes.markets } };
+    expect(amaraFilter([rebuilt as any], 60).matchIds).toEqual([original.matchId]);
+  });
+
+  it('keeps a cached pick-em out of the qualifying set on re-score', () => {
+    const [pickem] = normalizeMatches(
+      [{ homeTeam: 'A', awayTeam: 'B', league: 'EPL', startTime: 1, source: 'LiveAPI', sourceUrl: '', markets: ['result', 'doubleChance', 'handicap', 'mainTotal'], oddsText: 'h2h=1.90,3.40,3.60 totals=2.5:1.90/1.90' }],
+      'football'
+    );
+    const rebuilt = { matchId: pickem.matchId, scope: { markets: pickem.scope.markets } };
+    expect(amaraFilter([rebuilt as any], 60).matchIds).not.toContain(pickem.matchId);
+  });
+});
+
 describe('apiFixturesFor (live provider chain, requires Convex env keys)', () => {
   // TS-safe env probe (tests run under node/vitest where process exists).
   const hasKeys = !!(globalThis as any).process?.env.ODDS_PAPI_API_KEY || !!(globalThis as any).process?.env.SHARPAPI_API_KEY;

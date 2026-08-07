@@ -323,7 +323,7 @@
     busy = true;
     error = '';
     try {
-      await startPredictorRefresh(sid, dk);
+      await startPredictorRefresh(sid, dk, true);
     } catch (err: any) {
       error = String(err?.message || err);
     } finally {
@@ -425,7 +425,7 @@ $effect(() => {
     busy = true;
     error = '';
     try {
-      const res = await startPredictorRefresh(sid, fromDay);
+      const res = await startPredictorRefresh(sid, fromDay, true);
       if (!res.alreadyRunning) {
         run = {
           runId: res.runId,

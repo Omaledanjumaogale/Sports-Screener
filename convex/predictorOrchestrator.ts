@@ -6,6 +6,7 @@ import { action, internalAction } from './_generated/server';
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { runSmoaPipeline } from './agents/smoa';
+import { amaraFilter, type NormalizeResult } from './agents/specialists';
 import { dailyCap } from './scrapers/sources';
 import { FILTER_CONFIDENCE_FLOOR } from './scrapers/normalize';
 import { generatePredictorVerdict, type VerdictOutcome } from './llm';
@@ -203,4 +204,109 @@ export const runRefresh = action({
 export const runRefreshInternal = internalAction({
   args: refreshArgs,
   handler: async (ctx, args) => executeRefresh(ctx, args)
+});
+
+const incrementalArgs = {
+  sportId,
+  dayKey: v.string(),
+  runId: v.optional(v.string()),
+  floor: v.optional(v.number())
+};
+
+// Incremental refresh — the Refresh button's path. Rebuilds verdicts and the day
+// status ENTIRELY from the ALREADY-CACHED matches + scopes (no live API fetch,
+// no provider rotation, no LLM spend). Amara's filter is re-run deterministically
+// over the stored scope so the "qualifying" set always reflects current floor
+// rules while non-qualifying matches keep their reference verdict. This keeps a
+// user tap cheap and instant; the 12-hourly cron remains the only full re-cache.
+async function executeIncrementalRefresh(
+  ctx: any,
+  args: { sportId: string; dayKey: string; runId?: string; floor?: number }
+): Promise<{ ok: boolean; kept: number; qualifying: number; runId: string; message: string }> {
+  const day = args.dayKey || new Date().toISOString().slice(0, 10);
+  const runId = args.runId ?? `run_inc_${args.sportId}_${day}_${Date.now()}`;
+  const floor = args.floor ?? FILTER_CONFIDENCE_FLOOR;
+
+  const report = async (progress: number, stage: string, message?: string) => {
+    await ctx.runMutation(internal.predictor.updateRun, { runId, progress, stage, message: message ?? '' });
+  };
+
+  try {
+    await report(10, 'Reading cached scopes');
+    const rows = await ctx.runQuery(internal.predictor.getCachedMatches, { sportId: args.sportId, dayKey: day });
+    if (!rows || rows.length === 0) {
+      throw new Error('No cached matches for this day — run a full refresh first.');
+    }
+    // Reconstruct Amara-shaped inputs from the cached scopes (markets only) so
+    // the gate re-evaluates today's floor with NO provider call.
+    const matches = rows.map((m: any) => ({
+      matchId: m.matchId,
+      scope: { markets: m?.scopes && typeof m.scopes === 'object' ? (m.scopes as any).markets ?? {} : {} }
+    }));
+    const filter = amaraFilter(matches as any, floor);
+    const qualifying = filter.matchIds.length;
+    const kept = rows.length;
+    await report(40, 'Re-running confidence floor');
+
+    for (const qid of filter.matchIds) {
+      const m: any = rows.find((rr: any) => rr.matchId === qid);
+      await ctx.runMutation(internal.predictor.insertVerdicts, {
+        sportId: args.sportId,
+        dayKey: day,
+        verdicts: [
+          {
+            matchId: qid,
+            agentsRun: ['Amara Obi (incremental)'],
+            citations: [],
+            floor,
+            scopeSummary: `${m?.homeTeam ?? ''} vs ${m?.awayTeam ?? ''} (${m?.league ?? ''}) — refreshed from cache.`,
+            llmUsed: false,
+            llmProvider: 'deterministic',
+            aiReport: {
+              verdictSummary: `${m?.homeTeam ?? ''} vs ${m?.awayTeam ?? ''} — incremental refresh, no live odds refetch.`,
+              valueAssessment: 'Rebuilt from cached scopes only.',
+              riskWarning: 'live odds before any real stake.',
+              tacticalRecommendation: 'await next scheduled full refresh for fresher prices.',
+              crossCheckSteps: ['Step 1: Loaded cached scopes.', 'Step 2: Re-ran the de-vig floor.', 'Step 3: Kept qualifying picks.'],
+              top3Selections: [],
+              punterEdge: 'Unchanged from cache.',
+              frenzyBiasNote: 'None recomputed this cycle.',
+              stakeAdvice: 'No new stake guidance on an incremental pass.'
+            }
+          }
+        ]
+      });
+    }
+
+    await ctx.runMutation(internal.predictor.upsertDay, {
+      sportId: args.sportId,
+      dayKey: day,
+      status: qualifying > 0 ? 'ready' : 'partial',
+      runId,
+      cap: dailyCap(),
+      sourcesUsed: ['cache'],
+      message: `${kept} matches re-scored from cache (${qualifying} qualifying)`
+    });
+    await ctx.runMutation(internal.predictor.updateRun, {
+      runId,
+      progress: 100,
+      stage: 'Complete',
+      status: 'complete',
+      message: `${kept} matches re-scored from cache`,
+      completedAt: Date.now()
+    });
+    return { ok: true, kept, qualifying, runId, message: 'Incremental refresh complete' };
+  } catch (err: any) {
+    console.error('[Predictor Incremental]', err?.message || err);
+    await ctx.runMutation(internal.predictor.updateRun, {
+      runId, progress: 100, stage: 'Failed', status: 'error',
+      message: String(err?.message || err).slice(0, 300), completedAt: Date.now()
+    });
+    return { ok: false, kept: 0, qualifying: 0, runId, message: String(err?.message || err).slice(0, 300) };
+  }
+}
+
+export const runIncrementalRefreshInternal = internalAction({
+  args: incrementalArgs,
+  handler: async (ctx, args) => executeIncrementalRefresh(ctx, args)
 });

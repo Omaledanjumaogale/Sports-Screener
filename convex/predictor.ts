@@ -2,7 +2,7 @@
 // Public queries/mutations are read/write for the predictor UI. Internal
 // mutations (marked `internal`) are called only by the SMOA orchestrator.
 
-import { query, mutation, internalMutation, internalAction } from './_generated/server';
+import { query, mutation, internalMutation, internalAction, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
 
@@ -159,10 +159,11 @@ export const getActiveRun = query({
 // ── Public mutation: user-triggered refresh ───────────────────────────────────
 
 export const startRefresh = mutation({
-  args: { sportId, dayKey: v.string() },
+  args: { sportId, dayKey: v.string(), incremental: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const runId = `run_${args.sportId}_${args.dayKey}_${now}`;
+    const incremental = args.incremental ?? false;
+    const runId = `run_${incremental ? 'inc_' : ''}${args.sportId}_${args.dayKey}_${now}`;
 
     const existing = await ctx.db
       .query('predictorRuns')
@@ -210,11 +211,19 @@ export const startRefresh = mutation({
     // If scheduling fails (e.g. the internal action is missing/not deployed),
     // degrade the run/day to 'error' gracefully instead of 500-ing the mutation.
     try {
-      ctx.scheduler.runAfter(0, internal.predictorOrchestrator.runRefreshInternal, {
-        sportId: args.sportId,
-        dayKey: args.dayKey,
-        runId
-      });
+      if (incremental) {
+        ctx.scheduler.runAfter(0, internal.predictorOrchestrator.runIncrementalRefreshInternal, {
+          sportId: args.sportId,
+          dayKey: args.dayKey,
+          runId
+        });
+      } else {
+        ctx.scheduler.runAfter(0, internal.predictorOrchestrator.runRefreshInternal, {
+          sportId: args.sportId,
+          dayKey: args.dayKey,
+          runId
+        });
+      }
     } catch (err: any) {
       console.error('[predictor] failed to schedule refresh:', err?.message || err);
       await ctx.db
@@ -436,6 +445,19 @@ export const purgeOld = internalMutation({
       .collect();
     for (const d of oldDays) await ctx.db.delete(d._id);
     return oldDays.length;
+  }
+});
+
+// Internal entry used by the orchestrator's incremental refresh to rebuild
+// verdicts from the ALREADY-CACHED matches+scopes (no new API or LLM spend).
+export const getCachedMatches = internalQuery({
+  args: { sportId, dayKey: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('predictorMatches')
+      .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey))
+      .order('asc')
+      .collect();
   }
 });
 
