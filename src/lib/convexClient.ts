@@ -200,6 +200,8 @@ export const api = {
     getDay: 'predictor:getDay',
     listMatches: 'predictor:listMatches',
     getVerdict: 'predictor:getVerdict',
+    getDailyPnlSummary: 'predictor:getDailyPnlSummary',
+    saveDailyPnlSummary: 'predictor:saveDailyPnlSummary',
     getActiveRun: 'predictor:getActiveRun',
     startRefresh: 'predictor:startRefresh'
   },

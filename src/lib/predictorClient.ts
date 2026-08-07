@@ -24,10 +24,27 @@ export async function fetchPredictorMatches(sportId: PredictorSportId, dayKey: s
 
 export async function fetchPredictorVerdict(dayKey: string, matchId: string): Promise<{
   aiReport?: any;
+  greatMindsDebate?: any;
+  dailyPnlSummary?: any;
   llmUsed?: boolean;
   llmProvider?: string;
 } | null> {
   return queryConvex(api.predictor.getVerdict, { dayKey, matchId });
+}
+
+export async function fetchDailyPnlSummary(dayKey: string, filter: 'ALL' | 'MONEYLINE' | 'SPREAD' | 'TOTAL' = 'ALL') {
+  return queryConvex(api.predictor.getDailyPnlSummary, { dayKey, filter });
+}
+
+export async function saveDailyPnlSummary(data: {
+  dayKey: string;
+  filter: 'ALL' | 'MONEYLINE' | 'SPREAD' | 'TOTAL';
+  overallWinRatePct: number;
+  overallUnitsPnl: number;
+  overallRoiPct: number;
+  rows: any;
+}) {
+  return callConvex(api.predictor.saveDailyPnlSummary, data);
 }
 
 export async function fetchActiveRun(sportId: PredictorSportId, dayKey: string): Promise<PredictorRun | null> {

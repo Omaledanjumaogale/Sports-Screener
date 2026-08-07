@@ -65,6 +65,56 @@ export const getVerdict = query({
   }
 });
 
+export const getDailyPnlSummary = query({
+  args: { dayKey: v.string(), filter: v.optional(v.union(v.literal('ALL'), v.literal('MONEYLINE'), v.literal('SPREAD'), v.literal('TOTAL'))) },
+  handler: async (ctx, args) => {
+    const filter = args.filter ?? 'ALL';
+    return await ctx.db
+      .query('aiPredictorStats')
+      .withIndex('by_day_filter', (q) => q.eq('dayKey', args.dayKey).eq('filter', filter))
+      .first();
+  }
+});
+
+export const saveDailyPnlSummary = mutation({
+  args: {
+    dayKey: v.string(),
+    filter: v.union(v.literal('ALL'), v.literal('MONEYLINE'), v.literal('SPREAD'), v.literal('TOTAL')),
+    overallWinRatePct: v.number(),
+    overallUnitsPnl: v.number(),
+    overallRoiPct: v.number(),
+    rows: v.any()
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('aiPredictorStats')
+      .withIndex('by_day_filter', (q) => q.eq('dayKey', args.dayKey).eq('filter', args.filter))
+      .first();
+
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        overallWinRatePct: args.overallWinRatePct,
+        overallUnitsPnl: args.overallUnitsPnl,
+        overallRoiPct: args.overallRoiPct,
+        rows: args.rows,
+        updatedAt: now
+      });
+      return existing._id;
+    } else {
+      return await ctx.db.insert('aiPredictorStats', {
+        dayKey: args.dayKey,
+        filter: args.filter,
+        overallWinRatePct: args.overallWinRatePct,
+        overallUnitsPnl: args.overallUnitsPnl,
+        overallRoiPct: args.overallRoiPct,
+        rows: args.rows,
+        updatedAt: now
+      });
+    }
+  }
+});
+
 export const getActiveRun = query({
   args: { sportId, dayKey: v.string() },
   handler: async (ctx, args) => {

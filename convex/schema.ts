@@ -165,6 +165,8 @@ export default defineSchema({
     sportId: PREDICTOR_SPORT_IDS,
     matchId: v.string(),
     aiReport: v.any(),
+    greatMindsDebate: v.optional(v.any()),
+    dailyPnlSummary: v.optional(v.any()),
     llmUsed: v.optional(v.boolean()),
     llmProvider: v.optional(v.string()),
     agentsRun: v.array(v.string()),
@@ -172,5 +174,26 @@ export default defineSchema({
     updatedAt: v.number()
   })
     .index('by_day_match', ['dayKey', 'matchId'])
-    .index('by_sport_day', ['sportId', 'dayKey', 'matchId'])
+    .index('by_sport_day', ['sportId', 'dayKey', 'matchId']),
+
+  aiPredictorStats: defineTable({
+    dayKey: v.string(),
+    sportId: v.optional(PREDICTOR_SPORT_IDS),
+    filter: v.union(v.literal('ALL'), v.literal('MONEYLINE'), v.literal('SPREAD'), v.literal('TOTAL')),
+    overallWinRatePct: v.number(),
+    overallUnitsPnl: v.number(),
+    overallRoiPct: v.number(),
+    rows: v.any(),
+    updatedAt: v.number()
+  })
+    .index('by_day', ['dayKey'])
+    .index('by_day_filter', ['dayKey', 'filter']),
+
+  userPreferences: defineTable({
+    userId: v.string(),
+    theme: v.union(v.literal('dark'), v.literal('light'), v.literal('system')),
+    oddsFormat: v.union(v.literal('decimal'), v.literal('american')),
+    notificationsEnabled: v.boolean(),
+    updatedAt: v.number()
+  }).index('by_user', ['userId'])
 });
