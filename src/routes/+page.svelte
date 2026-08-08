@@ -18,16 +18,18 @@
   import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User, MessageSquare, Bot, Clock3, Target, ShieldCheck, TrendingUp } from '@lucide/svelte';
   import type { PageData } from './$types';
 
-  function handleDonateClick() {
+  function handleDonateClick(tier: 'punter' | 'master' = 'punter') {
+    const user = authState.user;
+    const wantsMaster = tier === 'master';
     if (!authState.isAuthenticated) {
       notify('Please complete account registration to proceed to subscription payment.', 'info', 'Registration Required');
       try { void goto('/auth?mode=signup&redirect=checkout'); } catch (_) { /* ignore */ }
-    } else if (!authState.user?.isSubscribed) {
-      notify('Redirecting to subscription payment checkout...', 'info', 'Subscription Checkout');
-      try { void goto('/checkout'); } catch (_) { /* ignore */ }
+    } else if (!user?.isSubscribed || (wantsMaster && !user?.hasMasterPass)) {
+      notify(`Redirecting to ${wantsMaster ? 'Master Punter' : 'Punter'} subscription checkout...`, 'info', 'Subscription Checkout');
+      try { void goto(`/checkout?tier=${tier}`); } catch (_) { /* ignore */ }
     } else {
-      notify('Your monthly subscription pass is active! Enjoy full sports screener access.', 'success', 'Active Subscription');
-      try { void goto('/football'); } catch (_) { /* ignore */ }
+      notify(wantsMaster ? 'Your Master Pass is active — enjoy the AI Predictor!' : 'Your monthly subscription pass is active! Enjoy full sports screener access.', 'success', 'Active Subscription');
+      try { void goto(wantsMaster ? '/predictor' : '/football'); } catch (_) { /* ignore */ }
     }
   }
 
@@ -515,59 +517,106 @@
         <span class="pricing-badge">Monthly Pass</span>
       </div>
 
-      <div class="pricing-card">
-        <div class="pricing-glow" aria-hidden="true"></div>
-        <div class="pricing-header">
-          <span class="pass-tag">Punter Access Pass</span>
-          <h3 class="pricing-title">Full All-Sport Screener Access</h3>
-          <div class="price-box">
-            <span class="currency">₦</span>
-            <span class="amount">5,000</span>
-            <span class="period">/ month</span>
+      <div class="pricing-grid">
+        <div class="pricing-card">
+          <div class="pricing-glow" aria-hidden="true"></div>
+          <div class="pricing-header">
+            <span class="pass-tag">Punter Access Pass</span>
+            <h3 class="pricing-title">Full All-Sport Screener Access</h3>
+            <div class="price-box">
+              <span class="currency">₦</span>
+              <span class="amount">5,000</span>
+              <span class="period">/ month</span>
+            </div>
+            <p class="pricing-copy">
+              Unlock all five sport screeners (Football, Basketball, Tennis, Table Tennis & Ice Hockey) with a monthly donation of <strong>₦5,000 Naira</strong>.
+            </p>
           </div>
-          <p class="pricing-copy">
-            To access all five sport screeners (Football, Basketball, Tennis, Table Tennis & Ice Hockey), all punters are required to make a monthly donation of <strong>₦5,000 Naira</strong>.
-          </p>
+
+          <ul class="pricing-features">
+            <li>
+              <CheckCircle2 class="icon-check" size={18} />
+              <span>Unlimited screening access across Football, Basketball, Tennis, Table Tennis & Ice Hockey</span>
+            </li>
+            <li>
+              <CheckCircle2 class="icon-check" size={18} />
+              <span>4-Profile mathematical verdict engine with 5-lamp confidence scoring</span>
+            </li>
+            <li>
+              <CheckCircle2 class="icon-check" size={18} />
+              <span>Top Pick rankings with gold/silver/bronze value badges</span>
+            </li>
+            <li>
+              <CheckCircle2 class="icon-check" size={18} />
+              <span>Sequential decimal odds picker (1.01 - 5.00 by 0.01) & line selector</span>
+            </li>
+            <li>
+              <CheckCircle2 class="icon-check" size={18} />
+              <span>Convex-backed history sync & offline-first local storage</span>
+            </li>
+          </ul>
+
+          <button type="button" class="btn-donate" onclick={() => handleDonateClick('punter')}>
+            <HeartHandshake size={20} />
+            Donate ₦5,000 / Month & Get Access
+          </button>
         </div>
 
-        <ul class="pricing-features">
-          <li>
-            <CheckCircle2 class="icon-check" size={18} />
-            <span>Unlimited screening access across Football, Basketball, Tennis, Table Tennis & Ice Hockey</span>
-          </li>
-          <li>
-            <CheckCircle2 class="icon-check" size={18} />
-            <span>4-Profile mathematical verdict engine with 5-lamp confidence scoring</span>
-          </li>
-          <li>
-            <CheckCircle2 class="icon-check" size={18} />
-            <span>Top Pick rankings with gold/silver/bronze value badges</span>
-          </li>
-          <li>
-            <CheckCircle2 class="icon-check" size={18} />
-            <span>Sequential decimal odds picker (1.01 - 5.00 by 0.01) & line selector</span>
-          </li>
-          <li>
-            <CheckCircle2 class="icon-check" size={18} />
-            <span>Convex-backed history sync & offline-first local storage</span>
-          </li>
-        </ul>
+        <div class="pricing-card pricing-card-master">
+          <div class="pricing-glow pricing-glow-gold" aria-hidden="true"></div>
+          <span class="best-value-badge">⭐ BEST VALUE</span>
+          <div class="pricing-header">
+            <span class="pass-tag tag-gold">Master Punter Pass</span>
+            <h3 class="pricing-title">Everything + the AI Predictor</h3>
+            <div class="price-box">
+              <span class="currency cur-gold">₦</span>
+              <span class="amount">10,000</span>
+              <span class="period">/ month</span>
+            </div>
+            <p class="pricing-copy">
+              The full Punter Pass plus the <strong>AI Predictor</strong> — a multi-agent team that surfaces only matches clearing the <strong>60% Real Win Chance floor</strong> across 11 sports.
+            </p>
+          </div>
 
-        <button type="button" class="btn-donate" onclick={handleDonateClick}>
-          <HeartHandshake size={20} />
-          Donate ₦5,000 / Month & Get Access
-        </button>
+          <ul class="pricing-features">
+            <li>
+              <CheckCircle2 class="icon-check check-gold" size={18} />
+              <span>Everything in the ₦5,000 Punter Pass</span>
+            </li>
+            <li>
+              <CheckCircle2 class="icon-check check-gold" size={18} />
+              <span>🤖 AI Predictor: 9 Nigeria-named agents (Eze Ugo & team)</span>
+            </li>
+            <li>
+              <CheckCircle2 class="icon-check check-gold" size={18} />
+              <span>Only matches over the 60% Real Win Chance confidence floor</span>
+            </li>
+            <li>
+              <CheckCircle2 class="icon-check check-gold" size={18} />
+              <span>Real Win Chance, Punter Edge & risk warnings on every pick</span>
+            </li>
+            <li>
+              <CheckCircle2 class="icon-check check-gold" size={18} />
+              <span>1–7 day fixture window across 11 sports, refreshed nightly & on demand</span>
+            </li>
+          </ul>
 
-        <a
-          href="https://wa.me/2349025152818?text=Hello%20Founder%2C%20I%20have%20an%20enquiry%20regarding%20PulseOdds%20Screener"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="btn-whatsapp"
-        >
-          <MessageSquare size={20} />
-          Chat / Make Enquiries with Founder on WhatsApp
-        </a>
+          <button type="button" class="btn-donate btn-donate-master" onclick={() => handleDonateClick('master')}>
+            <Sparkles size={20} />
+            Upgrade to Master Pass — ₦10,000 / Month
+          </button>
+        </div>
       </div>
+
+      <a
+        href="https://wa.me/2349025152818?text=Hello%20Founder%2C%20I%20have%20an%20enquiry%20regarding%20PulseOdds%20Screener"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="btn-whatsapp"
+      >
+        <MessageSquare size={20} />
+        Chat / Make Enquiries with Founder on WhatsApp
+      </a>
     </section>
 
     <!-- ── Disclaimer Section ─────────────────────────────── -->
@@ -1002,9 +1051,17 @@
   }
 
   /* ── Pricing Section ───────────────────────────────────────── */
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    gap: 20px;
+    max-width: 880px;
+    margin: 0 auto;
+  }
+
   .pricing-card {
     position: relative;
-    width: min(100%, 640px);
+    width: 100%;
     margin: 0 auto;
     padding: 32px 24px;
     border-radius: 24px;
@@ -1020,6 +1077,26 @@
     overflow: hidden;
   }
 
+  .pricing-card-master {
+    border: 1.5px solid color-mix(in srgb, #fbbf24 60%, transparent);
+    box-shadow: 0 20px 56px -12px color-mix(in srgb, #fbbf24 28%, transparent);
+  }
+
+  .best-value-badge {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 2;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #1a1200;
+    font-size: 10.5px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    box-shadow: 0 6px 18px -2px color-mix(in srgb, #fbbf24 60%, transparent);
+  }
+
   .pricing-glow {
     position: absolute;
     top: -100px; left: 50%;
@@ -1028,6 +1105,10 @@
     border-radius: 50%;
     background: radial-gradient(circle, color-mix(in srgb, var(--c-orange) 25%, transparent) 0%, transparent 70%);
     pointer-events: none;
+  }
+
+  .pricing-glow-gold {
+    background: radial-gradient(circle, color-mix(in srgb, #fbbf24 30%, transparent) 0%, transparent 70%);
   }
 
   .pricing-header {
@@ -1147,6 +1228,15 @@
     box-shadow: 0 12px 32px -4px color-mix(in srgb, var(--c-orange) 65%, transparent);
   }
   .btn-donate:active { transform: scale(0.98); }
+
+  .tag-gold { color: #fbbf24; background: color-mix(in srgb, #fbbf24 14%, var(--c-surface)); border-color: color-mix(in srgb, #fbbf24 30%, transparent); }
+  .cur-gold { color: #fbbf24; }
+  .pricing-card-master :global(.check-gold) { color: #fbbf24; }
+  .btn-donate-master {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 55%, #f97316 100%);
+    box-shadow: 0 8px 24px -4px color-mix(in srgb, #fbbf24 50%, transparent);
+  }
+  .btn-donate-master:hover { box-shadow: 0 12px 32px -4px color-mix(in srgb, #fbbf24 70%, transparent); }
 
   .btn-whatsapp {
     display: inline-flex;

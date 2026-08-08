@@ -58,6 +58,8 @@ export interface UserSession {
   isAdmin?: boolean;
   isTester?: boolean;
   subscriptionExpiresAt?: number;
+  subscriptionTier?: 'punter' | 'master';
+  hasMasterPass?: boolean;
   txRef?: string;
 }
 
@@ -81,12 +83,15 @@ export function initAuth() {
         if (isAdmin) {
           data.user.isSubscribed = true;
           data.user.isAdmin = true;
+          data.user.subscriptionTier = 'master';
+          data.user.hasMasterPass = true;
         } else if (isTester) {
           const expAt = getTesterTrialExpiresAt();
           const now = Date.now();
           data.user.isTester = true;
           data.user.subscriptionExpiresAt = expAt;
           data.user.isSubscribed = now <= expAt;
+          data.user.hasMasterPass = now <= expAt;
         } else {
           // Check if subscription has expired for normal users
           const now = Date.now();
@@ -118,6 +123,8 @@ export function setAuthenticated(user: UserSession, token: string) {
   if (isAdmin) {
     user.isSubscribed = true;
     user.isAdmin = true;
+    user.subscriptionTier = 'master';
+    user.hasMasterPass = true;
   } else if (isTester) {
     user.isTester = true;
     // Prefer the server-anchored expiry (from `syncAccess`); fall back to the
@@ -126,10 +133,12 @@ export function setAuthenticated(user: UserSession, token: string) {
     if (serverExp) {
       user.subscriptionExpiresAt = serverExp;
       user.isSubscribed = Date.now() <= serverExp;
+      user.hasMasterPass = Date.now() <= serverExp;
     } else {
       const expAt = getTesterTrialExpiresAt();
       user.subscriptionExpiresAt = expAt;
       user.isSubscribed = Date.now() <= expAt;
+      user.hasMasterPass = Date.now() <= expAt;
     }
   }
 
@@ -166,6 +175,8 @@ export async function refreshAccess(): Promise<void> {
       isTester: !!me.isTester,
       isSubscribed: !!me.isSubscribed,
       subscriptionExpiresAt: me.subscriptionExpiresAt ?? me.trialExpiresAt,
+      subscriptionTier: me.subscriptionTier || authState.user.subscriptionTier,
+      hasMasterPass: !!me.hasMasterPass,
       txRef: authState.user.txRef
     };
     authState.isAuthenticated = true;
@@ -180,12 +191,14 @@ export async function refreshAccess(): Promise<void> {
   }
 }
 
-export function setSubscribedStatus(isSubscribed: boolean, txRef?: string, durationDays = 30) {
+export function setSubscribedStatus(isSubscribed: boolean, txRef?: string, tier?: 'punter' | 'master') {
   if (!authState.user) return;
   const isAdmin = isSuperAdminEmail(authState.user.email);
   const isTester = isTesterEmail(authState.user.email);
   const now = Date.now();
-  const expiresAt = isTester ? getTesterTrialExpiresAt() : (now + durationDays * 24 * 60 * 60 * 1000);
+  const expiresAt = isTester ? getTesterTrialExpiresAt() : (now + 30 * 24 * 60 * 60 * 1000);
+  const effectiveTier: 'punter' | 'master' | undefined =
+    isAdmin || isTester ? 'master' : tier ?? authState.user.subscriptionTier ?? 'punter';
 
   authState.user = {
     ...authState.user,
@@ -193,6 +206,8 @@ export function setSubscribedStatus(isSubscribed: boolean, txRef?: string, durat
     isAdmin: isAdmin || authState.user.isAdmin,
     isTester: isTester || authState.user.isTester,
     subscriptionExpiresAt: isAdmin ? undefined : expiresAt,
+    subscriptionTier: effectiveTier,
+    hasMasterPass: isAdmin || isTester || (isSubscribed && effectiveTier === 'master'),
     txRef: txRef ?? authState.user.txRef
   };
 
@@ -218,4 +233,17 @@ export function setUnauthenticated() {
   } catch (e) {
     console.error('Failed to clear auth session:', e);
   }
+}
+
+// The AI Predictor is a Master Pass feature (admins and testers always pass).
+export function canAccessPredictor(user?: UserSession | null): boolean {
+  if (!user) return false;
+  if (user.isAdmin) return true;
+  if (user.hasMasterPass) return true;
+  // Tester trial grants master access while active.
+  if (isTesterEmail(user.email)) {
+    const expiry = user.subscriptionExpiresAt ?? getTesterTrialExpiresAt();
+    return Date.now() <= expiry;
+  }
+  return false;
 }

@@ -34,6 +34,8 @@ export type AccessStatus = {
   isSubscribed: boolean;
   subscriptionExpiresAt?: number;
   trialExpiresAt?: number;
+  subscriptionTier?: 'punter' | 'master';
+  hasMasterPass?: boolean;
 };
 
 // Resolve the identity's email/name. `@convex-dev/auth` JWTs only carry `sub`
@@ -87,7 +89,22 @@ async function deriveAccess(
       !!profile?.isSubscribed && (!subscriptionExpiresAt || subscriptionExpiresAt > now);
   }
 
-  return { email, isAdmin, isTester, isSubscribed, subscriptionExpiresAt, trialExpiresAt };
+  const subscriptionTier = profile?.subscriptionTier;
+  // Master Pass = admins, active testers (full trial), or subscribers whose
+  // recorded tier is 'master'.
+  const hasMasterPass =
+    isAdmin || (isTester && isSubscribed) || (isSubscribed && subscriptionTier === 'master');
+
+  return {
+    email,
+    isAdmin,
+    isTester,
+    isSubscribed,
+    subscriptionExpiresAt,
+    trialExpiresAt,
+    subscriptionTier,
+    hasMasterPass
+  };
 }
 
 // ── Identity-aware queries / mutations ───────────────────────────────────────
@@ -181,7 +198,9 @@ export const syncAccess = mutation({
         isTester: true,
         isSubscribed: active,
         subscriptionExpiresAt: trialExpiresAt,
-        trialExpiresAt
+        trialExpiresAt,
+        subscriptionTier: 'master',
+        hasMasterPass: active
       };
     }
 
@@ -191,21 +210,25 @@ export const syncAccess = mutation({
           userId: subject,
           role: 'admin',
           isSubscribed: true,
+          subscriptionTier: 'master',
           updatedAt: now
         });
       }
-      return { email, isAdmin: true, isTester: false, isSubscribed: true };
+      return { email, isAdmin: true, isTester: false, isSubscribed: true, subscriptionTier: 'master', hasMasterPass: true };
     }
 
     // Regular user — recompute from profile subscription.
     const active =
       !!profile?.isSubscribed && (!profile.subscriptionExpiresAt || profile.subscriptionExpiresAt > now);
+    const subscriptionTier = profile?.subscriptionTier;
     return {
       email,
       isAdmin: false,
       isTester: false,
       isSubscribed: active,
-      subscriptionExpiresAt: profile?.subscriptionExpiresAt
+      subscriptionExpiresAt: profile?.subscriptionExpiresAt,
+      subscriptionTier,
+      hasMasterPass: active && subscriptionTier === 'master'
     };
   }
 });
@@ -332,17 +355,21 @@ export const verifyFlutterwaveCharge = action({
     const now = Date.now();
     const durationDays = 30;
     const expiresAt = now + durationDays * 24 * 60 * 60 * 1000;
+    const amount = Number(tx.amount) || 5000;
+    // ₦10,000+ → Master Pass (includes the AI Predictor); otherwise Punter.
+    const tier: 'punter' | 'master' = amount >= 9500 ? 'master' : 'punter';
 
     await ctx.runMutation(api.users.markSubscribed, {
       email: args.email.trim().toLowerCase(),
       txRef: args.txRef,
       transactionId: String(tx.id || ''),
-      amount: Number(tx.amount) || 5000,
+      amount,
       durationDays,
+      tier,
       webhookSecret: process.env.FLW_SECRET_HASH || ''
     });
 
-    return { success: true, expiresAt, txRef: args.txRef, amount: Number(tx.amount) };
+    return { success: true, expiresAt, txRef: args.txRef, amount, tier };
   }
 });
 
@@ -355,6 +382,7 @@ export const markSubscribed = mutation({
     transactionId: v.optional(v.string()),
     amount: v.optional(v.number()),
     durationDays: v.optional(v.number()),
+    tier: v.optional(v.union(v.literal('punter'), v.literal('master'))),
     webhookSecret: v.optional(v.string())
   },
   handler: async (ctx, args) => {
@@ -376,6 +404,7 @@ export const markSubscribed = mutation({
       await ctx.db.patch(existingProfile._id, {
         isSubscribed: true,
         subscriptionExpiresAt: expiresAt,
+        subscriptionTier: args.tier ?? 'punter',
         flutterwaveTxRef: args.txRef,
         updatedAt: now
       });
@@ -398,6 +427,7 @@ export const markSubscribed = mutation({
         email,
         txRef: args.txRef,
         transactionId: args.transactionId,
+        tier: args.tier ?? 'punter',
         amount: args.amount ?? 5000,
         currency: 'NGN',
         status: 'successful',

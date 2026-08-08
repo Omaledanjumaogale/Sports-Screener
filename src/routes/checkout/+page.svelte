@@ -8,6 +8,7 @@
   import { ShieldCheck, HeartHandshake, CheckCircle2, Lock, ArrowLeft, ExternalLink, RefreshCw } from '@lucide/svelte';
 
   const DIRECT_PAYMENT_LINK = (import.meta as any).env?.VITE_FLW_PAYMENT_LINK || 'https://flutterwave.com/pay/ndypongylu8q';
+  const MASTER_PAYMENT_LINK = (import.meta as any).env?.VITE_FLW_MASTER_PAYMENT_LINK || '';
   const FLW_PUBLIC_KEY = (import.meta as any).env?.VITE_FLW_PUBLIC_KEY || 'FLWPUBK-3d7724be-0c38-4ba7-bbb0-6bfab94637b1-X';
 
   let verifying = $state(false);
@@ -18,12 +19,55 @@
   let userName = $derived(authState.user?.fullName || authState.user?.name || 'Punter');
   let userPhone = $derived(authState.user?.mobile || '');
 
+  // ── Plan selection (two tiers) ─────────────────────────────────────────────
+  type Tier = 'punter' | 'master';
+  let plan = $state<Tier>('punter');
+
+  const PLANS: Record<
+    Tier,
+    { label: string; tag: string; amount: number; blurb: string; features: string[]; highlight?: string }
+  > = {
+    punter: {
+      label: 'Punter Pass',
+      tag: 'All-Sport Screeners',
+      amount: 5000,
+      blurb: 'Unlock every sport screener + AI Copilot for a full month.',
+      features: [
+        '⚽ Football Screener (FT & HT Scope Intelligence)',
+        '🏀 Basketball Screener (Market Expected Totals & Pace)',
+        '🎾 Tennis Screener (MEG & Dual Tiebreak Indicators)',
+        '🏓 Table Tennis Screener (Full Match & Set 1 Sweep Shapes)',
+        '🏒 Ice Hockey Screener (Puck Lines & Overtime Intelligence)',
+        '⚡ Real-Time AI Copilot Analysis & Verdict Projections'
+      ]
+    },
+    master: {
+      label: 'Master Punter Pass',
+      tag: 'Everything in Punter + AI Predictor',
+      amount: 10000,
+      blurb: 'The full Punter Pass plus Eze Ugo & the agent team — daily high-confidence AI Predictor picks.',
+      features: [
+        'Everything in the ₦5,000 Punter Pass',
+        '🧠 AI Predictor — matches that clear the 60% Real Win Chance floor',
+        '🤖 Nine Nigeria-named AI agents (fixtures, odds, volume, risk & more)',
+        '📊 Real Win Chance, Punter Edge & risk warnings on every pick',
+        '📅 1–7 day fixture window with live refresh',
+        '⚡ Real-Time AI Copilot Analysis & Verdict Projections'
+      ],
+      highlight: 'BEST VALUE'
+    }
+  };
+
   // ── Handle Return from Flutterwave Payment Redirect ──────────────────────
   onMount(async () => {
     const params = $page.url.searchParams;
     const status = params.get('status');
     const txRef = params.get('tx_ref') || params.get('transaction_id') || params.get('flw_ref');
     const transactionId = params.get('transaction_id') || undefined;
+
+    const tierParam = params.get('tier');
+    if (tierParam === 'master') plan = 'master';
+    else if (tierParam === 'punter') plan = 'punter';
 
     // If returning from payment with status=successful
     if (status === 'successful' || status === 'completed' || params.get('verified') === 'true') {
@@ -52,20 +96,23 @@
         email: userEmail
       });
 
-      setSubscribedStatus(true, txRef, 30);
+      const tier: Tier = result?.tier === 'master' ? 'master' : 'punter';
+      setSubscribedStatus(true, txRef, tier);
       void refreshAccess();
       verifyingSuccess = true;
 
+      const name = PLANS[tier].label;
+      const amount = (result?.amount ?? PLANS[tier].amount).toLocaleString();
       notify(
-        'Payment verified and completed successfully! Your ₦5,000 monthly pass is now active with full access to all sports screeners.',
+        `Payment verified and completed successfully! Your ${name} (₦${amount} / month) is now active.`,
         'success',
         'Subscription Activated!',
         6000
       );
 
-      // Automatically redirect to football screener after 2 seconds
+      // Automatically redirect: master → AI Predictor, punter → football screener.
       setTimeout(() => {
-        void goto('/football');
+        void goto(tier === 'master' ? '/predictor' : '/football');
       }, 2000);
     } catch (err: any) {
       verifyingError = err?.message || 'Failed to verify payment. Please contact support.';
@@ -76,13 +123,21 @@
   }
 
   function handleDirectPayment() {
-    notify('Redirecting to official Flutterwave checkout link...', 'info', 'Payment Checkout');
-    
+    const active = PLANS[plan];
+    // The ₦5,000 direct link is always available; the master link is pluggable
+    // via env — until one is configured, fall back to the inline SDK for master.
+    if (plan === 'master' && !MASTER_PAYMENT_LINK) {
+      handleInlineCheckout();
+      return;
+    }
+    const link = plan === 'master' ? MASTER_PAYMENT_LINK : DIRECT_PAYMENT_LINK;
+    notify(`Redirecting to official Flutterwave checkout (${active.label})...`, 'info', 'Payment Checkout');
+
     // Construct prefilled link with customer details
-    const prefilledUrl = new URL(DIRECT_PAYMENT_LINK);
+    const prefilledUrl = new URL(link);
     if (userEmail) prefilledUrl.searchParams.set('email', userEmail);
     if (userName) prefilledUrl.searchParams.set('name', userName);
-    
+
     if (typeof window !== 'undefined') {
       window.location.assign(prefilledUrl.toString());
     }
@@ -107,12 +162,13 @@
   }
 
   function openFlwModal() {
-    const txRef = 'PO_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    const active = PLANS[plan];
+    const txRef = (plan === 'master' ? 'MASTER_PO_' : 'PO_') + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 
     (window as any).FlutterwaveCheckout({
       public_key: FLW_PUBLIC_KEY,
       tx_ref: txRef,
-      amount: 5000,
+      amount: active.amount,
       currency: 'NGN',
       payment_options: 'card, banktransfer, ussd, qr',
       customer: {
@@ -121,8 +177,8 @@
         name: userName
       },
       customizations: {
-        title: 'PulseOdds Monthly Subscription Pass',
-        description: 'Monthly Punter Donation Pass (₦5,000 NGN)',
+        title: `PulseOdds ${active.label}`,
+        description: `Monthly ${active.label} (₦${active.amount.toLocaleString()} NGN)`,
         logo: 'https://pulseodds.pages.dev/favicon.ico'
       },
       callback: async (data: any) => {
@@ -159,8 +215,36 @@
       </div>
       <h2>Complete Subscription Pass</h2>
       <p class="subtitle">
-        Activate your <strong>₦5,000 / month</strong> donation subscription to unlock full all-sport screener intelligence &amp; AI Copilot.
+        Choose your monthly pass. Punter unlocks every sport screener &amp; AI Copilot — Master
+        adds the AI Predictor with high-confidence picks.
       </p>
+    </div>
+
+    <!-- Plan Selection Cards -->
+    <div class="plan-picker" role="radiogroup" aria-label="Choose subscription plan">
+      {#each (['punter', 'master'] as const) as key (key)}
+        {@const p = PLANS[key]}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={plan === key}
+          class:is-active={plan === key}
+          class:is-master={key === 'master'}
+          class="plan-card"
+          onclick={() => (plan = key)}
+        >
+          {#if p.highlight}
+            <span class="plan-badge">{p.highlight}</span>
+          {/if}
+          <span class="plan-label">{p.label}</span>
+          <span class="plan-tag">{p.tag}</span>
+          <span class="plan-price">
+            <span class="currency">₦</span><span class="amount">{p.amount.toLocaleString()}</span>
+            <span class="period">/ month</span>
+          </span>
+          <span class="plan-blurb">{p.blurb}</span>
+        </button>
+      {/each}
     </div>
 
     {#if verifying}
@@ -197,44 +281,26 @@
       </div>
       <div class="summary-row">
         <span class="label">Plan:</span>
-        <strong class="value">Monthly Punter Pass</strong>
+        <strong class="value">{PLANS[plan].label}</strong>
       </div>
       <div class="summary-row">
         <span class="label">Access Scope:</span>
-        <strong class="value highlight">All 5 Sport Screeners + AI Copilot</strong>
+        <strong class="value highlight">{plan === 'master' ? 'All Screeners + AI Predictor' : 'All 5 Sport Screeners + AI Copilot'}</strong>
       </div>
       <div class="summary-row price-row">
         <span class="label">Monthly Donation Amount:</span>
-        <strong class="amount">₦5,000 <span class="period">/ month</span></strong>
+        <strong class="amount">₦{PLANS[plan].amount.toLocaleString()} <span class="period">/ month</span></strong>
       </div>
     </div>
 
     <!-- Included Features Checklist -->
     <ul class="features-list">
-      <li>
-        <CheckCircle2 size={16} class="check-icon" />
-        <span>⚽ Football Screener (FT &amp; HT Scope Intelligence)</span>
-      </li>
-      <li>
-        <CheckCircle2 size={16} class="check-icon" />
-        <span>🏀 Basketball Screener (Market Expected Totals &amp; Pace)</span>
-      </li>
-      <li>
-        <CheckCircle2 size={16} class="check-icon" />
-        <span>🎾 Tennis Screener (MEG &amp; Dual Tiebreak Indicators)</span>
-      </li>
-      <li>
-        <CheckCircle2 size={16} class="check-icon" />
-        <span>🏓 Table Tennis Screener (Full Match &amp; Set 1 Sweep Shapes)</span>
-      </li>
-      <li>
-        <CheckCircle2 size={16} class="check-icon" />
-        <span>🏒 Ice Hockey Screener (Puck Lines &amp; Overtime Intelligence)</span>
-      </li>
-      <li>
-        <CheckCircle2 size={16} class="check-icon" />
-        <span>⚡ Real-Time AI Copilot Analysis &amp; Verdict Projections</span>
-      </li>
+      {#each PLANS[plan].features as feature}
+        <li>
+          <CheckCircle2 size={16} class="check-icon" />
+          <span>{feature}</span>
+        </li>
+      {/each}
     </ul>
 
     <!-- Action Buttons -->
@@ -247,7 +313,7 @@
         disabled={verifying}
       >
         <HeartHandshake size={20} />
-        <span>Proceed to Flutterwave Checkout (₦5,000)</span>
+        <span>Proceed to Flutterwave Checkout (₦{PLANS[plan].amount.toLocaleString()})</span>
         <ExternalLink size={16} class="ext-icon" />
       </button>
 
@@ -285,9 +351,9 @@
     background: var(--c-surface, #111827);
     border: 1px solid var(--c-border, rgba(255, 255, 255, 0.1));
     border-radius: 24px;
-    padding: 32px 36px;
+    padding: 28px 32px;
     width: 100%;
-    max-width: 520px;
+    max-width: 560px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
     backdrop-filter: blur(20px);
   }
@@ -321,9 +387,62 @@
   }
   .pulse-icon { font-size: 24px; filter: drop-shadow(0 0 8px #f97316); }
 
-  .checkout-header { text-align: center; margin-bottom: 24px; }
+  .checkout-header { text-align: center; margin-bottom: 20px; }
   .checkout-header h2 { margin: 0 0 8px; font-size: 22px; font-weight: 900; color: var(--c-text, #f1f5ff); }
-  .subtitle { margin: 0; color: var(--c-muted, #8899bb); font-size: 13.5px; line-height: 1.5; }
+  .subtitle { margin: 0; color: var(--c-muted, #8899bb); font-size: 13px; line-height: 1.5; }
+
+  /* Plan Picker */
+  .plan-picker {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .plan-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    padding: 16px 16px 14px;
+    border-radius: 16px;
+    background: var(--c-bg, #0b0f17);
+    border: 1.5px solid var(--c-border, rgba(255, 255, 255, 0.1));
+    color: var(--c-text, #f1f5ff);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  }
+  .plan-card:hover { border-color: color-mix(in srgb, #f97316 45%, transparent); }
+  .plan-card.is-active { border-color: #f97316; box-shadow: 0 8px 28px color-mix(in srgb, #f97316 22%, transparent); }
+  .plan-card.is-master.is-active { border-color: #fbbf24; box-shadow: 0 8px 30px color-mix(in srgb, #fbbf24 26%, transparent); }
+  .plan-card:active { transform: scale(0.98); }
+  .plan-badge {
+    position: absolute;
+    top: -9px;
+    right: 10px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #1a1200;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+  }
+  .plan-label { font-size: 14px; font-weight: 900; }
+  .plan-tag { font-size: 10.5px; font-weight: 700; color: var(--c-orange, #f97316); text-transform: uppercase; letter-spacing: 0.05em; }
+  .is-master .plan-tag { color: #fbbf24; }
+  .plan-price { display: inline-flex; align-items: baseline; gap: 2px; margin-top: 4px; }
+  .plan-price .currency { font-size: 15px; font-weight: 800; color: var(--c-orange, #f97316); }
+  .is-master .plan-price .currency { color: #fbbf24; }
+  .plan-price .amount { font-size: 22px; font-weight: 900; font-family: var(--font-mono, monospace); color: var(--c-orange, #f97316); }
+  .is-master .plan-price .amount { color: #fbbf24; }
+  .plan-price .period { font-size: 11px; color: var(--c-muted, #8899bb); }
+  .plan-blurb { font-size: 11px; line-height: 1.45; color: var(--c-muted, #8899bb); margin: 0; }
+
+  @media (max-width: 480px) {
+    .plan-picker { grid-template-columns: 1fr; }
+  }
 
   .state-banner {
     display: flex;

@@ -94,6 +94,7 @@ export default defineSchema({
     trialStartsAt: v.optional(v.number()),
     isSubscribed: v.optional(v.boolean()),
     subscriptionExpiresAt: v.optional(v.number()),
+    subscriptionTier: v.optional(v.union(v.literal('punter'), v.literal('master'))),
     flutterwaveTxRef: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number()
@@ -104,6 +105,7 @@ export default defineSchema({
     userId: v.optional(v.string()),
     txRef: v.string(),
     transactionId: v.optional(v.string()),
+    tier: v.optional(v.union(v.literal('punter'), v.literal('master'))),
     amount: v.number(),
     currency: v.string(),
     status: v.union(v.literal('pending'), v.literal('successful'), v.literal('failed')),

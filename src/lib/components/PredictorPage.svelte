@@ -49,6 +49,9 @@
     accent?: string;
   } = $props();
 
+  import { authState, canAccessPredictor } from '$lib/authStore.svelte';
+  const predictorLocked = $derived(!canAccessPredictor(authState.user));
+
   import DailyPnlSummary from './DailyPnlSummary.svelte';
   import { generateGreatMindsDebate } from '$lib/greatMindsEngine';
   import type { GreatMindsDebateResult } from '$lib/predictorTypes';
@@ -485,6 +488,7 @@ $effect(() => {
     clearProgress();
     phase = 'select';
     gameTab = 'upcoming';
+    timeBand = 'all';
     results = [];
     selectNotice = '';
     disposeSubs();
@@ -535,6 +539,35 @@ $effect(() => {
 </script>
 
 <div class="predictor-root" style={`--accent:${accent}`}>
+  {#if predictorLocked}
+    <div class="paywall">
+      <div class="paywall-card">
+        <span class="pw-badge">Master Pass</span>
+        <h2 class="pw-title">The AI Predictor is a Master Pass feature</h2>
+        <p class="pw-copy">
+          Eze Ugo &amp; the nine-agent team surface only matches clearing the {DEFAULT_CONFIDENCE_FLOOR}% Real
+          Win Chance floor across 11 sports. Upgrade your monthly pass to unlock it.
+        </p>
+        <div class="pw-points">
+          <span class="pw-point"><Check size={14} stroke-width={2.6} /> 60%+ Real Win Chance picks</span>
+          <span class="pw-point"><Check size={14} stroke-width={2.6} /> 9 specialist AI agents</span>
+          <span class="pw-point"><Check size={14} stroke-width={2.6} /> All 11 sports, refreshed nightly</span>
+        </div>
+        {#if !authState.isAuthenticated}
+          <button class="cta pw-cta" type="button" onclick={() => void goto('/auth?mode=signup&redirect=checkout')}>
+            <Wand2 size={15} stroke-width={2.4} />
+            Sign in to upgrade
+          </button>
+          <p class="pw-hint">Already a Master member? Sign in with the account that purchased the pass.</p>
+        {:else}
+          <button class="cta pw-cta" type="button" onclick={() => void goto('/checkout?tier=master')}>
+            <Wand2 size={15} stroke-width={2.4} />
+            Upgrade to Master Pass — ₦10,000 / month
+          </button>
+        {/if}
+      </div>
+    </div>
+  {:else}
   <div class="predictor-inner">
     <header class="predictor-head">
       <button class="icon-btn" aria-label="Back to sports selection" onclick={backHome} type="button">
@@ -787,6 +820,7 @@ $effect(() => {
                 citations={sourcesUsed}
                 {warnings}
                 {accent}
+                finalScore={r.match.finalScore ?? r.match.oddsSnapshot?.finalScore}
               />
             {/each}
           </div>
@@ -803,19 +837,59 @@ $effect(() => {
 
     <DailyPnlSummary matches={matches} />
 
-    <footer class="predictor-foot">
+<footer class="predictor-foot">
       <p>
         Data refreshed nightly at 00:00 WAT (23:00 UTC) from betwatch.fr and cross-reference odds, betting and prediction registries.
         Select any scheduled match to run the agent team, which surfaces only selections that clear the
         {DEFAULT_CONFIDENCE_FLOOR}% Real Win Chance floor. All match times shown in West Africa Time (WAT, UTC+1). Always gamble responsibly.
       </p>
-    </footer>
+</footer>
   </div>
+  {/if}
 </div>
 
 <style>
   .predictor-root { min-height: 100vh; background: var(--c-surface, #0b1120); }
   .predictor-inner { max-width: 680px; margin: 0 auto; padding: 14px 16px 40px; }
+
+  /* Paywall */
+  .paywall {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+  }
+  .paywall-card {
+    max-width: 460px;
+    width: 100%;
+    background: var(--c-surface-2, #16213a);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    border-radius: 20px;
+    padding: 32px 28px;
+    text-align: center;
+    box-shadow: 0 20px 60px -12px color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+  .pw-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    padding: 4px 12px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+  }
+  .pw-title { font-size: 22px; font-weight: 900; color: var(--c-text, #f1f5ff); margin: 0 0 10px; }
+  .pw-copy { font-size: 14px; line-height: 1.6; color: var(--c-text-2, #cbd5e1); margin: 0 0 18px; }
+  .pw-points { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; margin: 0 0 22px; padding: 0; }
+  .pw-point { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--c-text, #f1f5ff); }
+  .pw-point :global(svg) { color: var(--accent); flex-shrink: 0; }
+  .pw-cta { width: 100%; }
+  .pw-hint { font-size: 11.5px; color: var(--c-muted, #94a3b8); margin: 12px 0 0; }
 
   .predictor-head {
     display: flex;
