@@ -192,6 +192,15 @@
     return groups;
   });
 
+  function groupByLeague(matchList: PredictorMatch[]): Record<string, PredictorMatch[]> {
+    const groups: Record<string, PredictorMatch[]> = {};
+    for (const m of matchList) {
+      const lg = m.league || 'Other Leagues & Competitions';
+      (groups[lg] ??= []).push(m);
+    }
+    return groups;
+  }
+
   const dayMatchCount = $derived.by(() => {
     const map: Record<string, number> = {};
     for (const m of matches) map[m.dayKey || today] = (map[m.dayKey || today] ?? 0) + 1;
