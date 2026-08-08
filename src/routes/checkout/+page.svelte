@@ -6,31 +6,21 @@
   import { notify } from '$lib/notificationStore';
   import { getConvexClient, api } from '$lib/convexClient';
   import { ShieldCheck, HeartHandshake, CheckCircle2, Lock, ArrowLeft, ExternalLink, RefreshCw } from '@lucide/svelte';
+  import {
+    FLW_PUBLIC_KEY,
+    PLAN_AMOUNT,
+    PLAN_LABEL,
+    linkFor
+  } from '$lib/payments';
 
-  const DIRECT_PAYMENT_LINK = (import.meta as any).env?.VITE_FLW_PAYMENT_LINK || 'https://flutterwave.com/pay/ndypongylu8q';
-  const MASTER_PAYMENT_LINK = (import.meta as any).env?.VITE_FLW_MASTER_PAYMENT_LINK || '';
-  const FLW_PUBLIC_KEY = (import.meta as any).env?.VITE_FLW_PUBLIC_KEY || 'FLWPUBK-3d7724be-0c38-4ba7-bbb0-6bfab94637b1-X';
-
-  let verifying = $state(false);
-  let verifyingSuccess = $state(false);
-  let verifyingError = $state<string | null>(null);
-
-  let userEmail = $derived(authState.user?.email || '');
-  let userName = $derived(authState.user?.fullName || authState.user?.name || 'Punter');
-  let userPhone = $derived(authState.user?.mobile || '');
-
-  // ── Plan selection (two tiers) ─────────────────────────────────────────────
   type Tier = 'punter' | 'master';
   let plan = $state<Tier>('punter');
 
-  const PLANS: Record<
-    Tier,
-    { label: string; tag: string; amount: number; blurb: string; features: string[]; highlight?: string }
-  > = {
+  const PLANS: Record<Tier, { label: string; tag: string; amount: number; blurb: string; features: string[]; highlight?: string }> = {
     punter: {
-      label: 'Punter Pass',
+      label: PLAN_LABEL.punter,
       tag: 'All-Sport Screeners',
-      amount: 5000,
+      amount: PLAN_AMOUNT.punter,
       blurb: 'Unlock every sport screener + AI Copilot for a full month.',
       features: [
         '⚽ Football Screener (FT & HT Scope Intelligence)',
@@ -42,9 +32,9 @@
       ]
     },
     master: {
-      label: 'Master Punter Pass',
+      label: PLAN_LABEL.master,
       tag: 'Everything in Punter + AI Predictor',
-      amount: 10000,
+      amount: PLAN_AMOUNT.master,
       blurb: 'The full Punter Pass plus Eze Ugo & the agent team — daily high-confidence AI Predictor picks.',
       features: [
         'Everything in the ₦5,000 Punter Pass',
@@ -57,6 +47,14 @@
       highlight: 'BEST VALUE'
     }
   };
+
+  let verifying = $state(false);
+  let verifyingSuccess = $state(false);
+  let verifyingError = $state<string | null>(null);
+
+  let userEmail = $derived(authState.user?.email || '');
+  let userName = $derived(authState.user?.fullName || authState.user?.name || 'Punter');
+  let userPhone = $derived(authState.user?.mobile || '');
 
   // ── Handle Return from Flutterwave Payment Redirect ──────────────────────
   onMount(async () => {
@@ -124,13 +122,9 @@
 
   function handleDirectPayment() {
     const active = PLANS[plan];
-    // The ₦5,000 direct link is always available; the master link is pluggable
-    // via env — until one is configured, fall back to the inline SDK for master.
-    if (plan === 'master' && !MASTER_PAYMENT_LINK) {
-      handleInlineCheckout();
-      return;
-    }
-    const link = plan === 'master' ? MASTER_PAYMENT_LINK : DIRECT_PAYMENT_LINK;
+    // Both tiers now have an official Flutterwave web-checkout link shared from
+    // $lib/payments. Master → ₦10,000 link; Punter → ₦5,000 link.
+    const link = linkFor(plan);
     notify(`Redirecting to official Flutterwave checkout (${active.label})...`, 'info', 'Payment Checkout');
 
     // Construct prefilled link with customer details

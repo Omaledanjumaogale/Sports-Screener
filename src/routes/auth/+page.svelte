@@ -130,7 +130,7 @@
         void goto('/checkout');
       } else if (isSignUp) {
         notify(
-          'Account created successfully! Redirecting you to complete your ₦5,000 monthly subscription donation to unlock sports screeners.',
+          'Account created successfully! Choose your monthly pass to unlock the screeners (₦5,000 Punter or ₦10,000 Master Pass).',
           'success',
           'Registration Complete!',
           5000
@@ -138,7 +138,7 @@
         void goto('/checkout');
       } else if (redirectTarget === 'checkout' || !isSubscribed) {
         notify(
-          'Welcome back! Please complete your subscription payment to access all sports screeners.',
+          'Welcome back! Complete your subscription payment (₦5,000 Punter or ₦10,000 Master Pass) to access all sports screeners.',
           'info',
           'Subscription Required'
         );
@@ -177,7 +177,7 @@
       <h2>{isSignUp ? 'Create your account' : 'Welcome back'}</h2>
       <p class="subtitle">
         {isSignUp 
-          ? 'Sign up to register your punter profile and proceed to subscription checkout.' 
+          ? 'Sign up to register your punter profile and proceed to subscription checkout (₦5,000 Punter or ₦10,000 Master Pass).' 
           : 'Log in to access your saved screeners and subscription pass.'}
       </p>
     </div>
@@ -309,7 +309,7 @@
           <span class="spinner"></span>
         {:else}
           {#if isSignUp}
-            <UserPlus size={18} /> Submit &amp; Proceed to Payment (₦5,000)
+            <UserPlus size={18} /> Submit &amp; Proceed to Payment (₦5,000 / ₦10,000)
           {:else}
             <LogIn size={18} /> Log In to PulseOdds
           {/if}

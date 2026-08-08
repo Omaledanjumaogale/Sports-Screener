@@ -229,7 +229,7 @@
           const client = await getConvexClient();
           const sub = await client.query(api.users.checkSubscription, { email: authState.user.email });
           if (sub?.isSubscribed) {
-            setSubscribedStatus(true, sub.txRef);
+            setSubscribedStatus(true, sub.txRef, (sub as any)?.subscriptionTier as 'punter' | 'master' | undefined);
           }
         } catch (_) { /* fallback */ }
       }

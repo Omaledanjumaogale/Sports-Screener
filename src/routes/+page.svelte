@@ -15,8 +15,9 @@
   import { authState, setUnauthenticated } from '$lib/authStore.svelte';
   import { convexSignOut } from '$lib/convexClient';
   import { notify } from '$lib/notificationStore';
-  import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User, MessageSquare, Bot, Clock3, Target, ShieldCheck, TrendingUp } from '@lucide/svelte';
+  import { ShieldAlert, CheckCircle2, Zap, HeartHandshake, Sparkles, LogOut, User, MessageSquare, Bot, Clock3, Target, ShieldCheck, TrendingUp, ExternalLink } from '@lucide/svelte';
   import type { PageData } from './$types';
+  import { MASTER_PAYMENT_LINK, PUNTER_PAYMENT_LINK } from '$lib/payments';
 
   function handleDonateClick(tier: 'punter' | 'master' = 'punter') {
     const user = authState.user;
@@ -560,6 +561,15 @@
             <HeartHandshake size={20} />
             Donate ₦5,000 / Month & Get Access
           </button>
+          <a
+            class="quick-pay-link"
+            href={PUNTER_PAYMENT_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Pay for the Punter Pass directly on Flutterwave"
+          >
+            Pay the ₦5,000 Punter Pass directly <ExternalLink size={12} />
+          </a>
         </div>
 
         <div class="pricing-card pricing-card-master">
@@ -605,6 +615,15 @@
             <Sparkles size={20} />
             Upgrade to Master Pass — ₦10,000 / Month
           </button>
+          <a
+            class="quick-pay-link quick-pay-master"
+            href={MASTER_PAYMENT_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Pay for the Master Punter Pass directly on Flutterwave"
+          >
+            Pay the ₦10,000 Master Pass directly <ExternalLink size={12} />
+          </a>
         </div>
       </div>
 
@@ -1228,6 +1247,29 @@
     box-shadow: 0 12px 32px -4px color-mix(in srgb, var(--c-orange) 65%, transparent);
   }
   .btn-donate:active { transform: scale(0.98); }
+
+  .quick-pay-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    max-width: 480px;
+    margin-top: 8px;
+    padding: 9px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--c-border-md);
+    background: var(--c-glass-sm);
+    color: var(--c-text-dim, var(--c-text));
+    font-size: 12px;
+    font-weight: 800;
+    text-decoration: none;
+    transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+    position: relative;
+    z-index: 1;
+  }
+  .quick-pay-link:hover { color: var(--c-orange); border-color: var(--c-orange); background: color-mix(in srgb, var(--c-orange) 10%, transparent); }
+  .quick-pay-master:hover { color: #fbbf24; border-color: #fbbf24; background: color-mix(in srgb, #fbbf24 10%, transparent); }
 
   .tag-gold { color: #fbbf24; background: color-mix(in srgb, #fbbf24 14%, var(--c-surface)); border-color: color-mix(in srgb, #fbbf24 30%, transparent); }
   .cur-gold { color: #fbbf24; }

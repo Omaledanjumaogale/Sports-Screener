@@ -39,7 +39,7 @@ http.route({
         const amount = Number(data?.amount) || 0;
         const currency = String(data?.currency || "").toUpperCase();
 
-        // Only honor the configured plan amount/currency (₦5,000 NGN).
+        // Only honor the configured plan amounts/currency (₦5,000 / ₦10,000 NGN).
         if (amount < 5000 || currency !== "NGN") {
           console.warn(`[Flutterwave Webhook] Rejected non-plan charge: ${amount} ${currency}`);
           return new Response(JSON.stringify({ status: "error", message: "Invalid amount or currency" }), {
@@ -48,6 +48,9 @@ http.route({
           });
         }
 
+        // ₦10,000+ → Master Pass (includes the AI Predictor); otherwise Punter.
+        const tier: "punter" | "master" = amount >= 9500 ? "master" : "punter";
+
         if (customerEmail) {
           await ctx.runMutation(api.users.markSubscribed, {
             email: customerEmail,
@@ -55,9 +58,10 @@ http.route({
             transactionId: data?.id ? String(data.id) : undefined,
             amount,
             durationDays: 30,
+            tier,
             webhookSecret: secretHash
           });
-          console.log(`[Flutterwave Webhook] Subscription activated for ${customerEmail} (txRef: ${txRef})`);
+          console.log(`[Flutterwave Webhook] ${tier === "master" ? "Master" : "Punter"} pass activated for ${customerEmail} (txRef: ${txRef})`);
         }
       }
 
