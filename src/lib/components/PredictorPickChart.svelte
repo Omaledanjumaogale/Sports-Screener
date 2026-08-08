@@ -1,14 +1,15 @@
 <script lang="ts">
+  import { ChevronDown } from '@lucide/svelte';
   import type { Pick } from '$lib/engine';
-  import { pickSegment, picksBySegment, PREDICTOR_SEGMENTS } from '$lib/predictorSegments';
+  import { pickSegment, picksBySegment, PREDICTOR_SEGMENTS, type PickSegmentKey } from '$lib/predictorSegments';
 
   let {
     picks = [] as Pick[],
-    limit = 3,
+    limit = 0,
     accent = '#6366f1',
     showEdge = true,
     grouped = false,
-    perSegment = 3
+    perSegment = 5
   }: {
     picks?: Pick[];
     limit?: number;
@@ -18,15 +19,23 @@
     perSegment?: number;
   } = $props();
 
-  const rows = $derived(picks.slice(0, limit));
+  // No artificial cap: when `limit` is 0 (default) render every qualifying pick.
+  const rows = $derived(limit > 0 ? picks.slice(0, limit) : picks);
   const maxPct = $derived(Math.max(...picks.map((p) => Number(p.probability) || 0), 1));
+
+  const SEGMENT_COLLAPSED_BASE = 3;
+  let collapsed = $state<Partial<Record<PickSegmentKey, boolean>>>({});
+
+  const toggleSegment = (key: PickSegmentKey) => {
+    collapsed = { ...collapsed, [key]: !collapsed[key] };
+  };
 
   const segmentGroups = $derived(
     grouped
-      ? PREDICTOR_SEGMENTS.map((seg) => ({
-          def: seg,
-          items: (picksBySegment(picks).get(seg.key) ?? []).slice(0, perSegment)
-        })).filter((g) => g.items.length > 0)
+      ? PREDICTOR_SEGMENTS.map((seg) => {
+          const all = picksBySegment(picks).get(seg.key) ?? [];
+          return { def: seg, all, visible: all.slice(0, perSegment) };
+        }).filter((g) => g.all.length > 0)
       : []
   );
 </script>
@@ -34,16 +43,18 @@
 {#if grouped}
   <div class="pick-chart grouped" role="list" aria-label="Pick probabilities by market segment" style={`--accent:${accent}`}>
     {#each segmentGroups as g, gi (g.def.key)}
-      <div class="segment-group" class:show-all={g.items.length > 1}>
+      {@const showAll = collapsed[g.def.key] === true}
+      {@const visible = showAll ? g.all : g.visible}
+      <div class="segment-group">
         <div class="segment-head" style={`--seg-accent:${g.def.accent}`}>
           <span class="seg-dot"></span>
           <span class="seg-label">{g.def.label}</span>
-          <span class="seg-count">{g.items.length}</span>
+          <span class="seg-count">{g.all.length}</span>
         </div>
-        {#each g.items as p, i (p.marketId + ':' + p.label)}
+        {#each visible as p, i (p.marketId + ':' + p.label)}
           <div class="chart-row">
             <div class="row-top">
-              <span class="rank" style={`--seg-accent:${g.def.accent}`}>{g.def.short}</span>
+              <span class="rank" style={`--seg-accent:${g.def.accent}`}>{i + 1}</span>
               <span class="label" title={p.marketTitle}>
                 <span class="name">{p.label}</span>
                 <span class="market" style={`--seg-accent:${g.def.accent}`}>{p.marketTitle}</span>
@@ -60,6 +71,12 @@
             {/if}
           </div>
         {/each}
+        {#if g.all.length > SEGMENT_COLLAPSED_BASE}
+          <button class="seg-toggle" type="button" onclick={() => toggleSegment(g.def.key)} aria-expanded={showAll}>
+            <span class="seg-toggle-ic" class:is-up={showAll}><ChevronDown size={13} /></span>
+            {showAll ? 'Show fewer' : `Show ${g.all.length - SEGMENT_COLLAPSED_BASE} more`}
+          </button>
+        {/if}
       </div>
     {/each}
   </div>
@@ -204,4 +221,28 @@
     padding: 2px 8px;
     border-radius: 999px;
   }
+
+  .seg-toggle {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--c-border);
+    background: var(--c-glass-sm);
+    color: var(--c-text-dim, var(--c-text));
+    font-size: 10.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .seg-toggle:hover {
+    color: var(--seg-accent, var(--accent));
+    border-color: color-mix(in srgb, var(--seg-accent, var(--accent)) 50%, var(--c-border));
+  }
+
+  .seg-toggle-ic { display: inline-flex; transition: transform 0.2s ease; }
+  .seg-toggle-ic.is-up { transform: rotate(180deg); }
 </style>
