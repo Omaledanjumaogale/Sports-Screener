@@ -17,13 +17,21 @@
 
 {#if debate}
   <div class="great-minds-panel" style={`--accent:${accent}`}>
-    <header class="gm-head">
+        <header class="gm-head">
       <div class="gm-title-badge">
         <Trophy size={18} class="trophy-ic" />
         <h2>THE GREAT AI MINDS RECOMMEND</h2>
       </div>
       <span class="rounds-count">After 5 rounds</span>
     </header>
+
+    {#if (debate.realWinChancePct ?? 0) > 0}
+      <div class="cross-verified-strip">
+        <ShieldCheck size={16} />
+        <span class="cv-value">{debate.realWinChancePct}%</span>
+        <span class="cv-label">Cross-Verified Real Win Chance — {debate.realWinChanceTag}</span>
+      </div>
+    {/if}
 
     <!-- 3 Core Market Recommendations Grid -->
     <div class="recommendations-grid">
@@ -203,6 +211,32 @@
     background: rgba(255, 255, 255, 0.06);
     padding: 4px 10px;
     border-radius: 6px;
+  }
+
+  .cross-verified-strip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: -8px 0 20px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+      rgba(15, 23, 42, 0.85);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    color: #a5b4fc;
+  }
+
+  .cv-value {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: var(--accent);
+  }
+
+  .cv-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #e2e8f0;
   }
 
   /* 3 Core Market Recommendation Grid */

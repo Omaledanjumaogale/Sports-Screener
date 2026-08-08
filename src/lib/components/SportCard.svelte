@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import SportSvgIcon from './SportSvgIcon.svelte';
 
-  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball';
+  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball' | 'americanfootball' | 'rugby' | 'cricket' | 'mma' | 'volleyball';
 
   const props = $props<{
     sportId?: SportId;

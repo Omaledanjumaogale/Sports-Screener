@@ -66,11 +66,24 @@
   const effectiveSport = $derived(activeSport ?? ('football' as PredictorSportId));
   const today = $derived(todayKey());
 
+  // Human-readable display name for each sport used in messages and toasts.
+  const SPORT_DISPLAY_NAME: Record<PredictorSportId, string> = {
+    football: 'Football', basketball: 'Basketball', tennis: 'Tennis',
+    rally: 'Table Tennis', hockey: 'Ice Hockey', baseball: 'Baseball',
+    americanfootball: 'American Football', rugby: 'Rugby', cricket: 'Cricket',
+    mma: 'MMA', volleyball: 'Volleyball'
+  };
+  const sportDisplayName = $derived(SPORT_DISPLAY_NAME[effectiveSport] ?? effectiveSport);
+
   // Date window (defaults to today → +6 so the homepage shows up to 7 days where
   // cached data exists). Range is bounded to 7 days and clamped as the user picks.
   let fromDay = $state(dayKeyFor(0));
   let toDay = $state(dayKeyFor(6));
   let timeBand = $state<TimeBand>('all');
+
+  type GameTab = 'upcoming' | 'inplay' | 'finished';
+  const IN_PLAY_WINDOW_MS = 3 * 60 * 60 * 1000;
+  let gameTab = $state<GameTab>('upcoming');
 
   let day = $state<PredictorDay | null>(null);
   let daysInRange = $state<PredictorDay[]>([]);
@@ -147,11 +160,29 @@
     });
   });
 
-  // Group the (time-band-filtered) matches by their own cache day so the page can
-  // show a 1–7 day window with each day's fixtures and status.
+  // Game status classification — pure client-side, no extra API calls.
+  // Upcoming: not started. In-play: started within the 3h window. Finished:
+  // ended more than 3h ago.
+  const statusOf = (m: PredictorMatch): GameTab => {
+    if (m.startTime <= 0) return 'upcoming';
+    if (m.startTime > now) return 'upcoming';
+    if (m.startTime > now - IN_PLAY_WINDOW_MS) return 'inplay';
+    return 'finished';
+  };
+
+  const tabFilteredMatches = $derived.by(() => filteredMatches.filter((m) => statusOf(m) === gameTab));
+
+  const tabCounts = $derived.by(() => {
+    const counts: Record<GameTab, number> = { upcoming: 0, inplay: 0, finished: 0 };
+    for (const m of filteredMatches) counts[statusOf(m)] += 1;
+    return counts;
+  });
+
+  // Group the (time-band + tab-filtered) matches by their own cache day so the
+  // page can show a 1–7 day window with each day's fixtures and status.
   const byDay = $derived.by(() => {
     const groups: Record<string, PredictorMatch[]> = {};
-    for (const m of filteredMatches) {
+    for (const m of tabFilteredMatches) {
       const key = m.dayKey || today;
       (groups[key] ??= []).push(m);
     }
@@ -380,14 +411,15 @@
     }
   }
 
-  // Seed just the currently-viewed sport (lighter than bootstrapping all 6).
+  // Seed just the currently-viewed sport (lighter than bootstrapping all 11).
   async function autoSeedCurrentSport(sid: PredictorSportId, dayKey: string) {
     if (busy || bootstrapping) return;
     bootstrapping = true;
-    bootstrapMsg = `Loading ${sid} matches for today…`;
+    const displayName = SPORT_DISPLAY_NAME[sid] ?? sid;
+    bootstrapMsg = `Loading ${displayName} matches for today…`;
     try {
       await startPredictorRefresh(sid, dayKey, false);
-      bootstrapMsg = `Agent team running for ${sid}. Data will appear shortly.`;
+      bootstrapMsg = `AI agents running for ${displayName}. Data will appear shortly.`;
       bootstrapDone = true;
     } catch (err: any) {
       // Silently swallow — user can still click 'Run agents now'
@@ -397,14 +429,14 @@
     }
   }
 
-  // Bootstrap all 6 sports — triggered from empty-state CTA.
+  // Bootstrap all 11 sports — triggered from empty-state CTA.
   async function runBootstrapAll() {
     if (busy || bootstrapping) return;
     bootstrapping = true;
-    bootstrapMsg = 'Starting agents for all 6 sports — this takes a few minutes…';
+    bootstrapMsg = 'Starting AI agents for all 11 sports — this takes a few minutes…';
     try {
       const res = await bootstrapTodayAllSports();
-      bootstrapMsg = res.message || 'Agent team dispatched. Data will appear shortly.';
+      bootstrapMsg = res.message || 'AI agents dispatched for all sports. Data will appear shortly.';
       bootstrapDone = true;
     } catch (err: any) {
       error = String(err?.message || err);
@@ -452,6 +484,7 @@ $effect(() => {
     const epoch = sportEpoch;
     clearProgress();
     phase = 'select';
+    gameTab = 'upcoming';
     results = [];
     selectNotice = '';
     disposeSubs();
@@ -536,6 +569,42 @@ $effect(() => {
     {:else}
       <PredictorDateFilter bind:fromDay bind:toDay bind:timeBand />
 
+      <div class="game-tabs" role="tablist" aria-label="Filter matches by status">
+        <button
+          class="game-tab {gameTab === 'upcoming' ? 'is-active' : ''}"
+          type="button"
+          role="tab"
+          aria-selected={gameTab === 'upcoming'}
+          onclick={() => (gameTab = 'upcoming')}
+        >
+          Upcoming
+          <span class="tab-count">{tabCounts.upcoming}</span>
+        </button>
+        <button
+          class="game-tab {gameTab === 'inplay' ? 'is-active' : ''}"
+          type="button"
+          role="tab"
+          aria-selected={gameTab === 'inplay'}
+          onclick={() => (gameTab = 'inplay')}
+        >
+          {#if tabCounts.inplay > 0}
+            <span class="live-dot" aria-hidden="true"></span>
+          {/if}
+          In-Play
+          <span class="tab-count">{tabCounts.inplay}</span>
+        </button>
+        <button
+          class="game-tab {gameTab === 'finished' ? 'is-active' : ''}"
+          type="button"
+          role="tab"
+          aria-selected={gameTab === 'finished'}
+          onclick={() => (gameTab = 'finished')}
+        >
+          Finished
+          <span class="tab-count">{tabCounts.finished}</span>
+        </button>
+      </div>
+
       <PredictorStatusBanner
         {day}
         progress={phase === 'analyzing' ? agentProgress : isRunning ? refreshProgress : day?.status === 'ready' ? 100 : 0}
@@ -553,7 +622,7 @@ $effect(() => {
             </span>
             {#if matches.length > 0}
               <span class="summary-chip muted">
-                {matches.length} scheduled {effectiveSport === 'rally' ? 'games' : 'matches'}
+                {matches.length} scheduled {effectiveSport === 'mma' ? 'bouts' : effectiveSport === 'tennis' || effectiveSport === 'rally' ? 'matches' : 'matches'}
               </span>
             {/if}
             <span class="sel-actions">
@@ -610,7 +679,9 @@ $effect(() => {
                           {accent}
                           selectable
                           selected={isSelected(match.matchId)}
-                          inPlay={isPast(match)}
+                          inPlay={statusOf(match) === 'inplay'}
+                          finished={statusOf(match) === 'finished'}
+                          finalScore={match.finalScore ?? match.oddsSnapshot?.finalScore}
                           onSelect={() => toggleMatch(match)}
                           onClick={() => {
                             const nowOpen = !(expandedMatches[match.matchId] ?? false);
@@ -626,11 +697,13 @@ $effect(() => {
                 <div class="day-empty">
                   <PredictorSportIcon sport={effectiveSport} size={22} strokeWidth={1.6} />
                   <span>
-                    {timeBand !== 'all'
+                    {timeBand !== 'all' && gameTab === 'upcoming'
                       ? 'No matches in this time band.'
-                      : dayHasData(dk)
-                        ? 'No matches for this day in the cache.'
-                        : 'No data cached for this day yet.'}
+                      : gameTab !== 'upcoming'
+                        ? `No ${gameTab === 'inplay' ? 'in-play' : 'finished'} matches in this window.`
+                        : dayHasData(dk)
+                          ? 'No matches for this day in the cache.'
+                          : 'No data cached for this day yet.'}
                   </span>
                   {#if !dayHasData(dk)}
                     <button class="day-refresh" type="button" onclick={() => refreshDay(dk)} disabled={busy || isRunning}>
@@ -695,7 +768,16 @@ $effect(() => {
         {#if results.length > 0}
           <div class="match-list">
             {#each results as r (r.match.matchId)}
-              <PredictorMatchCard match={r.match} analysis={r.analysis} qualifying={r.qualifying} {accent} expanded />
+              <PredictorMatchCard
+                match={r.match}
+                analysis={r.analysis}
+                qualifying={r.qualifying}
+                {accent}
+                expanded
+                inPlay={statusOf(r.match) === 'inplay'}
+                finished={statusOf(r.match) === 'finished'}
+                finalScore={r.match.finalScore ?? r.match.oddsSnapshot?.finalScore}
+              />
               <PredictorVerdictPanel
                 insight={r.insight ? (r.insight as import('$lib/cloudflareAi').AiAnalysisResult['insights']) : buildPredictorInsights(r.match, r.qualifying)}
                 greatMindsDebate={r.greatMindsDebate}
@@ -719,7 +801,7 @@ $effect(() => {
       {/if}
     {/if}
 
-    <DailyPnlSummary />
+    <DailyPnlSummary matches={matches} />
 
     <footer class="predictor-foot">
       <p>
@@ -1094,4 +1176,71 @@ $effect(() => {
 
   .spin { display: inline-flex; animation: spn 1s linear infinite; }
   @keyframes spn { to { transform: rotate(360deg); } }
+
+  /* ── Game status tabs ── */
+  .game-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+    padding: 5px;
+    border-radius: 14px;
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-border-md);
+  }
+
+  .game-tab {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 10px 8px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--c-text-dim, var(--c-text));
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    transition:
+      background var(--t-base, 180ms ease),
+      border-color var(--t-base, 180ms ease),
+      color var(--t-base, 180ms ease);
+  }
+
+  .game-tab:hover { color: var(--accent); }
+  .game-tab.is-active {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    color: var(--accent);
+  }
+
+  .tab-count {
+    font-size: 10.5px;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border);
+    color: var(--c-text-dim, var(--c-text));
+    font-variant-numeric: tabular-nums;
+  }
+
+  .game-tab.is-active .tab-count {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    animation: tab-live-pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes tab-live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 color-mix(in srgb, #22c55e 55%, transparent); }
+    50% { opacity: 0.6; transform: scale(1.3); box-shadow: 0 0 0 5px color-mix(in srgb, #22c55e 0%, transparent); }
+  }
 </style>

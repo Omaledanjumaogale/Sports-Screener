@@ -15,9 +15,14 @@
     { id: 'football',   path: '/football',   label: 'Football',   accent: '#22c55e' },
     { id: 'basketball', path: '/basketball', label: 'Basketball', accent: '#f97316' },
     { id: 'tennis',     path: '/tennis',     label: 'Tennis',     accent: '#e879f9' },
-    { id: 'rally',      path: '/rally',      label: 'Ping Pong', accent: '#38bdf8' },
+    { id: 'rally',      path: '/rally',      label: 'Table Tennis', accent: '#38bdf8' },
     { id: 'hockey',     path: '/hockey',     label: 'Ice Hockey', accent: '#06b6d4' },
-    { id: 'baseball',   path: '/baseball',   label: 'Baseball',  accent: '#f43f5e' }
+    { id: 'baseball',   path: '/baseball',   label: 'Baseball',  accent: '#f43f5e' },
+    { id: 'american-football', path: '/american-football', label: 'Am. Football', accent: '#dc2626' },
+    { id: 'rugby',      path: '/rugby',      label: 'Rugby',     accent: '#7c3aed' },
+    { id: 'cricket',    path: '/cricket',    label: 'Cricket',   accent: '#d97706' },
+    { id: 'mma',        path: '/mma',        label: 'MMA',       accent: '#1d4ed8' },
+    { id: 'volleyball', path: '/volleyball', label: 'Volleyball', accent: '#0891b2' }
   ];
 
   function navigate(path: string) {
@@ -70,11 +75,21 @@
   }
 
   .nav-scroll {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    width: 100%;
+    display: flex;
     align-items: center;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
     padding: 0 2px;
+  }
+
+  .nav-scroll::-webkit-scrollbar { display: none; }
+
+  .nav-scroll .nav-item {
+    flex: 0 0 auto;
+    min-width: 72px;
+    width: auto;
   }
 
   @media (min-width: 768px) {

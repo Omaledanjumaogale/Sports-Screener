@@ -44,8 +44,8 @@
 
     {#if picks.length > 0}
       <div class="chart-block">
-        <div class="block-title"><BarChart3 size={13} stroke-width={2.2} /> Picks by Real Win Chance</div>
-        <PredictorPickChart picks={picks} limit={3} {accent} />
+        <div class="block-title"><BarChart3 size={13} stroke-width={2.2} /> Expanded selections by market segment</div>
+        <PredictorPickChart picks={picks} limit={20} grouped perSegment={4} {accent} />
       </div>
     {/if}
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ScopeState } from '../engine';
+  import type { ScopeState, SportId } from '../engine';
 
   let {
     scope,
@@ -7,7 +7,7 @@
     onChange = () => {}
   }: {
     scope: ScopeState;
-    sportId: 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball';
+    sportId: SportId;
     onChange?: () => void;
   } = $props();
 

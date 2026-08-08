@@ -7,6 +7,7 @@
   import PredictorPickChart from './PredictorPickChart.svelte';
   import PredictorMatchStats from './PredictorMatchStats.svelte';
   import { generateGreatMindsDebate } from '$lib/greatMindsEngine';
+  import { pickSegment } from '$lib/predictorSegments';
 
   let {
     match,
@@ -19,6 +20,8 @@
     selected = false,
     disabled = false,
     inPlay = false,
+    finished = false,
+    finalScore = null as string | null,
     onSelect = () => {},
     onClick = () => {}
   }: {
@@ -32,6 +35,8 @@
     selected?: boolean;
     disabled?: boolean;
     inPlay?: boolean;
+    finished?: boolean;
+    finalScore?: string | null;
     onSelect?: () => void;
     onClick?: () => void;
   } = $props();
@@ -40,12 +45,24 @@
   const open = $derived(expanded);
 
   const kickoff = $derived(formatWAT(match.startTime));
+  const score = $derived(finalScore || match.finalScore || match.oddsSnapshot?.finalScore || null);
   const top = $derived(qualifying[0] ?? null);
   const bestPct = $derived(top ? Number(top.probability).toFixed(1) : null);
-  const bottomPicks = $derived(qualifying.length >= 3 ? qualifying.slice(0, 3) : qualifying);
+  const bottomPicks = $derived(qualifying.length >= 3 ? qualifying.slice(0, 20) : qualifying);
   const metrics = $derived((analysis?.metrics ?? []).slice(0, 4));
 
   const greatMindsData = $derived(generateGreatMindsDebate(match, analysis));
+
+  // Best cross-verified market pick (used in the confidence band edge label).
+  // Uses IIFE inside $derived so it evaluates immediately and returns a string
+  // (not a function reference, which would render as [object Object]).
+  const bestMarketLabel = $derived((() => {
+    const d = greatMindsData;
+    if (!d) return top?.label ?? '';
+    const picksArr = [d.consensusPicks.winner, d.consensusPicks.spread, d.consensusPicks.total];
+    const best = picksArr.slice().sort((a, b) => b.realWinChancePct - a.realWinChancePct)[0];
+    return best?.selection ?? top?.label ?? '';
+  })());
 </script>
 
 <div
@@ -53,6 +70,7 @@
   class:is-selected={selected}
   class:is-disabled={disabled}
   class:is-in-play={inPlay}
+  class:is-finished={finished}
   class:is-selectable={selectable}
   class:is-open={open}
   style={`--accent:${accent}`}
@@ -123,10 +141,17 @@
     </div>
     <div class="meta">
       {#if inPlay}
-        <span class="chip live">In play</span>
+        <span class="chip live"><span class="live-dot" aria-hidden="true"></span> Live</span>
+      {:else if finished}
+        <span class="chip ft">FT</span>
+      {/if}
+      {#if score}
+        <span class="chip score-badge" title="Final score">{score}</span>
       {/if}
       <span class="chip league" title={match.league}>{match.league}</span>
-      <span class="chip time"><Clock3 size={12} stroke-width={2.2} /> <span class="wat-date">{kickoff}</span></span>
+      {#if !score}
+        <span class="chip time"><Clock3 size={12} stroke-width={2.2} /> <span class="wat-date">{kickoff}</span></span>
+      {/if}
       <span class="chip source">{match.source}</span>
       
       <button
@@ -168,7 +193,18 @@
     </div>
   {/if}
 
-  {#if bestPct}
+  {#if greatMindsData && (greatMindsData.realWinChancePct ?? 0) > 0}
+    <div class="confidence-band cross-verified">
+      <span class="shield"><ShieldCheck size={15} stroke-width={2.4} /></span>
+      <div class="conf-text">
+        <span class="conf-pct">{greatMindsData.realWinChancePct}%</span>
+        <span class="conf-label">Cross-Verified Real Win Chance — {greatMindsData.realWinChanceTag}</span>
+      </div>
+      <span class="edge" title={greatMindsData.spark}>
+        <TrendingUp size={14} stroke-width={2.2} />{bestMarketLabel}
+      </span>
+    </div>
+  {:else if bestPct}
     <div class="confidence-band">
       <span class="shield"><ShieldCheck size={15} stroke-width={2.4} /></span>
       <div class="conf-text">
@@ -183,8 +219,8 @@
 
   {#if bottomPicks.length > 0}
     <div class="mini-section">
-      <div class="mini-title"><span><BarChart3 size={13} stroke-width={2.2} /></span> Top {bottomPicks.length} picks by Real Win Chance</div>
-      <PredictorPickChart picks={bottomPicks} limit={3} {accent} />
+      <div class="mini-title"><span><BarChart3 size={13} stroke-width={2.2} /></span> Expanded selections by market segment</div>
+      <PredictorPickChart picks={bottomPicks} limit={12} grouped perSegment={4} {accent} />
     </div>
   {/if}
 
@@ -229,15 +265,17 @@
           {/each}
         </div>
       {:else if qualifying.length > 0}
-        <ul class="pick-list">
-          {#each qualifying.slice(0, 5) as p}
-            <li>
+        <div class="exp-segments">
+          {#each qualifying.slice(0, 20) as p}
+            {@const seg = pickSegment(p.marketId)}
+            <div class="exp-seg-row" style={`--seg-accent:${seg.accent}`}>
+              <span class="seg-tag">{seg.short}</span>
               <span class="pick-name">{p.label}</span>
               <span class="pick-market">{p.marketTitle}</span>
               <span class="pick-pct">{Number(p.probability).toFixed(1)}%</span>
-            </li>
+            </div>
           {/each}
-        </ul>
+        </div>
       {:else}
         <p class="muted">No selections qualify — revisit after the next refresh.</p>
       {/if}
@@ -345,6 +383,40 @@
     background: color-mix(in srgb, #f43f5e 10%, transparent);
   }
 
+  .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #22c55e;
+    animation: live-pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 color-mix(in srgb, #22c55e 55%, transparent); }
+    50% { opacity: 0.65; transform: scale(1.25); box-shadow: 0 0 0 4px color-mix(in srgb, #22c55e 0%, transparent); }
+  }
+
+  .chip.ft {
+    color: var(--c-text);
+    border-color: var(--c-border-2);
+    background: var(--c-glass-sm);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+  }
+
+  .chip.score-badge {
+    color: #22c55e;
+    border-color: color-mix(in srgb, #22c55e 45%, transparent);
+    background: color-mix(in srgb, #22c55e 12%, transparent);
+    font-weight: 900;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 13px;
+    padding: 4px 12px;
+  }
+
+  .match-card.is-finished { opacity: 0.82; }
+  .match-card.is-finished:hover { opacity: 1; }
+
   .match-head { display: flex; flex-direction: column; gap: 10px; }
 
   .matchup {
@@ -391,6 +463,14 @@
       linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%),
       var(--c-glass-sm);
     border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+
+  .confidence-band.cross-verified {
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--accent) 26%, transparent), transparent 60%),
+      var(--c-glass-sm);
+    border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent), 0 4px 20px color-mix(in srgb, var(--accent) 16%, transparent);
   }
 
   .shield { display: inline-flex; color: var(--accent); }
@@ -494,9 +574,13 @@
   .insight-right .confidence { font-weight: 900; font-size: 12.5px; color: #22c55e; }
   .insight-right .edge { font-size: 10px; color: #22c55e; font-weight: 700; max-width: none; }
 
-  .pick-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .pick-name { font-weight: 800; color: var(--c-text); flex: 1; }
+  .pick-market { color: var(--c-text-dim, var(--c-text)); font-size: 11px; }
+  .pick-pct { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
 
-  .pick-list li {
+  .exp-segments { display: flex; flex-direction: column; gap: 6px; }
+
+  .exp-seg-row {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -504,11 +588,21 @@
     border-radius: 10px;
     background: var(--c-glass-sm);
     font-size: 12.5px;
+    border-left: 3px solid color-mix(in srgb, var(--seg-accent) 55%, transparent);
   }
 
-  .pick-name { font-weight: 800; color: var(--c-text); flex: 1; }
-  .pick-market { color: var(--c-text-dim, var(--c-text)); font-size: 11px; }
-  .pick-pct { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
+  .exp-seg-row .seg-tag {
+    flex-shrink: 0;
+    font-size: 9.5px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--seg-accent);
+    background: color-mix(in srgb, var(--seg-accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--seg-accent) 30%, transparent);
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
 
   .trophy-note {
     display: flex;

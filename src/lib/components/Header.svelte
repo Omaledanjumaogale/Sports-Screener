@@ -3,7 +3,7 @@
   import SportSvgIcon from './SportSvgIcon.svelte';
   import ThemeToggle from './ThemeToggle.svelte';
 
-  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball';
+  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball' | 'americanfootball' | 'rugby' | 'cricket' | 'mma' | 'volleyball' | 'predictor';
 
   let {
     title,

@@ -1,5 +1,5 @@
 <script lang="ts">
-  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball' | 'predictor';
+  type SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball' | 'americanfootball' | 'rugby' | 'cricket' | 'mma' | 'volleyball' | 'predictor';
 
   let {
     sport = 'football' as SportId,
@@ -89,6 +89,47 @@
     <path d="M14 3 L16.5 10 L24 14 L16.5 18 L14 25 L11.5 18 L4 14 L11.5 10 Z" stroke={color} stroke-width="1.6" stroke-linejoin="round" fill="none"/>
     <path d="M21 3 L22 6.5 L25.5 7.5 L22 8.5 L21 12 L20 8.5 L16.5 7.5 L20 6.5 Z" stroke={color} stroke-width="1.2" stroke-linejoin="round" fill={color}/>
     <path d="M7 17 L8 20 L11 21 L8 22 L7 25 L6 22 L3 21 L6 20 Z" stroke={color} stroke-width="1.2" stroke-linejoin="round" fill={color}/>
+  </svg>
+
+{:else if sport === 'americanfootball'}
+  <!-- American football ball -->
+  <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-hidden="true">
+    <ellipse cx="14" cy="14" rx="12" ry="7" transform="rotate(-28 14 14)" stroke={color} stroke-width="1.8"/>
+    <path d="M9 10 L6 4 M11 12 L7 8 M19 18 L22 24 M17 16 L21 20 M14 14 L9 9 M14 14 L19 19" stroke={color} stroke-width="1.2" opacity="0.7"/>
+    <path d="M11 13 L6 12 M17 15 L22 16" stroke={color} stroke-width="1.4"/>
+  </svg>
+
+{:else if sport === 'rugby'}
+  <!-- Rugby ball -->
+  <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-hidden="true">
+    <ellipse cx="14" cy="14" rx="9" ry="12" stroke={color} stroke-width="1.8"/>
+    <path d="M14 2 L14 26" stroke={color} stroke-width="1.4" opacity="0.6"/>
+    <path d="M9.5 4.5 Q5 14 9.5 23.5 M18.5 4.5 Q23 14 18.5 23.5" stroke={color} stroke-width="1.2" opacity="0.6"/>
+  </svg>
+
+{:else if sport === 'cricket'}
+  <!-- Cricket bat + ball -->
+  <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-hidden="true">
+    <path d="M14 4 L24 14 L19 19 L9 9 Z" stroke={color} stroke-width="1.8" stroke-linejoin="round"/>
+    <line x1="9" y1="9" x2="3" y2="3" stroke={color} stroke-width="2.2" stroke-linecap="round"/>
+    <line x1="4" y1="20" x2="12" y2="12" stroke={color} stroke-width="1.6" opacity="0.7"/>
+    <circle cx="22" cy="7" r="4" stroke={color} stroke-width="1.6"/>
+  </svg>
+
+{:else if sport === 'mma'}
+  <!-- MMA gloves -->
+  <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-hidden="true">
+    <path d="M9 10 Q5 12 4.5 17 Q4 22 9 22 L9 12 Z" stroke={color} stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M19 10 Q23 12 23.5 17 Q24 22 19 22 L19 12 Z" stroke={color} stroke-width="1.8" stroke-linejoin="round"/>
+    <line x1="9" y1="16" x2="19" y2="16" stroke={color} stroke-width="1.4" opacity="0.7"/>
+    <line x1="9" y1="20" x2="19" y2="20" stroke={color} stroke-width="1.4" opacity="0.7"/>
+  </svg>
+
+{:else if sport === 'volleyball'}
+  <!-- Volleyball -->
+  <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-hidden="true">
+    <circle cx="14" cy="14" r="11" stroke={color} stroke-width="1.8"/>
+    <path d="M14 3 Q10 14 14 25 M6 8 Q13 12 22 6 M6 20 Q13 16 22 20" stroke={color} stroke-width="1.4"/>
   </svg>
 
 {:else}
