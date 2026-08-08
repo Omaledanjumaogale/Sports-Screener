@@ -6,9 +6,14 @@ export type PredictorSportId =
   | 'tennis'
   | 'rally'
   | 'hockey'
-  | 'baseball';
+  | 'baseball'
+  | 'americanfootball'
+  | 'rugby'
+  | 'cricket'
+  | 'mma'
+  | 'volleyball';
 
-export const PREDICTOR_SPORTS: PredictorSportId[] = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball'];
+export const PREDICTOR_SPORTS: PredictorSportId[] = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball', 'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'];
 
 export function isPredictorSport(id: string | undefined | null): id is PredictorSportId {
   return !!id && (PREDICTOR_SPORTS as string[]).includes(id);
@@ -27,6 +32,8 @@ export interface PredictorMatch {
   marketsAvailable: string[];
   scopes: any;
   oddsSnapshot?: any;
+  finalScore?: string;
+  status?: 'upcoming' | 'inplay' | 'finished';
   createdAt: number;
 }
 
@@ -122,6 +129,13 @@ export interface GreatMindsPick {
   status: 'unanimous' | 'strong' | 'majority' | 'split';
   modelChoices: GreatMindsModelChoice[];
   edgeEvPercent: number;
+  // Cross-verified Real Win Chance: base engine probability, boosted by the
+  // Great AI Minds panel consensus and adjusted by key-metric / research sentiment.
+  baseProbabilityPct: number;
+  consensusBoostPct: number;
+  metricsAdjustmentPct: number;
+  realWinChancePct: number;
+  verdictTag: string;
 }
 
 export interface GreatMindsRound {
@@ -149,6 +163,10 @@ export interface GreatMindsDebateResult {
   overallRoiPct: number;
   overallUnitsPnl: number;
   fullTranscript: string;
+  // Unified cross-verified Real Win Chance (weighted across the three markets).
+  realWinChancePct: number;
+  realWinChanceTag: string;
+  spark: string;
 }
 
 export interface DailyPnlConsensusRow {
@@ -163,13 +181,27 @@ export interface DailyPnlConsensusRow {
   roiPct: number;
 }
 
+export interface GreatMindsStats {
+  totalDebatesCount: number;
+  unanimousWinRatePct: number;
+  strongWinRatePct: number;
+  majorityWinRatePct: number;
+  topModel: string;
+  modelAccuracyMap: Record<string, number>;
+}
+
+export type PnlSportFilter = PredictorSportId | 'ALL';
+export type PnlMarketFilter = 'ALL' | 'MONEYLINE' | 'SPREAD' | 'TOTAL';
+
 export interface DailyPnlSummaryData {
-  filter: 'ALL' | 'MONEYLINE' | 'SPREAD' | 'TOTAL';
+  sportFilter: PnlSportFilter;
+  marketFilter: PnlMarketFilter;
   overallWinRatePct: number;
   overallUnitsPnl: number;
   overallRoiPct: number;
   overallRecord: string; // e.g. "11W - 7L (0 picks)"
   rows: DailyPnlConsensusRow[];
+  greatMindsStats: GreatMindsStats;
 }
 
 export interface PredictorVerdict {
@@ -219,4 +251,7 @@ export interface PredictorRun {
 }
 
 export const DEFAULT_CONFIDENCE_FLOOR = 52;
+
+/** Maximum number of fixtures the AI Predictor may ingest per day (all sports). */
+export const PREDICTOR_DAILY_CAP = 1200;
 

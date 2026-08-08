@@ -159,7 +159,7 @@ interface VerdictMatchInput {
   citations?: string[];
 }
 
-const VALID_SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball'];
+const VALID_SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball', 'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'];
 
 const SPORT_SCALE: Record<string, string> = {
   football: 'Goals (0-6 typical), total goals market expected 1.5-3.5',
@@ -167,7 +167,12 @@ const SPORT_SCALE: Record<string, string> = {
   tennis: 'Games (15-45 typical), market expected games 20-38',
   rally: 'Sets (3-6 typical), market expected sets 3-5',
   hockey: 'Goals (2-8 typical), total goals market expected 3-7',
-  baseball: 'Runs (5-14 typical), total runs market expected 6-11'
+  baseball: 'Runs (5-14 typical), total runs market expected 6-11',
+  americanfootball: 'Points (20-80 typical), market expected total 35-55',
+  rugby: 'Points (10-80 typical), market expected total 25-60',
+  cricket: 'Runs (100-400 typical), market expected runs 150-350',
+  mma: 'Rounds (1-5 typical), market expected total 2.5-4.5',
+  volleyball: 'Sets (3-5 typical), market expected sets 3-5'
 };
 
 function safeStr(val: unknown, fallback = ''): string {

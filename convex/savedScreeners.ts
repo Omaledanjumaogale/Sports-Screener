@@ -12,7 +12,12 @@ export const list = query({
       v.literal('instant-football'),
       v.literal('instant-basketball'),
       v.literal('vfootball'),
-      v.literal('baseball')
+      v.literal('baseball'),
+      v.literal('americanfootball'),
+      v.literal('rugby'),
+      v.literal('cricket'),
+      v.literal('mma'),
+      v.literal('volleyball')
     )),
     sessionId: v.string(),
     userId: v.optional(v.string())
@@ -86,7 +91,12 @@ export const save = mutation({
       v.literal('instant-football'),
       v.literal('instant-basketball'),
       v.literal('vfootball'),
-      v.literal('baseball')
+      v.literal('baseball'),
+      v.literal('americanfootball'),
+      v.literal('rugby'),
+      v.literal('cricket'),
+      v.literal('mma'),
+      v.literal('volleyball')
     ),
     title: v.string(),
     notes: v.optional(v.string()),

@@ -12,7 +12,12 @@ const sportId = v.union(
   v.literal('tennis'),
   v.literal('rally'),
   v.literal('hockey'),
-  v.literal('baseball')
+  v.literal('baseball'),
+  v.literal('americanfootball'),
+  v.literal('rugby'),
+  v.literal('cricket'),
+  v.literal('mma'),
+  v.literal('volleyball')
 );
 
 const dayStatus = v.union(
@@ -145,6 +150,35 @@ export const saveDailyPnlSummary = mutation({
   }
 });
 
+export const updateMatchResult = mutation({
+  args: {
+    matchId: v.string(),
+    dayKey: v.string(),
+    finalScore: v.string(),
+    status: v.optional(
+      v.union(v.literal('upcoming'), v.literal('inplay'), v.literal('finished'))
+    )
+  },
+  handler: async (ctx, args) => {
+    const match = await ctx.db
+      .query('predictorMatches')
+      .withIndex('by_day_match', (q) => q.eq('dayKey', args.dayKey).eq('matchId', args.matchId))
+      .first();
+    if (!match) {
+      throw new Error(`Match not found: ${args.dayKey}/${args.matchId}`);
+    }
+    await ctx.db.patch(match._id, {
+      finalScore: args.finalScore,
+      status: args.status ?? 'finished',
+      oddsSnapshot: {
+        ...(match.oddsSnapshot ?? {}),
+        finalScore: args.finalScore
+      }
+    });
+    return { dayKey: args.dayKey, matchId: args.matchId, finalScore: args.finalScore, status: args.status ?? 'finished' };
+  }
+});
+
 export const getActiveRun = query({
   args: { sportId, dayKey: v.string() },
   handler: async (ctx, args) => {
@@ -199,7 +233,7 @@ export const startRefresh = mutation({
             status: 'refreshing',
             expiresAt: now + 24 * 60 * 60 * 1000,
             runId,
-            cap: 250,
+            cap: 1200,
             sourcesUsed: [],
             createdAt: now,
             updatedAt: now
@@ -319,7 +353,7 @@ export const upsertDay = internalMutation({
       sportId: args.sportId,
       status: args.status,
       runId: args.runId,
-      cap: args.cap ?? 250,
+      cap: args.cap ?? 1200,
       sourcesUsed: args.sourcesUsed ?? [],
       message: args.message,
       expiresAt: now + 24 * 60 * 60 * 1000,
@@ -497,14 +531,16 @@ export const purgeAndMarkStale = internalAction({
 
 // ── Bootstrap actions: seed today's cache for all sports when DB is empty ─────
 
-const ALL_SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball'] as const;
+const ALL_SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball', 'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'] as const;
 type AnySSport = typeof ALL_SPORTS[number];
 
 // Internal: seed a specific sport for today. Called by seedAllSports.
 export const seedSportForToday = internalAction({
   args: { sportId: v.union(
     v.literal('football'), v.literal('basketball'), v.literal('tennis'),
-    v.literal('rally'), v.literal('hockey'), v.literal('baseball')
+    v.literal('rally'), v.literal('hockey'), v.literal('baseball'),
+    v.literal('americanfootball'), v.literal('rugby'), v.literal('cricket'),
+    v.literal('mma'), v.literal('volleyball')
   )},
   handler: async (ctx, args): Promise<{ ok: boolean; kept: number }> => {
     const dayKey = new Date().toISOString().slice(0, 10);
@@ -531,7 +567,9 @@ export const seedSportForToday = internalAction({
 export const getDayInternal = internalQuery({
   args: { sportId: v.union(
     v.literal('football'), v.literal('basketball'), v.literal('tennis'),
-    v.literal('rally'), v.literal('hockey'), v.literal('baseball')
+    v.literal('rally'), v.literal('hockey'), v.literal('baseball'),
+    v.literal('americanfootball'), v.literal('rugby'), v.literal('cricket'),
+    v.literal('mma'), v.literal('volleyball')
   ), dayKey: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
@@ -542,7 +580,7 @@ export const getDayInternal = internalQuery({
   }
 });
 
-// Internal: stagger-seed all 6 sports for today with a 30-second gap between each.
+// Internal: stagger-seed all 11 sports for today with a 15-second gap between each.
 export const seedAllSports = internalAction({
   args: {},
   handler: async (ctx): Promise<{ seeded: number }> => {
@@ -565,7 +603,7 @@ export const seedAllSports = internalAction({
   }
 });
 
-// Public action: UI-callable — bootstraps today's data for all 6 sports.
+// Public action: UI-callable — bootstraps today's data for all 11 sports.
 // Safe to call multiple times; already-fresh days are skipped.
 export const bootstrapToday = action({
   args: {},

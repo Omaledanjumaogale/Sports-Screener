@@ -54,7 +54,12 @@ export async function tundeFetchFixtures(sportId: string, dayKey?: string): Prom
         tennis: 'Tennis',
         hockey: 'NHL',
         baseball: 'MLB',
-        rally: 'Rally'
+        rally: 'Table Tennis',
+        americanfootball: 'NFL',
+        rugby: 'Rugby',
+        cricket: 'Cricket',
+        mma: 'MMA',
+        volleyball: 'Volleyball'
       };
       const marketKeys =
         sportId === 'football'

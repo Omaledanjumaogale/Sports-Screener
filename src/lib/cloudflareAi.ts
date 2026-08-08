@@ -95,6 +95,11 @@ const SPORT_CONTEXT: Record<string, { scale: string; unit: string; typicalRange:
   rally: { scale: 'Sets (3–6 typical)', unit: 'sets', typicalRange: '3–5 sets', keyMetric: 'Market Expected Sets' },
   hockey: { scale: 'Goals (2–8 typical)', unit: 'goals', typicalRange: '3–7 goals', keyMetric: 'Total Goals Market Expected Line' },
   baseball: { scale: 'Runs (5–14 typical)', unit: 'runs', typicalRange: '6–11 runs', keyMetric: 'Total Runs Market Expected Line' },
+  americanfootball: { scale: 'Points (20–80 typical)', unit: 'points', typicalRange: '35–55 points', keyMetric: 'Game Total Points Market Expected Total (MEPT)' },
+  rugby: { scale: 'Points (10–80 typical)', unit: 'points', typicalRange: '25–60 points', keyMetric: 'Total Points Market Expected Total (MET)' },
+  cricket: { scale: 'Runs (100–400 typical)', unit: 'runs', typicalRange: '150–350 runs', keyMetric: 'Market Expected Runs (MER)' },
+  mma: { scale: 'Rounds (1–5 typical)', unit: 'rounds', typicalRange: '2.5–4.5 rounds', keyMetric: 'Expected Total Rounds (MERT)' },
+  volleyball: { scale: 'Sets (3–5 typical)', unit: 'sets', typicalRange: '3–5 sets', keyMetric: 'Market Expected Sets' },
   'instant-football': { scale: 'Goals (0–6 simulated)', unit: 'goals', typicalRange: '1.5–3.5 goals', keyMetric: 'Simulated Total Goals Expected Line' },
   'instant-basketball': { scale: 'Points (120–230 simulated)', unit: 'points', typicalRange: '150–210 points', keyMetric: 'Simulated Market Expected Total (MET)' },
   vfootball: { scale: 'Goals (0–5 simulated)', unit: 'goals', typicalRange: '1.5–3.5 goals', keyMetric: 'Virtual Total Goals Expected Line' }

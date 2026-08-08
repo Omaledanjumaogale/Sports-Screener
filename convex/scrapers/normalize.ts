@@ -68,11 +68,31 @@ const BASE_LINES: Record<string, { line: number; over: number; under: number }[]
   baseball: [
     { line: 8.5, over: 1.9, under: 1.9 },
     { line: 7.5, over: 1.8, under: 2.0 }
+  ],
+  americanfootball: [
+    { line: 42.5, over: 1.9, under: 1.9 },
+    { line: 44.5, over: 1.85, under: 1.95 }
+  ],
+  rugby: [
+    { line: 37.5, over: 1.9, under: 1.9 },
+    { line: 28.5, over: 1.85, under: 1.95 }
+  ],
+  cricket: [
+    { line: 250.5, over: 1.9, under: 1.9 },
+    { line: 320.5, over: 1.85, under: 1.95 }
+  ],
+  mma: [
+    { line: 2.5, over: 1.85, under: 1.95 },
+    { line: 3.5, over: 1.8, under: 2.0 }
+  ],
+  volleyball: [
+    { line: 3.5, over: 1.9, under: 1.9 },
+    { line: 2.5, over: 1.8, under: 2.0 }
   ]
 };
 
 // Sports whose "result" market has no draw leg.
-const TWO_WAY_SPORTS = new Set(['basketball', 'tennis', 'rally', 'hockey', 'baseball']);
+const TWO_WAY_SPORTS = new Set(['basketball', 'tennis', 'rally', 'hockey', 'baseball', 'americanfootball', 'mma', 'volleyball']);
 
 function stableId(seed: string): string {
   let h = 0;

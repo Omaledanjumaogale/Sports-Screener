@@ -160,8 +160,10 @@ export const FIXTURE_PAGES: Record<string, string[]> = {
     'https://www.atptour.com/en/scores'
   ],
   rally: [
-    'https://www.betexplorer.com/motor-sport/',
-    'https://www.bbc.co.uk/sport/motorsport/rallying'
+    'https://www.betexplorer.com/table-tennis/next/',
+    'https://www.betexplorer.com/table-tennis/',
+    'https://www.ittf.com/',
+    'https://www.wttseries.com/'
   ],
   hockey: [
     'https://www.betexplorer.com/hockey/next/',
@@ -171,6 +173,30 @@ export const FIXTURE_PAGES: Record<string, string[]> = {
   baseball: [
     'https://www.betexplorer.com/baseball/next/',
     'https://www.espn.com/mlb/schedule'
+  ],
+  americanfootball: [
+    'https://www.betexplorer.com/american-football/next/',
+    'https://www.espn.com/nfl/schedule',
+    'https://www.flashscore.com/american-football/'
+  ],
+  rugby: [
+    'https://www.betexplorer.com/rugby/next/',
+    'https://www.espn.com/rugby/schedule',
+    'https://www.rugbypass.com/fixtures/'
+  ],
+  cricket: [
+    'https://www.betexplorer.com/cricket/',
+    'https://www.espncricinfo.com/scores',
+    'https://www.betexplorer.com/cricket/next/'
+  ],
+  mma: [
+    'https://www.betexplorer.com/mixed-martial-arts/',
+    'https://www.espn.com/mma/schedule',
+    'https://www.sherdog.com/events/latest'
+  ],
+  volleyball: [
+    'https://www.betexplorer.com/volleyball/next/',
+    'https://www.fivb.com/competitions'
   ]
 };
 
@@ -284,11 +310,58 @@ export const MARKET_GROUPS: Record<string, { label: string; emoji: string; marke
     ]
   },
   rally: {
-    label: 'Rally',
-    emoji: '🏁',
+    label: 'Table Tennis',
+    emoji: '🏓',
     markets: [
-      { id: 'winner', label: 'Winner', icon: '🏆', cat: 'Result' },
-      { id: 'stage_winner', label: 'Stage Winner', icon: '⏱', cat: 'Stage' }
+      { id: 'match_winner', label: 'Match Winner', icon: '🏓', cat: 'Winner' },
+      { id: 'set_winner', label: 'Set Winner', icon: '1️⃣', cat: 'Sets' },
+      { id: 'total_sets', label: 'Total Sets O/U', icon: '📈', cat: 'Sets' }
+    ]
+  },
+  americanfootball: {
+    label: 'American Football',
+    emoji: '🏈',
+    markets: [
+      { id: 'moneyline', label: 'Moneyline', icon: '🏠', cat: 'Match Winner' },
+      { id: 'spread', label: 'Point Spread', icon: '⚖️', cat: 'Handicap' },
+      { id: 'total_pts', label: 'Total Points O/U', icon: '📈', cat: 'Totals' },
+      { id: 'team_total', label: 'Team Total Points', icon: '📊', cat: 'Props' }
+    ]
+  },
+  rugby: {
+    label: 'Rugby',
+    emoji: '🏉',
+    markets: [
+      { id: 'moneyline', label: 'Moneyline (2-way)', icon: '🏉', cat: 'Winner' },
+      { id: 'handicap', label: 'Handicap', icon: '⚖️', cat: 'Handicap' },
+      { id: 'total_pts', label: 'Total Points O/U', icon: '📈', cat: 'Totals' }
+    ]
+  },
+  cricket: {
+    label: 'Cricket',
+    emoji: '🏏',
+    markets: [
+      { id: 'match_winner', label: 'Match Winner', icon: '🏏', cat: 'Result' },
+      { id: 'total_runs', label: 'Total Runs O/U', icon: '📈', cat: 'Runs' },
+      { id: 'run_line', label: 'Run Line', icon: '⚖️', cat: 'Handicap' }
+    ]
+  },
+  mma: {
+    label: 'MMA',
+    emoji: '🥊',
+    markets: [
+      { id: 'fight_winner', label: 'Fight Winner', icon: '🥊', cat: 'Winner' },
+      { id: 'total_rounds', label: 'Total Rounds O/U', icon: '📈', cat: 'Rounds' },
+      { id: 'method', label: 'Method of Victory', icon: '🎯', cat: 'Method' }
+    ]
+  },
+  volleyball: {
+    label: 'Volleyball',
+    emoji: '🏐',
+    markets: [
+      { id: 'match_winner', label: 'Match Winner', icon: '🏐', cat: 'Winner' },
+      { id: 'total_sets', label: 'Total Sets O/U', icon: '📈', cat: 'Sets' },
+      { id: 'set_winner', label: 'Set Winner', icon: '1️⃣', cat: 'Sets' }
     ]
   }
 };
@@ -413,5 +486,5 @@ export function brightdataKey(): string {
 export function dailyCap(): number {
   const raw = env('PREDICTOR_DAILY_CAP');
   const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 1000) : 250;
+  return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 1200) : 1200;
 }

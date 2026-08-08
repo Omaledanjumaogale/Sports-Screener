@@ -10,7 +10,12 @@ export type SportId =
   | 'instant-football'
   | 'instant-basketball'
   | 'vfootball'
-  | 'baseball';
+  | 'baseball'
+  | 'americanfootball'
+  | 'rugby'
+  | 'cricket'
+  | 'mma'
+  | 'volleyball';
 export type MarketKind = 'ou' | 'handicap' | 'winner' | 'threeway' | 'yesno' | 'correctScore';
 
 export type LedgerVote = 'Agree' | 'Disagree' | 'N/A';
@@ -1554,6 +1559,11 @@ export function analyzeScope(sportId: SportId, scope: ScopeState): Analysis {
   else if (sportId === 'instant-basketball') res = analyzeInstantBasketball(scope);
   else if (sportId === 'vfootball') res = analyzeVirtualFootball(scope);
   else if (sportId === 'baseball') res = analyzeBaseball(scope);
+  else if (sportId === 'americanfootball') res = analyzeAmericanFootball(scope);
+  else if (sportId === 'rugby') res = analyzeRugby(scope);
+  else if (sportId === 'cricket') res = analyzeCricket(scope);
+  else if (sportId === 'mma') res = analyzeMma(scope);
+  else if (sportId === 'volleyball') res = analyzeVolleyball(scope);
   else res = analyzeRally(scope);
   _analyzeCache.set(scope, { sig, analysis: res });
   return res;
@@ -1991,6 +2001,168 @@ export function analyzeBaseball(scope: ScopeState): Analysis {
   return finishAnalysis(scope, profiles, allPicks, 70, 58);
 }
 
+/* ========================= NEW SPORTS (team points games) ========================= */
+
+interface TeamPointsOpts {
+  unit: string;         // 'pts' 'runs' 'goals' 'rounds'
+  unitLabel: string;    // 'Points' 'Runs' 'Goals' 'Rounds'
+  metLabel: string;     // e.g. 'MET' 'MER'
+  totalTitle: string;   // market title for main total
+  homeTitle: string;
+  awayTitle: string;
+  strongSignal: number;
+  modSignal: number;
+  winnerTitle: Record<string, string>;
+}
+
+function analyzeTeamPointsGame(scope: ScopeState, o: TeamPointsOpts): Analysis {
+  const zone = 5;
+  const teamSumTight = 3;
+  const teamSumStrong = 7;
+
+  const total = bestExpectedLine(scope.markets.mainTotal?.pairs ?? [], zone);
+  const p1 = bestExpectedLine(scope.markets.homeTotal?.pairs ?? [], zone);
+  const p2 = bestExpectedLine(scope.markets.awayTotal?.pairs ?? [], zone);
+
+  const ouPicks = [
+    ...analyzeLines(scope.markets.mainTotal ?? { id: 'mainTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' })
+  ].map(withEv).sort((x, y) => y.probability - x.probability);
+
+  const hdp = scope.markets.handicap;
+  const nameA = scope.teamA || 'Team 1';
+  const nameB = scope.teamB || 'Team 2';
+  const rankPicks = [
+    ...(hdp ? analyzeHandicap(hdp, nameA, nameB) : []),
+    ...analyzeOddsMarket(scope.markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, o.winnerTitle)
+  ].map(withEv).sort((x, y) => y.probability - x.probability);
+
+  const allPicks = [...ouPicks, ...rankPicks].sort((x, y) => y.probability - x.probability);
+  const primaryPicks = allPicks.filter((p) => p.marketId === 'mainTotal' || p.marketId === 'winner' || p.marketId === 'homeTotal' || p.marketId === 'awayTotal');
+  const safestPick = topPick(primaryPicks) ?? topPick(allPicks);
+  const bestValuePick = primaryPicks.filter((p) => p.probability >= 55).sort((x, y) => (y.ev ?? -99) - (x.ev ?? -99))[0] ?? topPick(allPicks);
+
+  const combinedDiff = total && p1 && p2 ? round(p1.expected + p2.expected - total.expected, 1) : null;
+
+  const underProb = total?.bestUnder ? (total.bestUnder as any).normUnder * 100 : null;
+  const overProb = total?.bestOver ? (total.bestOver as any).normOver * 100 : null;
+
+  const aChecks: Check[] = [
+    {
+      title: 'Best value-zone Under',
+      detail: underProb === null ? 'Add lines around the expected mark' : `Under ${(total?.bestUnder as any)?.line} @ ${pct(underProb, 1)}`,
+      status: underProb === null ? 'empty' : statusFromPct(underProb, o.strongSignal, o.modSignal)
+    },
+    {
+      title: 'Team sum consistency (TSC)',
+      detail: combinedDiff === null ? 'Enter game + both team totals' : `Team sum diff: ${combinedDiff > 0 ? '+' : ''}${combinedDiff} ${o.unit}`,
+      status: combinedDiff === null ? 'empty' : combinedDiff < -teamSumStrong ? 'green' : combinedDiff < -teamSumTight ? 'amber' : 'red'
+    },
+    {
+      title: `${o.metLabel} coverage`,
+      detail: total ? `${o.metLabel} ${total.expected}${total.approx ? ' approx' : ''}` : 'Enter at least 1 complete O/U row',
+      status: total ? 'green' : 'empty'
+    },
+    {
+      title: 'Moneyline / Spread balance',
+      detail: rankPicks[0] ? `${rankPicks[0].label} @ ${pct(rankPicks[0].probability, 1)}` : 'Add moneyline or spread',
+      status: rankPicks[0] ? (rankPicks[0].probability >= 68 ? 'green' : rankPicks[0].probability >= 58 ? 'amber' : 'red') : 'empty'
+    },
+    {
+      title: 'Specific line rank',
+      detail: ouPicks[0] ? `${ouPicks[0].label} leads all O/U lines` : 'Add more line rows',
+      status: ouPicks[0] ? statusFromPct(ouPicks[0].probability, 76, 60) : 'empty'
+    }
+  ];
+
+  const bChecks: Check[] = [
+    {
+      title: 'Best value-zone Over',
+      detail: overProb === null ? 'Add lines below the expected mark' : `Over ${(total?.bestOver as any)?.line} @ ${pct(overProb, 1)}`,
+      status: overProb === null ? 'empty' : statusFromPct(overProb, o.strongSignal, o.modSignal)
+    },
+    {
+      title: 'Team sum consistency (TSC Over)',
+      detail: combinedDiff === null ? 'Enter game + both team totals' : `Team sum diff: ${combinedDiff > 0 ? '+' : ''}${combinedDiff} ${o.unit}`,
+      status: combinedDiff === null ? 'empty' : combinedDiff > teamSumStrong ? 'green' : combinedDiff > teamSumTight ? 'amber' : 'red'
+    },
+    {
+      title: 'Expected-line coverage',
+      detail: `${ouPicks.length} O/U candidate sides ranked`,
+      status: ouPicks.length >= 15 ? 'green' : ouPicks.length >= 9 ? 'amber' : ouPicks.length ? 'red' : 'empty'
+    },
+    {
+      title: 'Result pressure (favourite check)',
+      detail: rankPicks[0] ? `${rankPicks[0].label} @ ${pct(rankPicks[0].probability, 1)}` : 'Favourite pressure supports market',
+      status: rankPicks[0] ? statusFromPct(rankPicks[0].probability, 68, 58) : 'empty'
+    },
+    {
+      title: 'Line-rank fallback',
+      detail: ouPicks[0] ? `${ouPicks[0].label} @ ${pct(ouPicks[0].probability, 1)}` : 'Add more O/U lines',
+      status: ouPicks[0] ? statusFromPct(ouPicks[0].probability, 76, 60) : 'empty'
+    }
+  ];
+
+  const profiles = [
+    profileFromChecks('A', 'Safest Selection — lowest margin read', aChecks, 0.72, 0.45, safestPick, 'Final Verdict'),
+    profileFromChecks('B', 'Best Value — margin-cost ranking', bChecks, 0.72, 0.45, bestValuePick, 'Margin Rank'),
+    profileFromChecks('C', 'Match-Shape Intelligence', [], 0.72, 0.45, topPick(rankPicks), 'Shape Read'),
+    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topPick(allPicks), 'All Markets')
+  ];
+
+  return {
+    ...finishAnalysis(scope, profiles, allPicks, 76, 62),
+    metrics: [
+      { label: o.metLabel, value: total ? `${total.expected}${total.approx ? ' approx' : ''}` : '-', note: o.unitLabel, status: total ? ('green' as Status) : ('empty' as Status) },
+      { label: 'Team sum diff (TSC)', value: combinedDiff === null ? '-' : `${combinedDiff > 0 ? '+' : ''}${combinedDiff}`, note: 'T1 + T2 vs game total', status: combinedDiff === null ? ('empty' as Status) : Math.abs(combinedDiff) <= teamSumTight ? ('green' as Status) : ('amber' as Status) },
+      { label: o.unitLabel, value: p1 ? `${p1.expected}` : '-', note: `${nameA} expected`, status: p1 ? ('green' as Status) : ('empty' as Status) },
+      { label: 'Ranked picks', value: String(allPicks.length), note: 'Across Moneyline, Spread & Totals' },
+      { label: 'Best-value EV', value: bestValuePick?.ev !== undefined ? `${round(bestValuePick.ev * 100, 1)}%` : '-', note: 'Margin read, not profit forecast' }
+    ]
+  };
+}
+
+export function analyzeAmericanFootball(scope: ScopeState): Analysis {
+  return analyzeTeamPointsGame(scope, {
+    unit: 'pts', unitLabel: 'Points',
+    metLabel: 'MEPT', totalTitle: 'Game Total Points', homeTitle: 'Home Total Points', awayTitle: 'Away Total Points',
+    strongSignal: 62, modSignal: 54,
+    winnerTitle: { a: `${scope.teamA || 'Home'} Win`, b: `${scope.teamB || 'Away'} Win` }
+  });
+}
+
+export function analyzeRugby(scope: ScopeState): Analysis {
+  return analyzeTeamPointsGame(scope, {
+    unit: 'pts', unitLabel: 'Points',
+    metLabel: 'MET', totalTitle: 'Match Total Points', homeTitle: 'Team 1 Total Points', awayTitle: 'Team 2 Total Points',
+    strongSignal: 62, modSignal: 54,
+    winnerTitle: { a: `${scope.teamA || 'Team 1'} Win`, b: `${scope.teamB || 'Team 2'} Win` }
+  });
+}
+
+export function analyzeCricket(scope: ScopeState): Analysis {
+  return analyzeTeamPointsGame(scope, {
+    unit: 'runs', unitLabel: 'Runs',
+    metLabel: 'MER', totalTitle: 'Match Total Runs', homeTitle: 'Team 1 Total Runs', awayTitle: 'Team 2 Total Runs',
+    strongSignal: 64, modSignal: 56,
+    winnerTitle: { a: `${scope.teamA || 'Team 1'} Win`, b: `${scope.teamB || 'Team 2'} Win` }
+  });
+}
+
+export function analyzeMma(scope: ScopeState): Analysis {
+  return analyzeTeamPointsGame(scope, {
+    unit: 'rounds', unitLabel: 'Rounds',
+    metLabel: 'MERT', totalTitle: 'Total Rounds Over/Under', homeTitle: 'Fighter A Rounds', awayTitle: 'Fighter B Rounds',
+    strongSignal: 60, modSignal: 52,
+    winnerTitle: { a: `${scope.teamA || 'Fighter A'} Win`, b: `${scope.teamB || 'Fighter B'} Win` }
+  });
+}
+
+export function analyzeVolleyball(scope: ScopeState): Analysis {
+  return analyzeRally(scope);
+}
+
 /* ========================= SCOPE FACTORIES ========================= */
 
 const OU_LINE_COUNT = 11;
@@ -2275,6 +2447,130 @@ export function createBaseballScopes(): ScopeState[] {
   return [createBaseballScope('rt', 'Regular Time (9 Innings)'), createBaseballScope('f5', '1st 5 Innings'), createBaseballScope('f1', '1st Inning')];
 }
 
+/* ========================= NEW SPORT SCOPE FACTORIES ========================= */
+
+export function createAmericanFootballScope(id: 'ft' | 'h1' | 'q1', title: string): ScopeState {
+  const isFT = id === 'ft';
+  const isH1 = id === 'h1';
+  const gameLines = isFT ? range(30.5, 60.5, 3) : isH1 ? range(13.5, 34.5, 2) : range(2.5, 18.5, 1.5);
+  const teamLines = isFT ? range(8.5, 34.5, 2) : isH1 ? range(3.5, 24.5, 2) : range(0.5, 12.5, 1.5);
+  const hdpLines = isFT ? [-24.5, -21.5, -18.5, -14.5, -10.5, -6.5, 0.5, 6.5, 10.5, 14.5, 21.5] : isH1 ? [-13.5, -10.5, -7.5, -5.5, -3.5, -1.5, 0.5, 1.5, 3.5, 5.5, 7.5] : [-6.5, -5.5, -4.5, -3.5, -2.5, -1.5, 0.5, 1.5, 2.5, 3.5, 4.5];
+
+  const state: ScopeState = {
+    id,
+    title,
+    leaguePreset: 'nfl',
+    markets: {
+      winner: market('winner', id === 'ft' ? 'Moneyline (Game Winner)' : id === 'h1' ? '1st Half Winner' : '1st Quarter Winner', 'winner', { primary: true, odds: oddsMap(['a', 'b']) }),
+      handicap: market('handicap', id === 'ft' ? 'Point Spread' : id === 'h1' ? '1st Half Spread' : '1st Quarter Spread', 'handicap', { primary: true, handicapPairs: emptyHandicaps(OU_LINE_COUNT, hdpLines) }),
+      mainTotalO: market('mainTotal', id === 'ft' ? 'Game Total Points' : id === 'h1' ? '1st Half Total Points' : '1st Quarter Total Points', 'ou', { primary: true, pairs: emptyPairs(gameLines.length <= OU_LINE_COUNT ? gameLines.length : OU_LINE_COUNT, gameLines.length <= OU_LINE_COUNT ? gameLines : gameLines.slice(0, OU_LINE_COUNT)) }),
+      homeTotal: market('homeTotal', id === 'ft' ? 'Team 1 Total Points' : id === 'h1' ? '1st Half T1 Points' : '1st Quarter T1 Points', 'ou', { primary: true, pairs: emptyPairs(teamLines.length <= OU_LINE_COUNT ? teamLines.length : OU_LINE_COUNT, teamLines.length <= OU_LINE_COUNT ? teamLines : teamLines.slice(0, OU_LINE_COUNT)) }),
+      awayTotal: market('awayTotal', id === 'ft' ? 'Team 2 Total Points' : id === 'h1' ? '1st Half T2 Points' : '1st Quarter T2 Points', 'ou', { primary: true, pairs: emptyPairs(teamLines.length <= OU_LINE_COUNT ? teamLines.length : OU_LINE_COUNT, teamLines.length <= OU_LINE_COUNT ? teamLines : teamLines.slice(0, OU_LINE_COUNT)) }),
+      correctScore: market('correctScore', 'Correct Score (NFL 1-4 CD)', 'correctScore', { odds: oddsMap(['others', 'homeFavourite']) })
+    }
+  };
+  return state;
+}
+
+export function createAmericanFootballScopes(): ScopeState[] {
+  return [createAmericanFootballScope('ft', 'Full Game'), createAmericanFootballScope('h1', '1st Half'), createAmericanFootballScope('q1', '1st Quarter')];
+}
+
+export function createRugbyScope(id: 'ft' | 'h1', title: string): ScopeState {
+  const isFT = id === 'ft';
+  const gameLines = isFT ? [23.5, 30.5, 37.5, 44.5, 51.5, 58.5, 65.5] : [5.5, 11.5, 17.5, 23.5, 29.5];
+  const teamLines = isFT ? [6.5, 13.5, 20.5, 27.5, 34.5] : [2.5, 7.5, 12.5, 17.5, 22.5];
+  const hdpLines = isFT ? [-18.5, -13.5, -8.5, -3.5, 0.5, 3.5, 8.5, 13.5, 18.5] : [-8.5, -6.5, -4.5, -2.5, -0.5, 0.5, 2.5, 4.5, 6.5];
+
+  const state: ScopeState = {
+    id,
+    title,
+    leaguePreset: 'rugby',
+    markets: {
+      winner: market('winner', isFT ? 'Moneyline (2-way, no draw)' : '1st Half Winner', 'winner', { primary: true, odds: oddsMap(['a', 'b']) }),
+      boss: market('boss', 'Draw / Tie Option', 'yesno', { odds: oddsMap(['yes', 'no']) }),
+      handicap: market('handicap', isFT ? 'Handicap' : '1st Half Handicap', 'handicap', { primary: true, handicapPairs: emptyHandicaps(OU_LINE_COUNT, hdpLines) }),
+      mainTotal: market('mainTotal', isFT ? 'Match Total Points' : '1st Half Total Points', 'ou', { primary: true, pairs: emptyPairs(gameLines.length, gameLines) }),
+      homeTotal: market('homeTotal', isFT ? 'Team 1 Total Points' : '1st Half T1 Points', 'ou', { primary: true, pairs: emptyPairs(teamLines.length, teamLines) }),
+      awayTotal: market('awayTotal', isFT ? 'Team 2 Total Points' : '1st Half T2 Points', 'ou', { primary: true, pairs: emptyPairs(teamLines.length, teamLines) })
+    }
+  };
+  return state;
+}
+
+export function createRugbyScopes(): ScopeState[] {
+  return [createRugbyScope('ft', 'Full Match'), createRugbyScope('h1', '1st Half')];
+}
+
+export function createCricketScope(id: 'ft' | 'i1', title: string): ScopeState {
+  const isFM = id === 'ft';
+  const gameLines = isFM ? [100, 150, 200, 250, 300, 350, 400]  : [150, 200, 250, 300];
+  const teamLines = isFM ? [150, 200, 250, 300, 350] : [150, 200, 250, 300];
+  const hdpLines = isFM ? [-60, -40, -20, 0, 20, 40, 60] : [-60, -40, -20, 0, 20, 40, 60];
+
+  const state: ScopeState = {
+    id,
+    title,
+    leaguePreset: 'cricket',
+    markets: {
+      winner: market('winner', isFM ? 'Match Winner (2-way)' : 'Team Batting Runs (Over/Under)', 'winner', { primary: true, odds: oddsMap(['a', 'b']) }),
+      handicap: market('handicap', isFM ? 'Run Line / Handicap' : '1st Innings Run Line', 'handicap', { primary: true, handicapPairs: emptyHandicaps(OU_LINE_COUNT, hdpLines) }),
+      gameTotal: market('gameTotal', isFM ? 'Match Total Runs' : '1st Innings Total Runs', 'ou', { primary: true, pairs: emptyPairs(gameLines.length, gameLines) }),
+      homeTotal: market('homeTotal', isFM ? 'Team 1 Total Runs' : 'Team 1 1st Innings', 'ou', { primary: true, pairs: emptyPairs(teamLines.length, teamLines) }),
+      awayTotal: market('awayTotal', isFM ? 'Team 2 Total Runs' : 'Team 2 1st Innings', 'ou', { primary: true, pairs: emptyPairs(teamLines.length, teamLines) })
+    }
+  };
+  return state;
+}
+
+export function createCricketScopes(): ScopeState[] {
+  return [createCricketScope('ft', 'Full Match'), createCricketScope('i1', '1st Innings')];
+}
+
+export function createMmaScope(id: 'ft' | 'r', title: string): ScopeState {
+  const isFT = id === 'ft';
+  const state: ScopeState = {
+    id,
+    title,
+    leaguePreset: 'mma',
+    markets: {
+      winner: market('winner', 'Fight Winner', 'winner', { primary: true, odds: oddsMap(['a', 'b']) }),
+      method: market('method', 'Method of Victory', 'threeway', { odds: oddsMap(['ko', 'sub', 'dec']) }),
+      roundsTotal: market('roundRule', isFT ? 'Total Rounds Over/Under' : 'Rounds Prop', 'ou', { primary: true, pairs: emptyPairs(7, [1.5, 2.5, 3.5, 4.5, 5.5]) }),
+      goTheDistance: market('goDistance', 'Will it go the distance?', 'yesno', { odds: oddsMap(['yes', 'no']) })
+    }
+  };
+  return state;
+}
+
+export function createMmaScopes(): ScopeState[] {
+  return [createMmaScope('ft', 'Full Fight'), createMmaScope('r', 'Rounds View')];
+}
+
+export function createVolleyballScope(id: 'ft' | 's1', title: string): ScopeState {
+  const isFT = id === 'ft';
+  const setLine = isFT ? [2.5, 3.5, 4.5] : [1.5, 2.5];
+  const pointLines = isFT ? [8.5, 12.5, 16.5, 20.5, 24.5] : [2.5, 5.5, 8.5, 11.5, 14.5, 17.5, 20.5];
+  const state: ScopeState = {
+    id,
+    title,
+    leaguePreset: 'volleyball',
+    markets: {
+      matchWinner: market('matchWinner', isFT ? 'Match Winner (2-way)' : 'Set Winner', 'winner', { primary: true, odds: oddsMap(['a', 'b']) }),
+      totalSets: market('totalSets', isFT ? 'Total Sets Played' : 'Sets Played Prop', 'ou', { primary: true, pairs: emptyPairs(setLine.length, setLine) }),
+      gameTotal: market('gameTotal', isFT ? 'Total Match Points' : 'Games in Set', 'ou', { primary: true, pairs: emptyPairs(pointLines.length, pointLines) }),
+      setHandicap: market('setHandicap', isFT ? 'Set Handicap' : 'Set Points Handicap', 'handicap', { handicapPairs: emptyHandicaps(7, [-5.5, -3.5, -1.5, 0.5, 1.5, 3.5, 5.5]) }),
+      homeTotal: market('homeTotal', isFT ? 'Team 1 Total Points' : 'Set1 Team 1 Points', 'ou', { primary: true, pairs: emptyPairs(pointLines.length, pointLines) }),
+      awayTotal: market('awayTotal', isFT ? 'Team 2 Total Points' : 'Set1 Team 2 Points', 'ou', { primary: true, pairs: emptyPairs(pointLines.length, pointLines) })
+    }
+  };
+  return state;
+}
+
+export function createVolleyballScopes(): ScopeState[] {
+  return [createVolleyballScope('ft', 'Full Match'), createVolleyballScope('s1', '1st Set')];
+}
+
 /* ========================= LINE OPTIONS ========================= */
 
 const _lineOptionsCache = new Map<string, number[]>();
@@ -2337,6 +2633,34 @@ function computeLineOptions(sportId: SportId, scopeId: string, marketId: string)
     if (marketId === 'mainTotal') return scopeId === 'rt' ? [3.5, 4.5, 5.5, 6.5, 7.5, 8.5] : [0.5, 1, 1.5, 2, 2.5, 3];
     if (marketId === 'homeTotal' || marketId === 'awayTotal') return scopeId === 'rt' ? [0.5, 1.5, 2.5, 3.5, 4.5, 5.5] : [0.5, 1, 1.5, 2, 2.5, 3];
     if (marketId === 'handicap') return [-3.5, -2.5, -1.5, -0.5, 0, 0.5, 1.5, 2.5, 3.5];
+    return [];
+  }
+  if (sportId === 'americanfootball') {
+    if (marketId === 'mainTotal') return scopeId === 'q1' ? range(2.5, 18.5, 1) : scopeId === 'h1' ? range(13.5, 34.5, 1) : range(30.5, 60.5, 2);
+    if (marketId === 'homeTotal' || marketId === 'awayTotal') return scopeId === 'q1' ? range(0.5, 12.5, 1) : scopeId === 'h1' ? range(3.5, 24.5, 1) : range(8.5, 34.5, 2);
+    if (marketId === 'handicap') return range(-14.5, 14.5, 1);
+    return [];
+  }
+  if (sportId === 'rugby') {
+    if (marketId === 'mainTotal' || marketId === 'gameTotal') return scopeId === 'h1' ? [5.5, 11.5, 17.5, 23.5, 29.5] : [23.5, 30.5, 37.5, 44.5, 51.5, 58.5, 65.5];
+    if (marketId === 'homeTotal' || marketId === 'awayTotal') return scopeId === 'h1' ? [2.5, 7.5, 12.5, 17.5, 22.5] : [6.5, 13.5, 20.5, 27.5, 34.5];
+    if (marketId === 'handicap') return range(-18.5, 18.5, 0.5);
+    return [];
+  }
+  if (sportId === 'cricket') {
+    if (marketId === 'gameTotal' || marketId === 'mainTotal') return scopeId === 'i1' ? [150, 200, 250, 300] : [100, 150, 200, 250, 300, 350, 400];
+    if (marketId === 'homeTotal' || marketId === 'awayTotal') return [150, 200, 250, 300, 350];
+    if (marketId === 'handicap') return range(-60, 60, 10);
+    return [];
+  }
+  if (sportId === 'mma') {
+    if (marketId === 'roundsTotal') return [1.5, 2.5, 3.5, 4.5, 5.5];
+    return [];
+  }
+  if (sportId === 'volleyball') {
+    if (marketId === 'totalSets') return [2.5, 3.5, 4.5];
+    if (marketId === 'gameTotal' || marketId === 'homeTotal' || marketId === 'awayTotal') return scopeId === 's1' ? [2.5, 5.5, 8.5, 11.5, 14.5, 17.5, 20.5] : [8.5, 12.5, 16.5, 20.5, 24.5];
+    if (marketId === 'setHandicap') return range(-5.5, 5.5, 1);
     return [];
   }
   // rally
@@ -2489,7 +2813,12 @@ export function clearAllScopeStorage(): void {
       'instant-football',
       'instant-basketball',
       'vfootball',
-      'baseball'
+      'baseball',
+      'americanfootball',
+      'rugby',
+      'cricket',
+      'mma',
+      'volleyball'
     ];
     ALL_SPORTS.forEach((s) => clearScopes(s));
   } catch (_e) {

@@ -18,12 +18,17 @@ export interface ScrapeMatch {
 }
 
 const SPORT_LEAGUES: Record<string, string[]> = {
-  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'Primeira Liga'],
-  basketball: ['NBA', 'EuroLeague', 'ACB', 'LNB'],
+  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'Primeira Liga', 'Championship', 'League One', 'League Two', 'FA Cup', 'EFL Cup', 'Serie B', 'Segunda', 'Ligue 2', 'Super Lig', 'Liga MX', 'MLS'],
+  basketball: ['NBA', 'EuroLeague', 'ACB', 'LNB', 'WNBA', 'NCAAB', 'CBA'],
   tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000'],
-  rally: ['WRC', 'ERC', 'World Rally'],
-  hockey: ['NHL', 'KHL', 'SHL', 'Liiga'],
-  baseball: ['MLB', 'NPB', 'KBO']
+  rally: ['ITTF', 'WTT', 'Table Tennis', 'TT'],
+  hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL'],
+  baseball: ['MLB', 'NPB', 'KBO', 'MiLB'],
+  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'Super Bowl'],
+  rugby: ['Six Nations', 'Rugby', 'Premier Rugby', 'Top 14', 'Super Rugby', 'URC'],
+  cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash', 'Hundred', 'World Cup'],
+  mma: ['UFC', 'Bellator', 'PFL', 'ONE'],
+  volleyball: ['FIVB', 'VNL', 'SerieA', 'Superleague', 'Volleyball']
 };
 
 function clean(name: string): string {
@@ -107,9 +112,14 @@ export function syntheticFixtures(sportId: string): ScrapeMatch[] {
     football: [['Arsenal', 'Chelsea'], ['Liverpool', 'Man City'], ['Real Madrid', 'Barcelona'], ['Inter', 'AC Milan']],
     basketball: [['Lakers', 'Celtics'], ['Warriors', 'Bucks'], ['Real Madrid', 'Barcelona']],
     tennis: [['Alcaraz', 'Sinner'], ['Djokovic', 'Zverev']],
-    rally: [['Neuville', 'Rovanpera'], ['Ogier', 'Evans']],
+    rally: [['Lebrun', 'Harimoto'], ['Wang Chuqin', 'Fan Zhendong']],
     hockey: [['Rangers', 'Bruins'], ['Maple Leafs', 'Canadiens']],
-    baseball: [['Yankees', 'Red Sox'], ['Dodgers', 'Giants']]
+    baseball: [['Yankees', 'Red Sox'], ['Dodgers', 'Giants']],
+    americanfootball: [['Chiefs', 'Eagles'], ['Cowboys', '49ers'], ['Ravens', 'Bills'], ['Lions', 'Packers']],
+    rugby: [['All Blacks', 'Springboks'], ['England', 'France'], ['Ireland', 'Wales']],
+    cricket: [['India', 'Australia'], ['England', 'Pakistan'], ['New Zealand', 'South Africa']],
+    mma: [['Islam Makhachev', 'Ilia Topuria'], ['Joanna Jędrzejczyk', 'Rose Namajunas']],
+    volleyball: [['Brazil', 'Poland'], ['Italy', 'France'], ['USA', 'Japan'], ['Russia', 'Serbia']]
   };
   const pairs = known[sportId] ?? [];
   return pairs.map(([h, a], i) => ({

@@ -11,7 +11,12 @@ export const SPORT_IDS = v.union(
   v.literal('instant-football'),
   v.literal('instant-basketball'),
   v.literal('vfootball'),
-  v.literal('baseball')
+  v.literal('baseball'),
+  v.literal('americanfootball'),
+  v.literal('rugby'),
+  v.literal('cricket'),
+  v.literal('mma'),
+  v.literal('volleyball')
 );
 
 export const PREDICTOR_SPORT_IDS = v.union(
@@ -20,7 +25,12 @@ export const PREDICTOR_SPORT_IDS = v.union(
   v.literal('tennis'),
   v.literal('rally'),
   v.literal('hockey'),
-  v.literal('baseball')
+  v.literal('baseball'),
+  v.literal('americanfootball'),
+  v.literal('rugby'),
+  v.literal('cricket'),
+  v.literal('mma'),
+  v.literal('volleyball')
 );
 
 export default defineSchema({
@@ -47,7 +57,12 @@ export default defineSchema({
       v.literal('instant-football'),
       v.literal('instant-basketball'),
       v.literal('vfootball'),
-      v.literal('baseball')
+      v.literal('baseball'),
+      v.literal('americanfootball'),
+      v.literal('rugby'),
+      v.literal('cricket'),
+      v.literal('mma'),
+      v.literal('volleyball')
     ),
     title: v.string(),
     notes: v.optional(v.string()),
@@ -154,6 +169,10 @@ export default defineSchema({
     marketsAvailable: v.array(v.string()),
     scopes: v.any(),
     oddsSnapshot: v.optional(v.any()),
+    finalScore: v.optional(v.string()),
+    status: v.optional(
+      v.union(v.literal('upcoming'), v.literal('inplay'), v.literal('finished'))
+    ),
     createdAt: v.number()
   })
     .index('by_sport_day', ['sportId', 'dayKey', 'startTime'])

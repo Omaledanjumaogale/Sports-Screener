@@ -23,8 +23,14 @@ const ODDS_SPORT_PREFERENCE: Record<string, RegExp[]> = {
   football: [/^soccer_epl$/, /^soccer_england_/, /^soccer_/],
   basketball: [/^basketball_nba$/, /^basketball_wnba$/, /^basketball_/],
   tennis: [/^tennis_.*(?:grand_slam|atp)/, /^tennis_.*wta/, /^tennis_/],
+  rally: [/^table_tennis_/, /^table_tennis_ittf/],
   hockey: [/^icehockey_nhl$/, /^icehockey_/],
-  baseball: [/^baseball_mlb$/, /^baseball_/]
+  baseball: [/^baseball_mlb$/, /^baseball_/],
+  americanfootball: [/^americanfootball_nfl$/, /^americanfootball_ncaaf$/, /^americanfootball_/],
+  rugby: [/^rugby_union_/, /^rugby_league_/, /^rugby_/],
+  cricket: [/^cricket_test_match$/, /^cricket_/],
+  mma: [/^mma_/],
+  volleyball: [/^volleyball_/]
 };
 
 let oddsSportsCache: { at: number; keys: string[] } | null = null;
@@ -35,7 +41,12 @@ export const TSDB_SPORT: Record<string, string> = {
   tennis: 'Tennis',
   hockey: 'IceHockey',
   baseball: 'Baseball',
-  rally: 'Motorsport'
+  rally: 'TableTennis',
+  americanfootball: 'American Football',
+  rugby: 'Rugby',
+  cricket: 'Cricket',
+  mma: 'MMA',
+  volleyball: 'Volleyball'
 };
 
 export const TSDB_SPORT_KEYS: Record<string, RegExp> = {
@@ -44,7 +55,12 @@ export const TSDB_SPORT_KEYS: Record<string, RegExp> = {
   tennis: /tennis/i,
   hockey: /ice\s*hockey|nhl/i,
   baseball: /baseball|mlb/i,
-  rally: /motor|rally|formula/i
+  rally: /table.?tennis|ping.?pong/i,
+  americanfootball: /american.?football|nfl/i,
+  rugby: /rugby/i,
+  cricket: /cricket/i,
+  mma: /mma|mixed.?martial/i,
+  volleyball: /volleyball/i
 };
 
 export interface ApiFixture {
@@ -217,7 +233,7 @@ export async function resolveOddsSportKeys(sportId: string): Promise<string[]> {
         if (re.test(k) && !futures.test(k) && !matches.includes(k)) matches.push(k);
       }
     }
-    return matches.slice(0, 12);
+    return matches.slice(0, sportId === 'football' ? 25 : 12);
   }
   return [ODDS_FALLBACK[sportId]].filter(Boolean);
 }
@@ -234,7 +250,12 @@ const ODDS_FALLBACK: Record<string, string> = {
   basketball: 'basketball_nba',
   tennis: 'tennis_atp_canadian_open',
   hockey: 'icehockey_nhl',
-  baseball: 'baseball_mlb'
+  baseball: 'baseball_mlb',
+  americanfootball: 'americanfootball_nfl',
+  rugby: 'rugby_union',
+  cricket: 'cricket_test_match',
+  mma: 'mma_mixed_martial_arts',
+  volleyball: 'volleyball_'
 };
 
 export interface ConsolidatedOdds {
@@ -256,35 +277,101 @@ export function leagueForOddsSportKey(key: string | undefined): string {
     soccer_efl_champ: 'EFL Championship',
     soccer_england_league1: 'EFL League One',
     soccer_england_league2: 'EFL League Two',
+    soccer_england_national_league: 'National League',
+    soccer_england_fa_cup: 'FA Cup',
     soccer_england_efl_cup: 'EFL Cup',
     soccer_spain_la_liga: 'La Liga',
     soccer_spain_segunda_division: 'Spain Segunda',
+    soccer_spain_copa_del_rey: 'Copa del Rey',
     soccer_germany_bundesliga: 'Bundesliga',
     soccer_germany_bundesliga2: 'Bundesliga 2',
+    soccer_germany_dfb_pokal: 'DFB-Pokal',
     soccer_italy_serie_a: 'Serie A',
     soccer_italy_serie_b: 'Serie B',
+    soccer_italy_coppa_italia: 'Coppa Italia',
     soccer_france_ligue_one: 'Ligue 1',
     soccer_france_ligue_two: 'Ligue 2',
+    soccer_france_coupe_de_france: 'Coupe de France',
     soccer_portugal_primeira_liga: 'Primeira Liga',
     soccer_netherlands_eredivisie: 'Eredivisie',
+    soccer_scotland_premiership: 'Scottish Premiership',
+    soccer_belgium_first_div: 'Belgian Pro League',
+    soccer_turkey_super_league: 'Turkish Super Lig',
+    soccer_greece_super_league: 'Greek Super League',
+    soccer_switzerland_superleague: 'Swiss Super League',
+    soccer_austria_bundesliga: 'Austrian Bundesliga',
+    soccer_denmark_superliga: 'Danish Superliga',
+    soccer_sweden_allsvenskan: 'Allsvenskan',
+    soccer_norway_eliteserien: 'Eliteserien',
     soccer_brazil_campeonato: 'Brazil Serie A',
     soccer_argentina_primera_division: 'Argentina Primera',
+    soccer_chile_campeonato: 'Chile Primera',
+    soccer_mexico_ligamx: 'Liga MX',
     soccer_usa_mls: 'MLS',
+    soccer_uefa_champs_league: 'UEFA Champions League',
     soccer_uefa_champs_league_qualification: 'UEFA CL Qualifying',
+    soccer_uefa_europa_league: 'UEFA Europa League',
+    soccer_uefa_conference_league: 'UEFA Conference League',
+    soccer_uefa_nations_league: 'UEFA Nations League',
+    soccer_uefa_euro_qualification: 'Euro Qualifying',
+    soccer_fifa_world_cup: 'FIFA World Cup',
+    soccer_copa_america: 'Copa America',
+    soccer_copa_libertadores: 'Copa Libertadores',
     basketball_nba: 'NBA',
     basketball_wnba: 'WNBA',
     basketball_ncaab: 'NCAAB',
+    basketball_euroleague: 'EuroLeague',
+    basketball_acb: 'Liga ACB',
+    basketball_lnb: 'LNB Pro A',
+    basketball_cba: 'CBA',
+    basketball_philippines_pba: 'Philippine PBA',
     baseball_mlb: 'MLB',
     baseball_npb: 'NPB',
     baseball_kbo: 'KBO',
+    baseball_milb: 'MiLB',
+    baseball_ab: 'Australian Baseball League',
+    baseball_mexico_lmb: 'Mexican LMB',
+    baseball_venezuela_lvbp: 'Venezuelan LVBP',
     icehockey_nhl: 'NHL',
-    icehockey_khl: 'KHL'
+    icehockey_khl: 'KHL',
+    icehockey_sweden_shl: 'SHL',
+    icehockey_finland_liiga: 'Liiga',
+    icehockey_switzerland_nla: 'NL Switzerland',
+    icehockey_czech_extraliga: 'Czech Extraliga',
+    icehockey_ahl: 'AHL',
+    icehockey_germany_del: 'DEL',
+    americanfootball_nfl: 'NFL',
+    americanfootball_ncaaf: 'NCAAF',
+    americanfootball_xfl: 'XFL',
+    rugby_union_international: 'Rugby International',
+    rugby_union_english_premiership: 'English Premiership',
+    rugby_union_england_premiership: 'English Premiership',
+    rugby_union_top14: 'Top 14',
+    rugby_union_super_rugby: 'Super Rugby',
+    cricket_test_match: 'Test Cricket',
+    cricket_odi: 'ODI',
+    cricket_international_t20: 'T20 International',
+    cricket_ccc: 'T20 League',
+    cricket_bb: 'The Hundred',
+    cricket_the_hundred: 'The Hundred',
+    cricket_pakistan_super_league: 'Pakistan Super League',
+    cricket_indian_t20: 'Indian T20',
+    cricket_australia_t20: 'Big Bash',
+    mma_mixed_martial_arts: 'MMA',
+    volleyball_: 'Volleyball',
+    volleyball_brazil_super_league: 'Brazil Superliga',
+    volleyball_italy_serie_a1: 'Italy Serie A1'
   };
   if (map[key]) return map[key];
   if (key.startsWith('soccer_')) return 'Soccer League';
   if (key.startsWith('basketball_')) return 'Basketball League';
   if (key.startsWith('baseball_')) return 'Baseball League';
   if (key.startsWith('icehockey_')) return 'Hockey League';
+  if (key.startsWith('americanfootball_')) return 'American Football';
+  if (key.startsWith('rugby_')) return 'Rugby League';
+  if (key.startsWith('cricket_')) return 'Cricket Match';
+  if (key.startsWith('mma_')) return 'MMA Fight';
+  if (key.startsWith('volleyball_')) return 'Volleyball Match';
   if (key.startsWith('tennis_')) {
     const parts = key.replace('tennis_', '').split('_');
     return parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') || 'Tennis';
@@ -461,11 +548,13 @@ export function mapODDSPAPIFixtures(raw: any[], sportId: string): ApiFixture[] {
 
 // ── SharpAPI (flat real bookmaker odds: moneyline/spread/total) ──────────────
 const SHARP_LEAGUES: Record<string, string[]> = {
-  football: ['england_-_premier_league', 'spain_-_la_liga', 'italy_-_serie_a', 'germany_-_bundesliga', 'netherlands_-_eredivisie', 'brazil_-_serie_a'],
-  basketball: ['nba', 'ncaab', 'euroleague', 'wnba'],
+  football: ['england_-_premier_league', 'spain_-_la_liga', 'italy_-_serie_a', 'germany_-_bundesliga', 'france_-_ligue_1', 'portugal_-_primeira_liga', 'netherlands_-_eredivisie', 'brazil_-_serie_a', 'turkey_-_super_lig', 'scotland_-_premiership'],
+  basketball: ['nba', 'ncaab', 'euroleague', 'wnba', 'acb', 'cba'],
   tennis: ['atp', 'wta'],
-  hockey: ['nhl', 'khl', 'sweden_-_shl', 'germany_-_del'],
-  baseball: ['mlb', 'npb', 'kbo']
+  hockey: ['nhl', 'khl', 'sweden_-_shl', 'finland_-_liiga', 'germany_-_del', 'czech_-_extraliga'],
+  baseball: ['mlb', 'npb', 'kbo', 'milb'],
+  americanfootball: ['nfl', 'ncaa_football'],
+  rugby: ['rugby_union']
 };
 
 export async function fetchSharpMarkets(sportId: string): Promise<any[]> {
@@ -545,7 +634,7 @@ export function mapSharpFixtures(rows: any[], sportId: string): ApiFixture[] {
   const out: ApiFixture[] = [];
   const now = Date.now();
   const seen = new Set<string>();
-  const lg: Record<string, string> = { football: 'Soccer', basketball: 'Basketball', tennis: 'Tennis', hockey: 'Hockey', baseball: 'Baseball', rally: 'Rally' };
+  const lg: Record<string, string> = { football: 'Soccer', basketball: 'Basketball', tennis: 'Tennis', hockey: 'Hockey', baseball: 'Baseball', rally: 'Table Tennis', americanfootball: 'NFL', rugby: 'Rugby', cricket: 'Cricket', mma: 'MMA', volleyball: 'Volleyball' };
   for (const r of rows ?? []) {
     const home = String(r?.home_team || '').trim();
     const away = String(r?.away_team || '').trim();

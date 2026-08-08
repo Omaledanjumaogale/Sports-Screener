@@ -7,7 +7,12 @@ export type ConvexSportId =
   | 'instant-football'
   | 'instant-basketball'
   | 'vfootball'
-  | 'baseball';
+  | 'baseball'
+  | 'americanfootball'
+  | 'rugby'
+  | 'cricket'
+  | 'mma'
+  | 'volleyball';
 
 export type Id<T extends string> = string & { __convexId: T };
 
@@ -211,6 +216,7 @@ export const api = {
     saveDailyPnlSummary: 'predictor:saveDailyPnlSummary',
     getActiveRun: 'predictor:getActiveRun',
     startRefresh: 'predictor:startRefresh',
+    updateMatchResult: 'predictor:updateMatchResult',
     bootstrapToday: 'predictor:bootstrapToday'
   },
   predictorOrchestrator: {

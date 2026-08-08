@@ -95,6 +95,15 @@ export async function startPredictorRefresh(
   return callConvex<{ runId: string; alreadyRunning: boolean }>(api.predictor.startRefresh, { sportId, dayKey, incremental });
 }
 
+export async function updateMatchResult(
+  matchId: string,
+  dayKey: string,
+  finalScore: string,
+  status: 'upcoming' | 'inplay' | 'finished' = 'finished'
+): Promise<{ dayKey: string; matchId: string; finalScore: string; status: string }> {
+  return callConvex(api.predictor.updateMatchResult, { matchId, dayKey, finalScore, status });
+}
+
 export async function bootstrapTodayAllSports(): Promise<{ seeded: number; message: string }> {
   return actionConvex<{ seeded: number; message: string }>(api.predictor.bootstrapToday, {});
 }

@@ -9,12 +9,17 @@ import { sourceUrlsFor, PRIMARY_SOURCE } from './sources';
 import { type ScrapeMatch } from './betwatch';
 
 const SPORT_LEAGUES: Record<string, string[]> = {
-  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'FA Cup', 'Europa'],
-  basketball: ['NBA', 'EuroLeague', 'ACB', 'LNB', 'WNBA'],
+  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'FA Cup', 'Europa', 'Championship', 'League One', 'League Two', 'EFL Cup', 'Serie B', 'Segunda', 'Bundesliga 2', 'Ligue 2', 'Primeira Liga', 'Super Lig', 'Liga MX', 'MLS', 'Scottish Premiership', 'Copa Libertadores', 'Copa America', 'World Cup', 'Nations League'],
+  basketball: ['NBA', 'EuroLeague', 'ACB', 'LNB', 'WNBA', 'NCAAB', 'CBA', 'PBA'],
   tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000', 'ATP Tour', 'WTA Tour'],
-  rally: ['WRC', 'ERC', 'World Rally', 'Rally', 'FIA'],
-  hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL'],
-  baseball: ['MLB', 'NPB', 'KBO', 'MiLB']
+  rally: ['ITTF', 'WTT', 'World Table Tennis', 'Table Tennis', 'TT Cup'],
+  hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL'],
+  baseball: ['MLB', 'NPB', 'KBO', 'MiLB'],
+  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'Super Bowl'],
+  rugby: ['Six Nations', 'Rugby Championship', 'Premiership Rugby', 'Top 14', 'Super Rugby', 'World Cup Rugby', 'URC'],
+  cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash', 'The Hundred', 'World Cup', 'Super League'],
+  mma: ['UFC', 'Bellator', 'PFL', 'ONE Championship', 'MMA'],
+  volleyball: ['FIVB', 'VNL', 'CEV', 'SuperLega', 'Superleague', 'Volleyball']
 };
 
 function clean(name: string): string {

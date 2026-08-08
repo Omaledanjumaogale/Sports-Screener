@@ -38,7 +38,8 @@ export async function runSmoaPipeline(
   sportId: string,
   dayKey: string,
   report: ProgressReporter,
-  floor = FILTER_CONFIDENCE_FLOOR
+  floor = FILTER_CONFIDENCE_FLOOR,
+  cap?: number
 ): Promise<SmoaReport> {
   const agentsRun: string[] = [];
   const sourcesUsed: string[] = ['https://betwatch.fr/'];
@@ -50,7 +51,7 @@ export async function runSmoaPipeline(
   await report(AGENT_DEFS[0].weight, `${AGENT_DEFS[0].name} — fetching fixtures`,
     fixturesRes.usedSynthetic ? 'Live scrape unavailable; dev fixtures used.' : `${fixturesRes.raw.length} fixtures found across the source directory and data APIs`);
 
-  const capped = fixturesRes.raw.slice(0, dailyCap());
+  const capped = fixturesRes.raw.slice(0, cap ?? dailyCap());
 
   // 2. Kunle Odds — odds
   const oddsRes = await kunleCollectOdds(capped, sportId);

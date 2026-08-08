@@ -14,7 +14,12 @@ const sportId = v.union(
   v.literal('instant-football'),
   v.literal('instant-basketball'),
   v.literal('vfootball'),
-  v.literal('baseball')
+  v.literal('baseball'),
+  v.literal('americanfootball'),
+  v.literal('rugby'),
+  v.literal('cricket'),
+  v.literal('mma'),
+  v.literal('volleyball')
 );
 
 export const get = query({

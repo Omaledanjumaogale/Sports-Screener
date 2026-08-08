@@ -17,14 +17,20 @@ const sportId = v.union(
   v.literal('tennis'),
   v.literal('rally'),
   v.literal('hockey'),
-  v.literal('baseball')
+  v.literal('baseball'),
+  v.literal('americanfootball'),
+  v.literal('rugby'),
+  v.literal('cricket'),
+  v.literal('mma'),
+  v.literal('volleyball')
 );
 
 const refreshArgs = {
   sportId,
   dayKey: v.string(),
   runId: v.optional(v.string()),
-  floor: v.optional(v.number())
+  floor: v.optional(v.number()),
+  cap: v.optional(v.number())
 };
 
 // Runs `fn` over `arr` with at most `limit` promises in flight. Kept matches
@@ -44,12 +50,12 @@ async function mapLimit<T, R>(arr: T[], limit: number, fn: (t: T) => Promise<R>)
 
 async function executeRefresh(
   ctx: any,
-  args: { sportId: string; dayKey: string; runId?: string; floor?: number }
+  args: { sportId: string; dayKey: string; runId?: string; floor?: number; cap?: number }
 ): Promise<{ ok: boolean; kept: number; runId: string; message: string }> {
   const dayKey = args.dayKey || new Date().toISOString().slice(0, 10);
   const runId = args.runId ?? `run_${args.sportId}_${dayKey}_${Date.now()}`;
   const floor = args.floor ?? FILTER_CONFIDENCE_FLOOR;
-  const cap = dailyCap();
+  const cap = args.cap ?? dailyCap();
 
   const report = async (progress: number, stage: string, message?: string) => {
     await ctx.runMutation(internal.predictor.updateRun, {
@@ -69,7 +75,7 @@ async function executeRefresh(
       cap
     });
 
-    const result = await runSmoaPipeline(args.sportId, dayKey, report, floor);
+    const result = await runSmoaPipeline(args.sportId, dayKey, report, floor, cap);
 
     // Cache EVERY parsed fixture (see smoa.ts) so the schedule always populates.
     await ctx.runMutation(internal.predictor.replaceMatches, {
