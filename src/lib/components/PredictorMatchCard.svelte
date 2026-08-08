@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge, X, Sparkles } from '@lucide/svelte';
+  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge, X, Sparkles, ExternalLink, CheckCircle2, XCircle, MinusCircle } from '@lucide/svelte';
+  import { gradeSelection, type PredictorSportId, type SelectionGrade } from '$lib/predictorTypes';
   import type { PredictorMatch } from '$lib/predictorTypes';
   import { DEFAULT_CONFIDENCE_FLOOR } from '$lib/predictorTypes';
   import type { Analysis, Pick } from '$lib/engine';
@@ -22,6 +23,8 @@
     inPlay = false,
     finished = false,
     finalScore = null as string | null,
+    sport = null as PredictorSportId | null,
+    showFullCta = true,
     onSelect = () => {},
     onClick = () => {}
   }: {
@@ -37,18 +40,23 @@
     inPlay?: boolean;
     finished?: boolean;
     finalScore?: string | null;
+    sport?: PredictorSportId | null;
+    showFullCta?: boolean;
     onSelect?: () => void;
     onClick?: () => void;
   } = $props();
+
+  const cardSport = $derived(sport ?? match.sportId);
 
   let localOpen = $state(false);
   const open = $derived(expanded);
 
   const kickoff = $derived(formatWAT(match.startTime));
   const score = $derived(finalScore || match.finalScore || match.oddsSnapshot?.finalScore || null);
+  const isFinished = $derived(finished || !!score || match.status === 'finished');
   const top = $derived(qualifying[0] ?? null);
   const bestPct = $derived(top ? Number(top.probability).toFixed(1) : null);
-  const bottomPicks = $derived(qualifying.length >= 3 ? qualifying.slice(0, 20) : qualifying);
+  const bottomPicks = $derived(qualifying);
   const metrics = $derived((analysis?.metrics ?? []).slice(0, 4));
 
   const greatMindsData = $derived(generateGreatMindsDebate(match, analysis));
@@ -63,6 +71,17 @@
     const best = picksArr.slice().sort((a, b) => b.realWinChancePct - a.realWinChancePct)[0];
     return best?.selection ?? top?.label ?? '';
   })());
+
+  // Post-match grading (only meaningful once the match is finished).
+  const gradeOf = (selection: string, marketLabel: string): SelectionGrade => {
+    if (!isFinished || !score) return null;
+    return gradeSelection(selection, marketLabel, score, {
+      homeTeam: match.homeTeam,
+      awayTeam: match.awayTeam,
+      marketId: marketLabel
+    });
+  };
+  const topGrade = $derived(top ? gradeOf(top.label, top.marketTitle) : null);
 </script>
 
 <div
@@ -168,6 +187,17 @@
         <Sparkles size={13} stroke-width={2.4} />
         <span>{open ? 'Collapse Analysis' : 'Analyze Match'}</span>
       </button>
+      {#if showFullCta && cardSport}
+        <a
+          class="analyze-match-btn full-cta"
+          href={`/predictor/${cardSport}/${match.matchId}`}
+          aria-label={`Open full analysis for ${match.homeTeam} vs ${match.awayTeam}`}
+          title="Open full analysis"
+        >
+          <ExternalLink size={13} stroke-width={2.4} />
+          <span>Full Analysis</span>
+        </a>
+      {/if}
     </div>
   </header>
 
@@ -177,17 +207,49 @@
       <span class="gm-mini-title"><Trophy size={13} /> Great Minds Verdict:</span>
       {#if greatMindsData.consensusPicks.winner}
         <span class="gm-badge bg-winner">
-          {greatMindsData.consensusPicks.winner.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.winner.consensusRatio}</strong> <Check size={11} />
+          {greatMindsData.consensusPicks.winner.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.winner.consensusRatio}</strong>
+          {#if score && isFinished}
+            {@const g = gradeOf(greatMindsData.consensusPicks.winner.selection, 'result')}
+            {#if g === 'win'}<CheckCircle2 size={11} class="g-win" />{:else if g === 'loss'}<XCircle size={11} class="g-loss" />{:else if g === 'push'}<MinusCircle size={11} class="g-push" />{:else if g === 'void'}<X size={11} class="g-void" />{/if}
+          {:else}
+            <Check size={11} />
+          {/if}
         </span>
       {/if}
       {#if greatMindsData.consensusPicks.spread}
         <span class="gm-badge bg-spread">
-          {greatMindsData.consensusPicks.spread.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.spread.consensusRatio}</strong> <Check size={11} />
+          {greatMindsData.consensusPicks.spread.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.spread.consensusRatio}</strong>
+          {#if score && isFinished}
+            {@const g = gradeOf(greatMindsData.consensusPicks.spread.selection, 'spread')}
+            {#if g === 'win'}<CheckCircle2 size={11} class="g-win" />{:else if g === 'loss'}<XCircle size={11} class="g-loss" />{:else if g === 'push'}<MinusCircle size={11} class="g-push" />{:else if g === 'void'}<X size={11} class="g-void" />{/if}
+          {:else}
+            <Check size={11} />
+          {/if}
         </span>
       {/if}
       {#if greatMindsData.consensusPicks.total}
         <span class="gm-badge bg-total">
-          {greatMindsData.consensusPicks.total.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.total.consensusRatio}</strong> <Check size={11} />
+          {greatMindsData.consensusPicks.total.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.total.consensusRatio}</strong>
+          {#if score && isFinished}
+            {@const g = gradeOf(greatMindsData.consensusPicks.total.selection, 'total')}
+            {#if g === 'win'}<CheckCircle2 size={11} class="g-win" />{:else if g === 'loss'}<XCircle size={11} class="g-loss" />{:else if g === 'push'}<MinusCircle size={11} class="g-push" />{:else if g === 'void'}<X size={11} class="g-void" />{/if}
+          {:else}
+            <Check size={11} />
+          {/if}
+        </span>
+      {/if}
+    </div>
+  {/if}
+
+  {#if isFinished && score}
+    <div class="result-strip">
+      <span class="rs-title">Result &amp; grades</span>
+      <span class="rs-score">{score}</span>
+      {#if topGrade}
+        <span class="rs-grade rs-{topGrade === 'win' ? 'win' : topGrade === 'loss' ? 'loss' : 'push'}">
+          {#if topGrade === 'win'}<CheckCircle2 size={13} />{:else if topGrade === 'loss'}<XCircle size={13} />{:else}<MinusCircle size={13} />{/if}
+          {top?.label}
+          {topGrade === 'win' ? 'HIT' : topGrade === 'loss' ? 'MISS' : 'PUSH'}
         </span>
       {/if}
     </div>
@@ -219,8 +281,11 @@
 
   {#if bottomPicks.length > 0}
     <div class="mini-section">
-      <div class="mini-title"><span><BarChart3 size={13} stroke-width={2.2} /></span> Expanded selections by market segment</div>
-      <PredictorPickChart picks={bottomPicks} limit={12} grouped perSegment={4} {accent} />
+      <div class="mini-title badge-row">
+        <span><BarChart3 size={13} stroke-width={2.2} /></span> All qualifying picks by market
+        <span class="count-badge">{bottomPicks.length}</span>
+      </div>
+      <PredictorPickChart picks={bottomPicks} grouped perSegment={5} {accent} />
     </div>
   {/if}
 
@@ -268,10 +333,16 @@
         <div class="exp-segments">
           {#each qualifying.slice(0, 20) as p}
             {@const seg = pickSegment(p.marketId)}
+            {@const g = score && isFinished ? gradeOf(p.label, p.marketTitle) : null}
             <div class="exp-seg-row" style={`--seg-accent:${seg.accent}`}>
               <span class="seg-tag">{seg.short}</span>
               <span class="pick-name">{p.label}</span>
               <span class="pick-market">{p.marketTitle}</span>
+              {#if g}
+                <span class="seg-grade seg-{g === 'win' ? 'win' : g === 'loss' ? 'loss' : 'push'}">
+                  {#if g === 'win'}<CheckCircle2 size={12} />{:else if g === 'loss'}<XCircle size={12} />{:else}<MinusCircle size={12} />{/if}
+                </span>
+              {/if}
               <span class="pick-pct">{Number(p.probability).toFixed(1)}%</span>
             </div>
           {/each}
@@ -299,6 +370,7 @@
     background: var(--c-surface-2);
     padding: 14px 16px;
     transition: box-shadow var(--t-base, 180ms ease), border-color var(--t-base, 180ms ease), transform 120ms ease;
+    contain: layout paint;
   }
 
   .match-card:hover {
@@ -504,7 +576,59 @@
     border: 1px dashed var(--c-border);
   }
 
-  .mini-section { margin-top: 14px; }
+  /* ── Result & grades strip ─────────────────────────────────── */
+  .result-strip {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    background: var(--c-glass-sm);
+    border: 1px solid var(--c-border);
+  }
+  .rs-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-text-dim, var(--c-text)); }
+  .rs-score { font-family: var(--font-mono, 'JetBrains Mono', monospace); font-weight: 900; font-size: 14px; color: #22c55e; }
+  .rs-grade {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    font-weight: 800;
+    padding: 3px 9px;
+    border-radius: 999px;
+  }
+  .rs-win { color: #22c55e; background: color-mix(in srgb, #22c55e 14%, transparent); border: 1px solid color-mix(in srgb, #22c55e 40%, transparent); }
+  .rs-loss { color: #ef4444; background: color-mix(in srgb, #ef4444 14%, transparent); border: 1px solid color-mix(in srgb, #ef4444 40%, transparent); }
+  .rs-push { color: #f59e0b; background: color-mix(in srgb, #f59e0b 14%, transparent); border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent); }
+
+  .g-win { color: #22c55e; }
+  .g-loss { color: #ef4444; }
+  .g-push { color: #f59e0b; }
+  .g-void { color: var(--c-text-dim, var(--c-text)); opacity: 0.6; }
+
+  .seg-grade { display: inline-flex; color: var(--c-text-dim, var(--c-text)); flex-shrink: 0; }
+  .seg-win { color: #22c55e; }
+  .seg-loss { color: #ef4444; }
+  .seg-push { color: #f59e0b; }
+
+.mini-section {
+    margin-top: 14px;
+  }
+
+  .badge-row { display: flex; align-items: center; gap: 6px; }
+
+  .count-badge {
+    font-size: 10px;
+    font-weight: 800;
+    color: color-mix(in srgb, var(--accent) 85%, #fff);
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+  }
   .mini-strip { margin-top: 14px; }
 
   .mini-title {
@@ -644,6 +768,18 @@
   }
   .analyze-match-btn:active {
     transform: translateY(0);
+  }
+
+  a.analyze-match-btn {
+    text-decoration: none;
+    margin-left: 0;
+  }
+
+  .analyze-match-btn.full-cta {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    color: var(--accent);
+    box-shadow: none;
   }
 
   /* ── Great AI Minds Mini Badges Bar ─────────────────────────── */

@@ -255,3 +255,106 @@ export const DEFAULT_CONFIDENCE_FLOOR = 52;
 /** Maximum number of fixtures the AI Predictor may ingest per day (all sports). */
 export const PREDICTOR_DAILY_CAP = 1200;
 
+// ── Post-match result grading ─────────────────────────────────────────────────
+export type SelectionGrade = 'win' | 'loss' | 'void' | 'push' | null;
+
+export interface ParsedFinalScore {
+  home: number;
+  away: number;
+}
+
+/**
+ * Parse a stored final score in the per-sport "2-1" style used by the match
+ * cache (e.g. "2-1", "1-1", "6-4"). Returns null when the string is present but
+ * not parseable as a numeric scoreline.
+ */
+export function parseFinScore(value?: string | null): ParsedFinalScore | null {
+  if (!value) return null;
+  const m = String(value).trim().match(/^(\d+)\s*[-:]\s*(\d+)$/);
+  if (!m) return null;
+  return { home: Number(m[1]), away: Number(m[2]) };
+}
+
+export function isWinnerMarket(market: string): boolean {
+  return /winner|moneyline|result|matchwinner|regresult|1x2|match.?.?.?.?winner/i.test(market);
+}
+export function isSpreadMarket(market: string): boolean {
+  return /handicap|spread|line|puck|runline|sell/i.test(market);
+}
+export function isTotalMarket(market: string): boolean {
+  return /total|over.?under|main|homeAway|game|set.?total|points|goals|runs/i.test(market) && !isSpreadMarket(market);
+}
+
+function extractThreshold(text: string): number | null {
+  const m = String(text).match(/(-?\d+(?:\.\d+)?)/);
+  return m ? Number(m[1]) : null;
+}
+
+export function gradeSelection(
+  selection: string,
+  market: string,
+  finalScore?: string | null,
+  opts?: { homeTeam?: string; awayTeam?: string; marketId?: string }
+): SelectionGrade {
+  const score = parseFinScore(finalScore);
+  if (!score) return null;
+
+  const mkt = market || opts?.marketId || '';
+  const lower = mkt.toLowerCase();
+  const sel = String(selection || '');
+
+  // Total / over-under markets (main, team, set, player totals).
+  if (isTotalMarket(lower)) {
+    const side = /home/.test(lower) ? score.home : /away/.test(lower) ? score.away : score.home + score.away;
+    const threshold = extractThreshold(sel);
+    if (threshold == null) return null;
+    const over = /(^|\s)over[\s\S]*/i.test(sel);
+    if (over) {
+      if (side > threshold) return 'win';
+      if (side === threshold) return 'push';
+      return 'loss';
+    }
+    // assume under
+    if (side < threshold) return 'win';
+    if (side === threshold) return 'push';
+    return 'loss';
+  }
+
+  // Winner / moneyline.
+  if (isWinnerMarket(lower)) {
+    const lowerSel = sel.toLowerCase();
+    const home = opts?.homeTeam?.toLowerCase();
+    const away = opts?.awayTeam?.toLowerCase();
+    const isDraw = /(^|\s)draw/i.test(lowerSel);
+    if (isDraw) {
+      if (score.home === score.away) return 'win';
+      return 'loss';
+    }
+    const isHome = home ? lowerSel.includes(home) : /home|^\d\s|\bteam\s*a\b|^1\b/i.test(lowerSel);
+    const isAway = isHome ? false : away ? lowerSel.includes(away) : /away|team\s*b|^2\b/i.test(lowerSel);
+    if (isHome) return score.home > score.away ? 'win' : 'loss';
+    if (isAway) return score.away > score.home ? 'win' : 'loss';
+    return null;
+  }
+
+  // Spread / handicap.
+  if (isSpreadMarket(lower)) {
+    const threshold = extractThreshold(sel);
+    if (threshold == null) return null;
+    const lowerSel = sel.toLowerCase();
+    const home = opts?.homeTeam?.toLowerCase();
+    const away = opts?.awayTeam?.toLowerCase();
+    const isHome = home ? lowerSel.includes(home) : /home|match|1\b/.test(lowerSel);
+    const isAway = home ? lowerSel.includes(away ?? '') : /away|2\b/.test(lowerSel);
+    const base = isAway ? score.away : score.home;
+    const other = isAway ? score.home : score.away;
+    const adjusted = base + threshold;
+    if (adjusted > other) return 'win';
+    if (adjusted === other) return 'push';
+    return 'loss';
+  }
+
+  // Unknown market — best-effort numeric line try (push-aware).
+  return null;
+}
+

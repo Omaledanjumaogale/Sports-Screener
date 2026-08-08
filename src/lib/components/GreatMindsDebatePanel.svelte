@@ -1,18 +1,37 @@
 <script lang="ts">
-  import { Trophy, CheckCircle2, AlertTriangle, ShieldCheck, ChevronDown, ChevronUp, Bot, ExternalLink, HelpCircle, Flame } from '@lucide/svelte';
-  import type { GreatMindsDebateResult, GreatMindsPick } from '$lib/predictorTypes';
+  import { Trophy, CheckCircle2, XCircle, MinusCircle, AlertTriangle, ShieldCheck, ChevronDown, ChevronUp, Bot, ExternalLink, HelpCircle, Flame } from '@lucide/svelte';
+  import { gradeSelection, type GreatMindsDebateResult, type GreatMindsPick, type SelectionGrade } from '$lib/predictorTypes';
   import { GREAT_MINDS_MODELS } from '$lib/predictorTypes';
 
   let {
     debate = null as GreatMindsDebateResult | null,
-    accent = '#6366f1'
+    accent = '#6366f1',
+    finalScore = null as string | null,
+    finished = false
   }: {
     debate?: GreatMindsDebateResult | null;
     accent?: string;
+    finalScore?: string | null;
+    finished?: boolean;
   } = $props();
 
   let showFullTranscript = $state(false);
   let selectedRound = $state<number | null>(null);
+
+  const isFinished = $derived(finished || !!finalScore);
+  const gradeOf = (selection: string, marketLabel: string): SelectionGrade => {
+    if (!isFinished || !finalScore || !debate) return null;
+    return gradeSelection(selection, marketLabel, finalScore, {
+      homeTeam: debate.homeTeam,
+      awayTeam: debate.awayTeam,
+      marketId: marketLabel
+    });
+  };
+  const pickGrades = $derived([
+    debate?.consensusPicks.winner ? { key: 'Winner', pick: debate.consensusPicks.winner, grade: gradeOf(debate.consensusPicks.winner.selection, 'result') } : null,
+    debate?.consensusPicks.spread ? { key: 'Spread', pick: debate.consensusPicks.spread, grade: gradeOf(debate.consensusPicks.spread.selection, 'spread') } : null,
+    debate?.consensusPicks.total ? { key: 'Total', pick: debate.consensusPicks.total, grade: gradeOf(debate.consensusPicks.total.selection, 'total') } : null
+  ].filter(Boolean) as { key: string; pick: GreatMindsPick; grade: SelectionGrade }[]);
 </script>
 
 {#if debate}
@@ -30,6 +49,24 @@
         <ShieldCheck size={16} />
         <span class="cv-value">{debate.realWinChancePct}%</span>
         <span class="cv-label">Cross-Verified Real Win Chance — {debate.realWinChanceTag}</span>
+      </div>
+    {/if}
+
+    {#if isFinished && finalScore}
+      <div class="result-grade-strip">
+        <span class="rg-title">Result grade — {finalScore}</span>
+        <div class="rg-picks">
+          {#each pickGrades as pg}
+            {#if pg.grade}
+              <span class={`rg-pick rg-${pg.grade === 'win' ? 'win' : pg.grade === 'loss' ? 'loss' : pg.grade === 'void' ? 'void' : 'push'}`} title={pg.pick.selection}>
+                {#if pg.grade === 'win'}<CheckCircle2 size={12} />{:else if pg.grade === 'loss'}<XCircle size={12} />{:else if pg.grade === 'void'}<MinusCircle size={12} />{:else}<Flame size={12} />{/if}
+                {pg.key} <strong>{pg.pick.selection}</strong>
+              </span>
+            {:else}
+              <span class="rg-pick rg-na" title={pg.pick.selection}>{pg.key} <strong>{pg.pick.selection}</strong></span>
+            {/if}
+          {/each}
+        </div>
       </div>
     {/if}
 
@@ -185,6 +222,43 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     padding-bottom: 12px;
   }
+
+  .result-grade-strip {
+    margin: 12px 0 4px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px dashed rgba(255, 255, 255, 0.14);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .rg-title {
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+  }
+  .rg-picks { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rg-pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 4px 9px;
+    border-radius: 999px;
+    color: var(--c-text, #f1f5ff);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .rg-win { color: #22c55e; background: rgba(34, 197, 94, 0.12); border-color: rgba(34, 197, 94, 0.4); }
+  .rg-loss { color: #ef4444; background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.4); }
+  .rg-push { color: #f59e0b; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.4); }
+  .rg-void { color: #94a3b8; }
+  .rg-na { opacity: 0.55; }
 
   .gm-title-badge {
     display: flex;

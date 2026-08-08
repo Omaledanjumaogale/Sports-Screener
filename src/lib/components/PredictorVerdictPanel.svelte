@@ -15,7 +15,8 @@
     agentsRun = [] as string[],
     citations = [] as string[],
     warnings = [] as string[],
-    accent = '#6366f1'
+    accent = '#6366f1',
+    finalScore = null as string | null
   }: {
     insight?: AiAnalysisResult['insights'] | null;
     greatMindsDebate?: GreatMindsDebateResult | null;
@@ -25,6 +26,7 @@
     citations?: string[];
     warnings?: string[];
     accent?: string;
+    finalScore?: string | null;
   } = $props();
 </script>
 
@@ -44,8 +46,8 @@
 
     {#if picks.length > 0}
       <div class="chart-block">
-        <div class="block-title"><BarChart3 size={13} stroke-width={2.2} /> Expanded selections by market segment</div>
-        <PredictorPickChart picks={picks} limit={20} grouped perSegment={4} {accent} />
+        <div class="block-title"><BarChart3 size={13} stroke-width={2.2} /> All qualifying picks by market<span class="count-pill">{picks.length}</span></div>
+        <PredictorPickChart picks={picks} grouped perSegment={5} {accent} />
       </div>
     {/if}
 
@@ -140,7 +142,7 @@
 
     <!-- Great AI Minds Debate Panel -->
     {#if greatMindsDebate}
-      <GreatMindsDebatePanel debate={greatMindsDebate} {accent} />
+      <GreatMindsDebatePanel debate={greatMindsDebate} {accent} {finalScore} finished={!!finalScore} />
     {/if}
   </div>
 {/if}
@@ -182,6 +184,18 @@
     letter-spacing: 0.06em;
     color: var(--c-text-dim, var(--c-text));
     margin-bottom: 8px;
+  }
+
+  .count-pill {
+    font-size: 10px;
+    font-weight: 800;
+    color: color-mix(in srgb, var(--accent) 85%, #fff);
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+    margin-left: 4px;
   }
 
   .panel-metrics {
