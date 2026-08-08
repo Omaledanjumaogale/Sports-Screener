@@ -43,7 +43,12 @@
     | 'instant-football'
     | 'instant-basketball'
     | 'vfootball'
-    | 'baseball';
+    | 'baseball'
+    | 'americanfootball'
+    | 'rugby'
+    | 'cricket'
+    | 'mma'
+    | 'volleyball';
 
   const sports: {
     id: SportId;
@@ -109,6 +114,51 @@
       category: 'real'
     },
     {
+      id: 'americanfootball',
+      short: 'Am. Football',
+      title: 'American Football Screener',
+      description: 'Moneyline, point spread, game totals and team totals with MEPT and team sum consistency for NFL markets.',
+      accent: '#dc2626',
+      path: '/american-football',
+      category: 'real'
+    },
+    {
+      id: 'rugby',
+      short: 'Rugby',
+      title: 'Rugby Screener',
+      description: 'Moneyline, handicap and total points with MET and team sum consistency for union and league markets.',
+      accent: '#7c3aed',
+      path: '/rugby',
+      category: 'real'
+    },
+    {
+      id: 'cricket',
+      short: 'Cricket',
+      title: 'Cricket Screener',
+      description: 'Match winner, run line and total runs with MER and team sum consistency across Test, ODI and T20.',
+      accent: '#d97706',
+      path: '/cricket',
+      category: 'real'
+    },
+    {
+      id: 'mma',
+      short: 'MMA',
+      title: 'MMA Screener',
+      description: 'Fight winner, total rounds and method-of-victory with MERT across UFC and other promotions.',
+      accent: '#1d4ed8',
+      path: '/mma',
+      category: 'real'
+    },
+    {
+      id: 'volleyball',
+      short: 'Volleyball',
+      title: 'Volleyball Screener',
+      description: 'Match winner, total sets and first-set markets with set-shape modeling and sweep signals.',
+      accent: '#0891b2',
+      path: '/volleyball',
+      category: 'real'
+    },
+    {
       id: 'instant-football',
       short: 'Flash Line',
       title: 'Instant Football Screener',
@@ -148,7 +198,12 @@
     tennis: 'Tennis',
     rally: 'Table Tennis',
     hockey: 'Ice Hockey',
-    baseball: 'Baseball'
+    baseball: 'Baseball',
+    americanfootball: 'Am. Football',
+    rugby: 'Rugby',
+    cricket: 'Cricket',
+    mma: 'MMA',
+    volleyball: 'Volleyball'
   };
 
   function nav(p: string) {
@@ -262,7 +317,7 @@
       <p class="tagline">Read the odds. Own the edge. Beat the Bookies</p>
 
       <p class="hero-copy">
-        A mobile-first workspace for screening football, basketball, tennis, ping pong, ice hockey,
+        A mobile-first workspace for screening football, basketball, tennis, table tennis, ice hockey,
         instant football, instant basketball, virtual football and baseball markets.
         Drop in your odds, get instant profile verdicts, live rankings and smart picks — powered by Agnes AI Copilot.
       </p>

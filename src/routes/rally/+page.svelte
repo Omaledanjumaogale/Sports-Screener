@@ -5,8 +5,8 @@
 
 <ScreenerPage
   sportId="rally"
-  sportShort="Rally / TT"
-  sportTitle="Rally Line Table Tennis Screener"
+  sportShort="Table Tennis"
+  sportTitle="Table Tennis Screener"
   accent="#38bdf8"
   factory={createRallyScopes}
 />

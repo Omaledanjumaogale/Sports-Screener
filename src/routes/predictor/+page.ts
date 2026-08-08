@@ -28,7 +28,7 @@ export const load: PageLoad = () => {
     buildWebPageSchema(
       canonical,
       'AI Predictor — PulseOdds',
-      'Multi-agent AI Predictor showing only matches whose Real Win Chance exceeds 60%, refreshed nightly from betwatch.fr and cross-reference sources across football, basketball, tennis, rally, hockey and baseball.',
+      'Multi-agent AI Predictor showing only matches whose Real Win Chance exceeds 60%, refreshed nightly from betwatch.fr and cross-reference sources across football, basketball, tennis, table tennis, hockey and baseball.',
       '2025-01-01',
       new Date().toISOString().split('T')[0]
     ),
@@ -40,8 +40,8 @@ export const load: PageLoad = () => {
   ]);
 
   const seo = buildMeta({
-    title: 'AI Predictor — 60%+ Confidence Picks for 6 Sports | PulseOdds',
-    description: 'PulseOdds AI Predictor: only matches whose Real Win Chance exceeds 60%, across football, basketball, tennis, rally, hockey and baseball. Refreshed nightly by a multi-agent team.',
+    title: 'AI Predictor — High-Confidence Picks | PulseOdds',
+    description: 'PulseOdds AI Predictor: only matches whose Real Win Chance exceeds 60%, across football, basketball, tennis, table tennis, hockey and baseball. Refreshed nightly by a multi-agent team.',
     canonical,
     og: { type: 'website', title: 'AI Predictor — PulseOdds', description: 'High-confidence picks across 6 sports, refreshed nightly.', image: 'https://pulseodds.ewinproject.org/og-image.png', url: canonical, locale: 'en_NG', siteName: 'PulseOdds' },
     twitter: { card: 'summary_large_image', title: 'AI Predictor — PulseOdds', description: 'Only 60%+ confidence matches, refreshed nightly.' },

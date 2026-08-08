@@ -88,6 +88,36 @@ export const GET: RequestHandler = async () => {
       priority: '0.9'
     },
     {
+      url: `${SITE_URL}/american-football`,
+      lastmod: today,
+      changefreq: 'weekly',
+      priority: '0.9'
+    },
+    {
+      url: `${SITE_URL}/rugby`,
+      lastmod: today,
+      changefreq: 'weekly',
+      priority: '0.9'
+    },
+    {
+      url: `${SITE_URL}/cricket`,
+      lastmod: today,
+      changefreq: 'weekly',
+      priority: '0.9'
+    },
+    {
+      url: `${SITE_URL}/mma`,
+      lastmod: today,
+      changefreq: 'weekly',
+      priority: '0.9'
+    },
+    {
+      url: `${SITE_URL}/volleyball`,
+      lastmod: today,
+      changefreq: 'weekly',
+      priority: '0.9'
+    },
+    {
       url: `${SITE_URL}/predictor`,
       lastmod: today,
       changefreq: 'daily',
@@ -100,7 +130,37 @@ export const GET: RequestHandler = async () => {
       priority: '0.8'
     },
     {
-      url: `${SITE_URL}/predictor/basketball`,
+      url: `${SITE_URL}/predictor/baseball`,
+      lastmod: today,
+      changefreq: 'daily',
+      priority: '0.8'
+    },
+    {
+      url: `${SITE_URL}/predictor/americanfootball`,
+      lastmod: today,
+      changefreq: 'daily',
+      priority: '0.8'
+    },
+    {
+      url: `${SITE_URL}/predictor/rugby`,
+      lastmod: today,
+      changefreq: 'daily',
+      priority: '0.8'
+    },
+    {
+      url: `${SITE_URL}/predictor/cricket`,
+      lastmod: today,
+      changefreq: 'daily',
+      priority: '0.8'
+    },
+    {
+      url: `${SITE_URL}/predictor/mma`,
+      lastmod: today,
+      changefreq: 'daily',
+      priority: '0.8'
+    },
+    {
+      url: `${SITE_URL}/predictor/volleyball`,
       lastmod: today,
       changefreq: 'daily',
       priority: '0.8'

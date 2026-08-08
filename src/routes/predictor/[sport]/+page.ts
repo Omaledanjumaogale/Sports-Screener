@@ -12,9 +12,14 @@ const LABEL: Record<string, string> = {
   football: 'Football',
   basketball: 'Basketball',
   tennis: 'Tennis',
-  rally: 'Rally',
+  rally: 'Table Tennis',
   hockey: 'Hockey',
-  baseball: 'Baseball'
+  baseball: 'Baseball',
+  americanfootball: 'American Football',
+  rugby: 'Rugby',
+  cricket: 'Cricket',
+  mma: 'MMA',
+  volleyball: 'Volleyball'
 };
 
 export const load: PageLoad = ({ params }) => {
@@ -28,7 +33,7 @@ export const load: PageLoad = ({ params }) => {
     },
     {
       question: 'How often is the AI Predictor cache refreshed?',
-      answer: 'A nightly midnight (00:00 UTC) cycle run by the agent team refreshes the day cache for all six sports; a manual refresh is always available.'
+      answer: 'A nightly midnight (00:00 UTC) cycle run by the agent team refreshes the day cache for all sports; a manual refresh is always available.'
     }
   ];
 

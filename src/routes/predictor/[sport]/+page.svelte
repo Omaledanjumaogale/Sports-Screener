@@ -14,7 +14,12 @@
     tennis: '#a3e635',
     rally: '#38bdf8',
     hockey: '#6366f1',
-    baseball: '#e11d48'
+    baseball: '#e11d48',
+    americanfootball: '#dc2626',
+    rugby: '#7c3aed',
+    cricket: '#d97706',
+    mma: '#1d4ed8',
+    volleyball: '#0891b2'
   };
 </script>
 

@@ -15,7 +15,7 @@ export const load: PageLoad = () => {
     },
     {
       question: 'Can I screen both first-set and full match table tennis odds together?',
-      answer: 'Yes. The Rally/Table Tennis Screener is uniquely designed with dual-view screening — you can analyze first-set and full match odds in a single interface without switching between screens.'
+      answer: 'Yes. The Table Tennis Screener is uniquely designed with dual-view screening — you can analyze first-set and full match odds in a single interface without switching between screens.'
     }
   ];
 

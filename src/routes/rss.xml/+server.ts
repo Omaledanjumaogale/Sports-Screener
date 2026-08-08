@@ -67,6 +67,51 @@ export const GET: RequestHandler = async () => {
       pubDate: 'Mon, 27 Jul 2026 00:00:00 GMT',
       guid: `${SITE_URL}/rally`,
       category: 'Table Tennis'
+    },
+    {
+      title: 'American Football Screener — PulseOdds',
+      link: `${SITE_URL}/american-football`,
+      description:
+        'Moneyline, point spread, game totals and team totals with MEPT and team sum consistency for NFL betting markets.',
+      pubDate: 'Mon, 27 Jul 2026 00:00:00 GMT',
+      guid: `${SITE_URL}/american-football`,
+      category: 'American Football'
+    },
+    {
+      title: 'Rugby Screener — PulseOdds',
+      link: `${SITE_URL}/rugby`,
+      description:
+        'Moneyline, handicap and total points with MET and team sum consistency for rugby union and league markets.',
+      pubDate: 'Mon, 27 Jul 2026 00:00:00 GMT',
+      guid: `${SITE_URL}/rugby`,
+      category: 'Rugby'
+    },
+    {
+      title: 'Cricket Screener — PulseOdds',
+      link: `${SITE_URL}/cricket`,
+      description:
+        'Match winner, run line and total runs with MER and team sum consistency across Test, ODI and T20 markets.',
+      pubDate: 'Mon, 27 Jul 2026 00:00:00 GMT',
+      guid: `${SITE_URL}/cricket`,
+      category: 'Cricket'
+    },
+    {
+      title: 'MMA Screener — PulseOdds',
+      link: `${SITE_URL}/mma`,
+      description:
+        'Fight winner, total rounds and method-of-victory with MERT across UFC and other combat sports markets.',
+      pubDate: 'Mon, 27 Jul 2026 00:00:00 GMT',
+      guid: `${SITE_URL}/mma`,
+      category: 'MMA'
+    },
+    {
+      title: 'Volleyball Screener — PulseOdds',
+      link: `${SITE_URL}/volleyball`,
+      description:
+        'Match winner, total sets and first-set markets with set-shape modeling and sweep signals.',
+      pubDate: 'Mon, 27 Jul 2026 00:00:00 GMT',
+      guid: `${SITE_URL}/volleyball`,
+      category: 'Volleyball'
     }
   ];
 
