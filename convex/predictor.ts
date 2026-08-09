@@ -36,51 +36,144 @@ const runStatus = v.union(
   v.literal('error')
 );
 
-export function isFootballMatch(m: { league?: string; homeTeam?: string; awayTeam?: string }): boolean {
+// ── Per-sport keyword fingerprints ────────────────────────────────────────────
+// Each entry is a list of words/phrases that POSITIVELY identify a match as
+// belonging to that sport. A match must contain at least one of these to be
+// admitted into that sport's tab.
+const SPORT_KEYWORDS: Record<string, string[]> = {
+  football: [
+    'premier league', 'la liga', 'serie a', 'bundesliga', 'ligue 1', 'ligue 2',
+    'champions league', 'europa league', 'conference league', 'championship',
+    'league one', 'league two', 'eredivisie', 'primeira liga', 'super lig',
+    'liga mx', 'mls', 'npfl', 'copa libertadores', 'copa america', 'fa cup',
+    'efl cup', 'dfb pokal', 'copa del rey', 'coppa italia', 'soccer', 'football',
+    'arsenal', 'chelsea', 'liverpool', 'man city', 'manchester', 'real madrid',
+    'barcelona', 'bayern', 'juventus', 'inter milan', 'ac milan', 'psg', 'paris sg',
+    'tottenham', 'everton', 'dortmund', 'napoli', 'roma', 'benfica', 'porto',
+    'sporting', 'ajax', 'feyenoord', 'psv', 'celtic', 'newcastle', 'aston villa',
+    'west ham', 'brighton', 'wolves', 'fulham', 'brentford', 'crystal palace',
+    'leicester', 'southampton', 'leeds', 'nottingham', 'sevilla', 'villarreal',
+    'real sociedad', 'betis', 'getafe', 'valencia', 'osasuna', 'lazio', 'atalanta',
+    'fiorentina', 'torino', 'bologna', 'monaco', 'lille', 'marseille', 'lyon',
+    'rennes', 'nice', 'leipzig', 'leverkusen', 'frankfurt', 'wolfsburg', 'gladbach',
+    'scottish premiership', 'belgian pro league', 'turkish super lig', 'allsvenskan',
+    'eliteserien', 'danish superliga', 'swiss super league', 'greek super league',
+    'austrian bundesliga', 'brazil serie a', 'argentina primera', 'chile primera',
+    'efl', 'cup final', 'world cup qualifying', 'nations league'
+  ],
+  basketball: [
+    'nba', 'euroleague', 'wnba', 'ncaab', 'acb', 'liga acb', 'cba', 'pba',
+    'lnb pro', 'fiba', 'basketball', 'celtics', 'lakers', 'warriors', 'bucks',
+    'bulls', 'heat', 'knicks', 'nets', '76ers', 'clippers', 'suns', 'mavericks',
+    'nuggets', 'raptors', 'hawks', 'pacers', 'hornets', 'wizards', 'pistons',
+    'cavaliers', 'thunder', 'trail blazers', 'grizzlies', 'pelicans', 'spurs',
+    'rockets', 'jazz', 'timberwolves', 'kings', 'magic', 'olympiacos', 'real madrid basket',
+    'fenerbahce', 'anadolu efes', 'panathinaikos', 'maccabi', 'cska moscow',
+    'alba berlin', 'baskonia', 'valencia basket', 'zenit', 'virtus bologna'
+  ],
+  tennis: [
+    'atp', 'wta', 'grand slam', 'wimbledon', 'us open', 'french open',
+    'australian open', 'roland garros', 'masters 1000', 'atp tour', 'wta tour',
+    'alcaraz', 'sinner', 'djokovic', 'zverev', 'medvedev', 'swiatek', 'sabalenka',
+    'rybakina', 'pegula', 'gauff', 'halep', 'osaka', 'federer', 'nadal', 'murray',
+    'berrettini', 'tsitsipas', 'ruud', 'rune', 'norrie', 'fritz', 'tiafoe',
+    'kyrgios', 'khachanov', 'hurkacz', 'bublik', 'auger-aliassime', 'tennis'
+  ],
+  rally: [
+    'ittf', 'wtt', 'table tennis', 'ping pong', 'tt cup', 'world table tennis',
+    'lebrun', 'harimoto', 'zhendong', 'ma long', 'fan zhendong', 'timo boll',
+    'ovtcharov', 'chuqin', 'wang chuqin', 'yingsha', 'sun yingsha', 'chen meng',
+    'calderano', 'aruna', 'moregard', 'jorgic', 'qiu', 'franziska', 'manyu',
+    'lin gaoyuan', 'liang jingkun', 'pitchford', 'filus', 'samsonov', 'toth'
+  ],
+  hockey: [
+    'nhl', 'khl', 'shl', 'liiga', 'ahl', 'del', 'czech extraliga', 'nl switzerland',
+    'ice hockey', 'hockey', 'bruins', 'canadiens', 'maple leafs', 'rangers',
+    'oilers', 'flames', 'canucks', 'senators', 'jets', 'avalanche', 'blues',
+    'wild', 'predators', 'stars', 'blackhawks', 'red wings', 'penguins', 'flyers',
+    'devils', 'islanders', 'sabres', 'capitals', 'hurricanes', 'panthers', 'lightning',
+    'coyotes', 'sharks', 'ducks', 'kings', 'kraken', 'golden knights', 'cska', 'ska'
+  ],
+  baseball: [
+    'mlb', 'npb', 'kbo', 'milb', 'baseball', 'yankees', 'red sox', 'dodgers',
+    'giants', 'cubs', 'white sox', 'mets', 'astros', 'blue jays', 'rays',
+    'athletics', 'mariners', 'angels', 'rangers', 'phillies', 'braves', 'marlins',
+    'nationals', 'cardinals', 'brewers', 'reds', 'pirates', 'padres', 'rockies',
+    'diamondbacks', 'tigers', 'royals', 'twins', 'guardians', 'orioles',
+    'lvbp', 'lmb', 'australian baseball'
+  ],
+  americanfootball: [
+    'nfl', 'ncaaf', 'xfl', 'cfl', 'super bowl', 'american football',
+    'chiefs', 'eagles', 'cowboys', '49ers', 'ravens', 'bills', 'bengals',
+    'steelers', 'browns', 'jets', 'patriots', 'dolphins', 'texans', 'jaguars',
+    'colts', 'titans', 'raiders', 'chargers', 'broncos', 'packers', 'vikings',
+    'bears', 'lions', 'buccaneers', 'falcons', 'saints', 'panthers', 'rams',
+    'seahawks', 'cardinals', 'commanders', 'giants nfl'
+  ],
+  rugby: [
+    'rugby', 'six nations', 'all blacks', 'springboks', 'wallabies', 'top 14',
+    'super rugby', 'premiership rugby', 'urc', 'pro14', 'world cup rugby',
+    'rugby league', 'rugby union', 'rugby international', 'english premiership',
+    'new zealand', 'south africa', 'australia', 'ireland', 'scotland', 'wales',
+    'france rugby', 'england rugby', 'argentina rugby', 'fiji', 'samoa',
+    'tonga', 'japan rugby', 'stade toulousain', 'leinster', 'munster',
+    'exeter chiefs', 'saracens', 'bath rugby', 'northampton', 'bristol rugby',
+    'stormers', 'bulls rugby', 'lions rugby', 'sharks rugby', 'highlanders',
+    'chiefs rugby', 'crusaders', 'blues rugby'
+  ],
+  cricket: [
+    'cricket', 'ipl', 'big bash', 'hundred', 'test match', 'test cricket',
+    'odi', 't20 international', 'pakistan super league', 'psl', 'bbl',
+    'cricketer', 'bcci', 'icc', 'over', 'wicket', 'innings', 'super league cricket',
+    'mumbai indians', 'chennai super kings', 'royal challengers', 'sunrisers',
+    'kolkata knight', 'delhi capitals', 'rajasthan royals', 'punjab kings'
+  ],
+  mma: [
+    'ufc', 'bellator', 'pfl', 'one championship', 'mma', 'mixed martial arts',
+    'makhachev', 'topuria', 'namajunas', 'pereira', 'adesanya', 'jones',
+    'ngannou', 'poirier', 'gaethje', 'volkanovski', 'holloway', 'strickland',
+    'du plessis', 'aspinall', 'blachowicz', 'teixeira', 'procházka', 'ankalaev',
+    'chimaev', 'covington', 'edwards', 'usman', 'championship fight', 'fight night'
+  ],
+  volleyball: [
+    'volleyball', 'vnl', 'fivb', 'superlega', 'superleague volleyball',
+    'cev champions league', 'brazil superliga', 'volleyball nations league',
+    'world championship volleyball', 'italy serie a1 volleyball',
+    'russian superleague', 'turkish volleyball'
+  ]
+};
+
+/**
+ * Returns true when a match genuinely belongs to `sportId`.
+ * Uses TWO gates:
+ *  1. POSITIVE: the league/team text contains at least one keyword that
+ *     fingerprints this sport (or the match came from a typed API source).
+ *  2. NEGATIVE: the text must NOT contain a keyword that fingerprints a
+ *     DIFFERENT sport (prevents a rugby match leaking into basketball tab).
+ */
+export function matchBelongsToSport(
+  m: { league?: string; homeTeam?: string; awayTeam?: string; source?: string },
+  sportId: string
+): boolean {
   const text = `${m.league || ''} ${m.homeTeam || ''} ${m.awayTeam || ''}`.toLowerCase();
-  
-  // Non-football positive indicators
-  const nonFootballKeywords = [
-    // Table Tennis
-    'ittf', 'wtt', 'table tennis', 'ping pong', 'tt cup', 'lebrun', 'harimoto', 'zhendong', 'ma long', 'timo boll', 'ovtcharov', 'chuqin', 'yingsha', 'chen meng', 'calderano', 'aruna', 'moregard', 'jorgic', 'qiu', 'franziska', 'manyu', 'lin gaoyuan', 'liang jingkun',
-    // Cricket
-    'cricket', 'ipl', 't20', 'odi', 'test match', 'big bash', 'hundred', 'cricinfo', 'bcci', 'icc', 'pakistan', 'india', 'australia', 'england', 'south africa', 'new zealand', 'west indies', 'sri lanka', 'bangladesh', 'afghanistan', 'zimbabwe',
-    // Basketball
-    'nba', 'euroleague', 'wnba', 'ncaab', 'acb', 'cba', 'lakers', 'celtics', 'warriors', 'bucks', 'bulls', 'heat', 'knicks', 'nets', '76ers', 'clippers', 'suns', 'mavericks', 'nuggets',
-    // Tennis
-    'atp', 'wta', 'grand slam', 'wimbledon', 'us open', 'french open', 'australian open', 'alcaraz', 'sinner', 'djokovic', 'zverev', 'medvedev', 'swiatek', 'sabalenka',
-    // Ice Hockey
-    'nhl', 'khl', 'shl', 'liiga', 'del', 'bruins', 'canadiens', 'maple leafs', 'rangers',
-    // Baseball
-    'mlb', 'npb', 'kbo', 'yankees', 'red sox', 'dodgers', 'giants',
-    // American Football
-    'nfl', 'ncaaf', 'super bowl', 'chiefs', 'eagles', 'cowboys', '49ers', 'ravens', 'bills',
-    // Rugby
-    'rugby', 'six nations', 'all blacks', 'springboks', 'wallabies', 'top 14', 'super rugby',
-    // MMA
-    'ufc', 'bellator', 'pfl', 'one championship', 'mma', 'makhachev', 'topuria', 'namajunas',
-    // Volleyball
-    'volleyball', 'vnl', 'fivb', 'superlega'
-  ];
-  if (nonFootballKeywords.some((k) => text.includes(k))) return false;
+  const ownKeywords = SPORT_KEYWORDS[sportId] ?? [];
+  const fromTypedApi = /^(LiveAPI|TheSportsDB|BallDontLie|SportsData|OddsPapi|SharpAPI)/i.test(m.source ?? '');
 
-  // Soccer positive indicators
-  const soccerKeywords = [
-    'premier league', 'la liga', 'serie a', 'bundesliga', 'ligue 1', 'ligue 2', 'champions league',
-    'europa league', 'conference league', 'championship', 'league one', 'league two', 'eredivisie',
-    'primeira liga', 'super lig', 'liga mx', 'mls', 'npfl', 'copa libertadores', 'copa america',
-    'fa cup', 'efl cup', 'dfb pokal', 'copa del rey', 'coppa italia', 'soccer', 'football',
-    'arsenal', 'chelsea', 'liverpool', 'man city', 'manchester', 'real madrid', 'barcelona',
-    'bayern', 'juventus', 'inter', 'milan', 'psg', 'paris sg', 'tottenham', 'everton', 'dortmund',
-    'napoli', 'roma', 'benfica', 'porto', 'sporting', 'ajax', 'feyenoord', 'psv', 'celtic', 'rangers',
-    'newcastle', 'aston villa', 'west ham', 'brighton', 'wolves', 'fulham', 'brentford', 'crystal palace',
-    'leicester', 'southampton', 'leeds', 'nottingham', 'sevilla', 'villarreal', 'real sociedad',
-    'athletic club', 'betis', 'getafe', 'valencia', 'osasuna', 'lazio', 'atalanta', 'fiorentina',
-    'torino', 'bologna', 'monaco', 'lille', 'marseille', 'lyon', 'rennes', 'nice', 'leipzig',
-    'leverkusen', 'frankfurt', 'wolfsburg', 'gladbach'
-  ];
+  // NEGATIVE GATE — reject if matches another sport's fingerprint.
+  for (const [sid, kws] of Object.entries(SPORT_KEYWORDS)) {
+    if (sid === sportId) continue;
+    if (kws.some((k) => text.includes(k))) return false;
+  }
 
-  return soccerKeywords.some((k) => text.includes(k));
+  // POSITIVE GATE — must contain at least one of this sport's keywords,
+  // OR have arrived via a typed API that already performed sport filtering.
+  if (fromTypedApi) return true;
+  return ownKeywords.some((k) => text.includes(k));
+}
+
+// Backwards-compatible helper
+export function isFootballMatch(m: { league?: string; homeTeam?: string; awayTeam?: string }): boolean {
+  return matchBelongsToSport(m, 'football');
 }
 
 // ── Public queries ────────────────────────────────────────────────────────────
@@ -105,10 +198,7 @@ export const listMatches = query({
       .order('asc')
       .collect();
 
-    if (args.sportId !== 'football') {
-      return raw.filter((m) => !isFootballMatch(m));
-    }
-    return raw;
+    return raw.filter((m) => matchBelongsToSport(m, args.sportId));
   }
 });
 
@@ -124,10 +214,7 @@ export const listMatchesInRange = query({
       .order('asc')
       .collect();
 
-    if (args.sportId !== 'football') {
-      return raw.filter((m) => !isFootballMatch(m));
-    }
-    return raw;
+    return raw.filter((m) => matchBelongsToSport(m, args.sportId));
   }
 });
 
@@ -774,4 +861,70 @@ export const migrateNonFootballMatchesInternal = internalMutation({
   }
 });
 
+// ── Purge wrongly-cached matches from any sport tab ───────────────────────────
+// Scans every cached match under `sportId` and deletes any that fail the
+// two-gate matchBelongsToSport check.
+export const purgeWrongSportMatches = mutation({
+  args: {
+    sportId: v.union(
+      v.literal('football'), v.literal('basketball'), v.literal('tennis'),
+      v.literal('rally'), v.literal('hockey'), v.literal('baseball'),
+      v.literal('americanfootball'), v.literal('rugby'), v.literal('cricket'),
+      v.literal('mma'), v.literal('volleyball')
+    )
+  },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query('predictorMatches')
+      .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId))
+      .collect();
 
+    let deleted = 0;
+    let kept = 0;
+    for (const m of all) {
+      if (!matchBelongsToSport(m, args.sportId)) {
+        await ctx.db.delete(m._id);
+        const verdict = await ctx.db
+          .query('predictorVerdicts')
+          .withIndex('by_day_match', (q) => q.eq('dayKey', m.dayKey).eq('matchId', m.matchId))
+          .first();
+        if (verdict) await ctx.db.delete(verdict._id);
+        deleted++;
+      } else {
+        kept++;
+      }
+    }
+    return { sportId: args.sportId, examined: all.length, deleted, kept };
+  }
+});
+
+export const purgeWrongSportMatchesInternal = internalMutation({
+  args: {
+    sportId: v.union(
+      v.literal('football'), v.literal('basketball'), v.literal('tennis'),
+      v.literal('rally'), v.literal('hockey'), v.literal('baseball'),
+      v.literal('americanfootball'), v.literal('rugby'), v.literal('cricket'),
+      v.literal('mma'), v.literal('volleyball')
+    )
+  },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query('predictorMatches')
+      .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId))
+      .collect();
+
+    let deleted = 0;
+    for (const m of all) {
+      if (!matchBelongsToSport(m, args.sportId)) {
+        await ctx.db.delete(m._id);
+        const verdict = await ctx.db
+          .query('predictorVerdicts')
+          .withIndex('by_day_match', (q) => q.eq('dayKey', m.dayKey).eq('matchId', m.matchId))
+          .first();
+        if (verdict) await ctx.db.delete(verdict._id);
+        deleted++;
+      }
+    }
+    return { deleted, examined: all.length };
+  }
+});

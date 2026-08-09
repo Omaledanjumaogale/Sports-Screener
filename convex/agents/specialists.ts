@@ -21,7 +21,7 @@ import {
   hasAnyApiKey,
   type ConsolidatedOdds
 } from '../apis/sportsApis';
-import { isFootballMatch } from '../predictor';
+import { isFootballMatch, matchBelongsToSport } from '../predictor';
 
 export interface FixturesResult {
   raw: ScrapeMatch[];
@@ -45,12 +45,13 @@ export async function tundeFetchFixtures(sportId: string, dayKey?: string): Prom
 
   const pushMatch = (m: ScrapeMatch) => {
     if (!m.homeTeam || !m.awayTeam) return;
-    if (sportId !== 'football' && isFootballMatch(m)) return;
+    if (!matchBelongsToSport({ ...m, source: m.source }, sportId)) return;
     const key = `${m.homeTeam}|${m.awayTeam}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
     if (seenKeys.has(key)) return;
     seenKeys.add(key);
     combined.push(m);
   };
+
 
   // 1. Verified sports data APIs (OddsPapi, SharpAPI, TheOddsApi, TheSportsDB, BallDontLie, SportsData)
   try {
