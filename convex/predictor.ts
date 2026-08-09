@@ -39,9 +39,30 @@ const runStatus = v.union(
 export function isFootballMatch(m: { league?: string; homeTeam?: string; awayTeam?: string }): boolean {
   const text = `${m.league || ''} ${m.homeTeam || ''} ${m.awayTeam || ''}`.toLowerCase();
   
-  // Table Tennis positive indicators
-  const ttKeywords = ['ittf', 'wtt', 'table tennis', 'ping pong', 'tt cup', 'lebrun', 'harimoto', 'zhendong', 'ma long', 'timo boll', 'ovtcharov', 'chuqin', 'yingsha', 'chen meng', 'calderano', 'aruna', 'moregard', 'jorgic', 'qiu', 'franziska', 'manyu', 'lin gaoyuan', 'liang jingkun'];
-  if (ttKeywords.some((k) => text.includes(k))) return false;
+  // Non-football positive indicators
+  const nonFootballKeywords = [
+    // Table Tennis
+    'ittf', 'wtt', 'table tennis', 'ping pong', 'tt cup', 'lebrun', 'harimoto', 'zhendong', 'ma long', 'timo boll', 'ovtcharov', 'chuqin', 'yingsha', 'chen meng', 'calderano', 'aruna', 'moregard', 'jorgic', 'qiu', 'franziska', 'manyu', 'lin gaoyuan', 'liang jingkun',
+    // Cricket
+    'cricket', 'ipl', 't20', 'odi', 'test match', 'big bash', 'hundred', 'cricinfo', 'bcci', 'icc', 'pakistan', 'india', 'australia', 'england', 'south africa', 'new zealand', 'west indies', 'sri lanka', 'bangladesh', 'afghanistan', 'zimbabwe',
+    // Basketball
+    'nba', 'euroleague', 'wnba', 'ncaab', 'acb', 'cba', 'lakers', 'celtics', 'warriors', 'bucks', 'bulls', 'heat', 'knicks', 'nets', '76ers', 'clippers', 'suns', 'mavericks', 'nuggets',
+    // Tennis
+    'atp', 'wta', 'grand slam', 'wimbledon', 'us open', 'french open', 'australian open', 'alcaraz', 'sinner', 'djokovic', 'zverev', 'medvedev', 'swiatek', 'sabalenka',
+    // Ice Hockey
+    'nhl', 'khl', 'shl', 'liiga', 'del', 'bruins', 'canadiens', 'maple leafs', 'rangers',
+    // Baseball
+    'mlb', 'npb', 'kbo', 'yankees', 'red sox', 'dodgers', 'giants',
+    // American Football
+    'nfl', 'ncaaf', 'super bowl', 'chiefs', 'eagles', 'cowboys', '49ers', 'ravens', 'bills',
+    // Rugby
+    'rugby', 'six nations', 'all blacks', 'springboks', 'wallabies', 'top 14', 'super rugby',
+    // MMA
+    'ufc', 'bellator', 'pfl', 'one championship', 'mma', 'makhachev', 'topuria', 'namajunas',
+    // Volleyball
+    'volleyball', 'vnl', 'fivb', 'superlega'
+  ];
+  if (nonFootballKeywords.some((k) => text.includes(k))) return false;
 
   // Soccer positive indicators
   const soccerKeywords = [
@@ -84,7 +105,7 @@ export const listMatches = query({
       .order('asc')
       .collect();
 
-    if (args.sportId === 'rally') {
+    if (args.sportId !== 'football') {
       return raw.filter((m) => !isFootballMatch(m));
     }
     return raw;
@@ -103,7 +124,7 @@ export const listMatchesInRange = query({
       .order('asc')
       .collect();
 
-    if (args.sportId === 'rally') {
+    if (args.sportId !== 'football') {
       return raw.filter((m) => !isFootballMatch(m));
     }
     return raw;
@@ -649,95 +670,107 @@ export const bootstrapToday = action({
   }
 });
 
-// Mutation to move all football matches stored under Table Tennis ('rally') into Football ('football').
-// Merges non-duplicates into football and deletes duplicates from rally.
-export const migrateRallyMatchesToFootball = mutation({
+const NON_FOOTBALL_SPORTS = ['basketball', 'tennis', 'rally', 'hockey', 'baseball', 'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'] as const;
+
+// Mutation to move all football matches stored under any non-football sport into Football ('football').
+// Merges non-duplicates into football and deletes duplicates from the non-football sports.
+export const migrateNonFootballMatchesToFootball = mutation({
   args: {},
   handler: async (ctx) => {
-    const rallyMatches = await ctx.db
-      .query('predictorMatches')
-      .withIndex('by_sport_day', (q) => q.eq('sportId', 'rally'))
-      .collect();
-
     let migrated = 0;
     let deleted = 0;
+    let totalExamined = 0;
 
-    for (const m of rallyMatches) {
-      if (isFootballMatch(m)) {
-        const existingFootballMatches = await ctx.db
-          .query('predictorMatches')
-          .withIndex('by_sport_day', (q) => q.eq('sportId', 'football').eq('dayKey', m.dayKey))
-          .collect();
+    for (const sp of NON_FOOTBALL_SPORTS) {
+      const sportMatches = await ctx.db
+        .query('predictorMatches')
+        .withIndex('by_sport_day', (q) => q.eq('sportId', sp as any))
+        .collect();
 
-        const dup = existingFootballMatches.find(
-          (f) => f.matchId === m.matchId || (f.homeTeam.toLowerCase() === m.homeTeam.toLowerCase() && f.awayTeam.toLowerCase() === m.awayTeam.toLowerCase())
-        );
+      totalExamined += sportMatches.length;
 
-        if (dup) {
-          await ctx.db.delete(m._id);
-          deleted++;
-        } else {
-          await ctx.db.patch(m._id, { sportId: 'football' });
-          migrated++;
-        }
+      for (const m of sportMatches) {
+        if (isFootballMatch(m)) {
+          const existingFootballMatches = await ctx.db
+            .query('predictorMatches')
+            .withIndex('by_sport_day', (q) => q.eq('sportId', 'football').eq('dayKey', m.dayKey))
+            .collect();
 
-        const verdict = await ctx.db
-          .query('predictorVerdicts')
-          .withIndex('by_day_match', (q) => q.eq('dayKey', m.dayKey).eq('matchId', m.matchId))
-          .first();
+          const dup = existingFootballMatches.find(
+            (f) => f.matchId === m.matchId || (f.homeTeam.toLowerCase() === m.homeTeam.toLowerCase() && f.awayTeam.toLowerCase() === m.awayTeam.toLowerCase())
+          );
 
-        if (verdict && verdict.sportId === 'rally') {
-          await ctx.db.patch(verdict._id, { sportId: 'football' });
+          if (dup) {
+            await ctx.db.delete(m._id);
+            deleted++;
+          } else {
+            await ctx.db.patch(m._id, { sportId: 'football' });
+            migrated++;
+          }
+
+          const verdict = await ctx.db
+            .query('predictorVerdicts')
+            .withIndex('by_day_match', (q) => q.eq('dayKey', m.dayKey).eq('matchId', m.matchId))
+            .first();
+
+          if (verdict && verdict.sportId === sp) {
+            await ctx.db.patch(verdict._id, { sportId: 'football' });
+          }
         }
       }
     }
 
-    return { migrated, deleted, totalExamined: rallyMatches.length };
+    return { migrated, deleted, totalExamined };
   }
 });
 
-export const migrateRallyMatchesInternal = internalMutation({
+export const migrateNonFootballMatchesInternal = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const rallyMatches = await ctx.db
-      .query('predictorMatches')
-      .withIndex('by_sport_day', (q) => q.eq('sportId', 'rally'))
-      .collect();
-
     let migrated = 0;
     let deleted = 0;
+    let totalExamined = 0;
 
-    for (const m of rallyMatches) {
-      if (isFootballMatch(m)) {
-        const existingFootballMatches = await ctx.db
-          .query('predictorMatches')
-          .withIndex('by_sport_day', (q) => q.eq('sportId', 'football').eq('dayKey', m.dayKey))
-          .collect();
+    for (const sp of NON_FOOTBALL_SPORTS) {
+      const sportMatches = await ctx.db
+        .query('predictorMatches')
+        .withIndex('by_sport_day', (q) => q.eq('sportId', sp as any))
+        .collect();
 
-        const dup = existingFootballMatches.find(
-          (f) => f.matchId === m.matchId || (f.homeTeam.toLowerCase() === m.homeTeam.toLowerCase() && f.awayTeam.toLowerCase() === m.awayTeam.toLowerCase())
-        );
+      totalExamined += sportMatches.length;
 
-        if (dup) {
-          await ctx.db.delete(m._id);
-          deleted++;
-        } else {
-          await ctx.db.patch(m._id, { sportId: 'football' });
-          migrated++;
-        }
+      for (const m of sportMatches) {
+        if (isFootballMatch(m)) {
+          const existingFootballMatches = await ctx.db
+            .query('predictorMatches')
+            .withIndex('by_sport_day', (q) => q.eq('sportId', 'football').eq('dayKey', m.dayKey))
+            .collect();
 
-        const verdict = await ctx.db
-          .query('predictorVerdicts')
-          .withIndex('by_day_match', (q) => q.eq('dayKey', m.dayKey).eq('matchId', m.matchId))
-          .first();
+          const dup = existingFootballMatches.find(
+            (f) => f.matchId === m.matchId || (f.homeTeam.toLowerCase() === m.homeTeam.toLowerCase() && f.awayTeam.toLowerCase() === m.awayTeam.toLowerCase())
+          );
 
-        if (verdict && verdict.sportId === 'rally') {
-          await ctx.db.patch(verdict._id, { sportId: 'football' });
+          if (dup) {
+            await ctx.db.delete(m._id);
+            deleted++;
+          } else {
+            await ctx.db.patch(m._id, { sportId: 'football' });
+            migrated++;
+          }
+
+          const verdict = await ctx.db
+            .query('predictorVerdicts')
+            .withIndex('by_day_match', (q) => q.eq('dayKey', m.dayKey).eq('matchId', m.matchId))
+            .first();
+
+          if (verdict && verdict.sportId === sp) {
+            await ctx.db.patch(verdict._id, { sportId: 'football' });
+          }
         }
       }
     }
 
-    return { migrated, deleted, totalExamined: rallyMatches.length };
+    return { migrated, deleted, totalExamined };
   }
 });
 

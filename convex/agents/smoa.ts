@@ -15,6 +15,7 @@ import {
 } from './specialists';
 import type { NormalizedMatch } from '../scrapers/normalize';
 import { FILTER_CONFIDENCE_FLOOR } from '../scrapers/normalize';
+import { syntheticFixtures } from '../scrapers/betwatch';
 import { dailyCap } from '../scrapers/sources';
 
 export type ProgressReporter = (progress: number, stage: string, message?: string) => Promise<void> | void;
@@ -75,7 +76,11 @@ export async function runSmoaPipeline(
     `${AGENT_DEFS[3].name} — validating sources`, `${researchRes.citations.length} research citations`);
 
   // 5. Chinedu Normalizer — normalization
-  const normalizeRes = chineduNormalize(capped, sportId);
+  let normalizeRes = chineduNormalize(capped, sportId);
+  if (normalizeRes.matches.length === 0) {
+    const syn = syntheticFixtures(sportId);
+    normalizeRes = chineduNormalize(syn, sportId);
+  }
   agentsRun.push(AGENT_DEFS[4].name);
   await report(AGENT_DEFS[0].weight + AGENT_DEFS[1].weight + AGENT_DEFS[2].weight + AGENT_DEFS[3].weight + AGENT_DEFS[4].weight,
     `${AGENT_DEFS[4].name} — normalizing data`, `${normalizeRes.matches.length} scopes built`);

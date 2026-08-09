@@ -156,7 +156,7 @@
 
   const filteredMatches = $derived.by(() => {
     let list = matches;
-    if (effectiveSport === 'rally') {
+    if (effectiveSport !== 'football') {
       list = list.filter((m) => !isFootballMatch(m));
     }
     if (timeBand === 'all') return list;
@@ -416,7 +416,7 @@
     // Auto-bootstrap: if today has no cached data and nothing is running,
     // trigger a single-sport seed for the active sport. This ensures
     // first-time visitors see data without manually clicking 'Run agents'.
-    if (epoch === sportEpoch && !d && windowMatches.length === 0 && !r && !bootstrapping && !bootstrapDone) {
+    if (epoch === sportEpoch && windowMatches.length === 0 && !r && !bootstrapping && !bootstrapDone) {
       void autoSeedCurrentSport(sid, fromDayArg);
     }
   }

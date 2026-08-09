@@ -21,6 +21,7 @@ import {
   hasAnyApiKey,
   type ConsolidatedOdds
 } from '../apis/sportsApis';
+import { isFootballMatch } from '../predictor';
 
 export interface FixturesResult {
   raw: ScrapeMatch[];
@@ -37,90 +38,95 @@ export async function tundeFetchFixtures(sportId: string, dayKey?: string): Prom
     return c;
   };
 
-  // 1. Verified sports data APIs (TheSportsDB multi-sport, BallDontLie/SportsData
-  //    for basketball, The Odds API for real bookmaker odds) — real fixtures for
-  //    the target date. Each fixture keeps its own league (e.g. English Premier
-  //    League, MLB, ATP Canadian Open) rather than being lumped into one generic
-  //    label, and carries its real odds so the scope never falls back to defaults.
-  //    The Odds API feed is rolling (no date filter), so this is the primary path
-  //    whenever it is reachable.
+  const combined: ScrapeMatch[] = [];
+  const seenKeys = new Set<string>();
+  const citations: string[] = [];
+  let pagesFetched: { url: string; ok: boolean; engine: string }[] = [];
+
+  const pushMatch = (m: ScrapeMatch) => {
+    if (!m.homeTeam || !m.awayTeam) return;
+    if (sportId !== 'football' && isFootballMatch(m)) return;
+    const key = `${m.homeTeam}|${m.awayTeam}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
+    if (seenKeys.has(key)) return;
+    seenKeys.add(key);
+    combined.push(m);
+  };
+
+  // 1. Verified sports data APIs (OddsPapi, SharpAPI, TheOddsApi, TheSportsDB, BallDontLie, SportsData)
   try {
     const date = dayKey || new Date().toISOString().slice(0, 10);
     const { fixtures: apiFixtures, odds } = await apiFixturesFor(sportId, date);
-    if (apiFixtures.length > 0) {
-      const fallbackLeague: Record<string, string> = {
-        basketball: 'NBA',
-        football: 'Soccer',
-        tennis: 'Tennis',
-        hockey: 'NHL',
-        baseball: 'MLB',
-        rally: 'Table Tennis',
-        americanfootball: 'NFL',
-        rugby: 'Rugby',
-        cricket: 'Cricket',
-        mma: 'MMA',
-        volleyball: 'Volleyball'
-      };
-      const marketKeys =
-        sportId === 'football'
-          ? ['result', 'doubleChance', 'handicap', 'mainTotal']
-          : sportId === 'hockey' || sportId === 'baseball'
-            ? ['winner', 'handicap', 'gameTotal', 'regResult']
-            : ['winner', 'handicap', 'mainTotal'];
-      const raw: ScrapeMatch[] = apiFixtures.map((f) => {
-        const o = findOddsFor(odds, f.home, f.away);
-        return {
-          source: 'LiveAPI',
-          sourceUrl: f.sourceUrl,
-          league: f.league || fallbackLeague[sportId] || 'League',
-          homeTeam: f.home,
-          awayTeam: f.away,
-          startTime: f.startTime,
-          markets: marketKeys,
-          // Embed the real odds from the same response so the scope never falls
-          // back to defaults even if the later odds re-match is missed.
-          oddsText: o ? matchOddsText(o) : undefined
-        };
+    const fallbackLeague: Record<string, string> = {
+      football: 'Premier League',
+      basketball: 'NBA',
+      tennis: 'ATP Tour',
+      hockey: 'NHL',
+      baseball: 'MLB',
+      rally: 'Table Tennis WTT',
+      americanfootball: 'NFL',
+      rugby: 'Rugby Union',
+      cricket: 'Cricket',
+      mma: 'MMA',
+      volleyball: 'Volleyball'
+    };
+    const marketKeys =
+      sportId === 'football'
+        ? ['result', 'doubleChance', 'handicap', 'mainTotal']
+        : sportId === 'hockey' || sportId === 'baseball'
+          ? ['winner', 'handicap', 'gameTotal', 'regResult']
+          : ['winner', 'handicap', 'mainTotal'];
+
+    for (const f of apiFixtures) {
+      const o = findOddsFor(odds, f.home, f.away);
+      pushMatch({
+        source: 'LiveAPI',
+        sourceUrl: f.sourceUrl,
+        league: f.league || fallbackLeague[sportId] || 'League',
+        homeTeam: f.home,
+        awayTeam: f.away,
+        startTime: f.startTime,
+        markets: marketKeys,
+        oddsText: o ? matchOddsText(o) : undefined
       });
-      const citations = Array.from(new Set(apiFixtures.map((f) => f.sourceUrl)));
-      return { raw, usedSynthetic: false, countsByLeague: countsByLeague(raw), citations };
+      if (f.sourceUrl) citations.push(f.sourceUrl);
     }
   } catch (err) {
     console.warn('[Tunde Onitiri] sports-data API fetch failed.', err);
   }
 
-  // 2. Primary feed.
-  try {
-    const primary = await scrapeBetwatchFixtures(sportId);
-    if (primary.length > 0) {
-      return { raw: primary, usedSynthetic: false, countsByLeague: countsByLeague(primary) };
+  // 2. BetWatch primary feed (for football)
+  if (sportId === 'football') {
+    try {
+      const primary = await scrapeBetwatchFixtures(sportId);
+      for (const m of primary) pushMatch(m);
+    } catch (err) {
+      console.warn('[Tunde Onitiri] primary feed scrape failed.', err);
     }
-  } catch (err) {
-    console.warn('[Tunde Onitiri] primary feed scrape failed.', err);
   }
 
-  // 3. URL directory — read every primary/odds/betting/prediction source page for
-  //    the sport through the reader chain.
-  let dirCitations: string[] = [];
+  // 3. Collective URL directory scrapers (Flashscore, Sofascore, BetExplorer, ESPN, OddsPortal, etc.)
   try {
     const dir = await scrapeRealFixtures(sportId);
-    if (dir.matches.length > 0) {
-      return {
-        raw: dir.matches,
-        usedSynthetic: false,
-        countsByLeague: countsByLeague(dir.matches),
-        pagesFetched: dir.pagesFetched,
-        citations: dir.citations
-      };
-    }
-    dirCitations = dir.citations;
-    console.warn('[Tunde Onitiri] no parseable fixtures in the source directory.', dir.pagesFetched.filter((p) => p.ok).length, 'pages readable');
+    pagesFetched = dir.pagesFetched;
+    for (const m of dir.matches) pushMatch(m);
+    for (const c of dir.citations) citations.push(c);
   } catch (err) {
     console.warn('[Tunde Onitiri] source-directory scrape failed.', err);
   }
 
+  if (combined.length > 0) {
+    const uniqueCitations = Array.from(new Set(citations));
+    return {
+      raw: combined,
+      usedSynthetic: false,
+      countsByLeague: countsByLeague(combined),
+      pagesFetched,
+      citations: uniqueCitations
+    };
+  }
+
   const synthetic = syntheticFixtures(sportId);
-  return { raw: synthetic, usedSynthetic: true, countsByLeague: countsByLeague(synthetic), citations: dirCitations };
+  return { raw: synthetic, usedSynthetic: true, countsByLeague: countsByLeague(synthetic), citations: Array.from(new Set(citations)) };
 }
 
 export interface OddsResult {

@@ -76,19 +76,17 @@ async function executeRefresh(
       cap
     });
 
-    // Automatically migrate any legacy football matches stored under 'rally' into 'football'
-    if (args.sportId === 'rally' || args.sportId === 'football') {
-      try {
-        await ctx.runMutation(internal.predictor.migrateRallyMatchesInternal, {});
-      } catch (e) {
-        console.warn('[predictorOrchestrator] migration warning:', e);
-      }
+    // Automatically migrate any legacy football matches stored under non-football sports into 'football'
+    try {
+      await ctx.runMutation(internal.predictor.migrateNonFootballMatchesInternal, {});
+    } catch (e) {
+      console.warn('[predictorOrchestrator] migration warning:', e);
     }
 
     const result = await runSmoaPipeline(args.sportId, dayKey, report, floor, cap);
 
-    // If sportId is 'rally', filter out any matches that are actually football matches
-    const cleanMatches = args.sportId === 'rally'
+    // Filter out any matches that are actually football matches when saving non-football sports
+    const cleanMatches = args.sportId !== 'football'
       ? result.matches.filter((m) => !isFootballMatch(m))
       : result.matches;
 
