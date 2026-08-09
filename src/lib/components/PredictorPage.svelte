@@ -847,9 +847,9 @@ $effect(() => {
 
 <footer class="predictor-foot">
       <p>
-        Data refreshed nightly at 00:00 WAT (23:00 UTC) from betwatch.fr and cross-reference odds, betting and prediction registries.
+        Data refreshed 3× daily at 1:00 AM WAT, 7:00 AM WAT & 1:00 PM WAT from betwatch.fr and cross-reference odds, betting and prediction registries.
         Select any scheduled match to run the agent team, which surfaces only selections that clear the
-        {DEFAULT_CONFIDENCE_FLOOR}% Real Win Chance floor. All match times shown in West Africa Time (WAT, UTC+1). Always gamble responsibly.
+        {DEFAULT_CONFIDENCE_FLOOR}% Real Win Chance floor. All match times shown in West Africa Time (WAT). Always gamble responsibly.
       </p>
 </footer>
   </div>

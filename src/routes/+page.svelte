@@ -378,83 +378,152 @@
       </div>
     </section>
 
-    <!-- ── AI Predictor Section ─────────────────────────────── -->
-    <section class="ai-predictor-section" aria-label="AI Predictor by the PulseOdds agent team">
-      <div class="section-head">
-        <h2 class="section-title">AI Predictor &amp; Great AI Minds Consensus Engine</h2>
-        <span class="predictor-badge">52% Confidence Floor · 3x Daily Auto-Sync</span>
+    <!-- ── AI Predictor & Great AI Minds ──────────────────────── -->
+    <section class="ai-predictor-section" aria-label="AI Predictor and Great AI Minds Consensus Engine" id="ai-predictor">
+
+      <!-- Section eyebrow pill -->
+      <div class="predictor-eyebrow">
+        <span class="predictor-eyebrow-dot" aria-hidden="true"></span>
+        Enterprise Multi-Agent Intelligence
       </div>
 
-      <div class="predictor-card">
-        <div class="predictor-orbit-wrap">
-          <AgentOrbit accent="#6366f1" height={300} />
-          <div class="orbit-caption">
-            <Bot size={14} />
-            <span>9 Specialist Agents · Led by Eze Ugo</span>
+      <h2 class="predictor-section-title">AI Predictor <span class="predictor-title-accent">&amp; Great AI Minds</span></h2>
+      <p class="predictor-section-sub">9 specialist agents. 5 AI models. 1 consensus engine — refreshed 3× daily at <strong>1:00 AM, 7:00 AM &amp; 1:00 PM WAT.</strong></p>
+
+      <!-- Stats ribbon -->
+      <div class="predictor-stats-row" aria-label="AI Predictor key metrics">
+        <div class="pstat-card">
+          <span class="pstat-val">9</span>
+          <span class="pstat-label">Specialist Agents</span>
+        </div>
+        <div class="pstat-card">
+          <span class="pstat-val">5</span>
+          <span class="pstat-label">AI Models</span>
+        </div>
+        <div class="pstat-card">
+          <span class="pstat-val">60%+</span>
+          <span class="pstat-label">Win Chance Floor</span>
+        </div>
+        <div class="pstat-card">
+          <span class="pstat-val">3×</span>
+          <span class="pstat-label">Daily Auto-Sync</span>
+        </div>
+        <div class="pstat-card">
+          <span class="pstat-val">11</span>
+          <span class="pstat-label">Sports Covered</span>
+        </div>
+      </div>
+
+      <!-- Main content card — two-column -->
+      <div class="predictor-main-card">
+
+        <!-- Left column — orbit visualization -->
+        <div class="predictor-left">
+          <div class="orbit-container">
+            <AgentOrbit accent="#6366f1" height={400} />
+          </div>
+          <!-- Agent pills below orbit -->
+          <div class="agent-pills-row" aria-label="The SMOA agent team">
+            {#each AGENT_DEFS as agent}
+              <span class="apill" title={`${agent.name} — ${agent.role}: ${agent.description}`}>
+                <span class="apill-dot"></span>
+                <span class="apill-name">{agent.name.split(' ')[0]}</span>
+              </span>
+            {/each}
           </div>
         </div>
 
-        <p class="predictor-copy">
-          The <strong>AI Predictor</strong> is an enterprise multi-agent engine synchronized directly with our Convex backend.
-          Three times daily (<strong>1:00 AM WAT, 7:00 AM WAT &amp; 1:00 PM WAT</strong>), the 9 specialist agents pull fixtures,
-          cross-reference decimal odds from <strong>betwatch.fr</strong> and global betting registries, normalize probability metrics,
-          and execute 5-round <strong>Great AI Minds debates</strong> across Claude Opus 4.0, ChatGPT 3.2 Pro, Kimi K2.5, Qwen 3.5, and Grok 4.2.
-          Only selections clearing our mathematical probability floor surface as qualifying recommendations.
-        </p>
+        <!-- Right column — details -->
+        <div class="predictor-right">
 
-        <div class="predictor-agents" aria-label="The agent team">
-          {#each AGENT_DEFS as agent}
-            <span class="agent-pill" title={`${agent.name} — ${agent.role}: ${agent.description}`}>
-              <span class="agent-dot"></span>
-              <span class="agent-name">{agent.name}</span>
-            </span>
-          {/each}
-        </div>
+          <!-- Description -->
+          <p class="predictor-desc">
+            The <strong>AI Predictor</strong> is a 9-agent SMOA (Synchronized Multi-Agent Orchestration) pipeline connected live to our Convex backend.
+            Three times daily, specialist agents pull fixtures, cross-reference decimal odds from <strong>betwatch.fr</strong> and global registries,
+            normalize probability metrics, and run <strong>5-round Great AI Minds debates</strong> — only surfacing picks that clear our mathematical confidence floor.
+          </p>
 
-        <!-- Great AI Minds Machine Highlight -->
-        <div class="great-minds-highlight">
-          <div class="gm-head">
-            <span class="gm-sparkle">🧠</span>
-            <strong>Great AI Minds 5-Model Consensus Engine</strong>
-          </div>
-          <div class="gm-grid">
-            <div class="gm-chip"><span class="gm-dot"></span><b>Claude Opus 4.0</b> (Moderator &amp; Synthesis)</div>
-            <div class="gm-chip"><span class="gm-dot"></span><b>ChatGPT 3.2 Pro</b> (+EV Data Scientist)</div>
-            <div class="gm-chip"><span class="gm-dot"></span><b>Kimi K2.5</b> (Tempo &amp; Historical Analyst)</div>
-            <div class="gm-chip"><span class="gm-dot"></span><b>Qwen 3.5</b> (Line Efficiency Technician)</div>
-            <div class="gm-chip"><span class="gm-dot"></span><b>Grok 4.2</b> (Contrarian Risk Auditor)</div>
-          </div>
-        </div>
-
-        <div class="predictor-steps">
-          <div class="predictor-step title-row">
-            <Sparkles size={16} />
-            <span>How the SMOA pipeline operates</span>
-          </div>
-          {#each predictorSteps as step}
-            <div class="predictor-step">
-              <span class="step-ic"><step.icon size={15} stroke-width={2.3} /></span>
-              <div class="step-body">
-                <b>{step.title}</b>
-                <span>{step.desc}</span>
+          <!-- Great AI Minds models grid -->
+          <div class="gm-section" aria-label="Great AI Minds 5-model consensus">
+            <div class="gm-section-head">
+              <span class="gm-brain-icon" aria-hidden="true">🧠</span>
+              <span class="gm-section-title">Great AI Minds Consensus Engine</span>
+            </div>
+            <div class="gm-models-grid">
+              <div class="gm-model claude">
+                <span class="gm-model-dot"></span>
+                <div class="gm-model-info">
+                  <b>Claude Opus 4.0</b>
+                  <span>Moderator &amp; Synthesis</span>
+                </div>
+              </div>
+              <div class="gm-model gpt">
+                <span class="gm-model-dot"></span>
+                <div class="gm-model-info">
+                  <b>ChatGPT 3.2 Pro</b>
+                  <span>+EV Data Scientist</span>
+                </div>
+              </div>
+              <div class="gm-model kimi">
+                <span class="gm-model-dot"></span>
+                <div class="gm-model-info">
+                  <b>Kimi K2.5</b>
+                  <span>Tempo &amp; Historical Analyst</span>
+                </div>
+              </div>
+              <div class="gm-model qwen">
+                <span class="gm-model-dot"></span>
+                <div class="gm-model-info">
+                  <b>Qwen 3.5</b>
+                  <span>Line Efficiency Technician</span>
+                </div>
+              </div>
+              <div class="gm-model grok">
+                <span class="gm-model-dot"></span>
+                <div class="gm-model-info">
+                  <b>Grok 4.2</b>
+                  <span>Contrarian Risk Auditor</span>
+                </div>
               </div>
             </div>
-          {/each}
-        </div>
+          </div>
 
-        <div class="predictor-sports" aria-label="Supported predictor sports">
-          {#each PREDICTOR_SPORTS as sport}
-            <span class="psport-chip" title={PREDICTOR_LABEL[sport]}>
-              <PredictorSportIcon sport={sport} size={15} strokeWidth={2} />
-              {PREDICTOR_LABEL[sport]}
-            </span>
-          {/each}
-        </div>
+          <!-- SMOA pipeline steps -->
+          <div class="pipeline-section" aria-label="SMOA pipeline steps">
+            <div class="pipeline-head">
+              <Sparkles size={13} />
+              <span>SMOA Pipeline — How It Works</span>
+            </div>
+            {#each predictorSteps as step, i}
+              <div class="pipeline-step">
+                <span class="pipeline-num">{i + 1}</span>
+                <span class="pipeline-ic"><step.icon size={13} stroke-width={2.4} /></span>
+                <div class="pipeline-body">
+                  <b>{step.title}</b>
+                  <span>{step.desc}</span>
+                </div>
+              </div>
+            {/each}
+          </div>
 
-        <div class="predictor-cta">
-          <AiPredictorButton label="Open the AI Predictor &amp; Great Minds Engine" accent="#6366f1" />
-        </div>
-      </div>
+          <!-- Supported sports chips -->
+          <div class="pred-sports-row" aria-label="Sports covered by AI Predictor">
+            {#each PREDICTOR_SPORTS as sport}
+              <span class="pred-sport-chip" title={PREDICTOR_LABEL[sport]}>
+                <PredictorSportIcon sport={sport} size={13} strokeWidth={2} />
+                {PREDICTOR_LABEL[sport]}
+              </span>
+            {/each}
+          </div>
+
+          <!-- CTA -->
+          <div class="predictor-cta-wrap">
+            <AiPredictorButton label="Open AI Predictor &amp; Great Minds Engine" accent="#6366f1" />
+          </div>
+
+        </div><!-- /predictor-right -->
+      </div><!-- /predictor-main-card -->
+
     </section>
 
     <!-- ── Offline Master Model Framework & Interactive Sandbox Section ── -->
@@ -1312,228 +1381,370 @@
   }
   .btn-whatsapp:active { transform: scale(0.98); }
 
-  /* ── AI Predictor Section ─────────────────────────────────── */
-  .predictor-badge {
-    font-size: 11px;
-    font-weight: 800;
-    color: var(--c-rally);
-    background: color-mix(in srgb, var(--c-rally) 14%, var(--c-surface));
-    border: 1px solid color-mix(in srgb, var(--c-rally) 30%, transparent);
-    padding: 3px 10px;
-    border-radius: 999px;
-  }
-
-  .predictor-card {
-    width: min(100%, 760px);
-    padding: 24px;
-    border-radius: 20px;
-    background:
-      linear-gradient(135deg, color-mix(in srgb, var(--c-rally) 10%, transparent), transparent 55%),
-      var(--c-surface-2);
-    border: 1px solid color-mix(in srgb, var(--c-rally) 35%, transparent);
-    box-shadow: var(--c-card-shadow);
-    text-align: left;
-  }
-
-  .predictor-orbit-wrap {
+  /* ── AI Predictor Section — Redesigned Premium ────────────── */
+  .ai-predictor-section {
+    width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin: -8px 0 6px;
+    text-align: center;
+    padding: 48px 0 32px;
+    position: relative;
   }
 
-  .orbit-caption {
+  /* Eyebrow pill */
+  .predictor-eyebrow {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    margin-top: -6px;
-    font-size: 11.5px;
-    font-weight: 700;
-    color: var(--c-text-2, var(--c-text-dim));
-    background: var(--c-glass-sm);
-    border: 1px solid var(--c-border);
-    padding: 5px 12px;
+    gap: 8px;
+    padding: 6px 16px;
     border-radius: 999px;
+    background: color-mix(in srgb, #6366f1 14%, var(--c-surface));
+    border: 1px solid color-mix(in srgb, #6366f1 40%, transparent);
+    color: #818cf8;
+    font-size: 11.5px;
+    font-weight: 900;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .predictor-eyebrow-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #818cf8;
+    box-shadow: 0 0 10px #6366f1;
+    animation: dot-pulse 2s ease-in-out infinite;
   }
 
-  .orbit-caption :global(svg) { color: var(--c-rally); }
-
-  .predictor-copy {
-    margin: 0 0 16px;
-    font-size: 13.5px;
-    line-height: 1.65;
-    color: var(--c-text-2);
+  /* Title */
+  .predictor-section-title {
+    margin: 0 0 12px;
+    font-size: clamp(26px, 6vw, 42px);
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+    color: var(--c-text);
   }
-  .predictor-copy strong { color: var(--c-text); }
+  .predictor-title-accent {
+    background: linear-gradient(135deg, #818cf8 0%, #6366f1 50%, #a78bfa 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .predictor-section-sub {
+    margin: 0 0 32px;
+    font-size: 14px;
+    color: var(--c-muted);
+    font-weight: 600;
+    max-width: 600px;
+    line-height: 1.6;
+  }
+  .predictor-section-sub strong { color: var(--c-text); }
 
-  .predictor-agents {
+  /* Stats ribbon */
+  .predictor-stats-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 7px;
-    margin-bottom: 18px;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 32px;
+    width: 100%;
+    max-width: 840px;
   }
-
-  .agent-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    border-radius: 999px;
-    background: var(--c-glass-sm);
-    border: 1px solid var(--c-border);
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--c-text-2);
-    transition: border-color var(--t-base), color var(--t-base), background var(--t-base);
-  }
-  .agent-pill:hover {
-    border-color: color-mix(in srgb, var(--c-rally) 45%, transparent);
-    color: var(--c-text);
-    background: var(--c-glass-hover);
-  }
-
-  .agent-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--c-rally);
-    box-shadow: 0 0 6px var(--c-rally);
-  }
-
-  .predictor-steps {
-    margin-bottom: 18px;
+  .pstat-card {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-  }
-
-  .predictor-step {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    background: var(--c-glass-sm);
-    border: 1px solid var(--c-border);
-  }
-
-  .predictor-step.title-row {
     align-items: center;
-    font-size: 11px;
+    gap: 3px;
+    padding: 16px 20px;
+    border-radius: 16px;
+    background: var(--c-surface-2);
+    border: 1px solid color-mix(in srgb, #6366f1 25%, transparent);
+    backdrop-filter: blur(12px);
+    min-width: 100px;
+    flex: 1;
+    max-width: 160px;
+    transition: transform 160ms ease, border-color 160ms ease;
+  }
+  .pstat-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, #6366f1 55%, transparent);
+  }
+  .pstat-val {
+    font-size: 26px;
+    font-weight: 900;
+    color: #818cf8;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .pstat-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--c-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-align: center;
+  }
+
+  /* Main two-column card */
+  .predictor-main-card {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    width: 100%;
+    max-width: 960px;
+    padding: 28px;
+    border-radius: 24px;
+    background:
+      linear-gradient(135deg, color-mix(in srgb, #6366f1 10%, transparent) 0%, transparent 60%),
+      var(--c-surface-2);
+    border: 1px solid color-mix(in srgb, #6366f1 30%, transparent);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, #6366f1 10%, transparent),
+      0 24px 64px -16px color-mix(in srgb, #6366f1 25%, transparent),
+      var(--c-card-shadow);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    text-align: left;
+  }
+  @media (max-width: 720px) {
+    .predictor-main-card {
+      grid-template-columns: 1fr;
+      padding: 20px;
+      gap: 20px;
+    }
+  }
+
+  /* Left column — orbit */
+  .predictor-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .orbit-container {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Agent pills row under orbit */
+  .agent-pills-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+  }
+  .apill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: color-mix(in srgb, #6366f1 10%, var(--c-surface));
+    border: 1px solid color-mix(in srgb, #6366f1 25%, transparent);
+    font-size: 10.5px;
+    font-weight: 800;
+    color: #a5b4fc;
+    transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+    cursor: default;
+  }
+  .apill:hover {
+    background: color-mix(in srgb, #6366f1 22%, var(--c-surface));
+    border-color: color-mix(in srgb, #6366f1 55%, transparent);
+    color: #c7d2fe;
+  }
+  .apill-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #6366f1;
+    box-shadow: 0 0 6px #6366f1;
+    flex-shrink: 0;
+  }
+  .apill-name { font-weight: 900; }
+
+  /* Right column */
+  .predictor-right {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Description */
+  .predictor-desc {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.68;
+    color: var(--c-text-2, var(--c-muted));
+    font-weight: 500;
+  }
+  .predictor-desc strong { color: var(--c-text); font-weight: 800; }
+
+  /* Great AI Minds section */
+  .gm-section {
+    padding: 16px;
+    border-radius: 16px;
+    background: color-mix(in srgb, #6366f1 9%, var(--c-surface));
+    border: 1px solid color-mix(in srgb, #6366f1 28%, transparent);
+  }
+  .gm-section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .gm-brain-icon { font-size: 18px; }
+  .gm-section-title {
+    font-size: 12.5px;
+    font-weight: 900;
+    color: var(--c-text);
+    letter-spacing: 0.01em;
+  }
+  .gm-models-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .gm-model {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-border);
+    transition: transform 120ms ease, border-color 120ms ease;
+  }
+  .gm-model:hover { transform: translateX(3px); }
+  .gm-model-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 8px currentColor;
+  }
+  .gm-model-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .gm-model-info b { font-size: 12px; font-weight: 900; color: var(--c-text); }
+  .gm-model-info span { font-size: 10.5px; color: var(--c-muted); font-weight: 600; }
+
+  /* Per-model accent colors */
+  .gm-model.claude .gm-model-dot { background: #a78bfa; color: #a78bfa; border-color: #a78bfa; }
+  .gm-model.claude { border-color: color-mix(in srgb, #a78bfa 22%, transparent); }
+  .gm-model.gpt .gm-model-dot { background: #34d399; color: #34d399; }
+  .gm-model.gpt { border-color: color-mix(in srgb, #34d399 20%, transparent); }
+  .gm-model.kimi .gm-model-dot { background: #38bdf8; color: #38bdf8; }
+  .gm-model.kimi { border-color: color-mix(in srgb, #38bdf8 20%, transparent); }
+  .gm-model.qwen .gm-model-dot { background: #fbbf24; color: #fbbf24; }
+  .gm-model.qwen { border-color: color-mix(in srgb, #fbbf24 20%, transparent); }
+  .gm-model.grok .gm-model-dot { background: #f87171; color: #f87171; }
+  .gm-model.grok { border-color: color-mix(in srgb, #f87171 20%, transparent); }
+
+  /* Pipeline / process steps */
+  .pipeline-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .pipeline-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--c-rally);
-    background: transparent;
-    border: none;
-    padding: 0 2px 2px;
+    color: #818cf8;
+    margin-bottom: 4px;
   }
-
-  .predictor-step.title-row :global(svg) { color: var(--c-rally); }
-
-  .step-ic {
+  .pipeline-head :global(svg) { color: #818cf8; }
+  .pipeline-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 11px;
+    background: var(--c-glass-sm, color-mix(in srgb, var(--c-surface) 60%, transparent));
+    border: 1px solid var(--c-border);
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .pipeline-step:hover {
+    background: color-mix(in srgb, #6366f1 8%, var(--c-surface));
+    border-color: color-mix(in srgb, #6366f1 30%, transparent);
+  }
+  .pipeline-num {
+    font-size: 11px;
+    font-weight: 900;
+    color: #6366f1;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    flex-shrink: 0;
+    width: 18px;
+    text-align: center;
+    padding-top: 1px;
+  }
+  .pipeline-ic {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    width: 28px;
-    height: 28px;
-    border-radius: 9px;
-    background: color-mix(in srgb, var(--c-rally) 15%, transparent);
-    border: 1px solid color-mix(in srgb, var(--c-rally) 32%, transparent);
-    color: var(--c-rally);
+    width: 24px; height: 24px;
+    border-radius: 8px;
+    background: color-mix(in srgb, #6366f1 15%, transparent);
+    border: 1px solid color-mix(in srgb, #6366f1 28%, transparent);
+    color: #818cf8;
   }
-
-  .step-body {
+  .pipeline-body {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    font-size: 12.5px;
+    gap: 1px;
+    font-size: 12px;
     color: var(--c-text-2);
-    line-height: 1.5;
+    line-height: 1.48;
   }
-  .step-body b { color: var(--c-text); }
+  .pipeline-body b { color: var(--c-text); font-size: 12.5px; font-weight: 800; }
 
-  .predictor-sports {
+  /* Sports chips */
+  .pred-sports-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 7px;
-    margin-bottom: 18px;
+    gap: 6px;
   }
-
-  .psport-chip {
+  .pred-sport-chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
+    gap: 5px;
+    padding: 4px 9px;
     border-radius: 999px;
-    background: var(--c-glass-sm);
+    background: var(--c-glass-sm, color-mix(in srgb, var(--c-surface) 60%, transparent));
     border: 1px solid var(--c-border);
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
     color: var(--c-text-2);
-    transition: border-color var(--t-base), color var(--t-base), transform 80ms ease;
+    transition: border-color 130ms ease, color 130ms ease, transform 100ms ease;
   }
-  .psport-chip:hover {
-    border-color: color-mix(in srgb, var(--c-rally) 40%, transparent);
-    color: var(--c-text);
+  .pred-sport-chip:hover {
+    border-color: color-mix(in srgb, #6366f1 45%, transparent);
+    color: #a5b4fc;
     transform: translateY(-1px);
   }
-  .psport-chip :global(svg) { color: var(--c-rally); }
+  .pred-sport-chip :global(svg) { color: #818cf8; }
 
-  .predictor-cta {
+  /* CTA wrapper */
+  .predictor-cta-wrap {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
+    padding-top: 4px;
+  }
+  @media (max-width: 720px) {
+    .predictor-cta-wrap { justify-content: center; }
   }
 
-  /* ── Great AI Minds Machine Highlight ──────────────────────── */
-  .great-minds-highlight {
-    margin: 20px 0;
-    padding: 16px;
-    border-radius: 14px;
-    background: color-mix(in srgb, #6366f1 10%, var(--c-surface));
-    border: 1px solid color-mix(in srgb, #6366f1 35%, transparent);
-    text-align: left;
-  }
 
-  .gm-head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    font-weight: 800;
-    color: var(--c-text);
-    margin-bottom: 12px;
-  }
-
-  .gm-sparkle { font-size: 16px; }
-
-  .gm-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 8px;
-  }
-
-  .gm-chip {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11.5px;
-    padding: 6px 10px;
-    border-radius: 8px;
-    background: var(--c-surface-2);
-    border: 1px solid var(--c-border);
-    color: var(--c-text);
-  }
-
-  .gm-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #6366f1;
-    box-shadow: 0 0 8px #6366f1;
-    flex-shrink: 0;
-  }
 
   /* ── Disclaimer Section ────────────────────────────────────── */
   .disclaimer-card {
