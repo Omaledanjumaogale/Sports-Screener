@@ -10,7 +10,7 @@ import { amaraFilter, type NormalizeResult } from './agents/specialists';
 import { dailyCap } from './scrapers/sources';
 import { FILTER_CONFIDENCE_FLOOR } from './scrapers/normalize';
 import { generatePredictorVerdict, type VerdictOutcome } from './llm';
-import { isFootballMatch } from './predictor';
+import { isFootballMatch, matchBelongsToSport } from './predictor';
 
 const sportId = v.union(
   v.literal('football'),
@@ -76,19 +76,19 @@ async function executeRefresh(
       cap
     });
 
-    // Automatically migrate any legacy football matches stored under non-football sports into 'football'
+    // Purge any misassigned/wrong sport matches stored under this sport tab
     try {
+      await ctx.runMutation(internal.predictor.purgeWrongSportMatchesInternal, { sportId: args.sportId as any });
       await ctx.runMutation(internal.predictor.migrateNonFootballMatchesInternal, {});
     } catch (e) {
-      console.warn('[predictorOrchestrator] migration warning:', e);
+      console.warn('[predictorOrchestrator] cleanup warning:', e);
     }
 
     const result = await runSmoaPipeline(args.sportId, dayKey, report, floor, cap);
 
-    // Filter out any matches that are actually football matches when saving non-football sports
-    const cleanMatches = args.sportId !== 'football'
-      ? result.matches.filter((m) => !isFootballMatch(m))
-      : result.matches;
+    // Apply strict positive sport identity validation before storing matches
+    const cleanMatches = result.matches.filter((m) => matchBelongsToSport(m, args.sportId));
+
 
     // Cache EVERY parsed fixture so the schedule always populates.
     await ctx.runMutation(internal.predictor.replaceMatches, {
