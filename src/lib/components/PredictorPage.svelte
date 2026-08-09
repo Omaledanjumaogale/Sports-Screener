@@ -32,6 +32,7 @@
     isFootballMatch
   } from '$lib/predictorTypes';
   import { buildPredictorInsights } from '$lib/predictorInsights';
+  import { formatWAT, getWatHour } from '$lib/watTime';
   import {
     PREDICTOR_MAX_SELECTIONS,
     clearSelection,
@@ -161,7 +162,7 @@
     }
     if (timeBand === 'all') return list;
     const band = timeBand;
-    const bandHour = (ms: number) => new Date(ms).getUTCHours();
+    const bandHour = (ms: number) => getWatHour(ms);
     return list.filter((m) => {
       const h = bandHour(m.startTime);
       return band === 'morning' ? h < 12 : band === 'afternoon' ? h >= 12 && h < 18 : h >= 18;

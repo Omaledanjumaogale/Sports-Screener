@@ -29,7 +29,7 @@ export const load: PageLoad = ({ params }) => {
     },
     {
       question: 'How often is the AI Predictor cache refreshed?',
-      answer: 'A nightly midnight (00:00 UTC) cycle run by the agent team refreshes the day cache for all sports; a manual refresh is always available.'
+      answer: 'Scheduled West Africa Time refreshes (1:00 AM WAT, 7:00 AM WAT & 1:00 PM WAT) run by the agent team refresh the day cache for all sports; a manual refresh is always available.'
     },
     {
       question: `How do I open a full ${sport} match analysis?`,

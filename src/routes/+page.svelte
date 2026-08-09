@@ -396,7 +396,7 @@
 
         <p class="predictor-copy">
           The <strong>AI Predictor</strong> is an enterprise multi-agent engine synchronized directly with our Convex backend.
-          Three times daily (<strong>00:00 UTC, 06:00 UTC &amp; 12:00 UTC</strong>), the 9 specialist agents pull fixtures,
+          Three times daily (<strong>1:00 AM WAT, 7:00 AM WAT &amp; 1:00 PM WAT</strong>), the 9 specialist agents pull fixtures,
           cross-reference decimal odds from <strong>betwatch.fr</strong> and global betting registries, normalize probability metrics,
           and execute 5-round <strong>Great AI Minds debates</strong> across Claude Opus 4.0, ChatGPT 3.2 Pro, Kimi K2.5, Qwen 3.5, and Grok 4.2.
           Only selections clearing our mathematical probability floor surface as qualifying recommendations.

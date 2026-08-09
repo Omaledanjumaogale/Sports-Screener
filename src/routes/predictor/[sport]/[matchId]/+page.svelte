@@ -133,7 +133,7 @@
         <p>
           Full analysis for {match.homeTeam} vs {match.awayTeam} ({match.league}). Selections clear the
           {DEFAULT_CONFIDENCE_FLOOR}% Real Win Chance floor and are re-checked after the final whistle.
-          All match times shown in West Africa Time (WAT, UTC+1). Always gamble responsibly.
+          All match times shown in West Africa Time (WAT). Always gamble responsibly.
         </p>
       </div>
     {/if}

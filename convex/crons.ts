@@ -1,6 +1,6 @@
-// 12-hourly cache cycle for the AI Predictor. Emeka Obi's scheduled duty: purge
-// stale predictor days and refresh the day cache for every real sport twice a
-// day (00:00 and 12:00 UTC) so projections stay current for all sports.
+// Scheduled cache cycle for the AI Predictor. Emeka Obi's scheduled duty: purge
+// stale predictor days and refresh the day cache for every sport three times a
+// day (1:00 AM WAT, 7:00 AM WAT & 1:00 PM WAT) so projections stay current.
 //
 // Keep this module dependency-light: Convex's analyzer EXECUTES the module body
 // to read the cron definitions, so a heavy/toErroring import would abort the
@@ -14,13 +14,11 @@ const FLOOR = 52;
 const CAP = 1200;
 
 // ── Daily purge ───────────────────────────────────────────────────────────────
-// Every 24h purge stale days older than 7 days. Uses internalAction so it can
-// call the purgeOld mutation from within a Convex action context.
+// Every 24h purge stale days older than 7 days.
 crons.interval('predictor-purge-daily', { minutes: 1440 }, internal.predictor.purgeAndMarkStale, {});
 
-// ── Midnight UTC cache refresh — all six sports ───────────────────────────────
-// Staggered by 8 minutes to avoid simultaneous heavy LLM/API bursts. The empty
-// dayKey string is resolved inside executeRefresh to today's UTC date.
+// ── Midnight West Africa Time (1:00 AM WAT / 00:00 WAT) cache refresh — all 11 sports ─
+// Staggered by 8 minutes to avoid simultaneous heavy LLM/API bursts.
 crons.daily('predictor-refresh-midnight-football',   { hourUTC: 23, minuteUTC: 2  }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'football',   dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-refresh-midnight-basketball', { hourUTC: 23, minuteUTC: 10 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'basketball', dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-refresh-midnight-tennis',     { hourUTC: 23, minuteUTC: 18 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'tennis',     dayKey: '', floor: FLOOR, cap: CAP });
@@ -33,8 +31,8 @@ crons.daily('predictor-refresh-midnight-cricket',    { hourUTC: 0, minuteUTC: 6 
 crons.daily('predictor-refresh-midnight-mma',        { hourUTC: 0, minuteUTC: 14 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'mma',        dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-refresh-midnight-volleyball', { hourUTC: 0, minuteUTC: 22 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'volleyball', dayKey: '', floor: FLOOR, cap: CAP });
 
-// ── Noon UTC cache refresh — all six sports ────────────────────────────────────
-// Noon pass keeps the day fresh for the afternoon/evening window.
+// ── Afternoon West Africa Time (1:00 PM WAT) cache refresh — all 11 sports ─────
+// Midday pass keeps predictions fresh for afternoon/evening match windows.
 crons.daily('predictor-refresh-noon-football',   { hourUTC: 11, minuteUTC: 2  }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'football',   dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-refresh-noon-basketball', { hourUTC: 11, minuteUTC: 10 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'basketball', dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-refresh-noon-tennis',     { hourUTC: 11, minuteUTC: 18 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'tennis',     dayKey: '', floor: FLOOR, cap: CAP });
@@ -47,9 +45,8 @@ crons.daily('predictor-refresh-noon-cricket',    { hourUTC: 12, minuteUTC: 6  },
 crons.daily('predictor-refresh-noon-mma',        { hourUTC: 12, minuteUTC: 14 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'mma',        dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-refresh-noon-volleyball', { hourUTC: 12, minuteUTC: 22 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'volleyball', dayKey: '', floor: FLOOR, cap: CAP });
 
-// ── Morning UTC early seed ─────────────────────────────────────────────────────
-// 06:00 UTC seed so users in African morning sessions see today's matches already
-// populated, without having to wait for the noon refresh.
+// ── Morning West Africa Time (7:00 AM WAT) early seed ──────────────────────────
+// 7:00 AM WAT seed ensures morning users see today's matches populated early.
 crons.daily('predictor-seed-morning-football',   { hourUTC: 6, minuteUTC: 2  }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'football',   dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-seed-morning-basketball', { hourUTC: 6, minuteUTC: 10 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'basketball', dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-seed-morning-tennis',     { hourUTC: 6, minuteUTC: 18 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'tennis',     dayKey: '', floor: FLOOR, cap: CAP });
@@ -61,6 +58,7 @@ crons.daily('predictor-seed-morning-rugby',      { hourUTC: 6, minuteUTC: 58 }, 
 crons.daily('predictor-seed-morning-cricket',    { hourUTC: 7, minuteUTC: 6  }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'cricket',    dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-seed-morning-mma',        { hourUTC: 7, minuteUTC: 14 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'mma',        dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-seed-morning-volleyball', { hourUTC: 7, minuteUTC: 22 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'volleyball', dayKey: '', floor: FLOOR, cap: CAP });
+
 
 // ── Live scoreline synchronization — every 5 minutes ──────────────────────────
 // Synchronizes real-time live scorelines and score updates for today's active
