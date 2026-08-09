@@ -194,7 +194,7 @@ async function executeRefresh(
     });
 
     try {
-      ctx.scheduler.runAfter(0, internal.scores.syncScoresAction, { dayKey });
+      await ctx.scheduler.runAfter(0, internal.scores.syncScoresAction, { dayKey });
     } catch {}
 
     return { ok: true, kept: result.matches.length, runId, message: 'Refresh complete' };

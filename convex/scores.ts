@@ -149,7 +149,7 @@ export const syncScoresAction = internalAction({
     }
 
     try {
-      ctx.scheduler.runAfter(0, internal.scores.settleDayPnl, { dayKey: targetDay });
+      await ctx.scheduler.runAfter(0, internal.scores.settleDayPnl, { dayKey: targetDay });
     } catch {}
 
     return { updated: totalUpdated };
@@ -378,7 +378,7 @@ export const triggerScoreSync = mutation({
   args: { dayKey: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const day = args.dayKey || new Date().toISOString().slice(0, 10);
-    ctx.scheduler.runAfter(0, internal.scores.syncScoresAction, { dayKey: day });
+    await ctx.scheduler.runAfter(0, internal.scores.syncScoresAction, { dayKey: day });
     return { ok: true, message: `Score sync scheduled for ${day}` };
   }
 });
