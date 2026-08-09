@@ -11,6 +11,7 @@
 // degrades to the reader chain / synthetic fallback instead of erroring.
 
 import { SportsApi, apiUrl, apiKeyFor, env } from '../scrapers/sources';
+import { readAny } from '../scrapers/pages';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -796,3 +797,202 @@ export function hasAnyApiKey(): boolean {
 export function isSportsDbReady(): boolean {
   return !!env('THESPORTSDB_API_KEY');
 }
+
+export interface ApiMatchScore {
+  home: string;
+  away: string;
+  finalScore: string;
+  status: 'upcoming' | 'inplay' | 'finished';
+}
+
+export async function fetchScoresForDate(sportId: string, date: string): Promise<ApiMatchScore[]> {
+  const scores: ApiMatchScore[] = [];
+  const seen = new Set<string>();
+
+  const pushScore = (home: string, away: string, hs: any, as: any, statusStr?: string) => {
+    const hk = normalizeTeam(home);
+    const ak = normalizeTeam(away);
+    if (!hk || !ak) return;
+    const key = `${hk}|${ak}`;
+    if (seen.has(key)) return;
+
+    let status: 'upcoming' | 'inplay' | 'finished' = 'upcoming';
+    const s = String(statusStr || '').toLowerCase();
+
+    if (/finish|ft|aot|end|final|postp|closed|completed/i.test(s)) {
+      status = 'finished';
+    } else if (/in play|live|ht|1h|2h|quarter|period|set|progress|playing/i.test(s)) {
+      status = 'inplay';
+    }
+
+    let finalScore = '';
+    if (hs !== undefined && hs !== null && as !== undefined && as !== null && String(hs).trim() !== '' && String(as).trim() !== '') {
+      finalScore = `${hs} - ${as}`;
+      if (status === 'upcoming') status = 'finished';
+    }
+
+    if (finalScore || status !== 'upcoming') {
+      seen.add(key);
+      scores.push({ home, away, finalScore, status });
+    }
+  };
+
+  // 1. TheSportsDB
+  try {
+    const tsdbEvents = await fetchTheSportsDbEvents(date);
+    const re = TSDB_SPORT_KEYS[sportId];
+    if (re && Array.isArray(tsdbEvents)) {
+      for (const e of tsdbEvents) {
+        if (!re.test(String(e?.strSport || ''))) continue;
+        const home = String(e?.strHomeTeam || '').trim();
+        const away = String(e?.strAwayTeam || '').trim();
+        const hs = e?.intHomeScore;
+        const as = e?.intAwayScore;
+        const status = e?.strStatus;
+        if (home && away) pushScore(home, away, hs, as, status);
+      }
+    }
+  } catch {}
+
+  // 2. BallDontLie & SportsData.io for NBA
+  if (sportId === 'basketball') {
+    try {
+      const bdlGames = await fetchBalldontlieGames(date);
+      for (const g of bdlGames ?? []) {
+        const home = g?.home_team?.full_name;
+        const away = g?.visitor_team?.full_name;
+        if (home && away) pushScore(String(home), String(away), g?.home_team_score, g?.visitor_team_score, g?.status);
+      }
+    } catch {}
+
+    try {
+      const sdGames = await fetchSportsDataNbaGames(date);
+      for (const g of sdGames ?? []) {
+        const home = g?.HomeTeam ?? g?.HomeTeamName;
+        const away = g?.AwayTeam ?? g?.AwayTeamName;
+        if (home && away) pushScore(String(home), String(away), g?.HomeTeamScore, g?.AwayTeamScore, g?.Status);
+      }
+    } catch {}
+  }
+
+  // 3. OddsPapi
+  try {
+    const opRaw = await fetchODDSPAPIFixtures(sportId, date);
+    for (const f of opRaw ?? []) {
+      const home = String(f?.participant1Name || '').trim();
+      const away = String(f?.participant2Name || '').trim();
+      const hs = f?.score1 ?? f?.homeScore ?? f?.scoreHome;
+      const as = f?.score2 ?? f?.awayScore ?? f?.scoreAway;
+      const status = f?.statusName ?? f?.status;
+      if (home && away) pushScore(home, away, hs, as, status);
+    }
+  } catch {}
+
+  return scores;
+}
+
+// ── HTML result-page failover (BetExplorer / FlashScore / Soccerway) ──────────
+// Used when no API score was found for a cached match. Result pages are read
+// through the reader chain (Jina → Firecrawl → BrightData) and scanned for rows
+// containing both team names plus a score. Only targets passed by the caller are
+// returned, so the inherently fragile text matching never fabricates fixtures.
+
+const HTML_RESULT_PAGES: Record<string, Array<{ url: (date: string) => string }>> = {
+  football: [
+    { url: () => 'https://www.betexplorer.com/results/soccer/' },
+    { url: () => 'https://www.flashscore.com/football/results/' },
+    { url: (d) => `https://www.soccerway.com/matches/${dWithSlashes(d)}/` }
+  ],
+  basketball: [
+    { url: () => 'https://www.betexplorer.com/results/basketball/' },
+    { url: () => 'https://www.flashscore.com/basketball/results/' }
+  ],
+  tennis: [
+    { url: () => 'https://www.betexplorer.com/results/tennis/' },
+    { url: () => 'https://www.flashscore.com/tennis/results/' }
+  ],
+  hockey: [
+    { url: () => 'https://www.betexplorer.com/results/ice-hockey/' },
+    { url: () => 'https://www.flashscore.com/ice-hockey/results/' }
+  ],
+  baseball: [
+    { url: () => 'https://www.betexplorer.com/results/baseball/' },
+    { url: () => 'https://www.flashscore.com/baseball/results/' }
+  ],
+  americanfootball: [
+    { url: () => 'https://www.betexplorer.com/results/american-football/' },
+    { url: () => 'https://www.flashscore.com/american-football/results/' }
+  ],
+  volleyball: [
+    { url: () => 'https://www.flashscore.com/volleyball/results/' }
+  ],
+  rugby: [
+    { url: () => 'https://www.flashscore.com/rugby/results/' }
+  ],
+  rally: [
+    { url: () => 'https://www.flashscore.com/table-tennis/results/' }
+  ]
+};
+
+function dWithSlashes(date: string): string {
+  const [y, m, dd] = String(date || '').split('-');
+  return `${y}/${m}/${dd}`;
+}
+
+// Parse the strongest "<home> <score> - <score> <away>" row that contains BOTH
+// team names. Returns null unless a numeric score is found.
+function scoreFromResultText(text: string, home: string, away: string): { home: string; away: string; finalScore: string; status: 'upcoming' | 'inplay' | 'finished' } | null {
+  const h = normalizeTeam(home);
+  const a = normalizeTeam(away);
+  if (!h || !a) return null;
+  const lines = String(text || '').split(/\r?\n/);
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    const norm = normalizeTeam(line);
+    if (!norm.includes(h) || !norm.includes(a)) continue;
+    const m = line.match(/(\d+)\s*[-—:]\s*(\d+)/);
+    if (!m) continue;
+    const hs = Number(m[1]);
+    const as = Number(m[2]);
+    const finalScore = `${hs} - ${as}`;
+    const ft = /FT|full.?time|finished|ended|postponed|a\.?e\.?t|so\.?\(/i.test(line);
+    return { home, away, finalScore, status: ft ? 'finished' : 'inplay' };
+  }
+  return null;
+}
+
+// Read every result page for the sport (reader chain) and scan for the target
+// pair. Never throws; returns only what text matching positively confirms.
+export async function fetchHtmlResultScores(
+  sportId: string,
+  date: string,
+  targets: { home: string; away: string }[]
+): Promise<ApiMatchScore[]> {
+  const pages = HTML_RESULT_PAGES[sportId];
+  if (!pages || !targets?.length) return [];
+  const out: ApiMatchScore[] = [];
+  const found = new Set<string>();
+  let attempted = 0;
+  for (const page of pages) {
+    if (attempted >= 2) break; // stop after two readable pages
+    let pageText = '';
+    try {
+      const res = await readAny(page.url(date), { timeoutMs: 15_000 });
+      if (!res.ok || !res.text) continue;
+      pageText = res.text;
+    } catch {
+      continue;
+    }
+    attempted++;
+    for (const t of targets) {
+      const key = `${normalizeTeam(t.home)}|${normalizeTeam(t.away)}`;
+      if (found.has(key)) continue;
+      const matched = scoreFromResultText(pageText, t.home, t.away);
+      if (matched) {
+        found.add(key);
+        out.push(matched);
+      }
+    }
+  }
+  return out;
+}

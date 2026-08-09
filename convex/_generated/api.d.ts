@@ -20,6 +20,7 @@ import type * as llm from "../llm.js";
 import type * as predictor from "../predictor.js";
 import type * as predictorOrchestrator from "../predictorOrchestrator.js";
 import type * as savedScreeners from "../savedScreeners.js";
+import type * as scores from "../scores.js";
 import type * as scrapers_betwatch from "../scrapers/betwatch.js";
 import type * as scrapers_brightdata from "../scrapers/brightdata.js";
 import type * as scrapers_firecrawl from "../scrapers/firecrawl.js";
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   predictor: typeof predictor;
   predictorOrchestrator: typeof predictorOrchestrator;
   savedScreeners: typeof savedScreeners;
+  scores: typeof scores;
   "scrapers/betwatch": typeof scrapers_betwatch;
   "scrapers/brightdata": typeof scrapers_brightdata;
   "scrapers/firecrawl": typeof scrapers_firecrawl;

@@ -23,7 +23,7 @@ import type {
   PnlSportFilter,
   PnlMarketFilter
 } from './predictorTypes';
-import { GREAT_MINDS_MODELS } from './predictorTypes';
+import { GREAT_MINDS_MODELS, gradeSelection } from './predictorTypes';
 import type { Analysis, Pick as EnginePick } from './engine';
 import { analyzeCachedMatch } from './predictorClient';
 
@@ -405,7 +405,18 @@ export function generateDailyPnlSummary(
       const implied = rawOdds > 1 ? 1 / rawOdds : 0.5;
       const probPct = Math.round(Math.min(Math.max(implied + (pick.edgeEvPercent / 100), 0.4), 0.95) * 100);
 
-      const outcome = simulatePickOutcome(`${match.matchId}|${market}|${pick.selection}`, probPct);
+      const score = match.finalScore || match.oddsSnapshot?.finalScore || null;
+      let outcome: 'W' | 'L' | 'P';
+      if (score && (match.status === 'finished' || !!score)) {
+        const grade = gradeSelection(pick.selection, market, score, {
+          homeTeam: match.homeTeam,
+          awayTeam: match.awayTeam,
+          marketId: market
+        });
+        outcome = grade === 'win' ? 'W' : grade === 'loss' ? 'L' : grade === 'push' ? 'P' : simulatePickOutcome(`${match.matchId}|${market}|${pick.selection}`, probPct);
+      } else {
+        outcome = simulatePickOutcome(`${match.matchId}|${market}|${pick.selection}`, probPct);
+      }
       const stake = 1;
       const b = buckets[ratioKey];
       b.picks += 1;

@@ -10,6 +10,7 @@ import { amaraFilter, type NormalizeResult } from './agents/specialists';
 import { dailyCap } from './scrapers/sources';
 import { FILTER_CONFIDENCE_FLOOR } from './scrapers/normalize';
 import { generatePredictorVerdict, type VerdictOutcome } from './llm';
+import { isFootballMatch } from './predictor';
 
 const sportId = v.union(
   v.literal('football'),
@@ -75,13 +76,27 @@ async function executeRefresh(
       cap
     });
 
+    // Automatically migrate any legacy football matches stored under 'rally' into 'football'
+    if (args.sportId === 'rally' || args.sportId === 'football') {
+      try {
+        await ctx.runMutation(internal.predictor.migrateRallyMatchesInternal, {});
+      } catch (e) {
+        console.warn('[predictorOrchestrator] migration warning:', e);
+      }
+    }
+
     const result = await runSmoaPipeline(args.sportId, dayKey, report, floor, cap);
 
-    // Cache EVERY parsed fixture (see smoa.ts) so the schedule always populates.
+    // If sportId is 'rally', filter out any matches that are actually football matches
+    const cleanMatches = args.sportId === 'rally'
+      ? result.matches.filter((m) => !isFootballMatch(m))
+      : result.matches;
+
+    // Cache EVERY parsed fixture so the schedule always populates.
     await ctx.runMutation(internal.predictor.replaceMatches, {
       sportId: args.sportId,
       dayKey: dayKey,
-      matches: result.matches.map((m) => ({
+      matches: cleanMatches.map((m) => ({
         matchId: m.matchId,
         league: m.league,
         homeTeam: m.homeTeam,
@@ -177,6 +192,10 @@ async function executeRefresh(
       message: `${result.matches.length} matches cached`,
       completedAt: Date.now()
     });
+
+    try {
+      ctx.scheduler.runAfter(0, internal.scores.syncScoresAction, { dayKey });
+    } catch {}
 
     return { ok: true, kept: result.matches.length, runId, message: 'Refresh complete' };
   } catch (err: any) {

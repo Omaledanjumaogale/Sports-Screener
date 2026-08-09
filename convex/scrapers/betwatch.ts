@@ -65,8 +65,12 @@ export function parseBetwatchMarkdown(text: string, sportId: string): ScrapeMatc
 
   for (const line of lines) {
     const lmatch = line.match(leaguePattern);
-    if (lmatch && leagues.some((l) => lmatch[1].toLowerCase().includes(l.toLowerCase()))) {
-      currentLeague = clean(lmatch[1]);
+    if (lmatch) {
+      if (leagues.some((l) => lmatch[1].toLowerCase().includes(l.toLowerCase()))) {
+        currentLeague = clean(lmatch[1]);
+      } else {
+        currentLeague = '';
+      }
       continue;
     }
     const vm = line.match(vsPattern);
@@ -74,6 +78,11 @@ export function parseBetwatchMarkdown(text: string, sportId: string): ScrapeMatc
       const home = clean(vm[1]);
       const away = clean(vm[2]);
       if (home.length < 2 || away.length < 2) continue;
+
+      // For non-football sports, do not inherit soccer matches from betwatch.fr
+      // unless the league was explicitly matched to a valid league for that sport.
+      if (sportId !== 'football' && !currentLeague) continue;
+
       out.push({
         source: 'BetWatch',
         sourceUrl: PRIMARY_SOURCE,

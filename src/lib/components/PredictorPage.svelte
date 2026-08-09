@@ -28,7 +28,8 @@
     type PredictorDay,
     type PredictorMatch,
     type PredictorRun,
-    type PredictorSportId
+    type PredictorSportId,
+    isFootballMatch
   } from '$lib/predictorTypes';
   import { buildPredictorInsights } from '$lib/predictorInsights';
   import {
@@ -154,10 +155,14 @@
   );
 
   const filteredMatches = $derived.by(() => {
-    if (timeBand === 'all') return matches;
+    let list = matches;
+    if (effectiveSport === 'rally') {
+      list = list.filter((m) => !isFootballMatch(m));
+    }
+    if (timeBand === 'all') return list;
     const band = timeBand;
     const bandHour = (ms: number) => new Date(ms).getUTCHours();
-    return matches.filter((m) => {
+    return list.filter((m) => {
       const h = bandHour(m.startTime);
       return band === 'morning' ? h < 12 : band === 'afternoon' ? h >= 12 && h < 18 : h >= 18;
     });
@@ -167,6 +172,8 @@
   // Upcoming: not started. In-play: started within the 3h window. Finished:
   // ended more than 3h ago.
   const statusOf = (m: PredictorMatch): GameTab => {
+    if (m.status === 'finished' || !!m.finalScore) return 'finished';
+    if (m.status === 'inplay') return 'inplay';
     if (m.startTime <= 0) return 'upcoming';
     if (m.startTime > now) return 'upcoming';
     if (m.startTime > now - IN_PLAY_WINDOW_MS) return 'inplay';

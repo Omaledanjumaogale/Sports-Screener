@@ -19,6 +19,29 @@ export function isPredictorSport(id: string | undefined | null): id is Predictor
   return !!id && (PREDICTOR_SPORTS as string[]).includes(id);
 }
 
+export function isFootballMatch(m: { league?: string; homeTeam?: string; awayTeam?: string }): boolean {
+  const text = `${m.league || ''} ${m.homeTeam || ''} ${m.awayTeam || ''}`.toLowerCase();
+  const ttKeywords = ['ittf', 'wtt', 'table tennis', 'ping pong', 'tt cup', 'lebrun', 'harimoto', 'zhendong', 'ma long', 'timo boll', 'ovtcharov', 'chuqin', 'yingsha', 'chen meng', 'calderano', 'aruna', 'moregard', 'jorgic', 'qiu', 'franziska', 'manyu', 'lin gaoyuan', 'liang jingkun'];
+  if (ttKeywords.some((k) => text.includes(k))) return false;
+
+  const soccerKeywords = [
+    'premier league', 'la liga', 'serie a', 'bundesliga', 'ligue 1', 'ligue 2', 'champions league',
+    'europa league', 'conference league', 'championship', 'league one', 'league two', 'eredivisie',
+    'primeira liga', 'super lig', 'liga mx', 'mls', 'npfl', 'copa libertadores', 'copa america',
+    'fa cup', 'efl cup', 'dfb pokal', 'copa del rey', 'coppa italia', 'soccer', 'football',
+    'arsenal', 'chelsea', 'liverpool', 'man city', 'manchester', 'real madrid', 'barcelona',
+    'bayern', 'juventus', 'inter', 'milan', 'psg', 'paris sg', 'tottenham', 'everton', 'dortmund',
+    'napoli', 'roma', 'benfica', 'porto', 'sporting', 'ajax', 'feyenoord', 'psv', 'celtic', 'rangers',
+    'newcastle', 'aston villa', 'west ham', 'brighton', 'wolves', 'fulham', 'brentford', 'crystal palace',
+    'leicester', 'southampton', 'leeds', 'nottingham', 'sevilla', 'villarreal', 'real sociedad',
+    'athletic club', 'betis', 'getafe', 'valencia', 'osasuna', 'lazio', 'atalanta', 'fiorentina',
+    'torino', 'bologna', 'monaco', 'lille', 'marseille', 'lyon', 'rennes', 'nice', 'leipzig',
+    'leverkusen', 'frankfurt', 'wolfsburg', 'gladbach'
+  ];
+
+  return soccerKeywords.some((k) => text.includes(k));
+}
+
 export interface PredictorMatch {
   _id: string;
   dayKey: string;

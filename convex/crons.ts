@@ -62,4 +62,14 @@ crons.daily('predictor-seed-morning-cricket',    { hourUTC: 7, minuteUTC: 6  }, 
 crons.daily('predictor-seed-morning-mma',        { hourUTC: 7, minuteUTC: 14 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'mma',        dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-seed-morning-volleyball', { hourUTC: 7, minuteUTC: 22 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'volleyball', dayKey: '', floor: FLOOR, cap: CAP });
 
-export default crons;
+// ── Live scoreline synchronization — every 5 minutes ──────────────────────────
+// Synchronizes real-time live scorelines and score updates for today's active
+// matches across all sports so the application UI stays current in real time.
+crons.interval('predictor-sync-live-scores', { minutes: 5 }, internal.scores.syncScoresAction, {});
+
+// ── Past match history & outcome settlement — every 3 hours ────────────────────
+// Scans completed matches from past days, fetches final scorelines, updates match
+// statuses to 'finished', and settles PnL historical summaries.
+crons.interval('predictor-sync-past-history', { minutes: 180 }, internal.scores.syncPastHistoryAction, {});
+
+export default crons;

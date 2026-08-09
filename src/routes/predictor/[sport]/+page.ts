@@ -4,10 +4,6 @@ import { buildMeta, canonicalUrl } from '$lib/seo';
 import { buildOrganizationSchema, buildWebPageSchema, buildBreadcrumbSchema, buildPageGraph, buildFAQSchema } from '$lib/schema/builders';
 import { PREDICTOR_SPORTS } from '$lib/predictorTypes';
 
-export const prerender = true;
-
-export const entries = () => PREDICTOR_SPORTS.map((sport) => ({ sport }));
-
 const LABEL: Record<string, string> = {
   football: 'Football',
   basketball: 'Basketball',

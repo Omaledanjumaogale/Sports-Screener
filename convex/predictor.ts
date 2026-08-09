@@ -36,6 +36,32 @@ const runStatus = v.union(
   v.literal('error')
 );
 
+export function isFootballMatch(m: { league?: string; homeTeam?: string; awayTeam?: string }): boolean {
+  const text = `${m.league || ''} ${m.homeTeam || ''} ${m.awayTeam || ''}`.toLowerCase();
+  
+  // Table Tennis positive indicators
+  const ttKeywords = ['ittf', 'wtt', 'table tennis', 'ping pong', 'tt cup', 'lebrun', 'harimoto', 'zhendong', 'ma long', 'timo boll', 'ovtcharov', 'chuqin', 'yingsha', 'chen meng', 'calderano', 'aruna', 'moregard', 'jorgic', 'qiu', 'franziska', 'manyu', 'lin gaoyuan', 'liang jingkun'];
+  if (ttKeywords.some((k) => text.includes(k))) return false;
+
+  // Soccer positive indicators
+  const soccerKeywords = [
+    'premier league', 'la liga', 'serie a', 'bundesliga', 'ligue 1', 'ligue 2', 'champions league',
+    'europa league', 'conference league', 'championship', 'league one', 'league two', 'eredivisie',
+    'primeira liga', 'super lig', 'liga mx', 'mls', 'npfl', 'copa libertadores', 'copa america',
+    'fa cup', 'efl cup', 'dfb pokal', 'copa del rey', 'coppa italia', 'soccer', 'football',
+    'arsenal', 'chelsea', 'liverpool', 'man city', 'manchester', 'real madrid', 'barcelona',
+    'bayern', 'juventus', 'inter', 'milan', 'psg', 'paris sg', 'tottenham', 'everton', 'dortmund',
+    'napoli', 'roma', 'benfica', 'porto', 'sporting', 'ajax', 'feyenoord', 'psv', 'celtic', 'rangers',
+    'newcastle', 'aston villa', 'west ham', 'brighton', 'wolves', 'fulham', 'brentford', 'crystal palace',
+    'leicester', 'southampton', 'leeds', 'nottingham', 'sevilla', 'villarreal', 'real sociedad',
+    'athletic club', 'betis', 'getafe', 'valencia', 'osasuna', 'lazio', 'atalanta', 'fiorentina',
+    'torino', 'bologna', 'monaco', 'lille', 'marseille', 'lyon', 'rennes', 'nice', 'leipzig',
+    'leverkusen', 'frankfurt', 'wolfsburg', 'gladbach'
+  ];
+
+  return soccerKeywords.some((k) => text.includes(k));
+}
+
 // ── Public queries ────────────────────────────────────────────────────────────
 
 export const getDay = query({
@@ -52,28 +78,35 @@ export const getDay = query({
 export const listMatches = query({
   args: { sportId, dayKey: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const raw = await ctx.db
       .query('predictorMatches')
       .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey))
       .order('asc')
       .collect();
+
+    if (args.sportId === 'rally') {
+      return raw.filter((m) => !isFootballMatch(m));
+    }
+    return raw;
   }
 });
 
 // Range view for the AI Predictor date picker: every cached match for a sport
 // whose cache day falls inside [fromDay, toDay]. Matches are stored under their
-// dayKey (the day the agent ran for), NOT their kickoff startTime — a scraped or
-// synthetic fixture's startTime can land on the next calendar day, so querying by
-// startTime silently returned nothing. Day-key range matches listDaysInRange and
-// the per-day grouping the homepage renders.
+// dayKey (the day the agent ran for), NOT their kickoff startTime.
 export const listMatchesInRange = query({
   args: { sportId, fromDay: v.string(), toDay: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const raw = await ctx.db
       .query('predictorMatches')
       .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).gte('dayKey', args.fromDay).lte('dayKey', args.toDay))
       .order('asc')
       .collect();
+
+    if (args.sportId === 'rally') {
+      return raw.filter((m) => !isFootballMatch(m));
+    }
+    return raw;
   }
 });
 
@@ -615,4 +648,97 @@ export const bootstrapToday = action({
     };
   }
 });
+
+// Mutation to move all football matches stored under Table Tennis ('rally') into Football ('football').
+// Merges non-duplicates into football and deletes duplicates from rally.
+export const migrateRallyMatchesToFootball = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const rallyMatches = await ctx.db
+      .query('predictorMatches')
+      .withIndex('by_sport_day', (q) => q.eq('sportId', 'rally'))
+      .collect();
+
+    let migrated = 0;
+    let deleted = 0;
+
+    for (const m of rallyMatches) {
+      if (isFootballMatch(m)) {
+        const existingFootballMatches = await ctx.db
+          .query('predictorMatches')
+          .withIndex('by_sport_day', (q) => q.eq('sportId', 'football').eq('dayKey', m.dayKey))
+          .collect();
+
+        const dup = existingFootballMatches.find(
+          (f) => f.matchId === m.matchId || (f.homeTeam.toLowerCase() === m.homeTeam.toLowerCase() && f.awayTeam.toLowerCase() === m.awayTeam.toLowerCase())
+        );
+
+        if (dup) {
+          await ctx.db.delete(m._id);
+          deleted++;
+        } else {
+          await ctx.db.patch(m._id, { sportId: 'football' });
+          migrated++;
+        }
+
+        const verdict = await ctx.db
+          .query('predictorVerdicts')
+          .withIndex('by_day_match', (q) => q.eq('dayKey', m.dayKey).eq('matchId', m.matchId))
+          .first();
+
+        if (verdict && verdict.sportId === 'rally') {
+          await ctx.db.patch(verdict._id, { sportId: 'football' });
+        }
+      }
+    }
+
+    return { migrated, deleted, totalExamined: rallyMatches.length };
+  }
+});
+
+export const migrateRallyMatchesInternal = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const rallyMatches = await ctx.db
+      .query('predictorMatches')
+      .withIndex('by_sport_day', (q) => q.eq('sportId', 'rally'))
+      .collect();
+
+    let migrated = 0;
+    let deleted = 0;
+
+    for (const m of rallyMatches) {
+      if (isFootballMatch(m)) {
+        const existingFootballMatches = await ctx.db
+          .query('predictorMatches')
+          .withIndex('by_sport_day', (q) => q.eq('sportId', 'football').eq('dayKey', m.dayKey))
+          .collect();
+
+        const dup = existingFootballMatches.find(
+          (f) => f.matchId === m.matchId || (f.homeTeam.toLowerCase() === m.homeTeam.toLowerCase() && f.awayTeam.toLowerCase() === m.awayTeam.toLowerCase())
+        );
+
+        if (dup) {
+          await ctx.db.delete(m._id);
+          deleted++;
+        } else {
+          await ctx.db.patch(m._id, { sportId: 'football' });
+          migrated++;
+        }
+
+        const verdict = await ctx.db
+          .query('predictorVerdicts')
+          .withIndex('by_day_match', (q) => q.eq('dayKey', m.dayKey).eq('matchId', m.matchId))
+          .first();
+
+        if (verdict && verdict.sportId === 'rally') {
+          await ctx.db.patch(verdict._id, { sportId: 'football' });
+        }
+      }
+    }
+
+    return { migrated, deleted, totalExamined: rallyMatches.length };
+  }
+});
+
 

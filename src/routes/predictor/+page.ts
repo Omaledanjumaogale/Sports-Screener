@@ -3,8 +3,6 @@ import type { PageLoad } from './$types';
 import { buildMeta, canonicalUrl } from '$lib/seo';
 import { buildOrganizationSchema, buildWebPageSchema, buildBreadcrumbSchema, buildPageGraph, buildFAQSchema } from '$lib/schema/builders';
 
-export const prerender = true;
-
 export const load: PageLoad = () => {
   const canonical = canonicalUrl('/predictor');
 
