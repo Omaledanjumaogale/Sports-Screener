@@ -279,13 +279,13 @@ export const startRefresh = mutation({
     // degrade the run/day to 'error' gracefully instead of 500-ing the mutation.
     try {
       if (incremental) {
-        ctx.scheduler.runAfter(0, internal.predictorOrchestrator.runIncrementalRefreshInternal, {
+        await ctx.scheduler.runAfter(0, internal.predictorOrchestrator.runIncrementalRefreshInternal, {
           sportId: args.sportId,
           dayKey: args.dayKey,
           runId
         });
       } else {
-        ctx.scheduler.runAfter(0, internal.predictorOrchestrator.runRefreshInternal, {
+        await ctx.scheduler.runAfter(0, internal.predictorOrchestrator.runRefreshInternal, {
           sportId: args.sportId,
           dayKey: args.dayKey,
           runId
