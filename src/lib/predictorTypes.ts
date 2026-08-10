@@ -421,8 +421,17 @@ export function gradeSelection(
       if (score.home === score.away) return 'win';
       return 'loss';
     }
-    const isHome = home ? lowerSel.includes(home) : /home|^\d\s|\bteam\s*a\b|^1\b/i.test(lowerSel);
-    const isAway = isHome ? false : away ? lowerSel.includes(away) : /away|team\s*b|^2\b/i.test(lowerSel);
+    // Team names take priority, but selections phrased generically ("Home Win",
+    // "1", "Team A") must still resolve even when the actual team names are
+    // known — otherwise finished matches never get a winner verdict.
+    const isHome = home
+      ? lowerSel.includes(home) || /(^|\s)home($|\s)|^1\b|\bteam\s*a\b/i.test(lowerSel)
+      : /home|^\d\s|\bteam\s*a\b|^1\b/i.test(lowerSel);
+    const isAway = isHome
+      ? false
+      : away
+        ? lowerSel.includes(away) || /(^|\s)away($|\s)|^2\b|\bteam\s*b\b/i.test(lowerSel)
+        : /away|team\s*b|^2\b/i.test(lowerSel);
     if (isHome) return score.home > score.away ? 'win' : 'loss';
     if (isAway) return score.away > score.home ? 'win' : 'loss';
     return null;

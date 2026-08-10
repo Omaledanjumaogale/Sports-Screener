@@ -10,17 +10,17 @@ import { type ScrapeMatch } from './betwatch';
 import { matchBelongsToSport, serverLeagueBelongsToSport, serverCanonicalizeLeague } from '../predictor';
 
 const SPORT_LEAGUES: Record<string, string[]> = {
-  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'FA Cup', 'Europa', 'Championship', 'League One', 'League Two', 'EFL Cup', 'Serie B', 'Segunda', 'Bundesliga 2', 'Ligue 2', 'Primeira Liga', 'Super Lig', 'Liga MX', 'MLS', 'Scottish Premiership', 'Copa Libertadores', 'Copa America', 'World Cup', 'Nations League'],
-  basketball: ['NBA', 'EuroLeague', 'ACB', 'LNB', 'WNBA', 'NCAAB', 'CBA', 'PBA'],
-  tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000', 'ATP Tour', 'WTA Tour'],
+  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'FA Cup', 'Europa', 'Championship', 'League One', 'League Two', 'EFL Cup', 'Serie B', 'Segunda', 'Bundesliga 2', 'Ligue 2', 'Primeira Liga', 'Super Lig', 'Liga MX', 'MLS', 'Scottish Premiership', 'Copa Libertadores', 'Copa America', 'World Cup', 'Nations League', 'Ekstraklasa', 'Czech First League', 'Croatian First League', 'Serbian SuperLiga', 'Romanian Liga 1', 'Hungarian NB I', 'Bulgarian First League', 'Slovak Super Liga', 'Slovenian Prva Liga', 'Veikkausliiga', 'Besta deild', 'Cyprus First Division', 'Israeli Premier League', 'Russian Premier League', 'Ukrainian Premier League', 'Kazakhstan Premier League', 'Chinese Super League', 'J1 League', 'J2 League', 'K League', 'A-League', 'Indian Super League', 'Saudi Pro League', 'UAE Pro League', 'Qatar Stars League', 'Egyptian Premier League', 'Botola', 'Tunisian Ligue', 'Algerian Ligue 1', 'Nigerian Premier League', 'Ghana Premier League', 'South African Premiership', 'USL Championship', 'Liga de Expansion', 'Brazil Serie B', 'Primera Nacional', 'Peru Liga 1', 'Paraguay Primera', 'Uruguay Primera', 'Ecuador Liga Pro', 'Bolivia Primera', 'Colombia Primera', 'Irish Premier Division', 'NIFL Premiership', 'Welsh Premier League'],
+  basketball: ['NBA', 'EuroLeague', 'ACB', 'LNB', 'WNBA', 'NCAAB', 'CBA', 'PBA', 'EuroCup', 'ABA Liga', 'Ligat Haal', 'BSL', 'Greek Basket League', 'VTB', 'NBL', 'KBL', 'B.League', 'G League', 'Liga Endesa', 'LBA'],
+  tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000', 'ATP Tour', 'WTA Tour', 'ATP Challenger', 'ITF'],
   rally: ['ITTF', 'WTT', 'World Table Tennis', 'Table Tennis', 'TT Cup'],
-  hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL'],
-  baseball: ['MLB', 'NPB', 'KBO', 'MiLB'],
-  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'Super Bowl'],
-  rugby: ['Six Nations', 'Rugby Championship', 'Premiership Rugby', 'Top 14', 'Super Rugby', 'World Cup Rugby', 'URC'],
-  cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash', 'The Hundred', 'World Cup', 'Super League'],
+  hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL', 'HockeyAllsvenskan', 'GET Ligaen', 'Metal Ligaen', 'Ligue Magnus', 'DEL2', 'ICEHL', 'Extraliga', 'VHL'],
+  baseball: ['MLB', 'NPB', 'KBO', 'MiLB', 'CPBL', 'LIDOM', 'LBPRC', 'LVBP', 'LMB'],
+  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'UFL', 'Super Bowl'],
+  rugby: ['Six Nations', 'Rugby Championship', 'Premiership Rugby', 'Top 14', 'Super Rugby', 'World Cup Rugby', 'URC', 'Champions Cup', 'Japan League One', 'Major League Rugby', 'Currie Cup', 'NPC', 'NRL'],
+  cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash', 'The Hundred', 'World Cup', 'Super League', 'T20 Blast', 'Caribbean Premier League', 'Lanka Premier League', 'Bangladesh Premier League', 'Nepal Premier League', 'SA20', 'ILT20', 'Pakistan Super League'],
   mma: ['UFC', 'Bellator', 'PFL', 'ONE Championship', 'MMA'],
-  volleyball: ['FIVB', 'VNL', 'CEV', 'SuperLega', 'Superleague', 'Volleyball']
+  volleyball: ['FIVB', 'VNL', 'CEV', 'SuperLega', 'Superleague', 'Volleyball', 'PlusLiga', 'Efeler Ligi', 'Ligue A', 'Volleyball Bundesliga', 'V.League', 'Volleyball Super League']
 };
 
 // Honest fallback league label per sport. Used only when a parser cannot detect

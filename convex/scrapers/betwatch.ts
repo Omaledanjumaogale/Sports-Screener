@@ -20,17 +20,17 @@ export interface ScrapeMatch {
 }
 
 const SPORT_LEAGUES: Record<string, string[]> = {
-  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'Primeira Liga', 'Championship', 'League One', 'League Two', 'FA Cup', 'EFL Cup', 'Serie B', 'Segunda', 'Ligue 2', 'Super Lig', 'Liga MX', 'MLS'],
-  basketball: ['NBA', 'EuroLeague', 'ACB', 'LNB', 'WNBA', 'NCAAB', 'CBA'],
-  tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000'],
+  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'Primeira Liga', 'Championship', 'League One', 'League Two', 'FA Cup', 'EFL Cup', 'Serie B', 'Segunda', 'Ligue 2', 'Super Lig', 'Liga MX', 'MLS', 'Ekstraklasa', 'Czech First League', 'Veikkausliiga', 'Israeli Premier League', 'Russian Premier League', 'Chinese Super League', 'J1 League', 'K League', 'A-League', 'Saudi Pro League', 'Egyptian Premier League', 'Botola', 'Nigerian Premier League', 'Brazil Serie B', 'Irish Premier Division'],
+  basketball: ['NBA', 'EuroLeague', 'ACB', 'LNB', 'WNBA', 'NCAAB', 'CBA', 'EuroCup', 'ABA Liga', 'BSL', 'VTB', 'KBL', 'B.League', 'G League', 'Liga Endesa'],
+  tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000', 'ATP Challenger', 'ITF'],
   rally: ['ITTF', 'WTT', 'Table Tennis', 'TT'],
-  hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL'],
-  baseball: ['MLB', 'NPB', 'KBO', 'MiLB'],
-  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'Super Bowl'],
-  rugby: ['Six Nations', 'Rugby', 'Premier Rugby', 'Top 14', 'Super Rugby', 'URC'],
-  cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash', 'Hundred', 'World Cup'],
+  hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL', 'HockeyAllsvenskan', 'GET Ligaen', 'Metal Ligaen', 'Ligue Magnus', 'DEL2', 'ICEHL', 'Extraliga', 'VHL'],
+  baseball: ['MLB', 'NPB', 'KBO', 'MiLB', 'CPBL', 'LIDOM', 'LBPRC', 'LVBP', 'LMB'],
+  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'UFL', 'Super Bowl'],
+  rugby: ['Six Nations', 'Rugby', 'Premier Rugby', 'Top 14', 'Super Rugby', 'URC', 'Champions Cup', 'Japan League One', 'Currie Cup', 'NRL'],
+  cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash', 'Hundred', 'World Cup', 'T20 Blast', 'Caribbean Premier League', 'Lanka Premier League', 'SA20', 'Pakistan Super League'],
   mma: ['UFC', 'Bellator', 'PFL', 'ONE'],
-  volleyball: ['FIVB', 'VNL', 'SerieA', 'Superleague', 'Volleyball']
+  volleyball: ['FIVB', 'VNL', 'SerieA', 'Superleague', 'Volleyball', 'PlusLiga', 'Efeler Ligi', 'Ligue A', 'V.League']
 };
 
 function clean(name: string): string {

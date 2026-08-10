@@ -45,6 +45,80 @@ describe('leagueCountries', () => {
     expect(displayLeague('Africa Cup of Nations')).toBe('Africa Cup of Nations');
   });
 
+  it('maps minor leagues across all sports', () => {
+    // Football
+    expect(countryForLeague('Veikkausliiga')).toBe('Finland');
+    expect(countryForLeague('Besta deild')).toBe('Iceland');
+    expect(countryForLeague('Cyprus First Division')).toBe('Cyprus');
+    expect(countryForLeague('Croatian First League')).toBe('Croatia');
+    expect(countryForLeague('Serbian SuperLiga')).toBe('Serbia');
+    expect(countryForLeague('Romanian Liga 1')).toBe('Romania');
+    expect(countryForLeague('Hungarian NB I')).toBe('Hungary');
+    expect(countryForLeague('Bulgarian First League')).toBe('Bulgaria');
+    expect(countryForLeague('Slovak Super Liga')).toBe('Slovakia');
+    expect(countryForLeague('Slovenian Prva Liga')).toBe('Slovenia');
+    expect(countryForLeague('Kazakhstan Premier League')).toBe('Kazakhstan');
+    expect(countryForLeague('UAE Pro League')).toBe('UAE');
+    expect(countryForLeague('South African Premiership')).toBe('South Africa');
+    expect(countryForLeague('USL Championship')).toBe('USA');
+    expect(countryForLeague('Bolivia Primera')).toBe('Bolivia');
+    expect(countryForLeague('NIFL Premiership')).toBe('Northern Ireland');
+    expect(countryForLeague('Welsh Premier League')).toBe('Wales');
+    // Basketball
+    expect(countryForLeague('BSL')).toBe('Turkey');
+    expect(countryForLeague('Greek Basket League')).toBe('Greece');
+    expect(countryForLeague('KBL')).toBe('South Korea');
+    expect(countryForLeague('B.League')).toBe('Japan');
+    expect(countryForLeague('G League')).toBe('USA');
+    expect(countryForLeague('Ligat Haal')).toBe('Israel');
+    // Hockey
+    expect(countryForLeague('HockeyAllsvenskan')).toBe('Sweden');
+    expect(countryForLeague('GET Ligaen')).toBe('Norway');
+    expect(countryForLeague('Metal Ligaen')).toBe('Denmark');
+    expect(countryForLeague('Ligue Magnus')).toBe('France');
+    expect(countryForLeague('DEL2')).toBe('Germany');
+    expect(countryForLeague('ICEHL')).toBe('Austria');
+    // Baseball
+    expect(countryForLeague('CPBL')).toBe('Taiwan');
+    expect(countryForLeague('LIDOM')).toBe('Dominican Republic');
+    expect(countryForLeague('LBPRC')).toBe('Puerto Rico');
+    expect(countryForLeague('LVBP')).toBe('Venezuela');
+    expect(countryForLeague('LMB')).toBe('Mexico');
+    // American football
+    expect(countryForLeague('CFL')).toBe('Canada');
+    expect(countryForLeague('UFL')).toBe('USA');
+    // Rugby
+    expect(countryForLeague('Premiership Rugby')).toBe('England');
+    expect(countryForLeague('Major League Rugby')).toBe('USA');
+    expect(countryForLeague('Currie Cup')).toBe('South Africa');
+    expect(countryForLeague('NPC')).toBe('New Zealand');
+    expect(countryForLeague('NRL')).toBe('Australia');
+    // Cricket
+    expect(countryForLeague('IPL')).toBe('India');
+    expect(countryForLeague('T20 Blast')).toBe('England');
+    expect(countryForLeague('Lanka Premier League')).toBe('Sri Lanka');
+    expect(countryForLeague('SA20')).toBe('South Africa');
+    expect(countryForLeague('Pakistan Super League')).toBe('Pakistan');
+    // Volleyball
+    expect(countryForLeague('PlusLiga')).toBe('Poland');
+    expect(countryForLeague('Efeler Ligi')).toBe('Turkey');
+    expect(countryForLeague('Ligue A')).toBe('France');
+    expect(countryForLeague('V.League')).toBe('Japan');
+    expect(countryForLeague('V.League 1')).toBe('Vietnam');
+  });
+
+  it('resolves word-boundary conflicts correctly', () => {
+    // 'del' inside 'Sunderland' must NOT map to Germany; 'DEL2' must map to Germany.
+    expect(displayLeague('Sunderland U21')).toBe('Sunderland U21');
+    expect(countryForLeague('DEL2')).toBe('Germany');
+    // 'USL Championship' is USA, generic 'Championship' is England.
+    expect(countryForLeague('USL Championship')).toBe('USA');
+    expect(countryForLeague('Championship')).toBe('England');
+    // 'V.League' volleyball (Japan) vs 'V.League 1' (Vietnam football).
+    expect(countryForLeague('V.League')).toBe('Japan');
+    expect(countryForLeague('V.League 1')).toBe('Vietnam');
+  });
+
   it('is idempotent and safe on unknown/empty values', () => {
     expect(displayLeague('England - Premier League')).toBe('England - Premier League');
     expect(displayLeague('Scheduled Fixture')).toBe('Scheduled Fixture');

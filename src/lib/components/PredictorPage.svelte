@@ -55,6 +55,7 @@
   const predictorLocked = $derived(!canAccessPredictor(authState.user));
 
   import DailyPnlSummary from './DailyPnlSummary.svelte';
+  import AccuracyMonitorPanel from './AccuracyMonitorPanel.svelte';
   import { generateGreatMindsDebate } from '$lib/greatMindsEngine';
   import type { GreatMindsDebateResult } from '$lib/predictorTypes';
 
@@ -844,6 +845,8 @@ $effect(() => {
     {/if}
 
     <DailyPnlSummary matches={matches} />
+
+    <AccuracyMonitorPanel matches={matches} />
 
 <footer class="predictor-foot">
       <p>
