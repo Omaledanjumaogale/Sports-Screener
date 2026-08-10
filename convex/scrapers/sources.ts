@@ -287,64 +287,26 @@ export function primarySourcesForSport(sportId: string): PrimarySource[] {
 // BetExplorer /next/ pages carry live decimal odds; Forebet/TennisBrain/AnnaBet
 // give per-sport prediction rows; SoccerVista gives match links with form context.
 export const FIXTURE_PAGES: Record<string, string[]> = {
-  football: [
-    'https://www.betexplorer.com/football/next/',
-    'https://www.forebet.com/en/football-tips-and-predictions-for-today',
-    'https://www.soccervista.com/predictions/',
-    'https://annabet.com/en/soccerstats/',
-    'https://www.betexplorer.com/football/'
-  ],
-  basketball: [
-    'https://www.betexplorer.com/basketball/next/',
-    'https://annabet.com/en/basketballstats/',
-    'https://www.basketball-reference.com/boxscores/'
-  ],
-  tennis: [
-    'https://www.betexplorer.com/tennis/next/',
-    'https://www.tennisbrain.com/predictions/',
-    'https://www.atptour.com/en/scores'
-  ],
-  rally: [
-    'https://www.betexplorer.com/table-tennis/next/',
-    'https://www.betexplorer.com/table-tennis/',
-    'https://www.ittf.com/',
-    'https://www.wttseries.com/'
-  ],
-  hockey: [
-    'https://www.betexplorer.com/hockey/next/',
-    'https://www.dailyfaceoff.com/',
-    'https://www.nhl.com/scores'
-  ],
-  baseball: [
-    'https://www.betexplorer.com/baseball/next/',
-    'https://www.espn.com/mlb/schedule'
-  ],
-  americanfootball: [
-    'https://www.betexplorer.com/american-football/next/',
-    'https://www.espn.com/nfl/schedule',
-    'https://www.flashscore.com/american-football/'
-  ],
-  rugby: [
-    'https://www.betexplorer.com/rugby/next/',
-    'https://www.espn.com/rugby/schedule',
-    'https://www.rugbypass.com/fixtures/'
-  ],
-  cricket: [
-    'https://www.betexplorer.com/cricket/',
-    'https://www.espncricinfo.com/scores',
-    'https://www.betexplorer.com/cricket/next/'
-  ],
-  mma: [
-    'https://www.betexplorer.com/mixed-martial-arts/',
-    'https://www.espn.com/mma/schedule',
-    'https://www.sherdog.com/events/latest'
-  ],
-  volleyball: [
-    'https://www.betexplorer.com/volleyball/next/',
-    'https://www.fivb.com/competitions'
-  ]
+  // Pruned 2026-08-10 from the diagnoseFixturePages report (34 URLs probed:
+  // 1 healthy, 8 unparseable, 25 unreachable). Pages removed here either
+  // returned text our parsers could not turn into fixtures (Forebet, AnnaBet,
+  // SoccerVista, ATP Tour, basketball-reference) or were unreachable by the
+  // reader chain (no Jina key; Firecrawl bot-walled the rest — ESPN, NHL,
+  // FlashScore, ITTF, FIVB, Sherdog, BetExplorer /next/ …). Re-run
+  // diagnostics:diagnoseFixturePages after configuring reader API keys to
+  // re-add any of these sources.
+  football: ['https://www.betexplorer.com/football/'],
+  basketball: [],
+  tennis: [],
+  rally: [],
+  hockey: [],
+  baseball: [],
+  americanfootball: [],
+  rugby: [],
+  cricket: [],
+  mma: [],
+  volleyball: []
 };
-
 export const MINOR_LEAGUES: { name: string; code: string }[] = [
   { name: 'Eredivisie (Netherlands)', code: 'NED-1' },
   { name: 'Liga Portugal', code: 'POR-1' },
