@@ -50,7 +50,7 @@ function sportDefaults(sportId?: string, home = 'Home', away = 'Away'): {
   } else if (sid === 'hockey') {
     return { spreadLabel: `${home} -1.5 Puck Line`, spreadAlt: `${away} +1.5 Puck Line`, totalLabel: 'Over 5.5 Goals', totalAlt: 'Under 5.5 Goals' };
   } else if (sid === 'rally') {
-    return { spreadLabel: `${home} -1.5 Match Sets`, spreadAlt: `${away} +1.5 Match Sets`, totalLabel: 'Over 74.5 Points', totalAlt: 'Under 74.5 Points' };
+    return { spreadLabel: `${home} -1.5 Match Sets`, spreadAlt: `${away} +1.5 Match Sets`, totalLabel: 'Over 3.5 Total Sets', totalAlt: 'Under 3.5 Total Sets' };
   } else if (sid === 'baseball') {
     return { spreadLabel: `${home} -1.5 Run Line`, spreadAlt: `${away} +1.5 Run Line`, totalLabel: 'Over 8.5 Runs', totalAlt: 'Under 8.5 Runs' };
   } else if (sid === 'americanfootball') {
@@ -237,6 +237,77 @@ export function generateGreatMindsDebate(
   const totalProb = Number(topTotal.probability) || 64.2;
   const totalPick = buildModelChoices('total', (topTotal as any).label || defaults.totalLabel, defaults.totalAlt, totalOdds, totalProb, totalDissent);
 
+  // ── REAL overall aggregates from the 3 consensus picks (NOT hardcoded) ───
+  const allThreePicks = [winnerPick, spreadPick, totalPick];
+  const totalAgree = allThreePicks.reduce((n, p) => n + p.agreeCount, 0);
+  const totalModelsVotes = allThreePicks.reduce((n, p) => n + p.totalModels, 0);
+  const overallConsensusRatioPct = totalModelsVotes > 0 ? Math.round((totalAgree / totalModelsVotes) * 100) : 60;
+  const overallConsensusRatio = `${overallConsensusRatioPct}%`;
+
+  const overallWinRatePct = Number(
+    (allThreePicks.reduce((acc, p) => acc + p.realWinChancePct, 0) / allThreePicks.length).toFixed(1)
+  );
+  const overallRoiPct = Number(
+    (allThreePicks.reduce((acc, p) => acc + p.edgeEvPercent, 0) / allThreePicks.length).toFixed(1)
+  );
+
+  // Per-pick verdict success grading using the real finalScore when available.
+  const scoreAvailable = match.finalScore || (match.status === 'finished');
+  const scoreForGrade = match.finalScore || null;
+  type PickVerdict = { market: string; selection: string; grade: 'win' | 'loss' | 'push' | 'pending'; realWinChancePct: number };
+  const pickVerdicts: PickVerdict[] = allThreePicks.map((p) => {
+    if (scoreForGrade && match.status === 'finished') {
+      const grade = gradeSelection(p.selection, p.market, scoreForGrade, {
+        homeTeam: match.homeTeam,
+        awayTeam: match.awayTeam,
+        marketId: p.market
+      });
+      return {
+        market: p.market,
+        selection: p.selection,
+        grade: (grade === 'win' || grade === 'loss' || grade === 'push') ? grade : 'pending',
+        realWinChancePct: p.realWinChancePct
+      };
+    }
+    return { market: p.market, selection: p.selection, grade: 'pending', realWinChancePct: p.realWinChancePct };
+  });
+  const resolved = pickVerdicts.filter((v) => v.grade !== 'pending');
+  const winsResolved = resolved.filter((v) => v.grade === 'win').length;
+  const lossesResolved = resolved.filter((v) => v.grade === 'loss').length;
+  const pushesResolved = resolved.filter((v) => v.grade === 'push').length;
+  const resolvedTotal = resolved.length;
+  const overallUnitsPnl = resolvedTotal > 0
+    ? Number(
+        allThreePicks.reduce((acc, p, idx) => {
+          const v = pickVerdicts[idx];
+          const r = v?.grade;
+          if (r === 'win') return acc + Math.max((p.rawOdds || 1.9) - 1, 0.2);
+          if (r === 'loss') return acc - 1;
+          if (r === 'push') return acc + 0;
+          // Pending: use EV-estimated fractional unit value
+          return acc + (p.edgeEvPercent >= 0 ? (p.edgeEvPercent / 100) : -0.15);
+        }, 0).toFixed(1)
+      )
+    : // Use weighted EV-estimated 3-pick card value when no scores yet
+      Number(
+        (allThreePicks.reduce((acc, p) => acc + (p.edgeEvPercent / 100), 0)).toFixed(1)
+      );
+  const resolvedVerdict: {
+    totalPicks: number;
+    wins: number;
+    losses: number;
+    pushes: number;
+    winRatePct: number;
+    pickVerdicts: PickVerdict[];
+  } = {
+    totalPicks: resolvedTotal,
+    wins: winsResolved,
+    losses: lossesResolved,
+    pushes: pushesResolved,
+    winRatePct: resolvedTotal > 0 ? Math.round((winsResolved / resolvedTotal) * 100) : 0,
+    pickVerdicts
+  };
+
   // Build 5-Round Debate Transcript
   const rounds: GreatMindsRound[] = [
     {
@@ -320,14 +391,18 @@ export function generateGreatMindsDebate(
       spread: spreadPick,
       total: totalPick
     },
-    overallConsensusRatio: '61%',
-    overallWinRatePct: 61,
-    overallRoiPct: 16.3,
-    overallUnitsPnl: 293.6,
+    overallConsensusRatio,
+    overallWinRatePct,
+    overallRoiPct,
+    overallUnitsPnl,
     fullTranscript,
     realWinChancePct,
     realWinChanceTag,
-    spark
+    spark,
+    resolvedVerdict,
+    finalScore: match.finalScore || null,
+    matchStatus: match.status || 'upcoming',
+    scoreAvailable: !!scoreAvailable
   };
 }
 

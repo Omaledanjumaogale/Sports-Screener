@@ -90,6 +90,68 @@ const SPORT_KEYWORDS: Record<string, { positive: RegExp[]; strongExclusive: RegE
   }
 };
 
+const SERVER_SPORT_LEAGUES: Record<string, string[]> = {
+  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'FA Cup', 'Europa League', 'Europa', 'Conference League', 'Championship', 'League One', 'League Two', 'EFL Cup', 'Serie B', 'Segunda Division', 'Segunda', 'Bundesliga 2', 'Ligue 2', 'Primeira Liga', 'Super Lig', 'Liga MX', 'MLS', 'Scottish Premiership', 'Copa Libertadores', 'Copa America', 'World Cup', 'Nations League', 'NPFL'],
+  basketball: ['NBA', 'EuroLeague', 'ACB', 'Liga ACB', 'LNB Pro A', 'LNB', 'WNBA', 'NCAAB', 'CBA', 'PBA', 'FIBA', 'Basketball Champions League'],
+  tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000', 'ATP Tour', 'WTA Tour', 'Wimbledon', 'Australian Open', 'French Open', 'Roland Garros', 'US Open'],
+  rally: ['ITTF', 'WTT', 'World Table Tennis', 'Table Tennis', 'TT Cup', 'WTT Series', 'WTT Champions', 'WTT Contender'],
+  hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL', 'Extraliga', 'Swiss National League'],
+  baseball: ['MLB', 'NPB', 'KBO', 'MiLB', 'World Baseball Classic'],
+  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'Super Bowl'],
+  rugby: ['Six Nations', 'Rugby Championship', 'Premiership Rugby', 'Top 14', 'Super Rugby', 'Super Rugby Pacific', 'World Cup Rugby', 'URC', 'Pro14', 'Rugby World Cup'],
+  cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash League', 'Big Bash', 'The Hundred', 'World Cup Cricket', 'Cricket World Cup', 'Super League', 'PSL', 'BBL', 'BCCI', 'ICC', 'T20 World Cup'],
+  mma: ['UFC', 'Bellator', 'PFL', 'ONE Championship', 'ONE', 'MMA'],
+  volleyball: ['FIVB', 'VNL', 'CEV', 'CEV Champions League', 'SuperLega', 'Superleague', 'Volleyball Nations League', 'Volleyball World Championship']
+};
+
+const SERVER_LEAGUE_NORMALIZE: Record<string, string> = {
+  'serie a tim': 'Serie A', 'laliga': 'La Liga', 'la liga santander': 'La Liga',
+  'premier': 'Premier League', 'epl': 'Premier League', 'english premier league': 'Premier League',
+  'bundesliga 1': 'Bundesliga', '1. bundesliga': 'Bundesliga', 'ligue 1 uber eats': 'Ligue 1',
+  'champs': 'Champions League', 'ucl': 'Champions League',
+  'uel': 'Europa League', 'europa': 'Europa League',
+  'conference': 'Conference League', 'uecl': 'Conference League',
+  'mls major league soccer': 'MLS', 'major league soccer': 'MLS',
+  'nba regular season': 'NBA', 'nba playoffs': 'NBA',
+  'euroleague basketball': 'EuroLeague', 'turkish airlines euroleague': 'EuroLeague'
+};
+
+export function serverCanonicalizeLeague(rawLeague: string, sportId?: string): string {
+  const raw = String(rawLeague || '').trim();
+  if (!raw) return '';
+  const key = raw.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (SERVER_LEAGUE_NORMALIZE[key]) return SERVER_LEAGUE_NORMALIZE[key];
+  if (sportId && SERVER_SPORT_LEAGUES[sportId]) {
+    const pool = SERVER_SPORT_LEAGUES[sportId];
+    const match = pool.find((canon) => key.includes(canon.toLowerCase()) || canon.toLowerCase().includes(key));
+    if (match) return match;
+  }
+  return raw;
+}
+
+export function serverLeagueBelongsToSport(league: string, sportId: string): boolean {
+  const normalized = serverCanonicalizeLeague(league, sportId).toLowerCase();
+  if (!normalized) return true;
+  const pool = SERVER_SPORT_LEAGUES[sportId] || [];
+  if (pool.length === 0) return true;
+  const match = pool.some((canon) => {
+    const cl = canon.toLowerCase();
+    return normalized.includes(cl) || cl.includes(normalized);
+  });
+  if (match) return true;
+  const others = Object.keys(SERVER_SPORT_LEAGUES).filter((s) => s !== sportId);
+  for (const other of others) {
+    const otherPool = SERVER_SPORT_LEAGUES[other] || [];
+    const clash = otherPool.some((canon) => {
+      const cl = canon.toLowerCase();
+      if (cl.length < 4) return false;
+      return normalized.includes(cl);
+    });
+    if (clash) return false;
+  }
+  return true;
+}
+
 /**
  * Returns true when a match genuinely belongs to `sportId`.
  * Uses THREE gates, evaluated in this priority order:
@@ -136,6 +198,7 @@ export interface ValidationResult {
   score: number;
   normalizedHome: string;
   normalizedAway: string;
+  normalizedLeague: string;
   fixtureFormat: 'team_vs_team' | 'player_vs_player' | 'unknown';
 }
 
@@ -246,10 +309,10 @@ const CANONICAL_TEAM_MAP: Record<string, string> = {
   'commanders': 'Washington Commanders', 'giants nfl': 'New York Giants'
 };
 
-const INDIVIDUAL_SPORTS = new Set(['tennis', 'mma']);
+const INDIVIDUAL_SPORTS = new Set(['tennis', 'mma', 'rally']);
 const TEAM_SPORTS = new Set([
   'football', 'basketball', 'hockey', 'baseball', 'americanfootball',
-  'rugby', 'cricket', 'volleyball', 'rally'
+  'rugby', 'cricket', 'volleyball'
 ]);
 
 export function normalizeName(raw: string): string {
@@ -274,7 +337,7 @@ export function validateFixture(
 
   const homeRaw = String(m.homeTeam || '').trim();
   const awayRaw = String(m.awayTeam || '').trim();
-  const league = String(m.league || '').trim();
+  const leagueRaw = String(m.league || '').trim();
 
   if (!homeRaw) issues.push('homeTeam empty');
   if (!awayRaw) issues.push('awayTeam empty');
@@ -282,6 +345,7 @@ export function validateFixture(
 
   const normalizedHome = homeRaw ? normalizeName(homeRaw) : '';
   const normalizedAway = awayRaw ? normalizeName(awayRaw) : '';
+  const normalizedLeague = leagueRaw ? serverCanonicalizeLeague(leagueRaw, sportId) : '';
 
   if (normalizedHome && normalizedHome.length < 2) issues.push('homeTeam too short');
   if (normalizedAway && normalizedAway.length < 2) issues.push('awayTeam too short');
@@ -302,10 +366,20 @@ export function validateFixture(
     score += 3;
   }
 
-  if (league) score += 2;
-  else issues.push('league empty or missing');
+  if (normalizedLeague) {
+    score += 2;
+    if (normalizedLeague !== leagueRaw) score += 1;
+    if (serverLeagueBelongsToSport(normalizedLeague, sportId)) {
+      score += 3;
+    } else {
+      issues.push(`league "${normalizedLeague}" belongs to another sport category`);
+      score = Math.max(0, score - 4);
+    }
+  } else {
+    issues.push('league empty or missing');
+  }
 
-  if (matchBelongsToSport(m, sportId)) {
+  if (matchBelongsToSport({ league: normalizedLeague, homeTeam: normalizedHome, awayTeam: normalizedAway, source: m.source }, sportId)) {
     score += 10;
   } else {
     issues.push('fixture does not fingerprint for this sport');
@@ -332,6 +406,7 @@ export function validateFixture(
     score,
     normalizedHome,
     normalizedAway,
+    normalizedLeague,
     fixtureFormat
   };
 }
@@ -363,7 +438,11 @@ export const listMatches = query({
       .order('asc')
       .collect();
 
-    return raw.filter((m) => matchBelongsToSport(m, args.sportId));
+    return raw.filter((m) => {
+      if (!matchBelongsToSport(m, args.sportId)) return false;
+      if (m.league && !serverLeagueBelongsToSport(m.league, args.sportId)) return false;
+      return true;
+    });
   }
 });
 
@@ -379,7 +458,11 @@ export const listMatchesInRange = query({
       .order('asc')
       .collect();
 
-    return raw.filter((m) => matchBelongsToSport(m, args.sportId));
+    return raw.filter((m) => {
+      if (!matchBelongsToSport(m, args.sportId)) return false;
+      if (m.league && !serverLeagueBelongsToSport(m.league, args.sportId)) return false;
+      return true;
+    });
   }
 });
 

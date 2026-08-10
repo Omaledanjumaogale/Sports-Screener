@@ -19,27 +19,67 @@ export function isPredictorSport(id: string | undefined | null): id is Predictor
   return !!id && (PREDICTOR_SPORTS as string[]).includes(id);
 }
 
-export function isFootballMatch(m: { league?: string; homeTeam?: string; awayTeam?: string }): boolean {
-  const text = `${m.league || ''} ${m.homeTeam || ''} ${m.awayTeam || ''}`.toLowerCase();
-  const ttKeywords = ['ittf', 'wtt', 'table tennis', 'ping pong', 'tt cup', 'lebrun', 'harimoto', 'zhendong', 'ma long', 'timo boll', 'ovtcharov', 'chuqin', 'yingsha', 'chen meng', 'calderano', 'aruna', 'moregard', 'jorgic', 'qiu', 'franziska', 'manyu', 'lin gaoyuan', 'liang jingkun'];
-  if (ttKeywords.some((k) => text.includes(k))) return false;
+export const CANONICAL_SPORT_LEAGUES: Record<PredictorSportId, string[]> = {
+  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'FA Cup', 'Europa League', 'Europa', 'Conference League', 'Championship', 'League One', 'League Two', 'EFL Cup', 'Serie B', 'Segunda Division', 'Segunda', 'Bundesliga 2', 'Ligue 2', 'Primeira Liga', 'Super Lig', 'Liga MX', 'MLS', 'Scottish Premiership', 'Copa Libertadores', 'Copa America', 'World Cup', 'Nations League', 'NPFL'],
+  basketball: ['NBA', 'EuroLeague', 'ACB', 'Liga ACB', 'LNB Pro A', 'LNB', 'WNBA', 'NCAAB', 'CBA', 'PBA', 'FIBA', 'Basketball Champions League'],
+  tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000', 'ATP Tour', 'WTA Tour', 'Wimbledon', 'Australian Open', 'French Open', 'Roland Garros', 'US Open'],
+  rally: ['ITTF', 'WTT', 'World Table Tennis', 'Table Tennis', 'TT Cup', 'WTT Series', 'WTT Champions', 'WTT Contender'],
+  hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL', 'Extraliga', 'Swiss National League'],
+  baseball: ['MLB', 'NPB', 'KBO', 'MiLB', 'World Baseball Classic'],
+  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'Super Bowl'],
+  rugby: ['Six Nations', 'Rugby Championship', 'Premiership Rugby', 'Top 14', 'Super Rugby', 'Super Rugby Pacific', 'World Cup Rugby', 'URC', 'Pro14', 'Rugby World Cup'],
+  cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash League', 'Big Bash', 'The Hundred', 'World Cup Cricket', 'Cricket World Cup', 'Super League', 'PSL', 'BBL', 'BCCI', 'ICC', 'T20 World Cup'],
+  mma: ['UFC', 'Bellator', 'PFL', 'ONE Championship', 'ONE', 'MMA'],
+  volleyball: ['FIVB', 'VNL', 'CEV', 'CEV Champions League', 'SuperLega', 'Superleague', 'Volleyball Nations League', 'Volleyball World Championship']
+};
 
-  const soccerKeywords = [
-    'premier league', 'la liga', 'serie a', 'bundesliga', 'ligue 1', 'ligue 2', 'champions league',
-    'europa league', 'conference league', 'championship', 'league one', 'league two', 'eredivisie',
-    'primeira liga', 'super lig', 'liga mx', 'mls', 'npfl', 'copa libertadores', 'copa america',
-    'fa cup', 'efl cup', 'dfb pokal', 'copa del rey', 'coppa italia', 'soccer', 'football',
-    'arsenal', 'chelsea', 'liverpool', 'man city', 'manchester', 'real madrid', 'barcelona',
-    'bayern', 'juventus', 'inter', 'milan', 'psg', 'paris sg', 'tottenham', 'everton', 'dortmund',
-    'napoli', 'roma', 'benfica', 'porto', 'sporting', 'ajax', 'feyenoord', 'psv', 'celtic', 'rangers',
-    'newcastle', 'aston villa', 'west ham', 'brighton', 'wolves', 'fulham', 'brentford', 'crystal palace',
-    'leicester', 'southampton', 'leeds', 'nottingham', 'sevilla', 'villarreal', 'real sociedad',
-    'athletic club', 'betis', 'getafe', 'valencia', 'osasuna', 'lazio', 'atalanta', 'fiorentina',
-    'torino', 'bologna', 'monaco', 'lille', 'marseille', 'lyon', 'rennes', 'nice', 'leipzig',
-    'leverkusen', 'frankfurt', 'wolfsburg', 'gladbach'
-  ];
+const LEAGUE_NORMALIZE_MAP: Record<string, string> = {
+  'serie a tim': 'Serie A', 'laliga': 'La Liga', 'la liga santander': 'La Liga',
+  'premier': 'Premier League', 'epl': 'Premier League', 'english premier league': 'Premier League',
+  'bundesliga 1': 'Bundesliga', '1. bundesliga': 'Bundesliga', 'ligue 1 uber eats': 'Ligue 1',
+  'champs': 'Champions League', 'ucl': 'Champions League',
+  'uel': 'Europa League', 'europa': 'Europa League',
+  'conference': 'Conference League', 'uecl': 'Conference League',
+  'mls major league soccer': 'MLS', 'major league soccer': 'MLS',
+  'nba regular season': 'NBA', 'nba playoffs': 'NBA',
+  'euroleague basketball': 'EuroLeague', 'turkish airlines euroleague': 'EuroLeague',
+  'atp masters': 'Masters 1000', 'atp masters 1000': 'Masters 1000'
+};
 
-  return soccerKeywords.some((k) => text.includes(k));
+export function canonicalizeLeague(rawLeague: string, sportId?: PredictorSportId): string {
+  const raw = String(rawLeague || '').trim();
+  if (!raw) return '';
+  const key = raw.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (LEAGUE_NORMALIZE_MAP[key]) return LEAGUE_NORMALIZE_MAP[key];
+  if (sportId && CANONICAL_SPORT_LEAGUES[sportId]) {
+    const pool = CANONICAL_SPORT_LEAGUES[sportId];
+    const match = pool.find((canon) => key.includes(canon.toLowerCase()) || canon.toLowerCase().includes(key));
+    if (match) return match;
+  }
+  return raw;
+}
+
+export function leagueBelongsToSport(league: string, sportId: PredictorSportId): boolean {
+  const normalized = canonicalizeLeague(league, sportId).toLowerCase();
+  if (!normalized) return true;
+  const pool = CANONICAL_SPORT_LEAGUES[sportId] || [];
+  if (pool.length === 0) return true;
+  const match = pool.some((canon) => {
+    const cl = canon.toLowerCase();
+    return normalized.includes(cl) || cl.includes(normalized);
+  });
+  if (match) return true;
+  const otherSports = (Object.keys(CANONICAL_SPORT_LEAGUES) as PredictorSportId[]).filter((s) => s !== sportId);
+  for (const other of otherSports) {
+    const otherPool = CANONICAL_SPORT_LEAGUES[other] || [];
+    const clash = otherPool.some((canon) => {
+      const cl = canon.toLowerCase();
+      if (cl.length < 4) return false;
+      return normalized.includes(cl);
+    });
+    if (clash) return false;
+  }
+  return true;
 }
 
 export interface PredictorMatch {

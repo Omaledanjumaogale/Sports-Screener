@@ -4,7 +4,9 @@
 
 import { jinaRead } from './jinaReader';
 import { firecrawlRead } from './firecrawl';
-import { PRIMARY_SOURCE, type ScraperSource } from './sources';
+import { type ScraperSource, ALL_PRIMARY_SOURCES } from './sources';
+
+const BETWATCH_URL = ALL_PRIMARY_SOURCES.find((s) => s.name === 'BetWatch')?.url ?? 'https://betwatch.fr/';
 
 export interface ScrapeMatch {
   source: string;
@@ -85,7 +87,7 @@ export function parseBetwatchMarkdown(text: string, sportId: string): ScrapeMatc
 
       out.push({
         source: 'BetWatch',
-        sourceUrl: PRIMARY_SOURCE,
+        sourceUrl: BETWATCH_URL,
         league: currentLeague || (leagues[0] ?? 'Top League'),
         homeTeam: home,
         awayTeam: away,
@@ -99,12 +101,12 @@ export function parseBetwatchMarkdown(text: string, sportId: string): ScrapeMatc
 
 export async function scrapeBetwatchFixtures(sportId: string): Promise<ScrapeMatch[]> {
   if (sportId !== 'football') return [];
-  const jr = await jinaRead(PRIMARY_SOURCE);
+  const jr = await jinaRead(BETWATCH_URL);
   if (jr.ok && jr.text && jr.text.length > 50) {
     const parsed = parseBetwatchMarkdown(jr.text, sportId);
     if (parsed.length > 0) return parsed;
   }
-  const fc = await firecrawlRead(PRIMARY_SOURCE);
+  const fc = await firecrawlRead(BETWATCH_URL);
   if (fc.ok && fc.text && fc.text.length > 50) {
     const parsed = parseBetwatchMarkdown(fc.text, sportId);
     if (parsed.length > 0) return parsed;
@@ -134,7 +136,7 @@ export function syntheticFixtures(sportId: string): ScrapeMatch[] {
   const pairs = known[sportId] ?? [];
   return pairs.map(([h, a], i) => ({
     source: 'SyntheticDev',
-    sourceUrl: PRIMARY_SOURCE,
+    sourceUrl: BETWATCH_URL,
     league: leagues[0],
     homeTeam: h,
     awayTeam: a,
