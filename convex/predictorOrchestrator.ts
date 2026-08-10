@@ -10,7 +10,7 @@ import { amaraFilter, type NormalizeResult } from './agents/specialists';
 import { dailyCap } from './scrapers/sources';
 import { FILTER_CONFIDENCE_FLOOR } from './scrapers/normalize';
 import { generatePredictorVerdict, type VerdictOutcome } from './llm';
-import { isFootballMatch, matchBelongsToSport } from './predictor';
+import { isFootballMatch, matchBelongsToSport, validateFixture } from './predictor';
 
 const sportId = v.union(
   v.literal('football'),
@@ -86,8 +86,24 @@ async function executeRefresh(
 
     const result = await runSmoaPipeline(args.sportId, dayKey, report, floor, cap);
 
-    // Apply strict positive sport identity validation before storing matches
-    const cleanMatches = result.matches.filter((m) => matchBelongsToSport(m, args.sportId));
+    // Apply strict positive sport identity + multi-point fixture validation before
+    // storing matches. Teams are rewritten to canonical names so "Man Utd" and
+    // "Manchester United" collapse to the same stable matchId, and TBD/promo
+    // rows (score < 10) are dropped entirely.
+    const validated = result.matches
+      .map((m) => {
+        const v = validateFixture(m, args.sportId);
+        if (!v.valid) return null;
+        return {
+          ...m,
+          league: v.normalizedLeague || m.league,
+          homeTeam: v.normalizedHome || m.homeTeam,
+          awayTeam: v.normalizedAway || m.awayTeam
+        };
+      })
+      .filter((m): m is NonNullable<typeof m> => m !== null);
+    const cleanMatches = validated.filter((m) => matchBelongsToSport(m, args.sportId));
+    const validIds = new Set(cleanMatches.map((m) => m.matchId));
 
 
     // Cache EVERY parsed fixture so the schedule always populates.
@@ -106,7 +122,7 @@ async function executeRefresh(
       }))
     });
 
-    const verdicts = await mapLimit(result.matches, 4, async (m) => {
+    const verdicts = await mapLimit(cleanMatches, 4, async (m) => {
       // Generate a full LLM verdict only for matches that cleared the confidence
       // floor (Amara's gate). Everything else gets a deterministic engine-built
       // verdict so the schedule still populates with analysis without exhausting
