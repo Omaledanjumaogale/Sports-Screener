@@ -37,138 +37,303 @@ const runStatus = v.union(
 );
 
 // ── Per-sport keyword fingerprints ────────────────────────────────────────────
-// Each entry is a list of words/phrases that POSITIVELY identify a match as
-// belonging to that sport. A match must contain at least one of these to be
-// admitted into that sport's tab.
-const SPORT_KEYWORDS: Record<string, string[]> = {
-  football: [
-    'premier league', 'la liga', 'serie a', 'bundesliga', 'ligue 1', 'ligue 2',
-    'champions league', 'europa league', 'conference league', 'championship',
-    'league one', 'league two', 'eredivisie', 'primeira liga', 'super lig',
-    'liga mx', 'mls', 'npfl', 'copa libertadores', 'copa america', 'fa cup',
-    'efl cup', 'dfb pokal', 'copa del rey', 'coppa italia', 'soccer', 'football',
-    'arsenal', 'chelsea', 'liverpool', 'man city', 'manchester', 'real madrid',
-    'barcelona', 'bayern', 'juventus', 'inter milan', 'ac milan', 'psg', 'paris sg',
-    'tottenham', 'everton', 'dortmund', 'napoli', 'roma', 'benfica', 'porto',
-    'sporting', 'ajax', 'feyenoord', 'psv', 'celtic', 'newcastle', 'aston villa',
-    'west ham', 'brighton', 'wolves', 'fulham', 'brentford', 'crystal palace',
-    'leicester', 'southampton', 'leeds', 'nottingham', 'sevilla', 'villarreal',
-    'real sociedad', 'betis', 'getafe', 'valencia', 'osasuna', 'lazio', 'atalanta',
-    'fiorentina', 'torino', 'bologna', 'monaco', 'lille', 'marseille', 'lyon',
-    'rennes', 'nice', 'leipzig', 'leverkusen', 'frankfurt', 'wolfsburg', 'gladbach',
-    'scottish premiership', 'belgian pro league', 'turkish super lig', 'allsvenskan',
-    'eliteserien', 'danish superliga', 'swiss super league', 'greek super league',
-    'austrian bundesliga', 'brazil serie a', 'argentina primera', 'chile primera',
-    'efl', 'cup final', 'world cup qualifying', 'nations league'
-  ],
-  basketball: [
-    'nba', 'euroleague', 'wnba', 'ncaab', 'acb', 'liga acb', 'cba', 'pba',
-    'lnb pro', 'fiba', 'basketball', 'celtics', 'lakers', 'warriors', 'bucks',
-    'bulls', 'heat', 'knicks', 'nets', '76ers', 'clippers', 'suns', 'mavericks',
-    'nuggets', 'raptors', 'hawks', 'pacers', 'hornets', 'wizards', 'pistons',
-    'cavaliers', 'thunder', 'trail blazers', 'grizzlies', 'pelicans', 'spurs',
-    'rockets', 'jazz', 'timberwolves', 'kings', 'magic', 'olympiacos', 'real madrid basket',
-    'fenerbahce', 'anadolu efes', 'panathinaikos', 'maccabi', 'cska moscow',
-    'alba berlin', 'baskonia', 'valencia basket', 'zenit', 'virtus bologna'
-  ],
-  tennis: [
-    'atp', 'wta', 'grand slam', 'wimbledon', 'us open', 'french open',
-    'australian open', 'roland garros', 'masters 1000', 'atp tour', 'wta tour',
-    'alcaraz', 'sinner', 'djokovic', 'zverev', 'medvedev', 'swiatek', 'sabalenka',
-    'rybakina', 'pegula', 'gauff', 'halep', 'osaka', 'federer', 'nadal', 'murray',
-    'berrettini', 'tsitsipas', 'ruud', 'rune', 'norrie', 'fritz', 'tiafoe',
-    'kyrgios', 'khachanov', 'hurkacz', 'bublik', 'auger-aliassime', 'tennis'
-  ],
-  rally: [
-    'ittf', 'wtt', 'table tennis', 'ping pong', 'tt cup', 'world table tennis',
-    'lebrun', 'harimoto', 'zhendong', 'ma long', 'fan zhendong', 'timo boll',
-    'ovtcharov', 'chuqin', 'wang chuqin', 'yingsha', 'sun yingsha', 'chen meng',
-    'calderano', 'aruna', 'moregard', 'jorgic', 'qiu', 'franziska', 'manyu',
-    'lin gaoyuan', 'liang jingkun', 'pitchford', 'filus', 'samsonov', 'toth'
-  ],
-  hockey: [
-    'nhl', 'khl', 'shl', 'liiga', 'ahl', 'del', 'czech extraliga', 'nl switzerland',
-    'ice hockey', 'hockey', 'bruins', 'canadiens', 'maple leafs', 'rangers',
-    'oilers', 'flames', 'canucks', 'senators', 'jets', 'avalanche', 'blues',
-    'wild', 'predators', 'stars', 'blackhawks', 'red wings', 'penguins', 'flyers',
-    'devils', 'islanders', 'sabres', 'capitals', 'hurricanes', 'panthers', 'lightning',
-    'coyotes', 'sharks', 'ducks', 'kings', 'kraken', 'golden knights', 'cska', 'ska'
-  ],
-  baseball: [
-    'mlb', 'npb', 'kbo', 'milb', 'baseball', 'yankees', 'red sox', 'dodgers',
-    'giants', 'cubs', 'white sox', 'mets', 'astros', 'blue jays', 'rays',
-    'athletics', 'mariners', 'angels', 'rangers', 'phillies', 'braves', 'marlins',
-    'nationals', 'cardinals', 'brewers', 'reds', 'pirates', 'padres', 'rockies',
-    'diamondbacks', 'tigers', 'royals', 'twins', 'guardians', 'orioles',
-    'lvbp', 'lmb', 'australian baseball'
-  ],
-  americanfootball: [
-    'nfl', 'ncaaf', 'xfl', 'cfl', 'super bowl', 'american football',
-    'chiefs', 'eagles', 'cowboys', '49ers', 'ravens', 'bills', 'bengals',
-    'steelers', 'browns', 'jets', 'patriots', 'dolphins', 'texans', 'jaguars',
-    'colts', 'titans', 'raiders', 'chargers', 'broncos', 'packers', 'vikings',
-    'bears', 'lions', 'buccaneers', 'falcons', 'saints', 'panthers', 'rams',
-    'seahawks', 'cardinals', 'commanders', 'giants nfl'
-  ],
-  rugby: [
-    'rugby', 'six nations', 'all blacks', 'springboks', 'wallabies', 'top 14',
-    'super rugby', 'premiership rugby', 'urc', 'pro14', 'world cup rugby',
-    'rugby league', 'rugby union', 'rugby international', 'english premiership',
-    'new zealand', 'south africa', 'australia', 'ireland', 'scotland', 'wales',
-    'france rugby', 'england rugby', 'argentina rugby', 'fiji', 'samoa',
-    'tonga', 'japan rugby', 'stade toulousain', 'leinster', 'munster',
-    'exeter chiefs', 'saracens', 'bath rugby', 'northampton', 'bristol rugby',
-    'stormers', 'bulls rugby', 'lions rugby', 'sharks rugby', 'highlanders',
-    'chiefs rugby', 'crusaders', 'blues rugby'
-  ],
-  cricket: [
-    'cricket', 'ipl', 'big bash', 'hundred', 'test match', 'test cricket',
-    'odi', 't20 international', 'pakistan super league', 'psl', 'bbl',
-    'cricketer', 'bcci', 'icc', 'over', 'wicket', 'innings', 'super league cricket',
-    'mumbai indians', 'chennai super kings', 'royal challengers', 'sunrisers',
-    'kolkata knight', 'delhi capitals', 'rajasthan royals', 'punjab kings'
-  ],
-  mma: [
-    'ufc', 'bellator', 'pfl', 'one championship', 'mma', 'mixed martial arts',
-    'makhachev', 'topuria', 'namajunas', 'pereira', 'adesanya', 'jones',
-    'ngannou', 'poirier', 'gaethje', 'volkanovski', 'holloway', 'strickland',
-    'du plessis', 'aspinall', 'blachowicz', 'teixeira', 'procházka', 'ankalaev',
-    'chimaev', 'covington', 'edwards', 'usman', 'championship fight', 'fight night'
-  ],
-  volleyball: [
-    'volleyball', 'vnl', 'fivb', 'superlega', 'superleague volleyball',
-    'cev champions league', 'brazil superliga', 'volleyball nations league',
-    'world championship volleyball', 'italy serie a1 volleyball',
-    'russian superleague', 'turkish volleyball'
-  ]
+// Each entry is a list of WORD-BOUNDARY phrases that POSITIVELY identify a
+// match as belonging to that sport. A match must contain at least one of these
+// to be admitted into that sport's tab. Keywords use word boundaries (\b) so
+// generic substrings like "over", "liga", "cup" cannot cause false rejections.
+// Generic/common English words (over, test, cup final, etc.) are intentionally
+// NOT present here — they create cross-sport false negatives.
+const SPORT_KEYWORDS: Record<string, { positive: RegExp[]; strongExclusive: RegExp[] }> = {
+  football: {
+    strongExclusive: [/\bpremier league\b/i, /\bla liga\b/i, /\bserie a\b(?!.*basket)/i, /\bbundesliga\b/i, /\bligue 1\b/i, /\bchampions league\b/i, /\beuropa league\b/i, /\bconference league\b/i, /\befl championship\b/i, /\bleague one\b/i, /\bleague two\b/i, /\beredivisie\b/i, /\bprimeira liga\b/i, /\bsuper lig\b/i, /\bliga mx\b/i, /\bcopa libertadores\b/i, /\bcopa america\b/i, /\bfa cup\b/i, /\befl cup\b/i, /\bdfb pokal\b/i, /\bcopa del rey\b/i, /\bcoppa italia\b/i, /\bscottish premiership\b/i, /\bbelgian pro league\b/i, /\ballsvenskan\b/i, /\beliteserien\b/i, /\bdanish superliga\b/i, /\bswiss super league\b/i, /\bgreek super league\b/i, /\baustrian bundesliga\b/i, /\bbrazil serie a\b/i, /\bnations league\b/i, /\barsenal\b/i, /\bchelsea\b/i, /\bliverpool\b/i, /\breal madrid\b(?!.*basket)/i, /\bfc barcelona\b/i, /\bfc bayern\b/i, /\bjuventus\b/i, /\binter milan\b/i, /\bac milan\b/i, /\bparis sg\b/i, /\btottenham\b/i, /\bmanchester united\b/i, /\bmanchester city\b/i, /\baston villa\b/i, /\bbrighton hove\b/i, /\bcrystal palace\b/i, /\bwest ham\b/i, /\bnewcastle united\b/i, /\bleicester city\b/i, /\bleeds united\b/i, /\bnottingham forest\b/i, /\batletico madrid\b/i, /\bsevilla\b/i, /\bvillarreal\b/i, /\bnapoli\b/i, /\bas roma\b/i, /\blazio\b/i, /\batalanta\b/i, /\bfiorentina\b/i, /\bmonaco\b/i, /\blille osc\b/i, /\bmarseille\b/i, /\bolympique lyon\b/i, /\brennes\b/i, /\boriginal dortmund\b/i, /\bleipzig\b/i, /\bleverkusen\b/i, /\beintracht frankfurt\b/i, /\bbenfica\b/i, /\bporto\b/i, /\bsporting cp\b/i, /\bajax\b/i, /\bfeyenoord\b/i, /\bpsv eindhoven\b/i, /\bceltic fc\b/i, /\brangers fc\b/i, /\bnpfl\b/i, /\bmls\b(?!.*basket)/i, /\bsoccer\b/i, /\bfootball\b(?!.*(american|rugby|australian))/i],
+    positive: [/\bpremier league\b/i, /\bla liga\b/i, /\bserie a\b/i, /\bbundesliga\b/i, /\bligue 1\b/i, /\bligue 2\b/i, /\bchampions league\b/i, /\beuropa league\b/i, /\bconference league\b/i, /\bchampionship\b/i, /\bleague one\b/i, /\bleague two\b/i, /\beredivisie\b/i, /\bprimeira liga\b/i, /\bsuper lig\b/i, /\bliga mx\b/i, /\bmls\b/i, /\bnpfl\b/i, /\bcopa libertadores\b/i, /\bcopa america\b/i, /\bfa cup\b/i, /\befl cup\b/i, /\bdfb pokal\b/i, /\bcopa del rey\b/i, /\bcoppa italia\b/i, /\bsoccer\b/i, /\bfootball\b/i, /\barsenal\b/i, /\bchelsea\b/i, /\bliverpool\b/i, /\bman city\b/i, /\bmanchester\b/i, /\breal madrid\b/i, /\bbarcelona\b/i, /\bbayern\b/i, /\bjuventus\b/i, /\binter milan\b/i, /\bac milan\b/i, /\bpsg\b/i, /\bparis sg\b/i, /\btottenham\b/i, /\beverton\b/i, /\bdortmund\b/i, /\bnapoli\b/i, /\broma\b/i, /\bbenfica\b/i, /\bporto\b/i, /\bsporting\b/i, /\bajax\b/i, /\bfeyenoord\b/i, /\bpsv\b/i, /\bceltic\b/i, /\bnewcastle\b/i, /\baston villa\b/i, /\bwest ham\b/i, /\bbrighton\b/i, /\bwolves\b/i, /\bfulham\b/i, /\bbrentford\b/i, /\bcrystal palace\b/i, /\bleicester\b/i, /\bsouthampton\b/i, /\bleeds\b/i, /\bnottingham\b/i, /\bsevilla\b/i, /\bvillarreal\b/i, /\breal sociedad\b/i, /\bbetis\b/i, /\bgetafe\b/i, /\bvalencia\b/i, /\bosasuna\b/i, /\blazio\b/i, /\batalanta\b/i, /\bfiorentina\b/i, /\btorino\b/i, /\bbologna\b/i, /\bmonaco\b/i, /\blille\b/i, /\bmarseille\b/i, /\blyon\b/i, /\brennes\b/i, /\bnice\b/i, /\bleipzig\b/i, /\bleverkusen\b/i, /\bfrankfurt\b/i, /\bwolfsburg\b/i, /\bgladbach\b/i, /\bscottish premiership\b/i, /\bbelgian pro league\b/i, /\bturkish super lig\b/i, /\ballsvenskan\b/i, /\beliteserien\b/i, /\bdanish superliga\b/i, /\bswiss super league\b/i, /\bgreek super league\b/i, /\baustrian bundesliga\b/i, /\bbrazil serie a\b/i, /\bargentina primera\b/i, /\bchile primera\b/i, /\befl\b/i, /\bnations league\b/i]
+  },
+  basketball: {
+    strongExclusive: [/\bnba\b/i, /\beuroleague\b(?!.*(soccer|football))/i, /\bwnba\b/i, /\bncaab\b/i, /\bacb\b/i, /\bliga acb\b/i, /\bcba\b/i, /\bpba\b/i, /\bfiba\b/i, /\bbasketball\b/i, /\blnb pro\b/i, /\bceltics\b/i, /\blakers\b/i, /\bwarriors\b/i, /\bbucks\b/i, /\bbulls\b/i, /\bheat\b/i, /\bknicks\b/i, /\bnets\b/i, /\b76ers\b/i, /\bclippers\b/i, /\bsuns\b/i, /\bmavericks\b/i, /\bnuggets\b/i, /\braptors\b/i, /\bhawks\b/i, /\bpacers\b/i, /\bhornets\b/i, /\bwizards\b/i, /\bpistons\b/i, /\bcavaliers\b/i, /\bthunder\b/i, /\btrail blazers\b/i, /\bgrizzlies\b/i, /\npelicans\b/i, /\bspurs\b/i, /\brockets\b/i, /\bjazz nba\b/i, /\btimberwolves\b/i, /\bkings\b/i, /\borlando magic\b/i, /\bolympiacos basket\b/i, /\breal madrid basket\b/i, /\bfenerbahce basket\b/i, /\banadolu efes\b/i, /\bpanathinaikos basket\b/i, /\bmaccabi tel aviv\b/i, /\bcska moscow basket\b/i, /\balba berlin basket\b/i, /\bbaskonia\b/i, /\bvalencia basket\b/i, /\bvirtus bologna\b/i],
+    positive: [/\bnba\b/i, /\beuroleague\b/i, /\bwnba\b/i, /\bncaab\b/i, /\bacb\b/i, /\bliga acb\b/i, /\bcba\b/i, /\bpba\b/i, /\blnb pro\b/i, /\bfiba\b/i, /\bbasketball\b/i, /\bceltics\b/i, /\blakers\b/i, /\bwarriors\b/i, /\bbucks\b/i, /\bbulls\b/i, /\bheat\b/i, /\bknicks\b/i, /\bnets\b/i, /\b76ers\b/i, /\bclippers\b/i, /\bsuns\b/i, /\bmavericks\b/i, /\bnuggets\b/i, /\braptors\b/i, /\bhawks\b/i, /\bpacers\b/i, /\bhornets\b/i, /\bwizards\b/i, /\bpistons\b/i, /\bcavaliers\b/i, /\bthunder\b/i, /\btrail blazers\b/i, /\bgrizzlies\b/i, /\npelicans\b/i, /\bspurs\b/i, /\brockets\b/i, /\bjazz\b/i, /\btimberwolves\b/i, /\bkings\b/i, /\bmagic\b/i, /\bolympiacos\b/i, /\breal madrid basket\b/i, /\bfenerbahce\b/i, /\banadolu efes\b/i, /\bpanathinaikos\b/i, /\bmaccabi\b/i, /\bcska moscow\b/i, /\balba berlin\b/i, /\bbaskonia\b/i, /\bvalencia basket\b/i, /\bzenit\b/i, /\bvirtus bologna\b/i]
+  },
+  tennis: {
+    strongExclusive: [/\batp tour\b/i, /\bwta tour\b/i, /\bgrand slam\b/i, /\bwimbledon\b/i, /\bus open tennis\b/i, /\bfrench open\b/i, /\baustralian open\b/i, /\broland garros\b/i, /\bmasters 1000\b/i, /\batp 250\b/i, /\batp 500\b/i, /\batp finals\b/i, /\bwta finals\b/i, /\btennis\b/i, /\bcarlos alcaraz\b/i, /\bjannik sinner\b/i, /\bnovak djokovic\b/i, /\balexander zverev\b/i, /\bdaniil medvedev\b/i, /\biga swiatek\b/i, /\baryna sabalenka\b/i, /\belena rybakina\b/i, /\bjessica pegula\b/i, /\bcoco gauff\b/i, /\bsimona halep\b/i, /\bnaomi osaka\b/i, /\broger federer\b/i, /\brafael nadal\b/i, /\bandy murray\b/i, /\bmatteo berrettini\b/i, /\bstefanos tsitsipas\b/i, /\bcasper ruud\b/i, /\bholger rune\b/i, /\bcameron norrie\b/i, /\btaylor fritz\b/i, /\bfrances tiafoe\b/i, /\bnick kyrgios\b/i, /\bkhachanov\b/i, /\bhubert hurkacz\b/i, /\balexander bublik\b/i, /\bfelix auger aliassime\b/i],
+    positive: [/\batp\b/i, /\bwta\b/i, /\bgrand slam\b/i, /\bwimbledon\b/i, /\bus open\b/i, /\bfrench open\b/i, /\baustralian open\b/i, /\broland garros\b/i, /\bmasters 1000\b/i, /\batp tour\b/i, /\bwta tour\b/i, /\balcaraz\b/i, /\bsinner\b/i, /\bdjokovic\b/i, /\bzverev\b/i, /\bmedvedev\b/i, /\bswiatek\b/i, /\bsabalenka\b/i, /\brybakina\b/i, /\bpegula\b/i, /\bgauff\b/i, /\bhalep\b/i, /\bosaka\b/i, /\bfederer\b/i, /\bnadal\b/i, /\bmurray\b/i, /\bberrettini\b/i, /\btsitsipas\b/i, /\bruud\b/i, /\brune\b/i, /\bnorrie\b/i, /\bfritz\b/i, /\btiafoe\b/i, /\bkyrgios\b/i, /\bkhachanov\b/i, /\bhurkacz\b/i, /\bbublik\b/i, /\bauger aliassime\b/i, /\btennis\b/i]
+  },
+  rally: {
+    strongExclusive: [/\bittf\b/i, /\bwtt series\b/i, /\btable tennis\b/i, /\bping pong\b/i, /\btt cup\b/i, /\bworld table tennis\b/i, /\bworld table tennis championships\b/i, /\bfelix lebrun\b/i, /\balexis lebrun\b/i, /\btomokazu harimoto\b/i, /\bfan zhendong\b/i, /\bma long\b/i, /\bwang chuqin\b/i, /\btimo boll\b/i, /\bdimitrij ovtcharov\b/i, /\bsun yingsha\b/i, /\bchen meng\b/i, /\bwong chun ting\b/i, /\bhugo calderano\b/i, /\bquadri aruna\b/i, /\btruls moregard\b/i, /\bdarko jorgic\b/i, /\bdang qiu\b/i, /\bpatrick franziska\b/i, /\bwang manyu\b/i, /\blin gaoyuan\b/i, /\bliang jingkun\b/i, /\bliam pitchford\b/i, /\bbernhard filus\b/i, /\bvladimir samsonov\b/i],
+    positive: [/\bittf\b/i, /\bwtt\b/i, /\btable tennis\b/i, /\bping pong\b/i, /\btt cup\b/i, /\bworld table tennis\b/i, /\blebrun\b/i, /\bharimoto\b/i, /\bzhendong\b/i, /\bma long\b/i, /\bfan zhendong\b/i, /\btimo boll\b/i, /\bovtcharov\b/i, /\bchuqin\b/i, /\bwang chuqin\b/i, /\byingsha\b/i, /\bsun yingsha\b/i, /\bchen meng\b/i, /\bcalderano\b/i, /\baruna\b/i, /\bmoregard\b/i, /\bjorgic\b/i, /\bqiu\b/i, /\bfranziska\b/i, /\bmanyu\b/i, /\blin gaoyuan\b/i, /\bliang jingkun\b/i, /\bpitchford\b/i, /\bfilus\b/i, /\bsamsonov\b/i, /\btoth\b/i]
+  },
+  hockey: {
+    strongExclusive: [/\bnhl\b/i, /\bkhl\b/i, /\bshl hockey\b/i, /\bliiga\b/i, /\bahl hockey\b/i, /\bdel hockey\b/i, /\bice hockey\b/i, /\bprague extraliga\b/i, /\bnational league switzerland\b/i, /\bnhl bruins\b/i, /\bnhl canadiens\b/i, /\btoronto maple leafs\b/i, /\bnew york rangers\b/i, /\bedmonton oilers\b/i, /\bcalgary flames\b/i, /\bvancouver canucks\b/i, /\bottawa senators\b/i, /\bwinnipeg jets\b/i, /\bcolorado avalanche\b/i, /\bst louis blues\b/i, /\bminnesota wild\b/i, /\bnashville predators\b/i, /\bdallas stars\b/i, /\bchicago blackhawks\b/i, /\bdetroit red wings\b/i, /\bpittsburgh penguins\b/i, /\bphiladelphia flyers\b/i, /\bnew jersey devils\b/i, /\bnew york islanders\b/i, /\bbuffalo sabres\b/i, /\bwashington capitals\b/i, /\bcarolina hurricanes\b/i, /\bflorida panthers\b/i, /\btampa bay lightning\b/i, /\barizona coyotes\b/i, /\bsan jose sharks\b/i, /\banahiem ducks\b/i, /\bla kings\b/i, /\bseattle kraken\b/i, /\bvegas golden knights\b/i, /\bcska hockey\b/i, /\bska hockey\b/i],
+    positive: [/\bnhl\b/i, /\bkhl\b/i, /\bshl\b/i, /\bliiga\b/i, /\bahl\b/i, /\bdel\b/i, /\bczech extraliga\b/i, /\bnl switzerland\b/i, /\bice hockey\b/i, /\bhockey\b(?!.*(rugby|field))/i, /\bbruins\b/i, /\bcanadiens\b/i, /\bmaple leafs\b/i, /\brangers\b/i, /\boilers\b/i, /\bflames\b/i, /\bcanucks\b/i, /\bsenators\b/i, /\bjets\b/i, /\bavalanche\b/i, /\bblues\b/i, /\bwild\b/i, /\bpredators\b/i, /\bstars\b/i, /\bblackhawks\b/i, /\bred wings\b/i, /\bpenguins\b/i, /\bflyers\b/i, /\bdevils\b/i, /\bislanders\b/i, /\bsabres\b/i, /\bcapitals\b/i, /\bhurricanes\b/i, /\bpanthers\b/i, /\blightning\b/i, /\bcoyotes\b/i, /\bsharks\b/i, /\bducks\b/i, /\bkings\b/i, /\bkraken\b/i, /\bgolden knights\b/i, /\bcska\b/i, /\bska\b/i]
+  },
+  baseball: {
+    strongExclusive: [/\bmlb\b/i, /\bnpb baseball\b/i, /\bkbo baseball\b/i, /\bmilb\b/i, /\bbaseball\b/i, /\bnew york yankees\b/i, /\bboston red sox\b/i, /\blos angeles dodgers\b/i, /\bsan francisco giants\b/i, /\bchicago cubs\b/i, /\bchicago white sox\b/i, /\bnew york mets\b/i, /\bhouston astros\b/i, /\btoronto blue jays\b/i, /\btampa bay rays\b/i, /\boakland athletics\b/i, /\bseattle mariners\b/i, /\blos angeles angels\b/i, /\btexas rangers\b/i, /\bphiladelphia phillies\b/i, /\batlanta braves\b/i, /\bmiami marlins\b/i, /\bwashington nationals\b/i, /\bst louis cardinals\b/i, /\bmilwaukee brewers\b/i, /\bcincinnati reds\b/i, /\bpittsburgh pirates\b/i, /\bsan diego padres\b/i, /\bcolorado rockies\b/i, /\barizona diamondbacks\b/i, /\bdetroit tigers\b/i, /\bkansas city royals\b/i, /\bminnesota twins\b/i, /\bcleveland guardians\b/i, /\bbaltimore orioles\b/i, /\blvbp\b/i, /\blmb\b/i],
+    positive: [/\bmlb\b/i, /\bnpb\b/i, /\bkbo\b/i, /\bmilb\b/i, /\bbaseball\b/i, /\byankees\b/i, /\bred sox\b/i, /\bdodgers\b/i, /\bgiants\b/i, /\bcubs\b/i, /\bwhite sox\b/i, /\bmets\b/i, /\bastros\b/i, /\bblue jays\b/i, /\brays\b/i, /\bathletics\b/i, /\bmariners\b/i, /\bangels\b/i, /\brangers\b/i, /\bphillies\b/i, /\bbraves\b/i, /\bmarlins\b/i, /\bnationals\b/i, /\bcardinals\b/i, /\bbrewers\b/i, /\breds\b/i, /\bpirates\b/i, /\bpadres\b/i, /\brockies\b/i, /\bdiamondbacks\b/i, /\btigers\b/i, /\broyals\b/i, /\btwins\b/i, /\bguardians\b/i, /\borioles\b/i, /\blvbp\b/i, /\blmb\b/i, /\baustralian baseball\b/i]
+  },
+  americanfootball: {
+    strongExclusive: [/\bnfl\b/i, /\bncaaf\b/i, /\bxfl\b/i, /\bcfl\b/i, /\bsuper bowl\b/i, /\bamerican football\b/i, /\bkc chiefs\b/i, /\bphiladelphia eagles\b/i, /\bdallas cowboys\b/i, /\bsan francisco 49ers\b/i, /\bbaltimore ravens\b/i, /\bbuffalo bills\b/i, /\bcincinnati bengals\b/i, /\bpittsburgh steelers\b/i, /\bcleveland browns\b/i, /\bnew york jets\b/i, /\bnew england patriots\b/i, /\bmiami dolphins\b/i, /\bhouston texans\b/i, /\bjaguars\b/i, /\bindianapolis colts\b/i, /\btennessee titans\b/i, /\blas vegas raiders\b/i, /\blos angeles chargers\b/i, /\bdenver broncos\b/i, /\bgreen bay packers\b/i, /\bminnesota vikings\b/i, /\bchicago bears\b/i, /\bdetroit lions\b/i, /\btampa bay buccaneers\b/i, /\batlanta falcons\b/i, /\bnew orleans saints\b/i, /\bcarolina panthers\b/i, /\blos angeles rams\b/i, /\bseattle seahawks\b/i, /\barizona cardinals nfl\b/i, /\bwashington commanders\b/i, /\bny giants nfl\b/i],
+    positive: [/\bnfl\b/i, /\bncaaf\b/i, /\bxfl\b/i, /\bcfl\b/i, /\bsuper bowl\b/i, /\bamerican football\b/i, /\bchiefs\b/i, /\beagles\b/i, /\bcowboys\b/i, /\b49ers\b/i, /\bravens\b/i, /\bbills\b/i, /\bbengals\b/i, /\bsteelers\b/i, /\bbrowns\b/i, /\bjets\b/i, /\bpatriots\b/i, /\bdolphins\b/i, /\btexans\b/i, /\bjaguars\b/i, /\bcolts\b/i, /\btitans\b/i, /\braiders\b/i, /\bchargers\b/i, /\bbroncos\b/i, /\bpackers\b/i, /\bvikings\b/i, /\bbears\b/i, /\blions\b/i, /\bbuccaneers\b/i, /\bfalcons\b/i, /\bsaints\b/i, /\bpanthers\b/i, /\brams\b/i, /\bseahawks\b/i, /\bcardinals\b(?!.*(baseball|soccer))/i, /\bcommanders\b/i, /\bgiants nfl\b/i]
+  },
+  rugby: {
+    strongExclusive: [/\bsix nations\b/i, /\ball blacks\b/i, /\bspringboks\b/i, /\bwallabies\b/i, /\btop 14 rugby\b/i, /\bsuper rugby pacific\b/i, /\bpremiership rugby\b/i, /\burc rugby\b/i, /\bpro14\b/i, /\brugby world cup\b/i, /\brugby league\b/i, /\brugby union\b/i, /\brugby international\b/i, /\benglish premiership rugby\b/i, /\bstade toulousain\b/i, /\bleinster rugby\b/i, /\bmunster rugby\b/i, /\bexeter chiefs\b/i, /\bsaracens rugby\b/i, /\bbath rugby\b/i, /\bnorthampton saints\b/i, /\bbristol bears\b/i, /\bdhl stormers\b/i, /\bvodacom bulls\b/i, /\bemirates lions\b/i, /\bcell c sharks\b/i, /\bhighlanders rugby\b/i, /\bchiefs rugby\b/i, /\bcrusaders rugby\b/i, /\bblues rugby\b/i, /\brugby\b/i],
+    positive: [/\brugby\b/i, /\bsix nations\b/i, /\ball blacks\b/i, /\bspringboks\b/i, /\bwallabies\b/i, /\btop 14\b/i, /\bsuper rugby\b/i, /\bpremiership rugby\b/i, /\burc\b/i, /\bpro14\b/i, /\bworld cup rugby\b/i, /\brugby league\b/i, /\brugby union\b/i, /\brugby international\b/i, /\benglish premiership\b/i, /\bnew zealand\b(?!.*(cricket|soccer|tennis))/i, /\bsouth africa\b(?!.*(cricket|soccer|tennis))/i, /\baustralia\b(?!.*(cricket|soccer|tennis|baseball))/i, /\bireland\b(?!.*(soccer))/i, /\bscotland\b(?!.*(soccer))/i, /\bwales\b(?!.*(soccer))/i, /\bfrance rugby\b/i, /\bengland rugby\b/i, /\bargentina rugby\b/i, /\bfiji\b(?!.*(soccer))/i, /\bsamoa\b(?!.*(soccer))/i, /\btonga\b(?!.*(soccer))/i, /\bjapan rugby\b/i, /\bstade toulousain\b/i, /\bleinster\b/i, /\bmunster\b/i, /\bexeter chiefs\b/i, /\bsaracens\b/i, /\bbath rugby\b/i, /\bnorthampton\b/i, /\bbristol rugby\b/i, /\bstormers\b/i, /\bbulls rugby\b/i, /\blions rugby\b/i, /\bsharks rugby\b/i, /\bhighlanders\b/i, /\bchiefs rugby\b/i, /\bcrusaders\b/i, /\bblues rugby\b/i]
+  },
+  cricket: {
+    strongExclusive: [/\bcricket\b/i, /\bipl\b/i, /\bbig bash league\b/i, /\bthe hundred\b/i, /\btest match\b/i, /\bodi cricket\b/i, /\bt20 international\b/i, /\bpsl cricket\b/i, /\bbbl\b/i, /\bbcci\b/i, /\bicc cricket\b/i, /\bsuper league cricket\b/i, /\bmumbai indians\b/i, /\bchennai super kings\b/i, /\broyal challengers\b/i, /\bsunrisers hyderabad\b/i, /\bkolkata knight riders\b/i, /\bdelhi capitals\b/i, /\brajasthan royals\b/i, /\bpunjab kings\b/i, /\bwicket\b/i, /\binning\b/i, /\bt20 world cup\b/i, /\bcricket world cup\b/i, /\btest cricket\b/i, /\bbowler\b/i, /\bbatsman\b/i, /\bwicketkeeper\b/i],
+    positive: [/\bcricket\b/i, /\bipl\b/i, /\bbig bash\b/i, /\bhundred\b(?!.*(over under o u total goals points games sets rounds))/i, /\btest match\b/i, /\btest cricket\b/i, /\bodi\b/i, /\bt20 international\b/i, /\bpsl\b/i, /\bbbl\b/i, /\bcricketer\b/i, /\bbcci\b/i, /\bicc\b/i, /\bwicket\b/i, /\binning\b/i, /\bsuper league cricket\b/i, /\bmumbai indians\b/i, /\bchennai super kings\b/i, /\broyal challengers\b/i, /\bsunrisers\b/i, /\bkolkata knight\b/i, /\bdelhi capitals\b/i, /\brajasthan royals\b/i, /\bpunjab kings\b/i]
+  },
+  mma: {
+    strongExclusive: [/\bufc\b/i, /\bbellator mma\b/i, /\bpfl mma\b/i, /\bone championship mma\b/i, /\bmixed martial arts\b/i, /\bislam makhachev\b/i, /\bilia topuria\b/i, /\brose namajunas\b/i, /\balex pereira\b/i, /\bisrael adesanya\b/i, /\bjon jones\b/i, /\bfrancis ngannou\b/i, /\bdustin poirier\b/i, /\bjustin gaethje\b/i, /\balexander volkanovski\b/i, /\bmax holloway\b/i, /\bsean strickland\b/i, /\bdricus du plessis\b/i, /\btom aspinall\b/i, /\bjan blachowicz\b/i, /\bglover teixeira\b/i, /\bjiri prochazka\b/i, /\bmagomed ankalaev\b/i, /\bkhamzat chimaev\b/i, /\bcolby covington\b/i, /\bleon edwards\b/i, /\bkamaru usman\b/i, /\bchampionship fight\b/i, /\bufc fight night\b/i, /\bppv mma\b/i, /\bmma\b/i],
+    positive: [/\bufc\b/i, /\bbellator\b/i, /\bpfl\b/i, /\bone championship\b/i, /\bmma\b/i, /\bmixed martial arts\b/i, /\bmakhachev\b/i, /\btopuria\b/i, /\bnamajunas\b/i, /\bpereira\b/i, /\badesanya\b/i, /\bjones\b(?!.*(american football nfl))/i, /\bngannou\b/i, /\bpoirier\b/i, /\bgaethje\b/i, /\bvolkanovski\b/i, /\bholloway\b/i, /\bstrickland\b/i, /\bdu plessis\b/i, /\baspinall\b/i, /\bblachowicz\b/i, /\bteixeira\b/i, /\bprochazka\b/i, /\bprocházka\b/i, /\bankalaev\b/i, /\bchimaev\b/i, /\bcovington\b/i, /\bedwards\b/i, /\busman\b/i, /\bchampionship fight\b/i, /\bfight night\b/i]
+  },
+  volleyball: {
+    strongExclusive: [/\bvnl\b/i, /\bfivb\b/i, /\bcev champions league volleyball\b/i, /\bvolleyball nations league\b/i, /\bvolleyball world championship\b/i, /\bsuperlega volleyball\b/i, /\bsuperleague volleyball\b/i, /\bbrazil superliga volleyball\b/i, /\bitaly serie a1 volleyball\b/i, /\brussian superleague volleyball\b/i, /\bturkish volleyball\b/i, /\bvolleyball\b/i],
+    positive: [/\bvolleyball\b/i, /\bvnl\b/i, /\bfivb\b/i, /\bsuperlega\b/i, /\bsuperleague volleyball\b/i, /\bcev champions league\b/i, /\bbrazil superliga\b/i, /\bvolleyball nations league\b/i, /\bworld championship volleyball\b/i, /\bitaly serie a1 volleyball\b/i, /\brussian superleague\b/i, /\bturkish volleyball\b/i]
+  }
 };
 
 /**
  * Returns true when a match genuinely belongs to `sportId`.
- * Uses TWO gates:
- *  1. POSITIVE: the league/team text contains at least one keyword that
- *     fingerprints this sport (or the match came from a typed API source).
- *  2. NEGATIVE: the text must NOT contain a keyword that fingerprints a
- *     DIFFERENT sport (prevents a rugby match leaking into basketball tab).
+ * Uses THREE gates, evaluated in this priority order:
+ *  1. TYPED-API BYPASS: the match arrived via a typed API source that already
+ *     performed sport filtering upstream — trust it (no keyword check).
+ *  2. STRONG POSITIVE MATCH: the league/team text matches a STRONG EXCLUSIVE
+ *     keyword for this sport (word-bounded, disambiguated). If yes, accept
+ *     WITHOUT running the cross-sport negative gate — this avoids false
+ *     negatives on generic substrings (e.g. "over" in cricket ≠ football O/U).
+ *  3. BALANCED CHECK: (a) POSITIVE — at least one POSITIVE keyword of this
+ *     sport matches (word-bounded). (b) NEGATIVE — NO other sport's STRONG
+ *     EXCLUSIVE keyword matches. A non-zero "other sport" score does NOT
+ *     reject when the own positive count is already ≥ 1 — both scores are
+ *     compared instead of blindly rejecting on the first foreign hit.
  */
 export function matchBelongsToSport(
   m: { league?: string; homeTeam?: string; awayTeam?: string; source?: string },
   sportId: string
 ): boolean {
   const text = `${m.league || ''} ${m.homeTeam || ''} ${m.awayTeam || ''}`.toLowerCase();
-  const ownKeywords = SPORT_KEYWORDS[sportId] ?? [];
+  const kw = SPORT_KEYWORDS[sportId];
+  if (!kw) return false;
   const fromTypedApi = /^(LiveAPI|TheSportsDB|BallDontLie|SportsData|OddsPapi|SharpAPI)/i.test(m.source ?? '');
 
-  // NEGATIVE GATE — reject if matches another sport's fingerprint.
-  for (const [sid, kws] of Object.entries(SPORT_KEYWORDS)) {
+  if (fromTypedApi) return true;
+
+  const matchesAny = (patterns: RegExp[]): boolean => patterns.some((re) => re.test(text));
+
+  if (matchesAny(kw.strongExclusive)) return true;
+
+  const ownPositive = matchesAny(kw.positive);
+  if (!ownPositive) return false;
+
+  for (const [sid, otherKw] of Object.entries(SPORT_KEYWORDS)) {
     if (sid === sportId) continue;
-    if (kws.some((k) => text.includes(k))) return false;
+    if (matchesAny(otherKw.strongExclusive)) return false;
+  }
+  return true;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  issues: string[];
+  score: number;
+  normalizedHome: string;
+  normalizedAway: string;
+  fixtureFormat: 'team_vs_team' | 'player_vs_player' | 'unknown';
+}
+
+const CANONICAL_TEAM_MAP: Record<string, string> = {
+  'man utd': 'Manchester United', 'man united': 'Manchester United', 'man utd.': 'Manchester United',
+  'man city': 'Manchester City', 'man. city': 'Manchester City',
+  'tottenham': 'Tottenham Hotspur', 'spurs': 'Tottenham Hotspur',
+  'liverpool': 'Liverpool FC', 'arsenal': 'Arsenal FC', 'chelsea': 'Chelsea FC',
+  'newcastle': 'Newcastle United', 'newcastle utd': 'Newcastle United',
+  'aston villa': 'Aston Villa', 'brighton': 'Brighton & Hove Albion',
+  'west ham': 'West Ham United', 'crystal palace': 'Crystal Palace FC',
+  'leicester': 'Leicester City', 'leeds': 'Leeds United',
+  'nottingham': 'Nottingham Forest', 'notts forest': 'Nottingham Forest',
+  'wolves': 'Wolverhampton Wanderers', 'brentford': 'Brentford FC',
+  'fulham': 'Fulham FC', 'everton': 'Everton FC',
+  'real madrid': 'Real Madrid CF', 'barca': 'FC Barcelona', 'barcelona': 'FC Barcelona',
+  'atletico': 'Atlético Madrid', 'atletico madrid': 'Atlético Madrid',
+  'sevilla': 'Sevilla FC', 'villarreal': 'Villarreal CF', 'valencia': 'Valencia CF',
+  'bayern': 'Bayern München', 'bayern munich': 'Bayern München', 'fcb': 'Bayern München',
+  'dortmund': 'Borussia Dortmund', 'bvb': 'Borussia Dortmund',
+  'leipzig': 'RB Leipzig', 'leverkusen': 'Bayer Leverkusen',
+  'frankfurt': 'Eintracht Frankfurt', 'wolfsburg': 'VfL Wolfsburg',
+  'juventus': 'Juventus FC', 'juve': 'Juventus FC', 'inter': 'FC Internazionale',
+  'inter milan': 'FC Internazionale', 'ac milan': 'AC Milan', 'milan': 'AC Milan',
+  'napoli': 'SSC Napoli', 'roma': 'AS Roma', 'lazio': 'SS Lazio',
+  'atalanta': 'Atalanta BC', 'fiorentina': 'ACF Fiorentina', 'bologna': 'Bologna FC',
+  'psg': 'Paris Saint-Germain', 'paris sg': 'Paris Saint-Germain',
+  'paris saint germain': 'Paris Saint-Germain', 'monaco': 'AS Monaco',
+  'marseille': 'Olympique de Marseille', 'lyon': 'Olympique Lyonnais',
+  'lille': 'LOSC Lille', 'rennes': 'Stade Rennais FC',
+  'benfica': 'SL Benfica', 'porto': 'FC Porto', 'sporting': 'Sporting CP',
+  'sporting cp': 'Sporting CP',
+  'ajax': 'AFC Ajax', 'feyenoord': 'Feyenoord Rotterdam', 'psv': 'PSV Eindhoven',
+  'psv eindhoven': 'PSV Eindhoven',
+  'celtic': 'Celtic FC', 'rangers': 'Rangers FC',
+  'lakers': 'Los Angeles Lakers', 'la lakers': 'Los Angeles Lakers',
+  'celtics': 'Boston Celtics', 'boston celtics': 'Boston Celtics',
+  'warriors': 'Golden State Warriors', 'gs warriors': 'Golden State Warriors',
+  'bulls': 'Chicago Bulls', 'heat': 'Miami Heat',
+  'knicks': 'New York Knicks', 'nets': 'Brooklyn Nets',
+  '76ers': 'Philadelphia 76ers', 'sixers': 'Philadelphia 76ers',
+  'clippers': 'LA Clippers', 'la clippers': 'Los Angeles Clippers',
+  'suns': 'Phoenix Suns', 'mavericks': 'Dallas Mavericks', 'mavs': 'Dallas Mavericks',
+  'nuggets': 'Denver Nuggets', 'raptors': 'Toronto Raptors',
+  'hawks': 'Atlanta Hawks', 'pacers': 'Indiana Pacers',
+  'hornets': 'Charlotte Hornets', 'wizards': 'Washington Wizards',
+  'pistons': 'Detroit Pistons', 'cavaliers': 'Cleveland Cavaliers', 'cavs': 'Cleveland Cavaliers',
+  'thunder': 'Oklahoma City Thunder', 'okc thunder': 'Oklahoma City Thunder',
+  'blazers': 'Portland Trail Blazers', 'trail blazers': 'Portland Trail Blazers',
+  'grizzlies': 'Memphis Grizzlies', 'pelicans': 'New Orleans Pelicans',
+  'sa spurs': 'San Antonio Spurs', 'rockets': 'Houston Rockets',
+  'jazz': 'Utah Jazz', 'timberwolves': 'Minnesota Timberwolves', 'twolves': 'Minnesota Timberwolves',
+  'kings': 'Sacramento Kings', 'magic': 'Orlando Magic',
+  'yankees': 'New York Yankees', 'ny yankees': 'New York Yankees',
+  'red sox': 'Boston Red Sox', 'boston red sox': 'Boston Red Sox',
+  'dodgers': 'Los Angeles Dodgers', 'la dodgers': 'Los Angeles Dodgers',
+  'giants': 'San Francisco Giants', 'sf giants': 'San Francisco Giants',
+  'cubs': 'Chicago Cubs', 'white sox': 'Chicago White Sox',
+  'mets': 'New York Mets', 'ny mets': 'New York Mets',
+  'astros': 'Houston Astros', 'blue jays': 'Toronto Blue Jays',
+  'rays': 'Tampa Bay Rays', 'athletics': 'Oakland Athletics', 'a\u2019s': 'Oakland Athletics',
+  'mariners': 'Seattle Mariners', 'angels': 'Los Angeles Angels',
+  'tx rangers': 'Texas Rangers',
+  'phillies': 'Philadelphia Phillies', 'braves': 'Atlanta Braves',
+  'marlins': 'Miami Marlins', 'nationals': 'Washington Nationals',
+  'cardinals': 'St. Louis Cardinals', 'brewers': 'Milwaukee Brewers',
+  'reds': 'Cincinnati Reds', 'pirates': 'Pittsburgh Pirates',
+  'padres': 'San Diego Padres', 'rockies': 'Colorado Rockies',
+  'diamondbacks': 'Arizona Diamondbacks', 'd-backs': 'Arizona Diamondbacks',
+  'tigers': 'Detroit Tigers', 'royals': 'Kansas City Royals',
+  'twins': 'Minnesota Twins', 'guardians': 'Cleveland Guardians',
+  'orioles': 'Baltimore Orioles',
+  'bruins': 'Boston Bruins', 'canadiens': 'Montréal Canadiens', 'habs': 'Montréal Canadiens',
+  'maple leafs': 'Toronto Maple Leafs', 'leafs': 'Toronto Maple Leafs',
+  'rangers hockey': 'New York Rangers', 'ny rangers': 'New York Rangers',
+  'oilers': 'Edmonton Oilers', 'flames': 'Calgary Flames',
+  'canucks': 'Vancouver Canucks', 'senators': 'Ottawa Senators',
+  'jets': 'Winnipeg Jets', 'avalanche': 'Colorado Avalanche',
+  'blues': 'St. Louis Blues', 'wild': 'Minnesota Wild',
+  'predators': 'Nashville Predators', 'preds': 'Nashville Predators',
+  'stars': 'Dallas Stars', 'blackhawks': 'Chicago Blackhawks',
+  'red wings': 'Detroit Red Wings', 'penguins': 'Pittsburgh Penguins',
+  'flyers': 'Philadelphia Flyers', 'devils': 'New Jersey Devils',
+  'islanders': 'New York Islanders', 'sabres': 'Buffalo Sabres',
+  'capitals': 'Washington Capitals', 'caps': 'Washington Capitals',
+  'hurricanes': 'Carolina Hurricanes', 'canes': 'Carolina Hurricanes',
+  'panthers': 'Florida Panthers', 'lightning': 'Tampa Bay Lightning',
+  'coyotes': 'Arizona Coyotes', 'sharks': 'San Jose Sharks',
+  'ducks': 'Anaheim Ducks', 'kings hockey': 'Los Angeles Kings',
+  'kraken': 'Seattle Kraken', 'golden knights': 'Vegas Golden Knights',
+  'chiefs': 'Kansas City Chiefs', 'kc chiefs': 'Kansas City Chiefs',
+  'eagles': 'Philadelphia Eagles', 'cowboys': 'Dallas Cowboys', 'dal cowboys': 'Dallas Cowboys',
+  '49ers': 'San Francisco 49ers', 'sf 49ers': 'San Francisco 49ers',
+  'ravens': 'Baltimore Ravens', 'bills': 'Buffalo Bills',
+  'bengals': 'Cincinnati Bengals', 'steelers': 'Pittsburgh Steelers',
+  'browns': 'Cleveland Browns', 'ny jets': 'New York Jets',
+  'patriots': 'New England Patriots', 'ne patriots': 'New England Patriots',
+  'dolphins': 'Miami Dolphins', 'texans': 'Houston Texans',
+  'jaguars': 'Jacksonville Jaguars', 'colts': 'Indianapolis Colts',
+  'titans': 'Tennessee Titans', 'raiders': 'Las Vegas Raiders',
+  'chargers': 'Los Angeles Chargers', 'broncos': 'Denver Broncos',
+  'packers': 'Green Bay Packers', 'vikings': 'Minnesota Vikings',
+  'bears': 'Chicago Bears', 'lions nfl': 'Detroit Lions',
+  'buccaneers': 'Tampa Bay Buccaneers', 'bucs': 'Tampa Bay Buccaneers',
+  'falcons': 'Atlanta Falcons', 'saints': 'New Orleans Saints',
+  'panthers nfl': 'Carolina Panthers', 'rams': 'Los Angeles Rams',
+  'seahawks': 'Seattle Seahawks', 'cardinals nfl': 'Arizona Cardinals',
+  'commanders': 'Washington Commanders', 'giants nfl': 'New York Giants'
+};
+
+const INDIVIDUAL_SPORTS = new Set(['tennis', 'mma']);
+const TEAM_SPORTS = new Set([
+  'football', 'basketball', 'hockey', 'baseball', 'americanfootball',
+  'rugby', 'cricket', 'volleyball', 'rally'
+]);
+
+export function normalizeName(raw: string): string {
+  let n = String(raw || '').trim();
+  const key = n.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  if (CANONICAL_TEAM_MAP[key]) return CANONICAL_TEAM_MAP[key];
+  n = n.replace(/\s+FC$/i, '').replace(/^FC\s+/i, '').replace(/\s+CF$/i, '').replace(/\s+SC$/i, '').replace(/\s+AC$/i, '').replace(/\s+SS$/i, '').replace(/\s+AS$/i, '').replace(/\s+RB$/i, '').replace(/\s+VfL$/i, '').replace(/\s+SV$/i, '');
+  return n.trim();
+}
+
+/**
+ * Runs a multi-point fixture validation (formatting, naming, sport-fit,
+ * matchup sanity). Returns a detailed report so the orchestrator can log or
+ * discard invalid rows before they reach the cache.
+ */
+export function validateFixture(
+  m: { league?: string; homeTeam?: string; awayTeam?: string; source?: string },
+  sportId: string
+): ValidationResult {
+  const issues: string[] = [];
+  let score = 0;
+
+  const homeRaw = String(m.homeTeam || '').trim();
+  const awayRaw = String(m.awayTeam || '').trim();
+  const league = String(m.league || '').trim();
+
+  if (!homeRaw) issues.push('homeTeam empty');
+  if (!awayRaw) issues.push('awayTeam empty');
+  if (homeRaw && homeRaw === awayRaw) issues.push('homeTeam equals awayTeam');
+
+  const normalizedHome = homeRaw ? normalizeName(homeRaw) : '';
+  const normalizedAway = awayRaw ? normalizeName(awayRaw) : '';
+
+  if (normalizedHome && normalizedHome.length < 2) issues.push('homeTeam too short');
+  if (normalizedAway && normalizedAway.length < 2) issues.push('awayTeam too short');
+  if (normalizedHome && normalizedHome.length > 50) issues.push('homeTeam too long');
+  if (normalizedAway && normalizedAway.length > 50) issues.push('awayTeam too long');
+
+  if (normalizedHome) score += 5;
+  if (normalizedAway) score += 5;
+  if (normalizedHome !== homeRaw) score += 1;
+  if (normalizedAway !== awayRaw) score += 1;
+
+  let fixtureFormat: ValidationResult['fixtureFormat'] = 'unknown';
+  if (INDIVIDUAL_SPORTS.has(sportId)) {
+    fixtureFormat = 'player_vs_player';
+    score += 3;
+  } else if (TEAM_SPORTS.has(sportId)) {
+    fixtureFormat = 'team_vs_team';
+    score += 3;
   }
 
-  // POSITIVE GATE — must contain at least one of this sport's keywords,
-  // OR have arrived via a typed API that already performed sport filtering.
-  if (fromTypedApi) return true;
-  return ownKeywords.some((k) => text.includes(k));
+  if (league) score += 2;
+  else issues.push('league empty or missing');
+
+  if (matchBelongsToSport(m, sportId)) {
+    score += 10;
+  } else {
+    issues.push('fixture does not fingerprint for this sport');
+    score = Math.max(0, score - 5);
+  }
+
+  const BAD_PATTERNS = [
+    /^(home|away|home team|away team|team a|team b|tbd|tba|to be|unknown|pending)$/i,
+    /^(group|pool|stage|round|matchday|game ?week|week ?\d+)$/i,
+    /^(prediction|predictions|preview|analysis|result|results|score|live)$/i,
+    /^(stats|statistics|odds|bet|bets|market|markets)$/i,
+    /^(standings|table|leaderboard|ranking)$/i,
+    /^(login|register|sign ?in|sign ?up|my account)$/i,
+    /^(bonus|promo|promotion|offer|claim|deposit)$/i
+  ];
+  const badHome = BAD_PATTERNS.some((re) => re.test(homeRaw));
+  const badAway = BAD_PATTERNS.some((re) => re.test(awayRaw));
+  if (badHome) { issues.push('homeTeam matches a non-fixture keyword'); score = Math.max(0, score - 4); }
+  if (badAway) { issues.push('awayTeam matches a non-fixture keyword'); score = Math.max(0, score - 4); }
+
+  return {
+    valid: score >= 10,
+    issues,
+    score,
+    normalizedHome,
+    normalizedAway,
+    fixtureFormat
+  };
 }
 
 // Backwards-compatible helper
