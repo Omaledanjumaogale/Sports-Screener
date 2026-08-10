@@ -1097,12 +1097,14 @@ function scoreFromResultText(text: string, home: string, away: string): { home: 
       }
     }
 
-    // 3. Generic "Home 2 - 1 Away" row. Skip kickoff-clock patterns: a match
-    //    whose digits look like HH:MM (<=23:59) right after the row's leading
-    //    time cell is the clock, not the score.
+    // 3. Generic "Home 2 - 1 Away" row. Iterate EVERY score-shaped pair on the
+    //    line, skipping kickoff-clock patterns (HH:MM <= 23:59 matching the
+    //    row's leading time cell). The first pair is often the clock, so a
+    //    naive single match would miss the real score later in the row.
     const clock = line.match(/\|\s*(\d{1,2}):(\d{2})/);
-    const generic = line.match(/\b(\d{1,3})\s*[-—:]\s*(\d{1,3})\b/);
-    if (generic) {
+    const genericRe = /\b(\d{1,3})\s*[-—:]\s*(\d{1,3})\b/g;
+    let generic: RegExpExecArray | null;
+    while ((generic = genericRe.exec(line)) !== null) {
       const hs = Number(generic[1]);
       const as = Number(generic[2]);
       const isClock =

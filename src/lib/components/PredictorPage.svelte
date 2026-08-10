@@ -507,13 +507,25 @@ $effect(() => {
   });
 
   let scoreSyncing = $state(false);
+  const SCORE_SYNC_THROTTLE_MS = 5 * 60 * 1000;
+  const SCORE_SYNC_KEY = 'scoreSyncLastAt_v1';
 
   // Ask the server to fetch final scorelines for today + the past 7 days so the
   // Finished tab shows scorelines/verdicts immediately instead of waiting for
   // the next 5-minute live-scores cron tick. The reactive listMatchesInRange
   // subscription pushes the updated rows into the UI as soon as they land.
-  async function syncScoresNow() {
+  // `force` skips the 5-minute session throttle (used by the manual button).
+  async function syncScoresNow(force = false) {
     if (scoreSyncing) return;
+    if (!force) {
+      try {
+        const last = Number(sessionStorage.getItem(SCORE_SYNC_KEY) || 0);
+        if (Date.now() - last < SCORE_SYNC_THROTTLE_MS) return;
+        sessionStorage.setItem(SCORE_SYNC_KEY, String(Date.now()));
+      } catch (_) {
+        /* storage unavailable — proceed */
+      }
+    }
     scoreSyncing = true;
     try {
       await triggerScoreSync({ includePastDays: true });
@@ -671,7 +683,7 @@ $effect(() => {
       <button
         class="scores-sync-btn"
         type="button"
-        onclick={syncScoresNow}
+        onclick={() => syncScoresNow(true)}
         disabled={scoreSyncing}
         title="Fetch final scorelines for finished matches now"
         aria-label="Sync live scores"

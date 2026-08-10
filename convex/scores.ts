@@ -114,7 +114,15 @@ export const syncScoresAction = internalAction({
               finalScore: found.finalScore,
               status: found.status
             });
-          } else if (m.status !== 'finished' || !m.finalScore) {
+          } else if (
+            (m.status !== 'finished' || !m.finalScore) &&
+            // Only attempt the HTML result-page fallback for matches that have
+            // already kicked off (+1h buffer) — a fixture days in the future
+            // cannot have a result, and scanning result pages for it would
+            // waste reader quota every 5-minute cycle.
+            m.startTime > 0 &&
+            m.startTime < Date.now() + 60 * 60 * 1000
+          ) {
             unmatched.push({ matchId: m.matchId, home: m.homeTeam, away: m.awayTeam, dayKey: targetDay });
           }
         }
