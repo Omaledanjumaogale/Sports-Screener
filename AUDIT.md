@@ -133,8 +133,14 @@ cross-device**. Drafts and history both write-through to Convex when reachable a
 3. **Remove the free "Already Paid? Confirm & Activate" button** from production checkout (it bypasses
    payment); keep it behind an env flag for demos.
 4. **Move the super-admin password & tester password to env** (they ship in the JS bundle today).
-5. **Move the AI call fully server-side** (it already is via the Pages Function; stop baking
-   `VITE_AGNES_AI_KEY`/`VITE_OPENROUTER_API_KEY` into the public bundle).
+   *(Partially done 2026-08-10: the hardcoded `SUPER_ADMIN_EMAIL`/`TESTER_EMAIL` fallbacks were
+   removed from `convex/users.ts` and `src/lib/authStore.svelte.ts` — admin/tester recognition now
+   requires the `SUPER_ADMIN_EMAIL`/`TESTER_EMAIL` Convex env vars and `VITE_SUPER_ADMIN_EMAIL`/
+   `VITE_TESTER_EMAIL` at build time. Remaining credential defaults still need moving to env.)*
+5. **Move the AI call fully server-side** — **DONE (2026-08-10)**: removed the client-side
+   `VITE_AGNES_AI_KEY`/`VITE_OPENROUTER_API_KEY` reads and the Agnes/OpenRouter direct browser
+   fallbacks from `src/lib/cloudflareAi.ts`; the client now calls only the `/api/ai-analyze` Pages
+   Function, which keeps keys server-side.
 6. Consider a proper **client for real-time** (Convex `useQuery`-style subscriptions) if multi-tab/multi-device
    live sync is wanted; today one-shot HTTP + pull-on-load is used (deliberate, keeps the SPA static).
 

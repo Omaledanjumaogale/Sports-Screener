@@ -1,10 +1,8 @@
 // src/lib/cloudflareAi.ts
 // Browser-side AI client for the AI Copilot.
 //
-// Provider chain (in priority order):
-//   1. /api/ai-analyze — Cloudflare Pages Function (server-side, avoids CORS & WAF bot challenges)
-//   2. Agnes AI       — direct API fallback (apihub.agnes-ai.com)
-//   3. OpenRouter     — secondary free-tier fallback (Mistral-7B)
+// Provider: /api/ai-analyze — Cloudflare Pages Function (server-side; keeps API
+// keys out of the public bundle and avoids CORS & WAF bot challenges).
 
 import type { MasterConfluenceLedger, Profile, Pick, SportId } from './engine';
 
@@ -80,12 +78,7 @@ function cleanErrorMessage(rawErr: string): string {
   return sanitized.length > 200 ? `${sanitized.slice(0, 200)}…` : sanitized;
 }
 
-// ── Env vars (baked at build time by Vite) ────────────────────────────────────
-const AGNES_KEY: string = safeStr((import.meta as any).env?.VITE_AGNES_AI_KEY);
-const OR_KEY: string = safeStr((import.meta as any).env?.VITE_OPENROUTER_API_KEY);
-const AGNES_BASE = 'https://apihub.agnes-ai.com/v1';
-const AGNES_MODEL = 'Agnes AI';
-const OR_MODEL = 'mistralai/mistral-7b-instruct:free';
+// API keys are server-side only (Cloudflare Pages Function /api/ai-analyze).
 
 // ── Sport-specific context: scoring scale, step, and key metrics to reference ─
 const SPORT_CONTEXT: Record<string, { scale: string; unit: string; typicalRange: string; keyMetric: string }> = {
@@ -388,83 +381,6 @@ async function callPagesFunction(
   };
 }
 
-// ── 2. Agnes AI direct call (SECONDARY fallback) ──────────────────────────────
-async function callAgnesAiDirect(
-  messages: { role: string; content: string }[],
-  signal: AbortSignal
-): Promise<AiAnalysisResult> {
-  if (!AGNES_KEY) throw new Error('Agnes AI key not configured.');
-
-  const res = await fetch(`${AGNES_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${AGNES_KEY}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'X-Title': 'PulseOdds Screener'
-    },
-    body: JSON.stringify({ model: AGNES_MODEL, messages, max_tokens: 2000, temperature: 0.25 }),
-    signal
-  });
-
-  if (!res.ok) {
-    const errText = safeStr(await res.text().catch(() => ''));
-    throw new Error(cleanErrorMessage(errText || `Agnes AI status ${res.status}`));
-  }
-
-  const data = await res.json().catch(() => null);
-  const text = safeStr(data?.choices?.[0]?.message?.content);
-
-  return {
-    success: true,
-    isOffline: false,
-    provider: 'agnes-ai',
-    model: 'Agnes AI',
-    insights: parseInsights(text),
-    rawText: text,
-    tokensUsed: Number(data?.usage?.total_tokens) || 0
-  };
-}
-
-// ── 3. OpenRouter direct call (TERTIARY fallback) ─────────────────────────────
-async function callOpenRouterDirect(
-  messages: { role: string; content: string }[],
-  signal: AbortSignal
-): Promise<AiAnalysisResult> {
-  if (!OR_KEY) throw new Error('OpenRouter key not configured.');
-
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${OR_KEY}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'https://pulseodds.pages.dev',
-      'X-Title': 'PulseOdds Screener'
-    },
-    body: JSON.stringify({ model: OR_MODEL, messages, max_tokens: 2000, temperature: 0.25 }),
-    signal
-  });
-
-  if (!res.ok) {
-    const errText = safeStr(await res.text().catch(() => ''));
-    throw new Error(cleanErrorMessage(errText || `OpenRouter status ${res.status}`));
-  }
-
-  const data = await res.json().catch(() => null);
-  const text = safeStr(data?.choices?.[0]?.message?.content);
-
-  return {
-    success: true,
-    isOffline: false,
-    provider: 'openrouter',
-    model: 'Mistral-7B',
-    insights: parseInsights(text),
-    rawText: text,
-    tokensUsed: Number(data?.usage?.total_tokens) || 0
-  };
-}
-
 // ── Main export ───────────────────────────────────────────────────────────────
 export async function requestCloudflareAiAnalysis(
   req: AiAnalysisRequest,
@@ -485,37 +401,9 @@ export async function requestCloudflareAiAnalysis(
   const timeoutId = setTimeout(() => controller.abort(), 30_000);
 
   try {
-    // 1. Pages Function — PRIMARY serverless route (avoids WAF bot challenge & hides secret key)
-    try {
-      const result = await callPagesFunction(messages, effectiveSignal);
-      clearTimeout(timeoutId);
-      return result;
-    } catch (err: any) {
-      if (err?.name === 'AbortError') throw err;
-      console.warn('[AI Copilot] Pages Function route failed, falling back to direct Agnes AI:', safeStr(err?.message || err));
-    }
-
-    // 2. Agnes AI — SECONDARY direct fallback
-    if (AGNES_KEY) {
-      try {
-        const result = await callAgnesAiDirect(messages, effectiveSignal);
-        clearTimeout(timeoutId);
-        return result;
-      } catch (err: any) {
-        if (err?.name === 'AbortError') throw err;
-        console.warn('[AI Copilot] Agnes AI direct failed, falling back to OpenRouter:', safeStr(err?.message || err));
-      }
-    }
-
-    // 3. OpenRouter — TERTIARY direct fallback
-    if (OR_KEY) {
-      const result = await callOpenRouterDirect(messages, effectiveSignal);
-      clearTimeout(timeoutId);
-      return result;
-    }
-
-    throw new Error('AI Copilot service temporarily unavailable. All providers failed.');
-
+    const result = await callPagesFunction(messages, effectiveSignal);
+    clearTimeout(timeoutId);
+    return result;
   } catch (err: any) {
     clearTimeout(timeoutId);
 

@@ -215,9 +215,17 @@ Create a `.env.local` file in the root directory:
 CONVEX_DEPLOYMENT=prod:modest-lark-218
 VITE_CONVEX_URL=https://modest-lark-218.eu-west-1.convex.cloud
 
-# AI Copilot API Keys
-VITE_AGNES_AI_KEY=your_agnes_key_here
-VITE_OPENROUTER_API_KEY=your_openrouter_key_here
+# Admin / Tester identities — REQUIRED (no hardcoded fallbacks remain in code).
+#   Client build (VITE_*): read by src/lib/authStore.svelte.ts
+#   Convex server env (SUPER_ADMIN_EMAIL / TESTER_EMAIL): npx convex env set ...
+VITE_SUPER_ADMIN_EMAIL=you@example.com
+VITE_TESTER_EMAIL=tester@example.com
+
+# AI Copilot API Keys — server-side ONLY (Cloudflare Pages Function + Convex).
+# Never prefix with VITE_ in production — VITE_* values are baked into the
+# public JS bundle and readable by anyone.
+AGNES_AI_KEY=your_agnes_key_here
+OPENROUTER_API_KEY=your_openrouter_key_here
 
 # Flutterwave Payment Integration
 VITE_FLW_PUBLIC_KEY=FLWPUBK_TEST-xxxx

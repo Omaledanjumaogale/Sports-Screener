@@ -17,6 +17,7 @@ import type {
   GreatMindsPick,
   GreatMindsRound,
   GreatMindsModelChoice,
+  GreatMindsPickVerdict,
   DailyPnlSummaryData,
   DailyPnlConsensusRow,
   GreatMindsStats,
@@ -254,8 +255,7 @@ export function generateGreatMindsDebate(
   // Per-pick verdict success grading using the real finalScore when available.
   const scoreAvailable = match.finalScore || (match.status === 'finished');
   const scoreForGrade = match.finalScore || null;
-  type PickVerdict = { market: string; selection: string; grade: 'win' | 'loss' | 'push' | 'pending'; realWinChancePct: number };
-  const pickVerdicts: PickVerdict[] = allThreePicks.map((p) => {
+  const pickVerdicts: GreatMindsPickVerdict[] = allThreePicks.map((p) => {
     if (scoreForGrade && match.status === 'finished') {
       const grade = gradeSelection(p.selection, p.market, scoreForGrade, {
         homeTeam: match.homeTeam,
@@ -298,7 +298,7 @@ export function generateGreatMindsDebate(
     losses: number;
     pushes: number;
     winRatePct: number;
-    pickVerdicts: PickVerdict[];
+    pickVerdicts: GreatMindsPickVerdict[];
   } = {
     totalPicks: resolvedTotal,
     wins: winsResolved,

@@ -210,6 +210,13 @@ export interface GreatMindsRound {
   winningSelection?: string;
 }
 
+export interface GreatMindsPickVerdict {
+  market: string;
+  selection: string;
+  grade: 'win' | 'loss' | 'push' | 'pending';
+  realWinChancePct: number;
+}
+
 export interface GreatMindsDebateResult {
   matchId: string;
   homeTeam: string;
@@ -230,6 +237,19 @@ export interface GreatMindsDebateResult {
   realWinChancePct: number;
   realWinChanceTag: string;
   spark: string;
+  // Post-match resolution data — populated once a final score is available;
+  // optional so older stored verdicts (without scores) stay type-safe.
+  resolvedVerdict?: {
+    totalPicks: number;
+    wins: number;
+    losses: number;
+    pushes: number;
+    winRatePct: number;
+    pickVerdicts: GreatMindsPickVerdict[];
+  };
+  finalScore?: string | null;
+  matchStatus?: 'upcoming' | 'inplay' | 'finished';
+  scoreAvailable?: boolean;
 }
 
 export interface DailyPnlConsensusRow {

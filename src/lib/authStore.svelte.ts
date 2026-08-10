@@ -11,8 +11,8 @@ function envEmail(key: string, fallback: string): string {
   return fallback;
 }
 
-export const SUPER_ADMIN_EMAIL = envEmail('VITE_SUPER_ADMIN_EMAIL', 'omaledanjumaogale@gmail.com');
-export const TESTER_EMAIL = envEmail('VITE_TESTER_EMAIL', 'tester@gmail.com');
+export const SUPER_ADMIN_EMAIL = envEmail('VITE_SUPER_ADMIN_EMAIL', '');
+export const TESTER_EMAIL = envEmail('VITE_TESTER_EMAIL', '');
 
 const TESTER_TRIAL_START_KEY = 'pulseodds_tester_trial_start_v1';
 

@@ -5,8 +5,8 @@ import { v } from 'convex/values';
 
 declare const process: { env: Record<string, string | undefined> };
 
-const DEFAULT_ADMIN_EMAIL = 'omaledanjumaogale@gmail.com';
-const DEFAULT_TESTER_EMAIL = 'tester@gmail.com';
+const DEFAULT_ADMIN_EMAIL = '';
+const DEFAULT_TESTER_EMAIL = '';
 const TESTER_TRIAL_DAYS = 30;
 
 function superAdminEmail(): string {

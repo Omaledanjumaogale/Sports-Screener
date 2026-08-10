@@ -28,8 +28,7 @@
     type PredictorDay,
     type PredictorMatch,
     type PredictorRun,
-    type PredictorSportId,
-    isFootballMatch
+    type PredictorSportId
   } from '$lib/predictorTypes';
   import { buildPredictorInsights } from '$lib/predictorInsights';
   import { formatWAT, getWatHour } from '$lib/watTime';
@@ -158,7 +157,7 @@
   const filteredMatches = $derived.by(() => {
     let list = matches;
     if (effectiveSport !== 'football') {
-      list = list.filter((m) => !isFootballMatch(m));
+      list = list.filter((m) => m.sportId !== 'football');
     }
     if (timeBand === 'all') return list;
     const band = timeBand;
@@ -663,7 +662,7 @@ $effect(() => {
             </span>
             {#if matches.length > 0}
               <span class="summary-chip muted">
-                {matches.length} scheduled {effectiveSport === 'mma' ? 'bouts' : effectiveSport === 'tennis' || effectiveSport === 'rally' ? 'matches' : 'matches'}
+                {matches.length} scheduled {effectiveSport === 'mma' ? 'bouts' : 'matches'}
               </span>
             {/if}
             <span class="sel-actions">
