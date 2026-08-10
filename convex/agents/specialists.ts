@@ -66,15 +66,20 @@ export async function tundeFetchFixtures(sportId: string, dayKey?: string): Prom
   try {
     const date = dayKey || new Date().toISOString().slice(0, 10);
     const { fixtures: apiFixtures, odds } = await apiFixturesFor(sportId, date);
+    // Honest fallback league label per sport. NEVER a real league name (e.g.
+    // 'Premier League' / 'NBA') — a real name would masquerade every unknown
+    // fixture as one league (the 'England - Premier League for every match'
+    // bug). The neutral sport label still fingerprints for matchBelongsToSport
+    // and displays without a fake country prefix.
     const fallbackLeague: Record<string, string> = {
-      football: 'Premier League',
-      basketball: 'NBA',
-      tennis: 'ATP Tour',
-      hockey: 'NHL',
-      baseball: 'MLB',
-      rally: 'Table Tennis WTT',
-      americanfootball: 'NFL',
-      rugby: 'Rugby Union',
+      football: 'Football',
+      basketball: 'Basketball',
+      tennis: 'Tennis',
+      hockey: 'Ice Hockey',
+      baseball: 'Baseball',
+      rally: 'Table Tennis',
+      americanfootball: 'American Football',
+      rugby: 'Rugby',
       cricket: 'Cricket',
       mma: 'MMA',
       volleyball: 'Volleyball'

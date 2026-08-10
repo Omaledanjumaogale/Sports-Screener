@@ -88,7 +88,9 @@ export function parseBetwatchMarkdown(text: string, sportId: string): ScrapeMatc
       out.push({
         source: 'BetWatch',
         sourceUrl: BETWATCH_URL,
-        league: currentLeague || (leagues[0] ?? 'Top League'),
+        // Honest neutral fallback — NEVER a real league name (leagues[0] for
+        // football is 'Premier League', which would brand every row as England).
+        league: currentLeague || 'Football',
         homeTeam: home,
         awayTeam: away,
         startTime: parseTime(line.match(/(\d{1,2}:\d{2})/)?.[0], now + 24 * 60 * 60 * 1000),
@@ -134,10 +136,18 @@ export function syntheticFixtures(sportId: string): ScrapeMatch[] {
     volleyball: [['Brazil', 'Poland'], ['Italy', 'France'], ['USA', 'Japan'], ['Russia', 'Serbia']]
   };
   const pairs = known[sportId] ?? [];
+  // Neutral sport label — never a real league name (leagues[0] for football is
+  // 'Premier League', which would brand every dev fixture as England and is
+  // the root of the 'all matches show England - Premier League' bug).
+  const label: Record<string, string> = {
+    football: 'Football', basketball: 'Basketball', tennis: 'Tennis', rally: 'Table Tennis',
+    hockey: 'Ice Hockey', baseball: 'Baseball', americanfootball: 'American Football',
+    rugby: 'Rugby', cricket: 'Cricket', mma: 'MMA', volleyball: 'Volleyball'
+  };
   return pairs.map(([h, a], i) => ({
     source: 'SyntheticDev',
     sourceUrl: BETWATCH_URL,
-    league: leagues[0],
+    league: label[sportId] ?? 'Scheduled Fixture',
     homeTeam: h,
     awayTeam: a,
     startTime: now + day + i * 3 * 60 * 60 * 1000,

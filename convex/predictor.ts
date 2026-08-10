@@ -917,6 +917,28 @@ export const purgeOld = internalMutation({
   }
 });
 
+// Wipe EVERY cached predictor row (matches, verdicts, days, runs, stats) so a
+// full re-seed rebuilds from the current scraper/parser code. Used after league
+// fallback fixes to purge rows misbranded with a fake league (e.g. every
+// unknown football fixture labelled 'Premier League' → "England - Premier
+// League" for an Argentina match).
+export const purgeAllPredictorData = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<{ matches: number; verdicts: number; days: number; runs: number; stats: number }> => {
+    const del = async (table: string) => {
+      const rows = await ctx.db.query(table as any).collect();
+      for (const r of rows) await ctx.db.delete(r._id);
+      return rows.length;
+    };
+    const matches = await del('predictorMatches');
+    const verdicts = await del('predictorVerdicts');
+    const days = await del('predictorDays');
+    const runs = await del('predictorRuns');
+    const stats = await del('aiPredictorStats');
+    return { matches, verdicts, days, runs, stats };
+  }
+});
+
 // Internal entry used by the orchestrator's incremental refresh to rebuild
 // verdicts from the ALREADY-CACHED matches+scopes (no new API or LLM spend).
 export const getCachedMatches = internalQuery({
