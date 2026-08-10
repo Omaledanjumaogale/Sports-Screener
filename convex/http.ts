@@ -79,6 +79,59 @@ http.route({
   })
 });
 
+// ── Fixture-source diagnostics report ────────────────────────────────────────
+// GET /api/diagnostics/fixture-pages → probes every FIXTURE_PAGES url and
+// returns which pages fetch + parse fixtures per sport (for pruning dead or
+// unparseable sources). Optional query params: ?sportId=football&dayKey=2026-08-10
+//
+// Each hit triggers up to ~45 external reads, so the route is rate-limited per
+// client IP (in-memory sliding window — best-effort, single-process).
+const DIAG_WINDOW_MS = 60_000;
+const DIAG_MAX_HITS = 5;
+const diagHits = new Map<string, number[]>();
+
+function diagAllowed(ip: string): boolean {
+  const now = Date.now();
+  const hits = (diagHits.get(ip) ?? []).filter((t) => now - t < DIAG_WINDOW_MS);
+  if (hits.length >= DIAG_MAX_HITS) {
+    diagHits.set(ip, hits);
+    return false;
+  }
+  hits.push(now);
+  diagHits.set(ip, hits);
+  return true;
+}
+
+http.route({
+  path: "/api/diagnostics/fixture-pages",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    if (!diagAllowed(ip)) {
+      return new Response(JSON.stringify({ status: "error", message: "Rate limited — retry in a minute." }), {
+        status: 429,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    try {
+      const url = new URL(request.url);
+      const result = await ctx.runAction(api.diagnostics.diagnoseFixturePages, {
+        sportId: url.searchParams.get("sportId") || undefined,
+        dayKey: url.searchParams.get("dayKey") || undefined
+      });
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    } catch (err: any) {
+      return new Response(JSON.stringify({ status: "error", message: String(err?.message || err) }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+  })
+});
+
 // Also support GET /webhooks/flutterwave for status check
 http.route({
   path: "/webhooks/flutterwave",

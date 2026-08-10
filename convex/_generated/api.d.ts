@@ -14,6 +14,7 @@ import type * as agents_specialists from "../agents/specialists.js";
 import type * as apis_sportsApis from "../apis/sportsApis.js";
 import type * as auth from "../auth.js";
 import type * as crons from "../crons.js";
+import type * as diagnostics from "../diagnostics.js";
 import type * as drafts from "../drafts.js";
 import type * as http from "../http.js";
 import type * as llm from "../llm.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   "apis/sportsApis": typeof apis_sportsApis;
   auth: typeof auth;
   crons: typeof crons;
+  diagnostics: typeof diagnostics;
   drafts: typeof drafts;
   http: typeof http;
   llm: typeof llm;
