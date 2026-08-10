@@ -107,6 +107,13 @@ export async function bootstrapTodayAllSports(): Promise<{ seeded: number; messa
   return actionConvex<{ seeded: number; message: string }>(api.predictor.bootstrapToday, {});
 }
 
+// Schedule a server-side score sync so finished matches get their final
+// scorelines + verdict grades without waiting for the next 5-minute cron tick.
+// includePastDays also settles the previous 7 days (the multi-day Finished tab).
+export async function triggerScoreSync(opts: { dayKey?: string; includePastDays?: boolean } = {}): Promise<{ ok: boolean; message: string }> {
+  return callConvex<{ ok: boolean; message: string }>(api.scores.triggerScoreSync, opts);
+}
+
 export function emptyAnalysis(): Analysis {
   return {
     headline: 'Unavailable',

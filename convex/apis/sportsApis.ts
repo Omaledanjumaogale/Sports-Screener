@@ -1059,6 +1059,13 @@ function dWithSlashes(date: string): string {
 
 // Parse the strongest "<home> <score> - <score> <away>" row that contains BOTH
 // team names. Returns null unless a numeric score is found.
+//
+// BetExplorer markdown rows look like:
+//   | 20:30[**Home** - Away](url) | [**2:0**](url) | (1:0, 1:0) |
+// The bolded `**2:0**` (or link-wrapped `[2:0](url)`) cell is the full-time
+// score; the leading `20:30` is the kickoff CLOCK, not a score — a naive
+// `(\d+)[-:]\d+` match would read "20 - 30". We therefore prefer bolded/linked
+// score cells, then fall back to a non-clock score pattern.
 function scoreFromResultText(text: string, home: string, away: string): { home: string; away: string; finalScore: string; status: 'upcoming' | 'inplay' | 'finished' } | null {
   const h = normalizeTeam(home);
   const a = normalizeTeam(away);
@@ -1068,13 +1075,47 @@ function scoreFromResultText(text: string, home: string, away: string): { home: 
     const line = lines[li];
     const norm = normalizeTeam(line);
     if (!norm.includes(h) || !norm.includes(a)) continue;
-    const m = line.match(/(\d+)\s*[-—:]\s*(\d+)/);
-    if (!m) continue;
-    const hs = Number(m[1]);
-    const as = Number(m[2]);
-    const finalScore = `${hs} - ${as}`;
-    const ft = /FT|full.?time|finished|ended|postponed|a\.?e\.?t|so\.?\(/i.test(line);
-    return { home, away, finalScore, status: ft ? 'finished' : 'inplay' };
+
+    // 1. Bolded score cell (BetExplorer): **2:0** / **2 - 0**
+    const bold = line.match(/\*\*(\d{1,3})\s*[-—:]\s*(\d{1,3})\*\*/);
+    if (bold) {
+      const hs = Number(bold[1]);
+      const as = Number(bold[2]);
+      if (hs <= 999 && as <= 999) {
+        return { home, away, finalScore: `${hs} - ${as}`, status: 'finished' };
+      }
+    }
+
+    // 2. Link-wrapped score cell: [2:0](url) / [2 - 0](url)
+    const linked = line.match(/\[(\d{1,3})\s*[-—:]\s*(\d{1,3})\]\([^)]*\)/);
+    if (linked) {
+      const hs = Number(linked[1]);
+      const as = Number(linked[2]);
+      if (hs <= 999 && as <= 999) {
+        const ft = /FT|full.?time|finished|ended|postponed|a\.?e\.?t|so\.?\(/i.test(line);
+        return { home, away, finalScore: `${hs} - ${as}`, status: ft ? 'finished' : 'inplay' };
+      }
+    }
+
+    // 3. Generic "Home 2 - 1 Away" row. Skip kickoff-clock patterns: a match
+    //    whose digits look like HH:MM (<=23:59) right after the row's leading
+    //    time cell is the clock, not the score.
+    const clock = line.match(/\|\s*(\d{1,2}):(\d{2})/);
+    const generic = line.match(/\b(\d{1,3})\s*[-—:]\s*(\d{1,3})\b/);
+    if (generic) {
+      const hs = Number(generic[1]);
+      const as = Number(generic[2]);
+      const isClock =
+        !!clock &&
+        hs === Number(clock[1]) &&
+        as === Number(clock[2]) &&
+        hs <= 23 &&
+        as <= 59;
+      if (!isClock && hs <= 999 && as <= 999) {
+        const ft = /FT|full.?time|finished|ended|postponed|a\.?e\.?t|so\.?\(/i.test(line);
+        return { home, away, finalScore: `${hs} - ${as}`, status: ft ? 'finished' : 'inplay' };
+      }
+    }
   }
   return null;
 }

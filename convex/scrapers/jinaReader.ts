@@ -28,7 +28,19 @@ export async function jinaRead(url: string, opts: FetchPageOptions = {}): Promis
     if (opts.targetSelector) headers['X-Target-Selector'] = opts.targetSelector;
 
     const res = await fetch(`https://r.jina.ai/${url}`, { headers, signal: controller.signal });
-    const text = await res.text().catch(() => '');
+    const raw = await res.text().catch(() => '');
+    // Jina returns JSON (Accept: application/json) — extract the readable
+    // content so downstream parsers (fixture + score line scanners) receive
+    // markdown/text instead of a JSON blob with escaped content.
+    let text = raw;
+    if (/^\s*[{\[]/.test(raw)) {
+      try {
+        const j = JSON.parse(raw);
+        text = j?.data?.content ?? j?.content ?? (typeof j === 'string' ? j : '');
+      } catch {
+        /* keep raw text */
+      }
+    }
     return { ok: res.ok, status: res.status, text };
   } catch {
     return { ok: false, status: 0, text: '' };

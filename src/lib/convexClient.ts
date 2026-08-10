@@ -221,6 +221,9 @@ export const api = {
   },
   predictorOrchestrator: {
     runRefresh: 'predictorOrchestrator:runRefresh'
+  },
+  scores: {
+    triggerScoreSync: 'scores:triggerScoreSync'
   }
 };
 

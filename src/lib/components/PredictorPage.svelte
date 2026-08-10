@@ -22,7 +22,8 @@
     fetchActiveRun,
     startPredictorRefresh,
     analyzeCachedMatch,
-    bootstrapTodayAllSports
+    bootstrapTodayAllSports,
+    triggerScoreSync
   } from '$lib/predictorClient';
   import {
     DEFAULT_CONFIDENCE_FLOOR,
@@ -505,7 +506,26 @@ $effect(() => {
     subscribe(sid, fj, tj, epoch);
   });
 
+  let scoreSyncing = $state(false);
+
+  // Ask the server to fetch final scorelines for today + the past 7 days so the
+  // Finished tab shows scorelines/verdicts immediately instead of waiting for
+  // the next 5-minute live-scores cron tick. The reactive listMatchesInRange
+  // subscription pushes the updated rows into the UI as soon as they land.
+  async function syncScoresNow() {
+    if (scoreSyncing) return;
+    scoreSyncing = true;
+    try {
+      await triggerScoreSync({ includePastDays: true });
+    } catch (_) {
+      /* non-fatal — cron will retry */
+    } finally {
+      scoreSyncing = false;
+    }
+  }
+
   onMount(() => {
+    void syncScoresNow();
     const timer = setInterval(() => {
       now = Date.now();
     }, 60_000);
@@ -611,6 +631,7 @@ $effect(() => {
     {:else}
       <PredictorDateFilter bind:fromDay bind:toDay bind:timeBand />
 
+      <div class="tabs-row">
       <div class="game-tabs" role="tablist" aria-label="Filter matches by status">
         <button
           class="game-tab {gameTab === 'upcoming' ? 'is-active' : ''}"
@@ -645,6 +666,19 @@ $effect(() => {
           Finished
           <span class="tab-count">{tabCounts.finished}</span>
         </button>
+      </div>
+
+      <button
+        class="scores-sync-btn"
+        type="button"
+        onclick={syncScoresNow}
+        disabled={scoreSyncing}
+        title="Fetch final scorelines for finished matches now"
+        aria-label="Sync live scores"
+      >
+        <span class:spin={scoreSyncing}><RefreshCw size={13} stroke-width={2.4} /></span>
+        {scoreSyncing ? 'Syncing…' : 'Sync scores'}
+      </button>
       </div>
 
       <PredictorStatusBanner
@@ -1263,6 +1297,48 @@ $effect(() => {
   @keyframes spn { to { transform: rotate(360deg); } }
 
   /* ── Game status tabs ── */
+  .tabs-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .tabs-row .game-tabs {
+    flex: 1;
+    margin-bottom: 0;
+  }
+
+  .scores-sync-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--c-border-md);
+    background: var(--c-glass-sm);
+    color: var(--c-text-dim, var(--c-text));
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition:
+      background var(--t-base, 180ms ease),
+      border-color var(--t-base, 180ms ease),
+      color var(--t-base, 180ms ease),
+      transform 80ms ease;
+  }
+
+  .scores-sync-btn:hover:not(:disabled) {
+    color: #22c55e;
+    border-color: color-mix(in srgb, #22c55e 45%, transparent);
+    background: color-mix(in srgb, #22c55e 8%, transparent);
+  }
+
+  .scores-sync-btn:active:not(:disabled) { transform: scale(0.96); }
+  .scores-sync-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
   .game-tabs {
     display: flex;
     gap: 6px;

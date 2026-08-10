@@ -82,7 +82,11 @@ export const syncScoresAction = internalAction({
         if (!matches || matches.length === 0) continue;
 
         const fetchedScores = await fetchScoresForDate(sport, targetDay);
-        if (!fetchedScores || fetchedScores.length === 0) continue;
+        // NOTE: no early-continue when fetchedScores is empty — the HTML
+        // result-page failover below is the ONLY path that can resolve a final
+        // score when every API layer returns nothing (e.g. reader-key-only
+        // sources). Skipping straight to `continue` left finished matches with
+        // no scoreline forever.
 
         const updatesToApply: {
           dayKey: string;
@@ -372,12 +376,20 @@ export const settleDayPnl = internalAction({
   }
 });
 
-// Public action to manually trigger score sync for a given day or today
+// Public mutation to manually trigger score sync for a given day (default:
+// today). includePastDays additionally schedules the past 7 days so the
+// Finished tab of a multi-day window gets its scorelines settled immediately
+// instead of waiting for the 3-hour history cron.
 export const triggerScoreSync = mutation({
-  args: { dayKey: v.optional(v.string()) },
+  args: { dayKey: v.optional(v.string()), includePastDays: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
     const day = args.dayKey || watTodayKey();
     await ctx.scheduler.runAfter(0, internal.scores.syncScoresAction, { dayKey: day });
-    return { ok: true, message: `Score sync scheduled for ${day}` };
+    if (args.includePastDays) {
+      for (let i = 1; i <= 7; i++) {
+        await ctx.scheduler.runAfter(0, internal.scores.syncScoresAction, { dayKey: watDayKeyFor(-i) });
+      }
+    }
+    return { ok: true, message: `Score sync scheduled for ${day}${args.includePastDays ? ' + past 7 days' : ''}` };
   }
 });
