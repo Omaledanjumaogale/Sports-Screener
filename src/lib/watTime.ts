@@ -3,6 +3,19 @@
 
 const WAT_TZ = 'Africa/Lagos';
 
+// Day-key helpers: predictor caches are keyed by the WEST AFRICA TIME day string
+// ('YYYY-MM-DD'), so "today" stays consistent between server and client even at
+// UTC midnight (WAT is UTC+1, fixed offset).
+export function watTodayKey(base: Date | number = new Date()): string {
+  const ms = typeof base === 'number' ? base : base.getTime();
+  return new Date(ms + 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+export function watDayKeyFor(offsetDays: number, base: Date | number = new Date()): string {
+  const ms = (typeof base === 'number' ? base : base.getTime()) + offsetDays * 86_400_000;
+  return watTodayKey(ms);
+}
+
 export function watParts(ms: number): Intl.DateTimeFormatPart[] {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: WAT_TZ,

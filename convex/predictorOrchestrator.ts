@@ -7,7 +7,7 @@ import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { runSmoaPipeline } from './agents/smoa';
 import { amaraFilter, type NormalizeResult } from './agents/specialists';
-import { dailyCap } from './scrapers/sources';
+import { dailyCap, watTodayKey } from './scrapers/sources';
 import { FILTER_CONFIDENCE_FLOOR } from './scrapers/normalize';
 import { generatePredictorVerdict, type VerdictOutcome } from './llm';
 import { isFootballMatch, matchBelongsToSport, validateFixture } from './predictor';
@@ -53,7 +53,7 @@ async function executeRefresh(
   ctx: any,
   args: { sportId: string; dayKey: string; runId?: string; floor?: number; cap?: number }
 ): Promise<{ ok: boolean; kept: number; runId: string; message: string }> {
-  const dayKey = args.dayKey || new Date().toISOString().slice(0, 10);
+  const dayKey = args.dayKey || watTodayKey();
   const runId = args.runId ?? `run_${args.sportId}_${dayKey}_${Date.now()}`;
   const floor = args.floor ?? FILTER_CONFIDENCE_FLOOR;
   const cap = args.cap ?? dailyCap();
@@ -262,7 +262,7 @@ async function executeIncrementalRefresh(
   ctx: any,
   args: { sportId: string; dayKey: string; runId?: string; floor?: number }
 ): Promise<{ ok: boolean; kept: number; qualifying: number; runId: string; message: string }> {
-  const day = args.dayKey || new Date().toISOString().slice(0, 10);
+  const day = args.dayKey || watTodayKey();
   const runId = args.runId ?? `run_inc_${args.sportId}_${day}_${Date.now()}`;
   const floor = args.floor ?? FILTER_CONFIDENCE_FLOOR;
 

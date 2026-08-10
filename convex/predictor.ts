@@ -5,6 +5,7 @@
 import { query, mutation, action, internalMutation, internalAction, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
+import { watTodayKey } from './scrapers/sources';
 
 const sportId = v.union(
   v.literal('football'),
@@ -45,8 +46,8 @@ const runStatus = v.union(
 // NOT present here — they create cross-sport false negatives.
 const SPORT_KEYWORDS: Record<string, { positive: RegExp[]; strongExclusive: RegExp[] }> = {
   football: {
-    strongExclusive: [/\bpremier league\b/i, /\bla liga\b/i, /\bserie a\b(?!.*basket)/i, /\bbundesliga\b/i, /\bligue 1\b/i, /\bchampions league\b/i, /\beuropa league\b/i, /\bconference league\b/i, /\befl championship\b/i, /\bleague one\b/i, /\bleague two\b/i, /\beredivisie\b/i, /\bprimeira liga\b/i, /\bsuper lig\b/i, /\bliga mx\b/i, /\bcopa libertadores\b/i, /\bcopa america\b/i, /\bfa cup\b/i, /\befl cup\b/i, /\bdfb pokal\b/i, /\bcopa del rey\b/i, /\bcoppa italia\b/i, /\bscottish premiership\b/i, /\bbelgian pro league\b/i, /\ballsvenskan\b/i, /\beliteserien\b/i, /\bdanish superliga\b/i, /\bswiss super league\b/i, /\bgreek super league\b/i, /\baustrian bundesliga\b/i, /\bbrazil serie a\b/i, /\bnations league\b/i, /\barsenal\b/i, /\bchelsea\b/i, /\bliverpool\b/i, /\breal madrid\b(?!.*basket)/i, /\bfc barcelona\b/i, /\bfc bayern\b/i, /\bjuventus\b/i, /\binter milan\b/i, /\bac milan\b/i, /\bparis sg\b/i, /\btottenham\b/i, /\bmanchester united\b/i, /\bmanchester city\b/i, /\baston villa\b/i, /\bbrighton hove\b/i, /\bcrystal palace\b/i, /\bwest ham\b/i, /\bnewcastle united\b/i, /\bleicester city\b/i, /\bleeds united\b/i, /\bnottingham forest\b/i, /\batletico madrid\b/i, /\bsevilla\b/i, /\bvillarreal\b/i, /\bnapoli\b/i, /\bas roma\b/i, /\blazio\b/i, /\batalanta\b/i, /\bfiorentina\b/i, /\bmonaco\b/i, /\blille osc\b/i, /\bmarseille\b/i, /\bolympique lyon\b/i, /\brennes\b/i, /\boriginal dortmund\b/i, /\bleipzig\b/i, /\bleverkusen\b/i, /\beintracht frankfurt\b/i, /\bbenfica\b/i, /\bporto\b/i, /\bsporting cp\b/i, /\bajax\b/i, /\bfeyenoord\b/i, /\bpsv eindhoven\b/i, /\bceltic fc\b/i, /\brangers fc\b/i, /\bnpfl\b/i, /\bmls\b(?!.*basket)/i, /\bsoccer\b/i, /\bfootball\b(?!.*(american|rugby|australian))/i],
-    positive: [/\bpremier league\b/i, /\bla liga\b/i, /\bserie a\b/i, /\bbundesliga\b/i, /\bligue 1\b/i, /\bligue 2\b/i, /\bchampions league\b/i, /\beuropa league\b/i, /\bconference league\b/i, /\bchampionship\b/i, /\bleague one\b/i, /\bleague two\b/i, /\beredivisie\b/i, /\bprimeira liga\b/i, /\bsuper lig\b/i, /\bliga mx\b/i, /\bmls\b/i, /\bnpfl\b/i, /\bcopa libertadores\b/i, /\bcopa america\b/i, /\bfa cup\b/i, /\befl cup\b/i, /\bdfb pokal\b/i, /\bcopa del rey\b/i, /\bcoppa italia\b/i, /\bsoccer\b/i, /\bfootball\b/i, /\barsenal\b/i, /\bchelsea\b/i, /\bliverpool\b/i, /\bman city\b/i, /\bmanchester\b/i, /\breal madrid\b/i, /\bbarcelona\b/i, /\bbayern\b/i, /\bjuventus\b/i, /\binter milan\b/i, /\bac milan\b/i, /\bpsg\b/i, /\bparis sg\b/i, /\btottenham\b/i, /\beverton\b/i, /\bdortmund\b/i, /\bnapoli\b/i, /\broma\b/i, /\bbenfica\b/i, /\bporto\b/i, /\bsporting\b/i, /\bajax\b/i, /\bfeyenoord\b/i, /\bpsv\b/i, /\bceltic\b/i, /\bnewcastle\b/i, /\baston villa\b/i, /\bwest ham\b/i, /\bbrighton\b/i, /\bwolves\b/i, /\bfulham\b/i, /\bbrentford\b/i, /\bcrystal palace\b/i, /\bleicester\b/i, /\bsouthampton\b/i, /\bleeds\b/i, /\bnottingham\b/i, /\bsevilla\b/i, /\bvillarreal\b/i, /\breal sociedad\b/i, /\bbetis\b/i, /\bgetafe\b/i, /\bvalencia\b/i, /\bosasuna\b/i, /\blazio\b/i, /\batalanta\b/i, /\bfiorentina\b/i, /\btorino\b/i, /\bbologna\b/i, /\bmonaco\b/i, /\blille\b/i, /\bmarseille\b/i, /\blyon\b/i, /\brennes\b/i, /\bnice\b/i, /\bleipzig\b/i, /\bleverkusen\b/i, /\bfrankfurt\b/i, /\bwolfsburg\b/i, /\bgladbach\b/i, /\bscottish premiership\b/i, /\bbelgian pro league\b/i, /\bturkish super lig\b/i, /\ballsvenskan\b/i, /\beliteserien\b/i, /\bdanish superliga\b/i, /\bswiss super league\b/i, /\bgreek super league\b/i, /\baustrian bundesliga\b/i, /\bbrazil serie a\b/i, /\bargentina primera\b/i, /\bchile primera\b/i, /\befl\b/i, /\bnations league\b/i]
+    strongExclusive: [/\bpremier league\b/i, /\bla liga\b/i, /\bserie a\b(?!.*basket)/i, /\bbundesliga\b/i, /\bligue 1\b/i, /\bchampions league\b/i, /\beuropa league\b/i, /\bconference league\b/i, /\befl championship\b/i, /\bleague one\b/i, /\bleague two\b/i, /\beredivisie\b/i, /\bprimeira liga\b/i, /\bsuper lig\b/i, /\bliga mx\b/i, /\bcopa libertadores\b/i, /\bcopa america\b/i, /\bfa cup\b/i, /\befl cup\b/i, /\bdfb pokal\b/i, /\bcopa del rey\b/i, /\bcoppa italia\b/i, /\bscottish premiership\b/i, /\bbelgian pro league\b/i, /\ballsvenskan\b/i, /\beliteserien\b/i, /\bdanish superliga\b/i, /\bswiss super league\b/i, /\bgreek super league\b/i, /\baustrian bundesliga\b/i, /\bbrazil serie a\b/i, /\bnations league\b/i, /\bafrica cup of nations\b/i, /\barsenal\b/i, /\bchelsea\b/i, /\bliverpool\b/i, /\breal madrid\b(?!.*basket)/i, /\bfc barcelona\b/i, /\bfc bayern\b/i, /\bjuventus\b/i, /\binter milan\b/i, /\bac milan\b/i, /\bparis sg\b/i, /\btottenham\b/i, /\bmanchester united\b/i, /\bmanchester city\b/i, /\baston villa\b/i, /\bbrighton hove\b/i, /\bcrystal palace\b/i, /\bwest ham\b/i, /\bnewcastle united\b/i, /\bleicester city\b/i, /\bleeds united\b/i, /\bnottingham forest\b/i, /\batletico madrid\b/i, /\bsevilla\b/i, /\bvillarreal\b/i, /\bnapoli\b/i, /\bas roma\b/i, /\blazio\b/i, /\batalanta\b/i, /\bfiorentina\b/i, /\bmonaco\b/i, /\blille osc\b/i, /\bmarseille\b/i, /\bolympique lyon\b/i, /\brennes\b/i, /\boriginal dortmund\b/i, /\bleipzig\b/i, /\bleverkusen\b/i, /\beintracht frankfurt\b/i, /\bbenfica\b/i, /\bporto\b/i, /\bsporting cp\b/i, /\bajax\b/i, /\bfeyenoord\b/i, /\bpsv eindhoven\b/i, /\bceltic fc\b/i, /\brangers fc\b/i, /\bnpfl\b/i, /\bmls\b(?!.*basket)/i, /\bsoccer\b/i, /\bfootball\b(?!.*(american|rugby|australian))/i],
+    positive: [/\bpremier league\b/i, /\bla liga\b/i, /\bserie a\b/i, /\bbundesliga\b/i, /\bligue 1\b/i, /\bligue 2\b/i, /\bchampions league\b/i, /\beuropa league\b/i, /\bconference league\b/i, /\bchampionship\b/i, /\bleague one\b/i, /\bleague two\b/i, /\beredivisie\b/i, /\bprimeira liga\b/i, /\bsuper lig\b/i, /\bliga mx\b/i, /\bmls\b/i, /\bnpfl\b/i, /\bcopa libertadores\b/i, /\bcopa america\b/i, /\bfa cup\b/i, /\befl cup\b/i, /\bdfb pokal\b/i, /\bcopa del rey\b/i, /\bcoppa italia\b/i, /\bsoccer\b/i, /\bfootball\b/i, /\barsenal\b/i, /\bchelsea\b/i, /\bliverpool\b/i, /\bman city\b/i, /\bmanchester\b/i, /\breal madrid\b/i, /\bbarcelona\b/i, /\bbayern\b/i, /\bjuventus\b/i, /\binter milan\b/i, /\bac milan\b/i, /\bpsg\b/i, /\bparis sg\b/i, /\btottenham\b/i, /\beverton\b/i, /\bdortmund\b/i, /\bnapoli\b/i, /\broma\b/i, /\bbenfica\b/i, /\bporto\b/i, /\bsporting\b/i, /\bajax\b/i, /\bfeyenoord\b/i, /\bpsv\b/i, /\bceltic\b/i, /\bnewcastle\b/i, /\baston villa\b/i, /\bwest ham\b/i, /\bbrighton\b/i, /\bwolves\b/i, /\bfulham\b/i, /\bbrentford\b/i, /\bcrystal palace\b/i, /\bleicester\b/i, /\bsouthampton\b/i, /\bleeds\b/i, /\bnottingham\b/i, /\bsevilla\b/i, /\bvillarreal\b/i, /\breal sociedad\b/i, /\bbetis\b/i, /\bgetafe\b/i, /\bvalencia\b/i, /\bosasuna\b/i, /\blazio\b/i, /\batalanta\b/i, /\bfiorentina\b/i, /\btorino\b/i, /\bbologna\b/i, /\bmonaco\b/i, /\blille\b/i, /\bmarseille\b/i, /\blyon\b/i, /\brennes\b/i, /\bnice\b/i, /\bleipzig\b/i, /\bleverkusen\b/i, /\bfrankfurt\b/i, /\bwolfsburg\b/i, /\bgladbach\b/i, /\bscottish premiership\b/i, /\bbelgian pro league\b/i, /\bturkish super lig\b/i, /\ballsvenskan\b/i, /\beliteserien\b/i, /\bdanish superliga\b/i, /\bswiss super league\b/i, /\bgreek super league\b/i, /\baustrian bundesliga\b/i, /\bbrazil serie a\b/i, /\bargentina primera\b/i, /\bchile primera\b/i, /\befl\b/i, /\bnations league\b/i, /\bcup of nations\b/i]
   },
   basketball: {
     strongExclusive: [/\bnba\b/i, /\beuroleague\b(?!.*(soccer|football))/i, /\bwnba\b/i, /\bncaab\b/i, /\bacb\b/i, /\bliga acb\b/i, /\bcba\b/i, /\bpba\b/i, /\bfiba\b/i, /\bbasketball\b/i, /\blnb pro\b/i, /\bceltics\b/i, /\blakers\b/i, /\bwarriors\b/i, /\bbucks\b/i, /\bbulls\b/i, /\bheat\b/i, /\bknicks\b/i, /\bnets\b/i, /\b76ers\b/i, /\bclippers\b/i, /\bsuns\b/i, /\bmavericks\b/i, /\bnuggets\b/i, /\braptors\b/i, /\bhawks\b/i, /\bpacers\b/i, /\bhornets\b/i, /\bwizards\b/i, /\bpistons\b/i, /\bcavaliers\b/i, /\bthunder\b/i, /\btrail blazers\b/i, /\bgrizzlies\b/i, /\npelicans\b/i, /\bspurs\b/i, /\brockets\b/i, /\bjazz nba\b/i, /\btimberwolves\b/i, /\bkings\b/i, /\borlando magic\b/i, /\bolympiacos basket\b/i, /\breal madrid basket\b/i, /\bfenerbahce basket\b/i, /\banadolu efes\b/i, /\bpanathinaikos basket\b/i, /\bmaccabi tel aviv\b/i, /\bcska moscow basket\b/i, /\balba berlin basket\b/i, /\bbaskonia\b/i, /\bvalencia basket\b/i, /\bvirtus bologna\b/i],
@@ -351,6 +352,14 @@ export function validateFixture(
   if (normalizedAway && normalizedAway.length < 2) issues.push('awayTeam too short');
   if (normalizedHome && normalizedHome.length > 50) issues.push('homeTeam too long');
   if (normalizedAway && normalizedAway.length > 50) issues.push('awayTeam too long');
+
+  // Reject odd-shaped names (e.g. "2.10", "10 on NGA") so a team or player
+  // is never displayed against a decimal odd instead of a real opponent.
+  const homeLooksOdd = /^\d{1,3}(?:\.\d{1,3})?$/.test(homeRaw) || /^\d{1,3}\s+on\s+\S+/i.test(homeRaw);
+  const awayLooksOdd = /^\d{1,3}(?:\.\d{1,3})?$/.test(awayRaw) || /^\d{1,3}\s+on\s+\S+/i.test(awayRaw);
+  if (homeLooksOdd) issues.push('homeTeam looks like an odds value, not a name');
+  if (awayLooksOdd) issues.push('awayTeam looks like an odds value, not a name');
+  if (homeLooksOdd || awayLooksOdd) score = Math.max(0, score - 6);
 
   if (normalizedHome) score += 5;
   if (normalizedAway) score += 5;
@@ -770,14 +779,23 @@ export const replaceMatches = internalMutation({
     )
   },
   handler: async (ctx, args) => {
+    // Carry live scoreline state across refreshes: replaceMatches wipes and
+    // re-inserts the day's rows, so without this every refresh would reset
+    // already-finished matches back to 'upcoming' with no final score until
+    // the next 5-minute score sync re-fetches them.
     const existing = await ctx.db
       .query('predictorMatches')
       .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey))
       .collect();
-    for (const m of existing) await ctx.db.delete(m._id);
+    const prior = new Map<string, (typeof existing)[number]>();
+    for (const m of existing) {
+      prior.set(m.matchId, m);
+      await ctx.db.delete(m._id);
+    }
 
     const now = Date.now();
     for (const m of args.matches) {
+      const old = prior.get(m.matchId);
       await ctx.db.insert('predictorMatches', {
         dayKey: args.dayKey,
         sportId: args.sportId,
@@ -789,6 +807,9 @@ export const replaceMatches = internalMutation({
         source: m.source,
         marketsAvailable: m.marketsAvailable,
         scopes: m.scopes,
+        status: old?.status ?? 'upcoming',
+        finalScore: old?.finalScore,
+        oddsSnapshot: old?.oddsSnapshot,
         createdAt: now
       });
     }
@@ -932,7 +953,7 @@ export const seedSportForToday = internalAction({
     v.literal('mma'), v.literal('volleyball')
   )},
   handler: async (ctx, args): Promise<{ ok: boolean; kept: number }> => {
-    const dayKey = new Date().toISOString().slice(0, 10);
+    const dayKey = watTodayKey();
     // Check if already cached for today — skip if fresh (status ready/partial/refreshing).
     const existing = await ctx.runQuery(internal.predictor.getDayInternal, {
       sportId: args.sportId as AnySSport,

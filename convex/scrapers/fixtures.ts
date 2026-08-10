@@ -5,7 +5,7 @@
 // module never fabricates matches.
 
 import { readAny } from './pages';
-import { sourceUrlsFor, PRIMARY_SOURCE_URLS } from './sources';
+import { FIXTURE_PAGES, PRIMARY_SOURCE_URLS } from './sources';
 import { type ScrapeMatch } from './betwatch';
 import { matchBelongsToSport, serverLeagueBelongsToSport, serverCanonicalizeLeague } from '../predictor';
 
@@ -21,6 +21,24 @@ const SPORT_LEAGUES: Record<string, string[]> = {
   cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash', 'The Hundred', 'World Cup', 'Super League'],
   mma: ['UFC', 'Bellator', 'PFL', 'ONE Championship', 'MMA'],
   volleyball: ['FIVB', 'VNL', 'CEV', 'SuperLega', 'Superleague', 'Volleyball']
+};
+
+// Honest fallback league label per sport. Used only when a parser cannot detect
+// a real league header; it must be a word the sport's own keyword fingerprints
+// recognise so rows still pass the matchBelongsToSport gate — but NEVER a real
+// league name (e.g. 'NBA'), which would masquerade football fixtures as hoops.
+const SPORT_LABELS: Record<string, string> = {
+  football: 'Football',
+  basketball: 'Basketball',
+  tennis: 'Tennis',
+  rally: 'Table Tennis',
+  hockey: 'Ice Hockey',
+  baseball: 'Baseball',
+  americanfootball: 'American Football',
+  rugby: 'Rugby',
+  cricket: 'Cricket',
+  mma: 'MMA',
+  volleyball: 'Volleyball'
 };
 
 function clean(name: string): string {
@@ -55,6 +73,12 @@ function looksLikeTeam(name: string): boolean {
   if (/^(the|a|an|and|or|but|if|when|where|why|how|what|which|who|whom|whose|this|that|these|those|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|must|shall|can|need|dare|ought|used)$/i.test(n)) return false;
   const tokenCount = n.split(/\s+/).length;
   if (tokenCount > 7) return false;
+  // Reject odds/number-shaped labels ("2.10", "10 on NGA", "3 - 1") so a
+  // team or player is never rendered against a decimal odd instead of an opponent.
+  if (/^\d{1,3}(?:\.\d{1,3})?$/.test(n)) return false;
+  if (/^[\d.,\s-]+$/.test(n)) return false;
+  if (/^\d{1,3}\s+on\s+\S+/i.test(n)) return false;
+  if (/\b\d{1,2}\.\d{2,3}\b/.test(n) && !/[a-z]{3,}/i.test(n)) return false;
   return true;
 }
 
@@ -83,13 +107,11 @@ function stripForm(name: string): string {
 // BetExplorer table feed. Rows look like:
 //   | _..._ Colombia: Primera A](url) | 1 | X | 2 |
 //   | 03:20[Millonarios - Dep. Pasto](url) | 1.85 | 3.40 | 2.10 |
-function parseBetexplorer(text: string, sportId: string, sourceUrl: string): ScrapeMatch[] {
+function parseBetexplorer(text: string, sportId: string, sourceUrl: string, dayKey?: string): ScrapeMatch[] {
   const lines = (text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const leagues = SPORT_LEAGUES[sportId] ?? [];
   const out: ScrapeMatch[] = [];
   let currentLeague = '';
-  const now = Date.now();
-  const day = 24 * 60 * 60 * 1000;
 
   const leagueRe = /\]:\s*([^\]]+?)\]\(/;
   const rowRe = /^\|\s*(\d{1,2}:\d{2})\s*\[([^\]]+?)\s*-\s*([^\]]+)\]\([^)]*\)\s*(\|.*)?$/;
@@ -112,10 +134,10 @@ function parseBetexplorer(text: string, sportId: string, sourceUrl: string): Scr
     out.push({
       source: 'LiveScrape',
       sourceUrl,
-      league: currentLeague || (leagues[0] ?? 'Top League'),
+      league: currentLeague || SPORT_LABELS[sportId] || 'Scheduled Fixture',
       homeTeam: home,
       awayTeam: away,
-      startTime: parseClock(rm[1], now + day + out.length * 2 * 60 * 60 * 1000),
+      startTime: parseClock(rm[1], dayKey),
       markets: ['mainTotal', 'result'],
       oddsText: odds.slice(0, 3).map((n) => n.toFixed(2)).join(', ')
     });
@@ -126,13 +148,11 @@ function parseBetexplorer(text: string, sportId: string, sourceUrl: string): Scr
 // SoccerVista markdown-link feed. Fixture rows look like:
 //   [20:00](url)[Egypt W](url)[](url)[Nigeria W W L W W W](url)[10 on NGA](url)
 // under a league line like  [Africa: Africa Cup of Nations Women](url)
-function parseSoccervista(text: string, sportId: string, sourceUrl: string): ScrapeMatch[] {
+function parseSoccervista(text: string, sportId: string, sourceUrl: string, dayKey?: string): ScrapeMatch[] {
   const lines = (text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const leagues = SPORT_LEAGUES[sportId] ?? [];
   const out: ScrapeMatch[] = [];
   let currentLeague = '';
-  const now = Date.now();
-  const day = 24 * 60 * 60 * 1000;
 
   const rowRe = /\[(\d{1,2}:\d{2})\]\([^)]*\)(\[[^\[\]]+\]\([^)]*\))+/;
 
@@ -142,7 +162,7 @@ function parseSoccervista(text: string, sportId: string, sourceUrl: string): Scr
       for (const l of labels) {
         const label = l.replace(/^\[|\]$/g, '').replace(/\([^)]*\)$/, '');
         if (/^Image/i.test(label)) continue;
-        if (label.includes(':') && label.length < 60) {
+        if (label.includes(':') && label.length < 60 && /[a-z]/i.test(label)) {
           currentLeague = clean(label);
           break;
         }
@@ -159,27 +179,40 @@ function parseSoccervista(text: string, sportId: string, sourceUrl: string): Scr
     out.push({
       source: 'LiveScrape',
       sourceUrl,
-      league: currentLeague || (leagues[0] ?? 'Top League'),
+      league: currentLeague || SPORT_LABELS[sportId] || 'Scheduled Fixture',
       homeTeam: clean(teamA),
       awayTeam: clean(teamB),
-      startTime: parseClock(time, now + day + out.length * 2 * 60 * 60 * 1000),
+      startTime: parseClock(time, dayKey),
       markets: ['mainTotal', 'result']
     });
   }
   return out;
 }
 
-function parseClock(raw: string, fallback: number): number {
-  const hm = String(raw || '').match(/(\d{1,2}):(\d{2})/);
-  if (hm) {
-    const d = new Date();
-    d.setHours(Number(hm[1]), Number(hm[2]), 0, 0);
-    return d.getTime();
+// WAT-midnight epoch for a dayKey ('YYYY-MM-DD'). WAT is UTC+1, so the WAT day
+// starts one hour before UTC midnight. Without a dayKey the current WAT day is
+// used (UTC date minus 1h). Every scraped startTime is anchored to this day so
+// fixtures land on the correct calendar date instead of "now"-relative stamps.
+function baseOfDay(dayKey?: string): number {
+  if (dayKey) {
+    const m = String(dayKey).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) - 60 * 60 * 1000;
   }
-  return fallback;
+  const now = new Date();
+  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - 60 * 60 * 1000;
 }
 
-export function parseFixtures(text: string, sportId: string, sourceUrl: string): ScrapeMatch[] {
+// Interpret an HH:MM kickoff as WEST AFRICA TIME on the target dayKey; without a
+// clock token, default to noon WAT so the calendar date is still correct.
+function parseClock(raw: string, dayKey?: string): number {
+  const hm = String(raw || '').match(/(\d{1,2}):(\d{2})/);
+  if (hm) {
+    return baseOfDay(dayKey) + Number(hm[1]) * 60 * 60 * 1000 + Number(hm[2]) * 60 * 1000;
+  }
+  return baseOfDay(dayKey) + 12 * 60 * 60 * 1000;
+}
+
+export function parseFixtures(text: string, sportId: string, sourceUrl: string, dayKey?: string): ScrapeMatch[] {
   const seen = new Set<string>();
   const out: ScrapeMatch[] = [];
   const push = (m: ScrapeMatch) => {
@@ -193,22 +226,20 @@ export function parseFixtures(text: string, sportId: string, sourceUrl: string):
   };
 
   // 1. BetExplorer-style tables.
-  for (const m of parseBetexplorer(text, sportId, sourceUrl)) push(m);
+  for (const m of parseBetexplorer(text, sportId, sourceUrl, dayKey)) push(m);
   // 2. SoccerVista-style markdown-link rows.
-  for (const m of parseSoccervista(text, sportId, sourceUrl)) push(m);
+  for (const m of parseSoccervista(text, sportId, sourceUrl, dayKey)) push(m);
   // 3. Generic "TeamA vs TeamB" lines.
-  for (const m of parseVsLines(text, sportId, sourceUrl)) push(m);
+  for (const m of parseVsLines(text, sportId, sourceUrl, dayKey)) push(m);
 
   return out;
 }
 
-function parseVsLines(text: string, sportId: string, sourceUrl: string): ScrapeMatch[] {
+function parseVsLines(text: string, sportId: string, sourceUrl: string, dayKey?: string): ScrapeMatch[] {
   const lines = (text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const leagues = SPORT_LEAGUES[sportId] ?? [];
   const out: ScrapeMatch[] = [];
   let currentLeague = '';
-  const now = Date.now();
-  const day = 24 * 60 * 60 * 1000;
 
   const leaguePattern = /^#{1,3}\s+(.+)$/;
   const vsPatterns = [
@@ -254,15 +285,18 @@ function parseVsLines(text: string, sportId: string, sourceUrl: string): ScrapeM
     }
     if (!matched) continue;
 
+    // Leading kickoff clock (e.g. "20:00 Team A vs Team B") — anchor it to the
+    // target WAT day; otherwise default to noon WAT with spacing per fixture.
+    const leadingClock = line.match(/^\d{1,2}:\d{2}/)?.[0] ?? '';
     const oddsIdx = line.indexOf(home);
     const odds = oddsFrom(oddsIdx >= 0 ? line.slice(oddsIdx) : line);
     out.push({
       source: 'LiveScrape',
       sourceUrl,
-      league: currentLeague || (leagues[0] ?? 'Top League'),
+      league: currentLeague || SPORT_LABELS[sportId] || 'Scheduled Fixture',
       homeTeam: home,
       awayTeam: away,
-      startTime: now + day + out.length * 2 * 60 * 60 * 1000,
+      startTime: leadingClock ? parseClock(leadingClock, dayKey) : baseOfDay(dayKey) + 12 * 60 * 60 * 1000 + out.length * 2 * 60 * 60 * 1000,
       markets: ['mainTotal', 'result'],
       oddsText: odds.slice(0, 3).map((n) => n.toFixed(2)).join(', ')
     });
@@ -306,8 +340,12 @@ export interface RealFixturesResult {
   citations: string[];
 }
 
-export async function scrapeRealFixtures(sportId: string): Promise<RealFixturesResult> {
-  const urls = sourceUrlsFor(sportId);
+export async function scrapeRealFixtures(sportId: string, dayKey?: string): Promise<RealFixturesResult> {
+  // ONLY the verified per-sport pages are parsed for fixtures. The general
+  // directory sources (news, operators, blogs, registry homepages) stay
+  // available for research/citations but are never fed to the row parsers —
+  // generic pages are the #1 source of cross-sport mislabelled fixtures.
+  const urls = FIXTURE_PAGES[sportId] ?? [];
   const pagesFetched: RealFixturesResult['pagesFetched'] = [];
   const collected: ScrapeMatch[] = [];
 
@@ -315,7 +353,7 @@ export async function scrapeRealFixtures(sportId: string): Promise<RealFixturesR
     const page = await readAny(url, { timeoutMs: 18_000 });
     pagesFetched.push({ url, ok: page.ok, engine: page.engine });
     if (!page.ok) return;
-    const parsed = parseFixtures(page.text, sportId, url);
+    const parsed = parseFixtures(page.text, sportId, url, dayKey);
     if (parsed.length > 0) collected.push(...parsed);
   });
 

@@ -52,6 +52,19 @@ export interface PrimarySource extends ScraperSource {
 
 const BETWATCH_URL = 'https://betwatch.fr/';
 
+// West Africa Time day-key helpers (server-side twin of src/lib/watTime.ts).
+// Predictor caches are keyed by the WAT day string so "today" never drifts
+// by an hour at UTC midnight (WAT is UTC+1, fixed offset).
+export function watTodayKey(base: Date | number = new Date()): string {
+  const ms = typeof base === 'number' ? base : base.getTime();
+  return new Date(ms + 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+export function watDayKeyFor(offsetDays: number, base: Date | number = new Date()): string {
+  const ms = (typeof base === 'number' ? base : base.getTime()) + offsetDays * 86_400_000;
+  return watTodayKey(ms);
+}
+
 const PROVIDER_API_PRIMARY: PrimarySource[] = [
   { name: 'TheSportsDB', url: 'https://www.thesportsdb.com/api/v1/json', kind: 'primary', type: 'API', category: 'provider_api', tier: 1, realtime: true, desc: 'Multi-sport fixtures and entities registry (free public key)' },
   { name: 'The Odds API', url: 'https://api.the-odds-api.com/v4', kind: 'primary', type: 'API', category: 'odds_registry', tier: 1, realtime: true, desc: '~78 sports, real bookmaker odds (quota-capped)' },
@@ -265,20 +278,10 @@ export function primarySourcesForSport(sportId: string): PrimarySource[] {
   return ALL_PRIMARY_SOURCES.filter((s) => !s.sport || s.sport === 'multi' || s.sport === sportId);
 }
 
-export const PRIORITY_SOURCES: string[] = Array.from(
-  new Set([
-    ...ALL_PRIMARY_SOURCES.filter((s) => s.tier === 1).map((s) => s.url),
-    'https://www.flashscore.com',
-    'https://www.sofascore.com',
-    'https://www.oddsportal.com',
-    'https://www.forebet.com',
-    'https://www.pinnacle.com/en/',
-    'https://www.bet365.com/#/HO/',
-    'https://oddspedia.com/',
-    'https://24live.com/page/sport/match-list/soccer-5',
-    BETWATCH_URL
-  ])
-);
+// Fixture parsing is intentionally restricted to FIXTURE_PAGES (the verified
+// per-sport page lists below). The PRIORITY_SOURCES / sourceUrlsFor seeders were
+// removed: feeding generic homepages (news, operators, tier-1 registries) into
+// the row parsers was the #1 cause of cross-sport mislabelled fixtures.
 
 // Verified-to-parse, per-sport live pages used by the fixture/odds agents.
 // BetExplorer /next/ pages carry live decimal odds; Forebet/TennisBrain/AnnaBet
@@ -349,21 +352,6 @@ export const MINOR_LEAGUES: { name: string; code: string }[] = [
   { name: 'Serie B (Italy)', code: 'ITA-2' },
   { name: 'Segunda Division (Spain)', code: 'ESP-2' }
 ];
-
-// Full directory of every URL the agents may consult, deduplicated. Every source
-// in the unified PRIMARY catalogue is consulted. The priority tier-1 sources and
-// per-sport fixture pages come first in the seed order.
-export function sourceUrlsFor(sportId: string): string[] {
-  const pages = FIXTURE_PAGES[sportId] ?? [];
-  const allRelevant = ALL_PRIMARY_SOURCES.filter((s) => !s.sport || s.sport === 'multi' || s.sport === sportId);
-  const seeds = [
-    ...allRelevant.filter((s) => s.tier === 1).map((s) => s.url),
-    ...pages,
-    ...PRIORITY_SOURCES,
-    ...allRelevant.map((s) => s.url)
-  ];
-  return Array.from(new Set(seeds)).filter(Boolean);
-}
 
 // Backwards-compatible alias: ALL_SOURCES now maps to the unified PRIMARY
 // catalogue. Every source is a primary source — the old "kind-only" second-class

@@ -116,7 +116,7 @@ export async function tundeFetchFixtures(sportId: string, dayKey?: string): Prom
 
   // 3. Collective URL directory scrapers (Flashscore, Sofascore, BetExplorer, ESPN, OddsPortal, etc.)
   try {
-    const dir = await scrapeRealFixtures(sportId);
+    const dir = await scrapeRealFixtures(sportId, dayKey);
     pagesFetched = dir.pagesFetched;
     for (const m of dir.matches) pushMatch(m);
     for (const c of dir.citations) citations.push(c);

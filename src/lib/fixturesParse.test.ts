@@ -38,4 +38,31 @@ describe('parseFixtures (convex scrapers)', () => {
     expect(matches.length).toBe(2);
     expect(matches[0].homeTeam).toContain('Villarreal');
   });
+
+  it('anchors kickoff times to the target dayKey in West Africa Time', () => {
+    const text = '| 03:20[Millonarios - Dep. Pasto](https://www.betexplorer.com/football/colombia/primera-a/millonarios-dep-pasto/SYLyrJJa/) | 1.85 | 3.40 | 2.10 |';
+    const matches = parseFixtures(text, 'football', 'https://www.betexplorer.com/football/next/', '2026-08-10');
+    expect(matches.length).toBe(1);
+    // WAT 2026-08-10 03:20 == UTC 2026-08-10 02:20 (WAT is UTC+1, fixed).
+    expect(new Date(matches[0].startTime).toISOString().slice(0, 16)).toBe('2026-08-10T02:20');
+  });
+
+  it('rejects odds-shaped opponents ("team vs odd")', () => {
+    const bad = '[20:00](https://www.soccervista.com/event/egypt-nigeria/KI0jESwq/)[Egypt W](https://www.soccervista.com/event/egypt-nigeria/KI0jESwq/)[10 on NGA](https://www.soccervista.com/event/egypt-nigeria/KI0jESwq/)';
+    const matches = parseFixtures(bad, 'football', 'https://www.soccervista.com/predictions/');
+    expect(matches.some((m) => /^\d/.test(m.awayTeam) || / on /.test(m.awayTeam))).toBe(false);
+  });
+
+  it('never mislabels cross-sport rows with another sport league (no NBA/ITTF poisoning)', () => {
+    // A football-style "vs" line parsed under basketball must be dropped, not tagged 'NBA'.
+    const footballText = 'Arsenal - Chelsea';
+    const hoops = parseFixtures(footballText, 'basketball', 'https://www.betexplorer.com/basketball/next/');
+    expect(hoops.some((m) => m.league === 'NBA')).toBe(false);
+
+    // A genuine basketball row without a league header gets an honest label.
+    const legit = 'Lakers - Celtics';
+    const legitHoops = parseFixtures(legit, 'basketball', 'https://www.betexplorer.com/basketball/next/');
+    expect(legitHoops.length).toBe(1);
+    expect(legitHoops[0].league).toBe('Basketball');
+  });
 });

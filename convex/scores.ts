@@ -6,6 +6,7 @@ import { internalAction, internalMutation, mutation } from './_generated/server'
 import { internal, api } from './_generated/api';
 import { v } from 'convex/values';
 import { fetchScoresForDate, fetchHtmlResultScores } from './apis/sportsApis';
+import { watTodayKey, watDayKeyFor } from './scrapers/sources';
 
 const PREDICTOR_SPORT_IDS = [
   'football',
@@ -68,7 +69,7 @@ export const updateScoresBatch = internalMutation({
 export const syncScoresAction = internalAction({
   args: { dayKey: v.optional(v.string()) },
   handler: async (ctx, args): Promise<{ updated: number }> => {
-    const targetDay = args.dayKey || new Date().toISOString().slice(0, 10);
+    const targetDay = args.dayKey || watTodayKey();
     let totalUpdated = 0;
 
     for (const sport of PREDICTOR_SPORT_IDS) {
@@ -163,10 +164,8 @@ export const syncPastHistoryAction = internalAction({
     let daysProcessed = 0;
     let matchesUpdated = 0;
 
-    const today = new Date();
     for (let i = 1; i <= 7; i++) {
-      const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
-      const dayKey = d.toISOString().slice(0, 10);
+      const dayKey = watDayKeyFor(-i);
       daysProcessed++;
 
       const res = await ctx.runAction(internal.scores.syncScoresAction, { dayKey });
@@ -281,7 +280,7 @@ function marketFilterOf(market: string): 'ALL' | 'MONEYLINE' | 'SPREAD' | 'TOTAL
 export const settleDayPnl = internalAction({
   args: { dayKey: v.string() },
   handler: async (ctx, args): Promise<{ picks: number; wins: number; losses: number; dayKey: string }> => {
-    const dayKey = args.dayKey || new Date().toISOString().slice(0, 10);
+    const dayKey = args.dayKey || watTodayKey();
     let picks = 0;
     let wins = 0;
     let losses = 0;
@@ -377,7 +376,7 @@ export const settleDayPnl = internalAction({
 export const triggerScoreSync = mutation({
   args: { dayKey: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const day = args.dayKey || new Date().toISOString().slice(0, 10);
+    const day = args.dayKey || watTodayKey();
     await ctx.scheduler.runAfter(0, internal.scores.syncScoresAction, { dayKey: day });
     return { ok: true, message: `Score sync scheduled for ${day}` };
   }

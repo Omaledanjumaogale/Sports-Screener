@@ -79,7 +79,8 @@ function normalizeTeam(name: string): string {
 // ── TheSportsDB (multi-sport events for a date) ──────────────────────────────
 export async function fetchTheSportsDbEvents(date: string): Promise<any[]> {
   try {
-    const url = `${apiUrl(SportsApi.TheSportsDB)}/${TSDB_PUBLIC_KEY}/eventsday.php?d=${date}`;
+    const key = env('THESPORTSDB_API_KEY')?.trim() || TSDB_PUBLIC_KEY;
+    const url = `${apiUrl(SportsApi.TheSportsDB)}/${key}/eventsday.php?d=${date}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) return [];
     const data: any = await res.json().catch(() => null);

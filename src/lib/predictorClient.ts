@@ -3,17 +3,16 @@
 // live probabilities from the cached scopes (no engine duplication).
 
 import { api, queryConvex, callConvex, actionConvex } from './convexClient';
+import { watTodayKey, watDayKeyFor } from './watTime';
 import { analyzeScope, filterHighConfidence, type Analysis, type ScopeState, type SportId } from './engine';
 import { DEFAULT_CONFIDENCE_FLOOR, type PredictorDay, type PredictorMatch, type PredictorRun, type PredictorSportId } from './predictorTypes';
 
 export function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return watTodayKey();
 }
 
 export function dayKeyFor(offsetDays: number, base?: Date): string {
-  const d = base ? new Date(base) : new Date();
-  d.setUTCDate(d.getUTCDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
+  return watDayKeyFor(offsetDays, base ?? new Date());
 }
 
 export function dayKeyToLabel(key: string): string {
