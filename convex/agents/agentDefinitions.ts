@@ -24,7 +24,7 @@ export interface AgentDef {
 }
 
 export const AGENT_DEFS: AgentDef[] = [
-  { id: 'tunde', name: 'Tunde Fixtures (Tunde Onitiri)', role: 'Fixtures Specialist', stage: 'Fetching fixtures', weight: 12, description: 'Discovers scheduled matches and leagues from betwatch.fr and sports registries.' },
+  { id: 'tunde', name: 'Tunde Fixtures (Tunde Onitiri)', role: 'Fixtures Specialist', stage: 'Fetching fixtures', weight: 12, description: 'Discovers scheduled matches and leagues via multi-primary LiveAPI registry, 9 data provider APIs and the curated real-fixtures URL directory.' },
   { id: 'kunle', name: 'Kunle Odds (Kunle Akin)', role: 'Odds Specialist', stage: 'Collecting odds', weight: 16, description: 'Pulls primary and cross-reference odds for every market.' },
   { id: 'ngozi', name: 'Ngozi Volume (Ngozi Okafor)', role: 'Volume Specialist', stage: 'Checking traded volume', weight: 10, description: 'Reads traded-volume signals across exchange sources.' },
   { id: 'bolanle', name: 'Bolanle Research (Bolanle Adeyemi)', role: 'Research Specialist', stage: 'Validating sources', weight: 10, description: 'Cross-checks predictions and research registries via web search.' },

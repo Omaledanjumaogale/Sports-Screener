@@ -21,7 +21,7 @@ import {
   hasAnyApiKey,
   type ConsolidatedOdds
 } from '../apis/sportsApis';
-import { isFootballMatch, matchBelongsToSport } from '../predictor';
+import { isFootballMatch, matchBelongsToSport, validateFixture, serverCanonicalizeLeague } from '../predictor';
 
 export interface FixturesResult {
   raw: ScrapeMatch[];
@@ -45,11 +45,20 @@ export async function tundeFetchFixtures(sportId: string, dayKey?: string): Prom
 
   const pushMatch = (m: ScrapeMatch) => {
     if (!m.homeTeam || !m.awayTeam) return;
-    if (!matchBelongsToSport({ ...m, source: m.source }, sportId)) return;
-    const key = `${m.homeTeam}|${m.awayTeam}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
+    const v = validateFixture(m, sportId);
+    if (!v.valid) return;
+    const canonLeague = serverCanonicalizeLeague(m.league || '', sportId) || v.normalizedLeague || m.league || '';
+    const normalized: ScrapeMatch = {
+      ...m,
+      league: canonLeague || m.league,
+      homeTeam: v.normalizedHome || m.homeTeam,
+      awayTeam: v.normalizedAway || m.awayTeam
+    };
+    if (!matchBelongsToSport({ ...normalized, source: normalized.source }, sportId)) return;
+    const key = `${sportId}|${canonLeague}|${normalized.homeTeam}|${normalized.awayTeam}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
     if (seenKeys.has(key)) return;
     seenKeys.add(key);
-    combined.push(m);
+    combined.push(normalized);
   };
 
 

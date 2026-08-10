@@ -5,8 +5,9 @@
 // module never fabricates matches.
 
 import { readAny } from './pages';
-import { sourceUrlsFor, PRIMARY_SOURCE } from './sources';
+import { sourceUrlsFor, PRIMARY_SOURCE_URLS } from './sources';
 import { type ScrapeMatch } from './betwatch';
+import { matchBelongsToSport, serverLeagueBelongsToSport, serverCanonicalizeLeague } from '../predictor';
 
 const SPORT_LEAGUES: Record<string, string[]> = {
   football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'FA Cup', 'Europa', 'Championship', 'League One', 'League Two', 'EFL Cup', 'Serie B', 'Segunda', 'Bundesliga 2', 'Ligue 2', 'Primeira Liga', 'Super Lig', 'Liga MX', 'MLS', 'Scottish Premiership', 'Copa Libertadores', 'Copa America', 'World Cup', 'Nations League'],
@@ -182,8 +183,11 @@ export function parseFixtures(text: string, sportId: string, sourceUrl: string):
   const seen = new Set<string>();
   const out: ScrapeMatch[] = [];
   const push = (m: ScrapeMatch) => {
-    const key = `${m.homeTeam}|${m.awayTeam}`.toLowerCase();
+    const canonLeague = serverCanonicalizeLeague(m.league || '', sportId) || (m.league || '');
+    const key = `${sportId}|${canonLeague}|${m.homeTeam}|${m.awayTeam}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
     if (seen.has(key)) return;
+    if (!serverLeagueBelongsToSport(canonLeague || m.league || '', sportId)) return;
+    if (!matchBelongsToSport({ league: canonLeague || m.league, homeTeam: m.homeTeam, awayTeam: m.awayTeam, source: m.source }, sportId)) return;
     seen.add(key);
     out.push(m);
   };
@@ -266,12 +270,15 @@ function parseVsLines(text: string, sportId: string, sourceUrl: string): ScrapeM
   return out;
 }
 
-function dedupe(matches: ScrapeMatch[]): ScrapeMatch[] {
+function dedupe(matches: ScrapeMatch[], sportId: string): ScrapeMatch[] {
   const seen = new Set<string>();
   const out: ScrapeMatch[] = [];
   for (const m of matches) {
-    const key = `${m.homeTeam}|${m.awayTeam}`.toLowerCase();
+    const canonLeague = serverCanonicalizeLeague(m.league || '', sportId) || (m.league || '');
+    const key = `${sportId}|${canonLeague}|${m.homeTeam}|${m.awayTeam}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
     if (seen.has(key)) continue;
+    if (!serverLeagueBelongsToSport(canonLeague || m.league || '', sportId)) continue;
+    if (!matchBelongsToSport({ league: canonLeague || m.league, homeTeam: m.homeTeam, awayTeam: m.awayTeam, source: m.source }, sportId)) continue;
     seen.add(key);
     out.push(m);
   }
@@ -312,8 +319,8 @@ export async function scrapeRealFixtures(sportId: string): Promise<RealFixturesR
     if (parsed.length > 0) collected.push(...parsed);
   });
 
-  const matches = dedupe(collected);
-  const citations = matches.map((m) => m.sourceUrl).filter((u) => u && u !== PRIMARY_SOURCE);
+  const matches = dedupe(collected, sportId);
+  const citations = matches.map((m) => m.sourceUrl).filter((u) => u && !PRIMARY_SOURCE_URLS.includes(u));
   return {
     matches,
     usedSynthetic: false,
