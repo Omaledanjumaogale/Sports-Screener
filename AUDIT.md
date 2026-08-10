@@ -146,6 +146,56 @@ cross-device**. Drafts and history both write-through to Convex when reachable a
 
 ---
 
+## 5b. AI Predictor overhaul — country prefixes, market math & verification (2026-08-10)
+
+### Fixture identification
+- New `src/lib/leagueCountries.ts` renders every league as `"[Country] - [League]"`
+  (e.g. `England - Premier League`, `Spain - La Liga`) across the match card, the
+  day's league-group headers on the predictor page, and the match detail page.
+  Mapping order: international/continental competitions (UEFA, NBA, NHL, ATP, UFC…) are
+  left unprefixed; inline country adjectives (`Egyptian Premier League` → Egypt) and
+  country names (`Colombia: Primera A`) win over generic league keywords (`Serie A` →
+  Italy, but `Brazil Serie A` → Brazil). Unmapped leagues pass through untouched.
+
+### Predictive logic overhaul (root causes of the away/away-+0.5 bias)
+- **Hash-coinflip odds removed.** `uniqueFallbackOdds` previously picked the favourite with
+  `hash % 2` and priced a wide fav/dog gap; combined with the single derived `-0.5` AH line
+  this flipped entire cards onto the away side and painted every away-lean as `Away +0.5`.
+  Fallbacks are now balanced, modest-gap odds with one unbiased coin-flip per match.
+- **Full Asian Handicap ladder.** `deriveFootballMarkets` now prices every standard line
+  (`-1.5 … +1.5`, quarter-goal steps) from ONE calibrated Poisson goal grid
+  (`buildFootballGrid`) instead of a hardcoded `-0.5`. Whole/half lines win outright,
+  quarter lines split the stake; prices de-vig back to the de-vigged 1X2. Soccer now also
+  carries an **Over/Under goals ladder (0.5–4.5)** and a **Both Teams To Score** market
+  (BTTS) plus the existing Double Chance — all marked `derived` so they inform analysis
+  but never gate Amara's confidence floor on their own.
+- **Single-team edge enforced.** The Great Minds verdict's spread pick is reconciled to the
+  result favourite — a spread pick pointing at the *other* team is dropped and a
+  same-direction spread is used instead, so a match never shows "Home Win **and** Away
+  +0.5". Markets are also strictly classified (result/winner vs handicap vs total), so a
+  totals pick can no longer masquerade as the winner pick.
+- **No fabricated probabilities.** Great Minds fallbacks now default to a neutral 50% (not
+  hash-derived 55–68%) and the total consensus pick selects the *fair line* (the pair
+  straddling 50%) instead of a derived extreme like Over 0.5 @ 92%.
+
+### Multi-stage verification gate (pre-qualification)
+Every consensus pick must pass all three independent cross-checks before it can carry a
+Top/Strong/Qualifying signal; failures are demoted to **Reference Only**:
+1. **Data integrity** — the selection traces to a real engine pick priced from real odds.
+2. **Computation accuracy** — Real Win Chance sits in the documented band around the engine
+   base probability and the EV recomputes to the same figure.
+3. **Single-team edge** — exactly one team holds the edge; winner and spread agree.
+The debate-level `realWinChanceTag` is computed from qualified picks only.
+
+### Monitoring
+- Track `qualified` + `verification.stages` on `consensusPicks.*` per match; a rising share of
+  `Reference Only` verdicts signals falling real-odds coverage (add API keys / fix the reader
+  chain). Track post-match grades (`resolvedVerdict.winRatePct`) per sport and per market and
+  compare against the published `realWinChancePct` band — publish the drift in the daily P&L
+  summary. Re-run `diagnostics:diagnoseFixturePages` after adding reader keys.
+
+---
+
 ## 6. Verification performed
 
 - `npx convex typecheck` ✅

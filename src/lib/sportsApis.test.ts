@@ -150,16 +150,19 @@ describe('consolidateOdds (The Odds API)', () => {
     );
     const scope = normalized.scope;
     expect(scope.markets.result!.odds).toEqual({ home: 1.14, draw: 7, away: 18 });
-    expect(scope.markets.mainTotal!.pairs![0]).toEqual({ line: 2.5, over: 1.85, under: 1.95 });
+    // Total ladder covers 0.5-4.5; the real 2.5 pair is preserved untouched.
+    expect(scope.markets.mainTotal!.pairs!.length).toBe(5);
+    expect(scope.markets.mainTotal!.pairs!.find((p) => p.line === 2.5)).toEqual({ line: 2.5, over: 1.85, under: 1.95 });
     // Double Chance derived (Shutov): home/draw is the short-priced safe leg.
     const dc = scope.markets.doubleChance!.odds!;
     expect(dc.hd).toBeLessThan(dc.da!);
     expect(dc.hd).toBeGreaterThan(1);
     expect(dc.da).toBeGreaterThan(3);
-    // Asian Handicap -0.5/+0.5: home -0.5 (wins on home win only) is longer than
-    // the 1.14 ML; away +0.5 (wins on draw or away win) is shorter than the 18 ML.
-    const ah = scope.markets.handicap!.handicapPairs![0];
-    expect(ah.line).toBe(-0.5);
+    // Full AH ladder (-1.5 … +1.5): home -0.5 (wins on home win only) is longer
+    // than the 1.14 ML; away +0.5 (wins on draw or away win) is shorter than the
+    // 18 ML. The ladder covers every standard handicap line now.
+    const ah = scope.markets.handicap!.handicapPairs!.find((p) => p.line === -0.5)!;
+    expect(scope.markets.handicap!.handicapPairs!.length).toBe(13);
     expect(ah.sideA).toBeGreaterThan(1.14);
     expect(ah.sideA).toBeLessThan(1.4);
     expect(ah.sideB).toBeGreaterThan(3);

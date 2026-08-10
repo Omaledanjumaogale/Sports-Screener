@@ -5,6 +5,7 @@
   import { DEFAULT_CONFIDENCE_FLOOR } from '$lib/predictorTypes';
   import type { Analysis, Pick } from '$lib/engine';
   import { formatWAT } from '$lib/watTime';
+  import { displayLeague } from '$lib/leagueCountries';
   import PredictorPickChart from './PredictorPickChart.svelte';
   import PredictorMatchStats from './PredictorMatchStats.svelte';
   import { generateGreatMindsDebate } from '$lib/greatMindsEngine';
@@ -167,7 +168,7 @@
       {#if score}
         <span class="chip score-badge" title="Final score">{score}</span>
       {/if}
-      <span class="chip league" title={match.league}>{match.league}</span>
+      <span class="chip league" title={displayLeague(match.league)}>{displayLeague(match.league)}</span>
       {#if !score}
         <span class="chip time"><Clock3 size={12} stroke-width={2.2} /> <span class="wat-date">{kickoff}</span></span>
       {/if}

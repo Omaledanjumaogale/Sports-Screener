@@ -3,10 +3,13 @@
 // No analysis logic is duplicated here — this only shapes data.
 //
 // Every scope is built from the REAL odds the agents fetched (h2h, totals,
-// spreads). For football only, Double Chance and an Asian Handicap line are
-// derived from the real 1X2 via the Shutov method so each match carries the
-// market options the copilot-style engine expects. When no real odds exist the
-// scope falls back to clearly-flagged defaults (oddsIsReal:false).
+// spreads). For football only, a full set of derived markets is built from the
+// real 1X2 + total through a single Poisson goal-grid model (see
+// deriveFootballMarkets): Double Chance, an Asian Handicap ladder covering all
+// standard lines (-1.5 ... +1.5), an Over/Under goals ladder (0.5-4.5) and Both
+// Teams To Score. Derived markets stay clearly flagged (derived:true) and never
+// gate the confidence floor on their own. When no real odds exist the scope
+// falls back to balanced, clearly-flagged defaults (oddsIsReal:false).
 
 import type { ScrapeMatch } from './betwatch';
 
@@ -178,14 +181,171 @@ function marginedPrice(fairProb: number, margin: number): number {
   return round2(Math.max(1.01, 1 / (fairProb * margin)));
 }
 
-// Double Chance + Asian Handicap derived from the real 1X2 odds (Shutov method).
-// DC = the three two-outcome combinations of the de-vigged 1X2. AH -0.5/+0.5:
-// home -0.5 wins on a home win only; away +0.5 wins on a draw or an away win.
-function deriveFootballMarkets(homeOdds: number, drawOdds: number, awayOdds: number): {
+// ── Football score-grid probability model ─────────────────────────────────────
+// One Poisson goal grid calibrated to the de-vigged 1X2 and the total-goals
+// line prices EVERY derived football market (O/U ladder, BTTS, Asian Handicap
+// ladder) from a single consistent model - the standard "Poisson calibrated to
+// 1X2 + totals" technique used by odds compilers. No hardcoded +0.5 anywhere.
+
+const GRID_MAX_GOALS = 9;
+
+function poissonPmf(lambda: number, k: number): number {
+  let term = Math.exp(-lambda);
+  for (let i = 1; i <= k; i++) term *= lambda / i;
+  return term;
+}
+
+export interface FootballScoreGrid {
+  p: number[][]; // p[homeGoals][awayGoals], renormalized to sum 1
+  lambdaH: number;
+  lambdaA: number;
+}
+
+// Build the grid. Lambda is split between the two sides by their share of the
+// non-draw probability, then both lambdas are scaled by a fixed point so the
+// grid's win+loss mass matches the de-vigged 1X2 (draw mass lands where it
+// lands).
+export function buildFootballGrid(
+  homeOdds: number,
+  drawOdds: number,
+  awayOdds: number,
+  totalLine: number
+): FootballScoreGrid {
+  const [pH, pD, pA] = devig([homeOdds, drawOdds, awayOdds]);
+  const nonDraw = Math.max(pH + pA, 1e-6);
+  const lambda = Math.max(totalLine, 0.2);
+  let lambdaH = (lambda * pH) / nonDraw;
+  let lambdaA = (lambda * pA) / nonDraw;
+
+  const regionMasses = (lh: number, la: number) => {
+    let w = 0, d = 0, l = 0;
+    for (let i = 0; i <= GRID_MAX_GOALS; i++) {
+      for (let j = 0; j <= GRID_MAX_GOALS; j++) {
+        const prob = poissonPmf(lh, i) * poissonPmf(la, j);
+        if (i > j) w += prob;
+        else if (i === j) d += prob;
+        else l += prob;
+      }
+    }
+    return { w, d, l };
+  };
+
+  for (let iter = 0; iter < 30; iter++) {
+    const { w, d, l } = regionMasses(lambdaH, lambdaA);
+    const totalMass = w + d + l || 1;
+    const ratio = (w + l) / totalMass;
+    const target = Math.max(pH + pA, 0.05);
+    const scale = Math.sqrt(target / Math.max(ratio, 1e-4));
+    const drawRatio = Math.pow((d / totalMass) / Math.max(pD, 1e-4), 0.1);
+    const k = Math.min(Math.max(scale * drawRatio, 0.5), 2.4);
+    lambdaH *= k;
+    lambdaA *= k;
+    if (Math.abs(k - 1) < 0.002) break;
+  }
+
+  const p: number[][] = [];
+  let sum = 0;
+  for (let i = 0; i <= GRID_MAX_GOALS; i++) {
+    p.push([]);
+    for (let j = 0; j <= GRID_MAX_GOALS; j++) {
+      const prob = poissonPmf(lambdaH, i) * poissonPmf(lambdaA, j);
+      p[i].push(prob);
+      sum += prob;
+    }
+  }
+  for (let i = 0; i <= GRID_MAX_GOALS; i++) {
+    for (let j = 0; j <= GRID_MAX_GOALS; j++) p[i][j] /= sum;
+  }
+  return { p, lambdaH, lambdaA };
+}
+
+export function gridTotals(grid: FootballScoreGrid, line: number): { over: number; under: number } {
+  let over = 0;
+  for (let i = 0; i <= GRID_MAX_GOALS; i++) {
+    for (let j = 0; j <= GRID_MAX_GOALS; j++) {
+      if (i + j > line) over += grid.p[i][j];
+    }
+  }
+  return { over, under: Math.max(0, 1 - over) };
+}
+
+export function gridBtts(grid: FootballScoreGrid): { yes: number; no: number } {
+  let yes = 0;
+  for (let i = 1; i <= GRID_MAX_GOALS; i++) {
+    for (let j = 1; j <= GRID_MAX_GOALS; j++) yes += grid.p[i][j];
+  }
+  return { yes, no: Math.max(0, 1 - yes) };
+}
+
+// P(home covers handicap line L) using grid-derived one-goal margin masses
+// blended with the de-vigged 1X2 (whole/half lines win, quarter lines split
+// the stake - pushes refund and do not change the win probability).
+export function homeCoversProbability(
+  grid: FootballScoreGrid,
+  fair: number[],
+  line: number
+): number {
+  const [pH, , pA] = fair;
+  // P(home wins by exactly 1) and P(away wins by exactly 1) from the grid,
+  // rescaled so the region totals agree with the de-vigged 1X2.
+  let w1 = 0, l1 = 0, w = 0, l = 0;
+  for (let i = 0; i <= GRID_MAX_GOALS; i++) {
+    for (let j = 0; j <= GRID_MAX_GOALS; j++) {
+      const prob = grid.p[i][j];
+      if (i === j + 1) w1 += prob;
+      if (j === i + 1) l1 += prob;
+      if (i > j) w += prob;
+      else if (i < j) l += prob;
+    }
+  }
+  const pH1 = (w > 0 ? (w1 / w) * pH : 0);
+  const pA1 = (l > 0 ? (l1 / l) * pA : 0);
+  const pD = 1 - pH - pA;
+
+  switch (line) {
+    case -1.5: case -1.25: case -1:
+      return Math.max(0, pH - pH1);            // needs a 2+ goal win
+    case -0.75:
+      return Math.max(0, pH - 0.5 * pH1);      // half -0.5 / half -1
+    case -0.5: case -0.25: case 0:
+      return pH;                                // wins on any home win
+    case 0.25:
+      return pH + 0.5 * pD;                     // half 0 / half +0.5
+    case 0.5:
+      return pH + pD;                           // wins on win or draw
+    case 0.75:
+      return pH + pD + 0.5 * pA1;               // half +0.5 / half +1
+    case 1: case 1.25: case 1.5:
+      return Math.min(1, pH + pD + pA1);        // covered unless 2+ goal loss
+    default:
+      return pH;
+  }
+}
+
+// All standard Asian Handicap lines, quarter-goal steps.
+export const FOOTBALL_AH_LINES = [-1.5, -1.25, -1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1, 1.25, 1.5];
+
+// Soccer Over/Under goal lines.
+export const FOOTBALL_TOTAL_LINES = [0.5, 1.5, 2.5, 3.5, 4.5];
+
+// Full football derived market set from the real 1X2 + a total anchor line:
+// Double Chance, Asian Handicap ladder, O/U goals ladder (0.5-4.5) and BTTS.
+// When realTotals is supplied its line/prices become the anchor pair (all other
+// lines are still grid-derived); otherwise the whole ladder is grid-derived.
+export function deriveFootballMarkets(
+  homeOdds: number,
+  drawOdds: number,
+  awayOdds: number,
+  totalAnchorLine = 2.5,
+  realTotals?: { line: number; over: number; under: number }
+): {
   doubleChance: Market;
   handicap: Market;
+  mainTotal: Market;
+  btts: Market;
 } {
   const fair = devig([homeOdds, drawOdds, awayOdds]); // [pH, pD, pA]
+  const grid = buildFootballGrid(homeOdds, drawOdds, awayOdds, totalAnchorLine);
 
   const doubleChance: Market = {
     id: 'doubleChance',
@@ -204,19 +364,56 @@ function deriveFootballMarkets(homeOdds: number, drawOdds: number, awayOdds: num
     kind: 'handicap',
     title: 'Asian Handicap',
     derived: true,
-    handicapPairs: [
-      {
-        line: -0.5,
-        sideA: marginedPrice(fair[0], 1.05), // Home -0.5 wins on a home win
-        sideB: marginedPrice(fair[1] + fair[2], 1.05) // Away +0.5 wins on draw or away win
-      }
-    ]
+    handicapPairs: FOOTBALL_AH_LINES.map((line) => {
+      const pHome = homeCoversProbability(grid, fair, line);
+      const margin = 1.04 + Math.min(Math.abs(line) * 0.01, 0.04);
+      return {
+        line,
+        sideA: marginedPrice(pHome, margin),                     // Home {line}
+        sideB: marginedPrice(1 - Math.min(pHome, 0.999), margin) // Away {-line}
+      };
+    })
   };
 
-  return { doubleChance, handicap };
+  const totals = FOOTBALL_TOTAL_LINES.map((line) => {
+    if (realTotals && realTotals.line > 0 && line === realTotals.line) {
+      return { line, over: realTotals.over, under: realTotals.under }; // real anchor pair
+    }
+    const t = gridTotals(grid, line);
+    return { line, over: marginedPrice(t.over, 1.05), under: marginedPrice(t.under, 1.05) };
+  });
+
+  const mainTotal: Market = {
+    id: 'mainTotal',
+    kind: 'ou',
+    title: 'Match Total',
+    // The ladder is grid-derived (a real anchor pair keeps its own prices but
+    // the 0.5/1.5/3.5/4.5 siblings are derived) — it must never gate Amara's
+    // confidence floor on its own.
+    derived: true,
+    pairs: totals
+  };
+
+  const bttsGrid = gridBtts(grid);
+  const btts: Market = {
+    id: 'btts',
+    kind: 'yesno',
+    title: 'Both Teams To Score',
+    derived: true,
+    odds: {
+      yes: marginedPrice(bttsGrid.yes, 1.05),
+      no: marginedPrice(bttsGrid.no, 1.05)
+    }
+  };
+
+  return { doubleChance, handicap, mainTotal, btts };
 }
 
-// Generate realistic, unique fallback odds derived from team names hash
+// Balanced, realistic fallback odds derived from the team-name hash. The
+// favourite/dog gap is deliberately modest and the home/away assignment is a
+// single unbiased coin-flip per match - no systematic side bias, so the engine
+// and the Great Minds debate recommend the favourite on its merits, not a
+// preset.
 function uniqueFallbackOdds(m: ScrapeMatch, isTwoWay: boolean): number[] {
   const seed = `${m.homeTeam}|${m.awayTeam}|${m.league}`;
   let hash = 0;
@@ -225,13 +422,13 @@ function uniqueFallbackOdds(m: ScrapeMatch, isTwoWay: boolean): number[] {
 
   const homeFav = hash % 2 === 0;
   if (isTwoWay) {
-    const favOdds = round2(1.38 + (hash % 11) * 0.04);
-    const dogOdds = round2(2.15 + (hash % 13) * 0.07);
+    const favOdds = round2(1.45 + (hash % 6) * 0.05);
+    const dogOdds = round2(2.10 + (hash % 9) * 0.06);
     return homeFav ? [favOdds, dogOdds] : [dogOdds, favOdds];
   } else {
-    const favOdds = round2(1.48 + (hash % 9) * 0.05);
-    const drawOdds = round2(3.20 + (hash % 7) * 0.12);
-    const dogOdds = round2(2.25 + (hash % 11) * 0.10);
+    const favOdds = round2(1.55 + (hash % 7) * 0.05);
+    const drawOdds = round2(3.10 + (hash % 6) * 0.10);
+    const dogOdds = round2(2.20 + (hash % 10) * 0.06);
     return homeFav ? [favOdds, drawOdds, dogOdds] : [dogOdds, drawOdds, favOdds];
   }
 }
@@ -277,11 +474,20 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
     }
   }
 
-  // ── Double Chance + Asian Handicap (football only, derived from real 1X2) ──
+  // ── Derived football markets (DC + AH ladder + O/U ladder + BTTS from the
+  //    single Poisson grid; a real total anchors its own line when present) ──
   if (sportId === 'football' && h2h.length === 3 && h2h[1]) {
-    const { doubleChance, handicap } = deriveFootballMarkets(h2h[0], h2h[1], h2h[2]);
+    const { doubleChance, handicap, mainTotal, btts } = deriveFootballMarkets(
+      h2h[0],
+      h2h[1],
+      h2h[2],
+      parsed.total && parsed.total.line > 0 ? parsed.total.line : 2.5,
+      parsed.total && parsed.total.line > 0 ? parsed.total : undefined
+    );
     markets.doubleChance = doubleChance;
     markets.handicap = handicap;
+    markets.mainTotal = mainTotal;
+    markets.btts = btts;
   } else if (!isTwoWay) {
     // football without a draw leg: still give a pick handicap from the 1X2.
     markets.handicap = {
@@ -315,21 +521,23 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
     }
   }
 
-  // ── Total (real line) ──────────────────────────────────────────────────────
-  const pair = parsed.total && parsed.total.line > 0
-    ? { line: parsed.total.line, over: parsed.total.over, under: parsed.total.under }
-    : parsed.total && parsed.total.line === 0
-      ? { ...lines[0], over: parsed.total.over, under: parsed.total.under }
-      : lines[0];
-  const totalMarket: Market = {
-    id: 'mainTotal',
-    kind: 'ou',
-    title: 'Match Total',
-    pairs: [pair]
-  };
-  markets.mainTotal = totalMarket;
-  if (sportId === 'hockey' || sportId === 'baseball') {
-    markets.gameTotal = { ...totalMarket, id: 'gameTotal', title: 'Game Total' };
+  // ── Total (real line; football already has the derived O/U ladder above) ──
+  if (sportId !== 'football' || !markets.mainTotal) {
+    const pair = parsed.total && parsed.total.line > 0
+      ? { line: parsed.total.line, over: parsed.total.over, under: parsed.total.under }
+      : parsed.total && parsed.total.line === 0
+        ? { ...lines[0], over: parsed.total.over, under: parsed.total.under }
+        : lines[0];
+    const totalMarket: Market = {
+      id: 'mainTotal',
+      kind: 'ou',
+      title: 'Match Total',
+      pairs: [pair]
+    };
+    markets.mainTotal = totalMarket;
+    if (sportId === 'hockey' || sportId === 'baseball') {
+      markets.gameTotal = { ...totalMarket, id: 'gameTotal', title: 'Game Total' };
+    }
   }
 
   const scope: NormalizedMatch['scope'] = {

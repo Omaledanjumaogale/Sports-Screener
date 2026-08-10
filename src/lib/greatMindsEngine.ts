@@ -76,7 +76,102 @@ function sanitizeTeamLabel(label: string, home: string, away: string): string {
     .replace(/\bPlayer 1\b/gi, home)
     .replace(/\bPlayer 2\b/gi, away)
     .replace(/\bSide A\b/gi, home)
-    .replace(/\bSide B\b/gi, away);
+    .replace(/\bSide B\b/gi, away)
+    .replace(/\bP1\b/gi, home)
+    .replace(/\bP2\b/gi, away);
+}
+
+// ── Multi-stage verification gate (pre-qualification) ────────────────────────
+// A pick only qualifies for Top Signal / Strong / Qualifying when it clears ALL
+// three independent cross-checks: (1) input data integrity, (2) computation
+// accuracy, (3) single-team-edge directional alignment. Anything else is
+// demoted to "Reference Only" — synthetic or contradictory selections never
+// publish as a qualified signal.
+
+interface VerificationStage {
+  name: string;
+  ok: boolean;
+  note: string;
+}
+
+// Confidence floor below which even a verified pick cannot qualify.
+const QUALIFY_FLOOR = 52;
+
+// Which team (if any) a selection label points at. Call AFTER sanitizeTeamLabel
+// so 'Team 1'/'Player 2'/'P1'/'Side B' have already been replaced with the real
+// names; the name-based checks then resolve the vast majority of labels.
+function sideOf(label: string, home: string, away: string): 'home' | 'away' | 'none' {
+  const l = String(label || '').toLowerCase();
+  const h = String(home || '').toLowerCase();
+  const a = String(away || '').toLowerCase();
+  if (h && h.length >= 3 && l.includes(h)) return 'home';
+  if (a && a.length >= 3 && l.includes(a)) return 'away';
+  if (/\bhome\b|\bteam\s*1\b|\bplayer\s*1\b|\bp1\b|^\s*1\s*$/.test(l)) return 'home';
+  if (/\baway\b|\bteam\s*2\b|\bplayer\s*2\b|\bp2\b|^\s*2\s*$/.test(l)) return 'away';
+  return 'none';
+}
+
+function verifySelection(opts: {
+  market: string;
+  selection: string;
+  fromRealPick: boolean;
+  oddsReal: boolean;
+  baseProbabilityPct: number;
+  realWinChancePct: number;
+  edgeEvPercent: number;
+  rawOdds: number;
+  winnerDirection: 'home' | 'away' | 'none';
+  pickDirection: 'home' | 'away' | 'none';
+  agreeCount: number;
+}): { qualified: boolean; stages: VerificationStage[] } {
+  const stages: VerificationStage[] = [];
+
+  // 1) Input data integrity — the selection must trace to a real engine pick
+  //    priced from real market odds, with a sane price and a resolvable label.
+  const s1 = opts.fromRealPick && opts.oddsReal && opts.rawOdds > 1 && opts.rawOdds < 50 && !!opts.selection;
+  stages.push({
+    name: 'Data integrity',
+    ok: s1,
+    note: s1
+      ? 'Selection traces to an engine pick priced from real market odds.'
+      : 'No real-odds engine pick behind this selection (synthetic or missing data).'
+  });
+
+  // 2) Computation accuracy — Real Win Chance must sit in the documented
+  //    adjustment band around the engine base probability and the EV must
+  //    recompute to the same figure (no fabrication, no drift).
+  const recomputedEv = calcEv(opts.realWinChancePct, opts.rawOdds || 1.9);
+  const evOk = Math.abs(recomputedEv - opts.edgeEvPercent) < 0.6;
+  const bandOk =
+    opts.realWinChancePct >= opts.baseProbabilityPct - 8 &&
+    opts.realWinChancePct <= opts.baseProbabilityPct + 30;
+  const s2 = evOk && bandOk;
+  stages.push({
+    name: 'Computation accuracy',
+    ok: s2,
+    note: s2
+      ? `RWC ${opts.realWinChancePct.toFixed(1)}% consistent with engine base ${opts.baseProbabilityPct.toFixed(1)}% (EV +${recomputedEv.toFixed(1)}%).`
+      : 'Real Win Chance / EV inconsistent with the engine base probability.'
+  });
+
+  // 3) Single-team edge — exactly one team holds the edge and the spread never
+  //    contradicts the result favourite. Totals carry no team edge by design.
+  const s3 =
+    opts.market === 'total'
+      ? true
+      : opts.pickDirection === 'none'
+        ? /(^|\s)draw/i.test(opts.selection) && opts.market === 'winner'
+        : opts.winnerDirection === 'none' || opts.pickDirection === opts.winnerDirection;
+  stages.push({
+    name: 'Single-team edge',
+    ok: s3,
+    note: s3
+      ? 'Exactly one team holds the edge; winner and spread agree on direction.'
+      : 'Conflicting or missing team edge (home and away must not both hold the edge).'
+  });
+
+  const qualified = s1 && s2 && s3 && opts.agreeCount >= 3 && opts.realWinChancePct >= QUALIFY_FLOOR;
+  return { qualified, stages };
 }
 
 // Generate Great Minds Debate for a specific match
@@ -95,20 +190,89 @@ export function generateGreatMindsDebate(
   for (let i = 0; i < seed.length; i++) hash = (Math.imul(31, hash) + seed.charCodeAt(i)) | 0;
   hash = Math.abs(hash);
 
-  // Extract candidate market picks from analysis or defaults
-  const rawMoneyline = picks.find((p: EnginePick) => (p.marketTitle && p.marketTitle.toLowerCase().includes('moneyline')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('winner')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('result'))) 
-    || picks[0] 
-    || { label: `${home} Win`, marketTitle: 'Match Result', probability: 55 + (hash % 25), odds: 1.85 };
+  // ── Market classification ───────────────────────────────────────────────────
+  // Each consensus market only ever consumes picks from ITS OWN market family —
+  // a totals pick can never masquerade as a winner (and vice versa), which
+  // removes the old "Home Win + Away +0.5" contradiction at the source.
+  const lowerTitle = (p: EnginePick) => (p.marketTitle || '').toLowerCase();
+  const isWinnerPick = (p: EnginePick) => {
+    const t = lowerTitle(p);
+    return t.includes('result') || t.includes('winner') || t.includes('moneyline');
+  };
+  const isSpreadPick = (p: EnginePick) => {
+    const t = lowerTitle(p);
+    return (t.includes('handicap') || t.includes('spread')) && !t.includes('total');
+  };
+  const isTotalPick = (p: EnginePick) => {
+    const t = lowerTitle(p);
+    return t.includes('total') || t.includes('over') || t.includes('under');
+  };
 
-  const rawSpread = picks.find((p: EnginePick) => (p.marketTitle && p.marketTitle.toLowerCase().includes('handicap')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('spread')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('line')))
-    || { label: defaults.spreadLabel, marketTitle: 'Handicap / Spread', probability: 54 + ((hash + 3) % 22), odds: 1.95 };
+  const winnerCandidates = picks.filter(isWinnerPick).sort((a, b) => b.probability - a.probability);
+  const spreadCandidates = picks.filter(isSpreadPick).sort((a, b) => b.probability - a.probability);
+  const totalCandidates = picks.filter(isTotalPick).sort((a, b) => b.probability - a.probability);
 
-  const rawTotal = picks.find((p: EnginePick) => (p.marketTitle && p.marketTitle.toLowerCase().includes('total')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('over')) || (p.marketTitle && p.marketTitle.toLowerCase().includes('under')))
-    || { label: defaults.totalLabel, marketTitle: 'Match Total', probability: 56 + ((hash + 7) % 20), odds: 1.88 };
+  const rawMoneyline = winnerCandidates[0] ?? null;
 
-  const topMoneyline = { ...rawMoneyline, label: sanitizeTeamLabel(rawMoneyline.label, home, away) };
-  const topSpread = { ...rawSpread, label: sanitizeTeamLabel(rawSpread.label, home, away) };
-  const topTotal = { ...rawTotal, label: sanitizeTeamLabel(rawTotal.label, home, away) };
+  // Totals: pick the line closest to the market's FAIR line (the pair whose
+  // probabilities straddle 50%), never a derived extreme like "Over 0.5" at
+  // ~92% — recommending that as a signal would be noise, not analysis.
+  // Prefer the main/game total market; only fall back to team/player totals
+  // when no game total exists (avoids a lopsided game total losing to a
+  // balanced team total).
+  const isGameTotalPick = (p: EnginePick) => {
+    const id = (p.marketId || '').toLowerCase();
+    return id === 'mainTotal' || id === 'gameTotal';
+  };
+  const gameTotalCandidates = totalCandidates.filter(isGameTotalPick);
+  const totalPool = gameTotalCandidates.length ? gameTotalCandidates : totalCandidates;
+  const totalsByLine = new Map<number, EnginePick[]>();
+  for (const p of totalPool) {
+    const m = String(p.label).match(/(-?\d+(?:\.\d+)?)/);
+    const line = m ? Number(m[1]) : NaN;
+    if (!Number.isFinite(line)) continue;
+    const arr = totalsByLine.get(line) ?? [];
+    arr.push(p);
+    totalsByLine.set(line, arr);
+  }
+  let bestTotalPair: EnginePick[] | null = null;
+  let bestTotalDist = Infinity;
+  for (const [, pair] of totalsByLine) {
+    const top = Math.max(...pair.map((p) => p.probability));
+    const dist = Math.abs(50 - top);
+    if (dist < bestTotalDist) {
+      bestTotalDist = dist;
+      bestTotalPair = pair;
+    }
+  }
+  const rawTotal = bestTotalPair
+    ? bestTotalPair.slice().sort((a, b) => b.probability - a.probability)[0] ?? null
+    : null;
+
+  // Single-team-edge rule: the spread verdict must agree with the result
+  // favourite. If the only available spread pick points the other way, drop it
+  // and synthesize a spread in the winner's direction below.
+  const winnerDirection = rawMoneyline ? sideOf(sanitizeTeamLabel(rawMoneyline.label, home, away), home, away) : 'none';
+  let rawSpread: EnginePick | null = null;
+  if (winnerDirection !== 'none') {
+    rawSpread = spreadCandidates.find((p) => sideOf(sanitizeTeamLabel(p.label, home, away), home, away) === winnerDirection) ?? null;
+  } else {
+    rawSpread = spreadCandidates[0] ?? null;
+  }
+  const fallbackSpreadLabel = winnerDirection === 'away' ? defaults.spreadAlt : defaults.spreadLabel;
+
+  // Real de-vigged engine probabilities when available; a neutral 50% (never a
+  // hash-fabricated number) otherwise — the verification gate will demote any
+  // pick without real engine backing to Reference Only.
+  const topMoneyline = rawMoneyline
+    ? { ...rawMoneyline, label: sanitizeTeamLabel(rawMoneyline.label, home, away) }
+    : { label: `${home} Win`, marketTitle: 'Match Result', probability: 50, odds: 1.85 };
+  const topSpread = rawSpread
+    ? { ...rawSpread, label: sanitizeTeamLabel(rawSpread.label, home, away) }
+    : { label: fallbackSpreadLabel, marketTitle: 'Handicap / Spread', probability: 50, odds: 1.95 };
+  const topTotal = rawTotal
+    ? { ...rawTotal, label: sanitizeTeamLabel(rawTotal.label, home, away) }
+    : { label: defaults.totalLabel, marketTitle: 'Match Total', probability: 50, odds: 1.88 };
 
   // Determine dynamic dissenters based on match hash
   const spreadDissent = (hash % 3) === 0 ? 'grok' : (hash % 5) === 0 ? 'qwen' : undefined;
@@ -225,18 +389,55 @@ export function generateGreatMindsDebate(
     };
   };
 
-  // Build picks for 3 markets
+  // Build picks for 3 markets from REAL engine probabilities (neutral 50%
+  // fallbacks are demoted to Reference Only by the verification gate below).
   const winnerOdds = (topMoneyline as any).odds || 1.85;
-  const winnerProb = Number(topMoneyline.probability) || 68.5;
-  const winnerPick = buildModelChoices('winner', (topMoneyline as any).label || `${home} Win`, `${away} Win`, winnerOdds, winnerProb); // 5/5 unanimous
+  const winnerProb = Number(topMoneyline.probability) || 50;
+  const winnerPick = buildModelChoices('winner', (topMoneyline as any).label || `${home} Win`, `${away} Win`, winnerOdds, winnerProb);
 
   const spreadOdds = (topSpread as any).odds || 1.95;
-  const spreadProb = Number(topSpread.probability) || 61.5;
-  const spreadPick = buildModelChoices('spread', (topSpread as any).label || defaults.spreadLabel, defaults.spreadAlt, spreadOdds, spreadProb, spreadDissent);
+  const spreadProb = Number(topSpread.probability) || 50;
+  const spreadPick = buildModelChoices(
+    'spread',
+    (topSpread as any).label || fallbackSpreadLabel,
+    winnerDirection === 'away' ? defaults.spreadLabel : defaults.spreadAlt,
+    spreadOdds,
+    spreadProb,
+    spreadDissent
+  );
 
   const totalOdds = (topTotal as any).odds || 1.88;
-  const totalProb = Number(topTotal.probability) || 64.2;
+  const totalProb = Number(topTotal.probability) || 50;
   const totalPick = buildModelChoices('total', (topTotal as any).label || defaults.totalLabel, defaults.totalAlt, totalOdds, totalProb, totalDissent);
+
+  // ── Multi-stage verification gate (pre-qualification) ──────────────────────
+  // Every consensus pick must pass all three independent cross-checks before it
+  // can carry a Top/Strong/Qualifying signal; anything else is demoted to
+  // Reference Only.
+  const oddsReal = (match.scopes as any)?._meta?.oddsIsReal === true;
+  const attachVerification = (pick: GreatMindsPick, fromRealPick: boolean) => {
+    const pickDirection = pick.market === 'total' ? 'none' : sideOf(pick.selection, home, away);
+    const verification = verifySelection({
+      market: pick.market,
+      selection: pick.selection,
+      fromRealPick,
+      oddsReal,
+      baseProbabilityPct: pick.baseProbabilityPct,
+      realWinChancePct: pick.realWinChancePct,
+      edgeEvPercent: pick.edgeEvPercent,
+      rawOdds: pick.rawOdds ?? 0,
+      winnerDirection,
+      pickDirection,
+      agreeCount: pick.agreeCount
+    });
+    pick.qualified = verification.qualified;
+    pick.verification = verification;
+    if (!verification.qualified) pick.verdictTag = 'Reference Only';
+    return pick;
+  };
+  attachVerification(winnerPick, !!rawMoneyline);
+  attachVerification(spreadPick, !!rawSpread);
+  attachVerification(totalPick, !!rawTotal);
 
   // ── REAL overall aggregates from the 3 consensus picks (NOT hardcoded) ───
   const allThreePicks = [winnerPick, spreadPick, totalPick];
@@ -364,18 +565,24 @@ export function generateGreatMindsDebate(
     .map(r => `--- ${r.title.toUpperCase()} ---\n${r.moderatorSummary}\n` + Object.entries(r.modelPicks).map(([k, v]) => `  • ${k}: ${v}`).join('\n'))
     .join('\n\n');
 
-  // ── Unified cross-verified Real Win Chance (weighted across the 3 markets) ──
+  // ── Unified cross-verified Real Win Chance (weighted across the 3 markets; a
+  //    pick that fails verification cannot drag a Top/Strong signal upward) ──
   const marketsPicks = [winnerPick, spreadPick, totalPick];
-  const weightedReal = marketsPicks.reduce((acc, p) => acc + p.realWinChancePct, 0) / marketsPicks.length;
+  const qualifiedPicks = marketsPicks.filter((p) => p.qualified);
+  const weightedReal =
+    (qualifiedPicks.length ? qualifiedPicks : marketsPicks).reduce((acc, p) => acc + p.realWinChancePct, 0) /
+    (qualifiedPicks.length ? qualifiedPicks.length : marketsPicks.length);
   const realWinChancePct = Number(weightedReal.toFixed(1));
   const realWinChanceTag =
-    realWinChancePct >= 75 ? 'Top Signal'
+    !qualifiedPicks.length ? 'Reference Only'
+    : realWinChancePct >= 75 ? 'Top Signal'
     : realWinChancePct >= 65 ? 'Strong Signal'
     : realWinChancePct >= 52 ? 'Qualifying'
     : 'Reference Only';
 
-  // One-line spark for the confidence band header.
-  const bestMarket = marketsPicks.slice().sort((a, b) => b.realWinChancePct - a.realWinChancePct)[0];
+  // One-line spark for the confidence band header (qualified picks first).
+  const sparkPool = qualifiedPicks.length ? qualifiedPicks : marketsPicks;
+  const bestMarket = sparkPool.slice().sort((a, b) => b.realWinChancePct - a.realWinChancePct)[0];
   const spark =
     `${bestMarket.selection} — ${bestMarket.realWinChancePct}% Real Win Chance ` +
     `(cross-verified against panel consensus and market metrics.)`;

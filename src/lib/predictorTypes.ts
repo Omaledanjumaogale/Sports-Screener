@@ -199,6 +199,14 @@ export interface GreatMindsPick {
   metricsAdjustmentPct: number;
   realWinChancePct: number;
   verdictTag: string;
+  // Multi-stage verification gate (data integrity, computation accuracy,
+  // single-team edge). false/absent picks are demoted to "Reference Only" and
+  // never count toward Top/Strong/Qualifying signals.
+  qualified?: boolean;
+  verification?: {
+    qualified: boolean;
+    stages: { name: string; ok: boolean; note: string }[];
+  };
 }
 
 export interface GreatMindsRound {

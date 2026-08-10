@@ -11,6 +11,7 @@
   import { DEFAULT_CONFIDENCE_FLOOR, type PredictorMatch, type PredictorSportId } from '$lib/predictorTypes';
   import { buildPredictorInsights } from '$lib/predictorInsights';
   import { generateGreatMindsDebate } from '$lib/greatMindsEngine';
+  import { displayLeague } from '$lib/leagueCountries';
   import { AGENT_DEFS } from '$lib/agentUi';
 
   const ACCENT: Record<PredictorSportId, string> = {
@@ -76,7 +77,7 @@
   <meta
     name="description"
     content={match
-      ? `${match.homeTeam} vs ${match.awayTeam} (${match.league}). Full multi-agent analysis with ${DEFAULT_CONFIDENCE_FLOOR}%+ Real Win Chance selections, graded post-match.`
+      ? `${match.homeTeam} vs ${match.awayTeam} (${displayLeague(match.league)}). Full multi-agent analysis with ${DEFAULT_CONFIDENCE_FLOOR}%+ Real Win Chance selections, graded post-match.`
       : 'Full multi-agent match analysis with high-confidence selections.'}
   />
 </svelte:head>
@@ -131,7 +132,7 @@
       />
       <div class="full-foot">
         <p>
-          Full analysis for {match.homeTeam} vs {match.awayTeam} ({match.league}). Selections clear the
+          Full analysis for {match.homeTeam} vs {match.awayTeam} ({displayLeague(match.league)}). Selections clear the
           {DEFAULT_CONFIDENCE_FLOOR}% Real Win Chance floor and are re-checked after the final whistle.
           All match times shown in West Africa Time (WAT). Always gamble responsibly.
         </p>

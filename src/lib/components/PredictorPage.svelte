@@ -9,6 +9,7 @@
   import PredictorMatchCard from './PredictorMatchCard.svelte';
   import PredictorVerdictPanel from './PredictorVerdictPanel.svelte';
   import PredictorSportIcon from './PredictorSportIcon.svelte';
+  import { displayLeague } from '$lib/leagueCountries';
   import { api, subscribeConvexQuery } from '$lib/convexClient';
   import {
     todayKey,
@@ -362,7 +363,7 @@
   function groupByLeague(list: PredictorMatch[]): Record<string, PredictorMatch[]> {
     const groups: Record<string, PredictorMatch[]> = {};
     for (const m of list) {
-      const k = m.league || 'Other';
+      const k = m.league ? displayLeague(m.league) : 'Other';
       (groups[k] ??= []).push(m);
     }
     return groups;
@@ -704,7 +705,7 @@ $effect(() => {
                 {#each Object.entries(groupByLeague(dayMatches)) as [league, group] (dk + ':' + league)}
                   <div class="league-group">
                     <h3 class="league-title">
-                      <span class="league-name">{league}</span>
+                      <span class="league-name">{displayLeague(league)}</span>
                       <span class="league-count">{group.length}</span>
                     </h3>
                     <div class="match-list">
