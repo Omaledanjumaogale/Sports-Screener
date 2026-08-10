@@ -26,15 +26,34 @@ function clean(name: string): string {
   return String(name || '').replace(/[|#*_`~]/g, '').trim();
 }
 
-const UKNOWN_LABELS = /^(prediction|predictions|odds|bet|bets|pred|match|game|live|score|btts|over|under|today|tomorrow|home|away|results|result|summary|matches|next|countries|my|login|register|sports|favorites)$/i;
+const UNKNOWN_LABELS = /^(prediction|predictions|odds|bet|bets|pred|match|game|live|score|btts|over|under|today|tomorrow|home|away|results?|summary|matches?|next|countries|my|login|register|sports?|favorites?|standings?|table|ranking|preview|analysis|form|h2h|head.?to.?head|stats?|statistics|markets?|lineups?|news|transfers?|injuries?)$/i;
+
+const HEADER_OR_NAV_PATTERNS = [
+  /^(home|away|team|fixture|result|score|odds|time|kickoff|date|league|competition|round|group|pool|stage|matchday|game ?week|week ?\d+|standings?|table|ranking|preview|analysis|stats?|markets?|form)$/i,
+  /^(prediction|predictions|free ?bets?|bet of the day|tip(s|ster)?|bonus|promo|promotion|offer|claim|vip)$/i,
+  /^(login|register|sign.?in|sign.?up|forgot ?password|my ?(account|profile|bets?|selections?))$/i
+];
+
+const NON_FIXTURE_PHRASES = [
+  'head to head', 'h2h', 'previous meetings', 'last 5', 'form guide',
+  'team news', 'lineups', 'where to watch', 'tv channel', 'live stream',
+  'betting tips', 'prediction', 'preview', 'match preview',
+  'odds comparison', 'best odds', 'bookmakers', 'in play', 'live scores'
+];
 
 function looksLikeTeam(name: string): boolean {
   const n = name.trim();
   if (n.length < 3 || n.length > 35) return false;
-  if (UKNOWN_LABELS.test(n)) return false;
-  if (/(prediction|predictions|bet of|the day|sportsbook|promo|bonus|claim|login|register|countries|favorites|my selections)/i.test(n)) return false;
+  if (UNKNOWN_LABELS.test(n)) return false;
+  if (HEADER_OR_NAV_PATTERNS.some((re) => re.test(n))) return false;
+  if (/(prediction|predictions|bet of|the day|sportsbook|promo|bonus|claim|login|register|countries|favorites?|my selections|head.?to.?head|form guide|last \d+|h2h|live score)/i.test(n)) return false;
   if (/^[\d\sMLSXLW]+$/i.test(n)) return false;
   if (/\*|#|\|/.test(n)) return false;
+  const lower = n.toLowerCase();
+  if (NON_FIXTURE_PHRASES.some((p) => lower.includes(p))) return false;
+  if (/^(the|a|an|and|or|but|if|when|where|why|how|what|which|who|whom|whose|this|that|these|those|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|must|shall|can|need|dare|ought|used)$/i.test(n)) return false;
+  const tokenCount = n.split(/\s+/).length;
+  if (tokenCount > 7) return false;
   return true;
 }
 
@@ -189,9 +208,9 @@ function parseVsLines(text: string, sportId: string, sourceUrl: string): ScrapeM
 
   const leaguePattern = /^#{1,3}\s+(.+)$/;
   const vsPatterns = [
-    /^(.+?)\s+(?:vs\.?|v|@)\s+(.+?)(?:\s+[—-]\s+.*)?$/i,
-    /^(.+?)\s+(?:vs\.?|v)\s+(.+)$/i,
-    /^(.+)\s+[—-]\s+(.+)$/
+    /^(.+?)\s+(?:vs\.?|v)\s+(.+?)(?:\s+[—-]\s+.*)?$/i,
+    /^\d{1,2}:\d{2}\s+(.+?)\s+(?:vs\.?|v)\s+(.+)$/i,
+    /^(.+?)\s+[—-]\s+(.+)$/
   ];
 
   for (const line of lines) {
@@ -200,15 +219,27 @@ function parseVsLines(text: string, sportId: string, sourceUrl: string): ScrapeM
       currentLeague = clean(lmatch[1]);
       continue;
     }
+    if (lmatch && leagues.length > 0) {
+      const candidate = lmatch[1].toLowerCase();
+      if (!leagues.some((l) => candidate.includes(l.toLowerCase()))) {
+        currentLeague = '';
+        continue;
+      }
+    }
 
     let home = '';
     let away = '';
     let matched = false;
-    for (const re of vsPatterns) {
+    for (let pi = 0; pi < vsPatterns.length; pi++) {
+      const re = vsPatterns[pi];
       const vm = line.match(re);
       if (vm && vm[1] && vm[2]) {
         const h = clean(vm[1]);
         const a = clean(vm[2]);
+        if (pi === 2) {
+          if (/^\d/.test(h) || /^\d/.test(a)) continue;
+          if (/[—\-|#*]/.test(h) || /[—\-|#*]/.test(a)) continue;
+        }
         if (looksLikeTeam(h) && looksLikeTeam(a) && !['0', '1', '2', '3'].includes(h) && !['0', '1', '2', '3'].includes(a)) {
           home = h;
           away = a;

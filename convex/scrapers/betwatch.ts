@@ -98,6 +98,7 @@ export function parseBetwatchMarkdown(text: string, sportId: string): ScrapeMatc
 }
 
 export async function scrapeBetwatchFixtures(sportId: string): Promise<ScrapeMatch[]> {
+  if (sportId !== 'football') return [];
   const jr = await jinaRead(PRIMARY_SOURCE);
   if (jr.ok && jr.text && jr.text.length > 50) {
     const parsed = parseBetwatchMarkdown(jr.text, sportId);
