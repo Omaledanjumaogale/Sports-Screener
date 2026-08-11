@@ -909,17 +909,25 @@ export const purgeOld = internalMutation({
       .collect();
     for (const d of oldDays) await ctx.db.delete(d._id);
 
-    const oldMatches = await ctx.db
-      .query('predictorMatches')
-      .collect()
-      .then((items) => items.filter((m) => m.dayKey < cutoff));
+    // Completed games are stored INDEFINITELY by default (retention policy is
+    // enforced separately by retention.purgeFinishedMatchesAction). Only stale
+    // upcoming/inplay rows are swept here so finished scorelines + verdicts
+    // accumulate for long-term accuracy analysis.
+    const allMatches = await ctx.db.query('predictorMatches').collect();
+    const retained = new Set<string>();
+    const oldMatches = allMatches.filter((m) => {
+      const isFinished = m.status === 'finished' || !!m.finalScore;
+      if (isFinished) retained.add(`${m.dayKey}|${m.matchId}`);
+      return m.dayKey < cutoff && !isFinished;
+    });
     for (const m of oldMatches) await ctx.db.delete(m._id);
 
     const oldVerdicts = await ctx.db
       .query('predictorVerdicts')
       .collect()
-      .then((items) => items.filter((v) => v.dayKey < cutoff));
+      .then((items) => items.filter((v) => v.dayKey < cutoff && !retained.has(`${v.dayKey}|${v.matchId}`)));
     for (const v of oldVerdicts) await ctx.db.delete(v._id);
+    // Verdicts whose finished match survived the sweep stay (audit trail).
 
     const oldStats = await ctx.db
       .query('aiPredictorStats')

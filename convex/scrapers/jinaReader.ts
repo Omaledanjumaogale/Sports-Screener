@@ -16,7 +16,11 @@ export interface FetchPageResult {
 }
 
 export async function jinaRead(url: string, opts: FetchPageOptions = {}): Promise<FetchPageResult> {
-  const key = process.env.JINA_API_KEY?.trim();
+  // Accept *_API_KEY / *_AI_API_KEYS / *_API_KEYS aliases.
+  const key =
+    process.env.JINA_API_KEY?.trim() ||
+    process.env.JINA_AI_API_KEYS?.trim() ||
+    process.env.JINA_API_KEYS?.trim();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20_000);
   try {

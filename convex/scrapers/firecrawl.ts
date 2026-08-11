@@ -9,7 +9,8 @@ export interface FirecrawlResult {
 }
 
 export async function firecrawlRead(url: string, timeoutMs = 30_000): Promise<FirecrawlResult> {
-  const key = process.env.FIRECRAWL_API_KEY?.trim();
+  // Accept *_API_KEY / *_API_KEYS aliases.
+  const key = process.env.FIRECRAWL_API_KEY?.trim() || process.env.FIRECRAWL_API_KEYS?.trim();
   if (!key) return { ok: false, status: 0, text: '' };
 
   const controller = new AbortController();

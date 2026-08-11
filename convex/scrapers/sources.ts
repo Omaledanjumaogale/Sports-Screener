@@ -645,16 +645,18 @@ export function env(name: string): string {
 }
 
 export function jinaKey(): string {
-  return env('JINA_API_KEY');
+  // Accept both the canonical *_API_KEY name and the *_AI_API_KEYS / *_API_KEYS
+  // aliases so a provided key set works regardless of which env name is set.
+  return env('JINA_API_KEY') || env('JINA_AI_API_KEYS') || env('JINA_API_KEYS');
 }
 export function firecrawlKey(): string {
-  return env('FIRECRAWL_API_KEY');
+  return env('FIRECRAWL_API_KEY') || env('FIRECRAWL_API_KEYS');
 }
 export function serperKey(): string {
-  return env('SERPER_API_KEY');
+  return env('SERPER_API_KEY') || env('SERPER_API_KEYS');
 }
 export function brightdataKey(): string {
-  return env('BRIGHTDATA_API_KEY');
+  return env('BRIGHTDATA_API_KEY') || env('BRIGHTDATA_API_KEYS');
 }
 
 export function dailyCap(): number {

@@ -70,4 +70,10 @@ crons.interval('predictor-sync-live-scores', { minutes: 5 }, internal.scores.syn
 // statuses to 'finished', and settles PnL historical summaries.
 crons.interval('predictor-sync-past-history', { minutes: 180 }, internal.scores.syncPastHistoryAction, {});
 
+// ── Finished-match retention — daily ───────────────────────────────────────────
+// Completed games accumulate indefinitely by default. When PREDICTOR_RETENTION_DAYS
+// is configured, outdated finished matches (and their verdicts) are wiped once a
+// day per the retention policy; otherwise this job is a no-op.
+crons.daily('predictor-retention-finished', { hourUTC: 3, minuteUTC: 30 }, internal.retention.purgeFinishedMatchesAction, {});
+
 export default crons;

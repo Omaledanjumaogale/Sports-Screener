@@ -8,7 +8,8 @@ export interface BrightDataResult {
 }
 
 export async function brightDataRead(url: string, timeoutMs = 25_000): Promise<BrightDataResult> {
-  const key = process.env.BRIGHTDATA_API_KEY?.trim();
+  // Accept *_API_KEY / *_API_KEYS aliases.
+  const key = process.env.BRIGHTDATA_API_KEY?.trim() || process.env.BRIGHTDATA_API_KEYS?.trim();
   if (!key) return { ok: false, text: '' };
 
   const controller = new AbortController();

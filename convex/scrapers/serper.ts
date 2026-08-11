@@ -10,7 +10,8 @@ export interface SerperResult {
 }
 
 export async function serperSearch(query: string, num = 5): Promise<SerperResult> {
-  const key = process.env.SERPER_API_KEY?.trim();
+  // Accept *_API_KEY / *_API_KEYS aliases.
+  const key = process.env.SERPER_API_KEY?.trim() || process.env.SERPER_API_KEYS?.trim();
   if (!key) return { ok: false, items: [], text: '' };
 
   const controller = new AbortController();
