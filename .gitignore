@@ -110,3 +110,6 @@ pnpm-lock.yaml.bak
 .vercel/
 .firebase/
 .serverless/
+
+# Lighthouse PWA audit report artifacts
+lighthouse-pwa-*.json

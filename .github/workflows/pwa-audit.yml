@@ -1,0 +1,47 @@
+name: PWA Audit
+
+# Runs the Lighthouse PWA audit (installability, manifest validity, SW
+# presence, offline capability) against the production site after every push
+# to main — i.e. after each wrangler:deploy lands. Also available manually.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'URL to audit (defaults to production)'
+        required: false
+        default: 'https://pulseodds-screener.pages.dev'
+        type: string
+
+jobs:
+  pwa-audit:
+    name: Lighthouse PWA audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium (used for the offline cross-check)
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Lighthouse PWA audit
+        run: node audit-pwa.mjs "${{ inputs.url || 'https://pulseodds-screener.pages.dev' }}"
+
+      - name: Upload Lighthouse report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-pwa-report
+          path: lighthouse-pwa-*.json
+          if-no-files-found: ignore
