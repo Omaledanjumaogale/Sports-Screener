@@ -22,6 +22,13 @@ import {
   type ConsolidatedOdds
 } from '../apis/sportsApis';
 import { isFootballMatch, matchBelongsToSport, validateFixture, serverCanonicalizeLeague } from '../predictor';
+import {
+  allowSyntheticEnv,
+  assessDataQuality,
+  crossSourceKey,
+  hasRealOdds,
+  researchFixtureGaps
+} from '../scrapers/dataQuality';
 
 export interface FixturesResult {
   raw: ScrapeMatch[];
@@ -55,7 +62,7 @@ export async function tundeFetchFixtures(sportId: string, dayKey?: string): Prom
       awayTeam: v.normalizedAway || m.awayTeam
     };
     if (!matchBelongsToSport({ ...normalized, source: normalized.source }, sportId)) return;
-    const key = `${sportId}|${canonLeague}|${normalized.homeTeam}|${normalized.awayTeam}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
+    const key = crossSourceKey(normalized, sportId);
     if (seenKeys.has(key)) return;
     seenKeys.add(key);
     combined.push(normalized);
@@ -140,8 +147,12 @@ export async function tundeFetchFixtures(sportId: string, dayKey?: string): Prom
     };
   }
 
-  const synthetic = syntheticFixtures(sportId);
-  return { raw: synthetic, usedSynthetic: true, countsByLeague: countsByLeague(synthetic), citations: Array.from(new Set(citations)) };
+  // Live sources produced nothing parseable AND nothing valid — never showcase
+  // fabricated rows. Synthetic dev fixtures are blocked by the showcase gate in
+  // dataQuality.ts (PREDICTOR_ALLOW_SYNTHETIC must be explicitly enabled), so a
+  // genuinely empty source day returns an empty list instead of fake fixtures.
+  const synthetic = allowSyntheticEnv() ? syntheticFixtures(sportId) : [];
+  return { raw: synthetic, usedSynthetic: synthetic.length > 0, countsByLeague: countsByLeague(synthetic), citations: Array.from(new Set(citations)) };
 }
 
 export interface OddsResult {
@@ -229,6 +240,15 @@ export async function bolanleResearch(sportId: string, fixtures: ScrapeMatch[]):
     })
   );
 
+  // Live web-search gap fill: fixtures without real odds get a targeted SERP
+  // query so the unified cache carries real prices (research-sourced) instead
+  // of fabricated fallbacks. Mutates oddsText on the matches in place.
+  const gapFill = await researchFixtureGaps(sportId, fixtures, 12);
+  if (gapFill.filled > 0) {
+    serpOk = true;
+    citations.push(...gapFill.citations);
+  }
+
   return { citations, serpOk };
 }
 
@@ -252,9 +272,16 @@ export interface FilterResult {
 // qualify. Scans EVERY real market (result/winner, double chance, totals,
 // handicap/spread) so a match qualifies on any confident selection — not just
 // the (near-50/50) total line.
+// Amara Obi — surfaces only matches where at least one market option clears the
+// confidence floor AND the match carries REAL odds. Matches whose scope was
+// built from fabricated fallback prices (oddsIsReal:false) never qualify — a
+// fake favourite can only ever appear as reference data, never a pick.
 export function amaraFilter(matches: NormalizedMatch[], floor = 60): FilterResult {
   const matchIds: string[] = [];
   for (const m of matches) {
+    // Hard gate: no real odds, no qualifying pick. (Scopes built from
+    // research-filled oddsText report oddsIsReal:true via parseOddsText.)
+    if (m.scope?._meta?.oddsIsReal === false) continue;
     const mk = m.scope.markets;
     let high = false;
     outer: for (const key of Object.keys(mk)) {

@@ -10,17 +10,17 @@ import { type ScrapeMatch } from './betwatch';
 import { matchBelongsToSport, serverLeagueBelongsToSport, serverCanonicalizeLeague } from '../predictor';
 
 const SPORT_LEAGUES: Record<string, string[]> = {
-  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'FA Cup', 'Europa', 'Championship', 'League One', 'League Two', 'EFL Cup', 'Serie B', 'Segunda', 'Bundesliga 2', 'Ligue 2', 'Primeira Liga', 'Super Lig', 'Liga MX', 'MLS', 'Scottish Premiership', 'Copa Libertadores', 'Copa America', 'World Cup', 'Nations League', 'Ekstraklasa', 'Czech First League', 'Croatian First League', 'Serbian SuperLiga', 'Romanian Liga 1', 'Hungarian NB I', 'Bulgarian First League', 'Slovak Super Liga', 'Slovenian Prva Liga', 'Veikkausliiga', 'Besta deild', 'Cyprus First Division', 'Israeli Premier League', 'Russian Premier League', 'Ukrainian Premier League', 'Kazakhstan Premier League', 'Chinese Super League', 'J1 League', 'J2 League', 'K League', 'A-League', 'Indian Super League', 'Saudi Pro League', 'UAE Pro League', 'Qatar Stars League', 'Egyptian Premier League', 'Botola', 'Tunisian Ligue', 'Algerian Ligue 1', 'Nigerian Premier League', 'Ghana Premier League', 'South African Premiership', 'USL Championship', 'Liga de Expansion', 'Brazil Serie B', 'Primera Nacional', 'Peru Liga 1', 'Paraguay Primera', 'Uruguay Primera', 'Ecuador Liga Pro', 'Bolivia Primera', 'Colombia Primera', 'Irish Premier Division', 'NIFL Premiership', 'Welsh Premier League'],
-  basketball: ['NBA', 'EuroLeague', 'ACB', 'LNB', 'WNBA', 'NCAAB', 'CBA', 'PBA', 'EuroCup', 'ABA Liga', 'Ligat Haal', 'BSL', 'Greek Basket League', 'VTB', 'NBL', 'KBL', 'B.League', 'G League', 'Liga Endesa', 'LBA'],
-  tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000', 'ATP Tour', 'WTA Tour', 'ATP Challenger', 'ITF'],
-  rally: ['ITTF', 'WTT', 'World Table Tennis', 'Table Tennis', 'TT Cup'],
-  hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL', 'HockeyAllsvenskan', 'GET Ligaen', 'Metal Ligaen', 'Ligue Magnus', 'DEL2', 'ICEHL', 'Extraliga', 'VHL'],
-  baseball: ['MLB', 'NPB', 'KBO', 'MiLB', 'CPBL', 'LIDOM', 'LBPRC', 'LVBP', 'LMB'],
-  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'UFL', 'Super Bowl'],
-  rugby: ['Six Nations', 'Rugby Championship', 'Premiership Rugby', 'Top 14', 'Super Rugby', 'World Cup Rugby', 'URC', 'Champions Cup', 'Japan League One', 'Major League Rugby', 'Currie Cup', 'NPC', 'NRL'],
-  cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash', 'The Hundred', 'World Cup', 'Super League', 'T20 Blast', 'Caribbean Premier League', 'Lanka Premier League', 'Bangladesh Premier League', 'Nepal Premier League', 'SA20', 'ILT20', 'Pakistan Super League'],
-  mma: ['UFC', 'Bellator', 'PFL', 'ONE Championship', 'MMA'],
-  volleyball: ['FIVB', 'VNL', 'CEV', 'SuperLega', 'Superleague', 'Volleyball', 'PlusLiga', 'Efeler Ligi', 'Ligue A', 'Volleyball Bundesliga', 'V.League', 'Volleyball Super League']
+  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'FA Cup', 'Europa', 'Championship', 'League One', 'League Two', 'EFL Cup', 'Serie B', 'Segunda', 'Bundesliga 2', 'Ligue 2', 'Primeira Liga', 'Super Lig', 'Liga MX', 'MLS', 'Scottish Premiership', 'Copa Libertadores', 'Copa America', 'World Cup', 'Nations League', 'Ekstraklasa', 'Czech First League', 'Croatian First League', 'Serbian SuperLiga', 'Romanian Liga 1', 'Hungarian NB I', 'Bulgarian First League', 'Slovak Super Liga', 'Slovenian Prva Liga', 'Veikkausliiga', 'Besta deild', 'Cyprus First Division', 'Israeli Premier League', 'Russian Premier League', 'Ukrainian Premier League', 'Kazakhstan Premier League', 'Chinese Super League', 'J1 League', 'J2 League', 'K League', 'A-League', 'Indian Super League', 'Saudi Pro League', 'UAE Pro League', 'Qatar Stars League', 'Egyptian Premier League', 'Botola', 'Tunisian Ligue', 'Algerian Ligue 1', 'Nigerian Premier League', 'Ghana Premier League', 'South African Premiership', 'USL Championship', 'Liga de Expansion', 'Brazil Serie B', 'Primera Nacional', 'Peru Liga 1', 'Paraguay Primera', 'Uruguay Primera', 'Ecuador Liga Pro', 'Bolivia Primera', 'Colombia Primera', 'Irish Premier Division', 'NIFL Premiership', 'Welsh Premier League', 'Latvian Virsliga', 'Lithuanian A Lyga', 'Estonian Meistriliiga', 'Belarusian Premier League', 'Moldovan Super Liga', 'Georgian Erovnuli Liga', 'Armenian Premier League', 'Azerbaijan Premier League', 'Kosovo Superleague', 'Maltese Premier League', 'Gibraltar Football League', 'San Marino', 'Andorra Primera', 'Luxembourg National Division', 'Albanian Superliga', 'Bosnian Premier League', 'North Macedonia First League', 'Montenegro First League', 'Kenya Premier League', 'Uganda Premier League', 'Tanzania Premier League', 'Zambia Super League', 'Zimbabwe Premier League', 'Angola Girabola', 'Mozambique Moçambola', 'Ethiopian Premier League', 'Ivory Coast Ligue 1', 'DR Congo Linafoot', 'Cameroon Elite One', 'Senegal Ligue 1', 'Mali Premiere Division', 'Burkina Faso', 'Togo', 'Benin', 'Sudan Premier League', 'Libya Premier League', 'Iraqi Premier League', 'Jordan Pro League', 'Lebanon Premier League', 'Kuwait Premier League', 'Oman Pro League', 'Bahrain Premier League', 'Hong Kong Premier League', 'Singapore Premier League', 'Malaysia Super League', 'Indonesia Liga 1', 'Philippines Football League', 'Mongolia Premier League', 'Uzbekistan Super League', 'Kyrgyzstan Premier League', 'Tajikistan League', 'Turkmenistan', 'Myanmar National League', 'Cambodia Premier League', 'Laos League', 'Brunei Super League', 'Papua New Guinea', 'Fiji', 'New Caledonia', 'Tahiti', 'Vanuatu', 'Samoa', 'Tonga'],
+  basketball: ['NBA', 'EuroLeague', 'ACB', 'LNB', 'LNB Pro A', 'LNB Pro B', 'WNBA', 'NCAAB', 'NCAA', 'CBA', 'PBA', 'EuroCup', 'ABA Liga', 'Ligat Haal', 'BSL', 'Turkish Basketball', 'Greek Basket League', 'A1 Ethniki', 'VTB', 'NBL', 'KBL', 'B.League', 'G League', 'Liga Endesa', 'LBA', 'Lega Basket', 'Serie A2 Basket', 'BNXT', 'BBL', 'German BBL', 'ProA', 'Italian SuperLega', 'Superliga Argentina', 'NBB', 'Brazilian NBB', 'LNBP', 'LPB', 'BSN', 'Liga Nacional de Básquet', 'Chile Liga Nacional', 'Uruguay Liga', 'Colombia Baloncesto', 'Peru Liga Basket', 'Korisliiga', 'Basketligan', 'Liga Unike', 'ABA', 'FIBA Europe Cup', 'Basketball Champions League', 'Liga Sudamericana', 'NBL Canada', 'TBL', 'KBL', 'PBA Commissioner', 'B.League B2', 'Superleague Greece'],
+  tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000', 'ATP Tour', 'WTA Tour', 'ATP Challenger', 'ITF', 'ATP 250', 'ATP 500', 'WTA 125', 'Davis Cup', 'Billie Jean King Cup', 'United Cup', 'Laver Cup', 'Next Gen Finals', 'ATP Finals', 'WTA Finals', 'Wimbledon', 'US Open', 'Australian Open', 'French Open', 'Roland Garros'],
+  rally: ['ITTF', 'WTT', 'World Table Tennis', 'Table Tennis', 'TT Cup', 'WTT Champions', 'WTT Contender', 'WTT Star Contender', 'Europe Top 16', 'ITTF World Tour'],
+  hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL', 'HockeyAllsvenskan', 'GET Ligaen', 'Metal Ligaen', 'Ligue Magnus', 'DEL2', 'ICEHL', 'Extraliga', 'VHL', 'Czech Extraliga', 'Slovak Extraliga', 'Tipsport Extraliga', 'Alps Hockey League', 'ECHL', 'SPHL', 'Mestis', 'Hockeyettan', 'NCAA Hockey', 'Champions Hockey League', 'Kazakhstan Hockey', 'Premier Hockey League', 'Slovenian Hockey', 'Polish Hockey League', 'Erste Liga', 'Romanian Hockey League', 'Latvian Hockey League', 'Belarusian Extraliga', 'Swiss National League', 'NL Switzerland', 'OHL', 'QMJHL', 'WHL'],
+  baseball: ['MLB', 'NPB', 'KBO', 'MiLB', 'CPBL', 'LIDOM', 'LBPRC', 'LVBP', 'LMB', 'Serie del Caribe', 'Caribbean Series', 'ABL', 'Australian Baseball League', 'World Baseball Classic', 'Premier12', 'Atlantic League', 'Frontier League', 'American Association', 'NCAA Baseball', 'Cuban National Series', 'Colombian Baseball', 'Nicaragua Baseball', 'Panama Baseball'],
+  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'UFL', 'Super Bowl', 'Grey Cup', 'USFL', 'NCAA FCS', 'NCAA Division II', 'NCAA Division III', 'Arena Football', 'European League of Football', 'ELF'],
+  rugby: ['Six Nations', 'Rugby Championship', 'Premiership Rugby', 'Top 14', 'Super Rugby', 'World Cup Rugby', 'URC', 'Champions Cup', 'Japan League One', 'Major League Rugby', 'Currie Cup', 'NPC', 'NRL', 'Pro D2', 'Super Rugby Americas', 'SRA', 'Challenge Cup', 'EPCR', 'Premiership Women', 'Rugby League World Cup', 'State of Origin', 'Super League Rugby', 'French Nationale', 'Domestic Top League'],
+  cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash', 'The Hundred', 'World Cup', 'Super League', 'T20 Blast', 'Caribbean Premier League', 'Lanka Premier League', 'Bangladesh Premier League', 'Nepal Premier League', 'SA20', 'ILT20', 'Pakistan Super League', 'Major League Cricket', 'MLC', 'Global T20 Canada', 'Zimbabwe T20', 'Ireland T20', 'Super Smash', 'New Zealand Super Smash', 'England T20', 'County Championship', 'One Day Cup', 'Sheffield Shield', 'Ranji Trophy', 'Syed Mushtaq Ali'],
+  mma: ['UFC', 'Bellator', 'PFL', 'ONE Championship', 'ONE', 'MMA', 'Cage Warriors', 'KSW', 'Rizin', 'Brave CF', 'ACA', 'LFA', 'Fight Night', 'UFC Fight Night'],
+  volleyball: ['FIVB', 'VNL', 'CEV', 'SuperLega', 'Superleague', 'Volleyball', 'PlusLiga', 'Efeler Ligi', 'Ligue A', 'Volleyball Bundesliga', 'V.League', 'Volleyball Super League', 'Serie A1', 'Serie A2', 'Turkish League', 'Sultanlar Ligi', 'Russian Superleague', 'Polish PlusLiga', 'CEV Cup', 'CEV Challenge Cup', 'Champions League Volleyball', 'NCAA Volleyball', 'Italian Volleyball', 'Brazilian Superliga', 'Argentine Volleyball', 'Korean V-League', 'Chinese Volleyball League']
 };
 
 // Honest fallback league label per sport. Used only when a parser cannot detect
@@ -42,7 +42,13 @@ const SPORT_LABELS: Record<string, string> = {
 };
 
 function clean(name: string): string {
-  return String(name || '').replace(/[|#*_`~]/g, '').trim();
+  return String(name || '')
+    .replace(/[|#*_`~]/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
 }
 
 const UNKNOWN_LABELS = /^(prediction|predictions|odds|bet|bets|pred|match|game|live|score|btts|over|under|today|tomorrow|home|away|results?|summary|matches?|next|countries|my|login|register|sports?|favorites?|standings?|table|ranking|preview|analysis|form|h2h|head.?to.?head|stats?|statistics|markets?|lineups?|news|transfers?|injuries?)$/i;
@@ -68,6 +74,12 @@ function looksLikeTeam(name: string): boolean {
   if (/(prediction|predictions|bet of|the day|sportsbook|promo|bonus|claim|login|register|countries|favorites?|my selections|head.?to.?head|form guide|last \d+|h2h|live score)/i.test(n)) return false;
   if (/^[\d\sMLSXLW]+$/i.test(n)) return false;
   if (/\*|#|\|/.test(n)) return false;
+  // Reject script/code-shaped fragments ("var diff = now.getTime()",
+  // "lastActiveTime1.getTime();") that leak from inline JS in bot-challenged
+  // or JS-heavy pages.
+  if (/\b(var|const|let|function|return|document|window|this|true|false|null|undefined)\b/i.test(n)) return false;
+  if (/[=;{}\(\)]/.test(n)) return false;
+  if (/\.getTime\(\)|querySelector|addEventListener|innerHTML|onclick/i.test(n)) return false;
   const lower = n.toLowerCase();
   if (NON_FIXTURE_PHRASES.some((p) => lower.includes(p))) return false;
   if (/^(the|a|an|and|or|but|if|when|where|why|how|what|which|who|whom|whose|this|that|these|those|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|must|shall|can|need|dare|ought|used)$/i.test(n)) return false;
@@ -212,7 +224,96 @@ function parseClock(raw: string, dayKey?: string): number {
   return baseOfDay(dayKey) + 12 * 60 * 60 * 1000;
 }
 
-export function parseFixtures(text: string, sportId: string, sourceUrl: string, dayKey?: string): ScrapeMatch[] {
+// BetExplorer raw-HTML feed (free direct fetch path). League headers are
+//   <tr class="js-tournament"><th colspan="2"><a class="table-main__tournament">
+//     <i><img alt="Asia"></i>Asia: AFC Champions League</a>...
+// and fixture rows are
+//   <tr data-dt="11,8,2026,17,00">
+//     <td><span class="table-main__time">17:00</span>
+//       <a href="/football/asia/afc-champions-league/al-jazira-al-ittihad/ILHMildL/">Al Jazira - Al Ittihad</a></td>
+//     <td class="table-main__odds"><button data-odd="3.71"></button></td>  (1X2 etc.)
+// data-dt is D,M,YYYY,H,MM — parsed into a WAT-anchored epoch.
+function parseBetexplorerHtml(text: string, sportId: string, sourceUrl: string, dayKey?: string): ScrapeMatch[] {
+  const out: ScrapeMatch[] = [];
+  let currentLeague = '';
+  const rows = (text || '').match(/<tr[^>]*>[\s\S]*?<\/tr>/g) ?? [];
+
+  const tourneyRe = /class="table-main__tournament"[^>]*>([\s\S]*?)<\/a>/;
+  const dtRe = /<tr\s+data-dt="([^"]+)"/;
+  const timeRe = /class="table-main__time">\s*(\d{1,2}:\d{2})/;
+  const teamRe = /<a[^>]*href="[^"]*"[^>]*>\s*([^<>]*?)\s*-\s*([^<>]*?)\s*<\/a>/;
+  const oddRe = /data-odd="(\d+\.\d{1,3})"/g;
+
+  for (const row of rows) {
+    // League / tournament header row resets the current league context.
+    const tm = row.match(tourneyRe);
+    if (tm) {
+      // Inner anchor text only ("Asia: AFC Champions League") — strip the
+      // country flag <i><img></i> and any other tags.
+      const label = clean(tm[1].replace(/<[^>]+>/g, ' '));
+      if (label && label.length >= 3 && label.length <= 80 && /[a-z0-9]/i.test(label)) {
+        currentLeague = label;
+      }
+      continue;
+    }
+
+    const dt = row.match(dtRe);
+    if (!dt) continue;
+    const time = row.match(timeRe)?.[1] ?? '';
+    const teams = row.match(teamRe);
+    if (!teams) continue;
+    const home = clean(teams[1]);
+    const away = clean(teams[2]);
+    if (!looksLikeTeam(home) || !looksLikeTeam(away)) continue;
+
+    const odds: number[] = [];
+    let om;
+    while ((om = oddRe.exec(row)) && odds.length < 6) {
+      const v = Number(om[1]);
+      if (v >= 1.01 && v <= 15) odds.push(v);
+    }
+
+    const startTime = startTimeFromDataDt(dt[1], time, dayKey);
+    out.push({
+      source: 'LiveScrape',
+      sourceUrl,
+      league: currentLeague || SPORT_LABELS[sportId] || 'Scheduled Fixture',
+      homeTeam: home,
+      awayTeam: away,
+      startTime,
+      markets: ['mainTotal', 'result'],
+      oddsText: odds.slice(0, 3).map((n) => n.toFixed(2)).join(', ')
+    });
+  }
+  return out;
+}
+
+// BetExplorer data-dt "D,M,YYYY,H,MM" → WAT-anchored epoch. The wall-clock is
+// treated as West Africa Time (UTC+1) so fixtures land on the same calendar day
+// the UI's dayKey expects; falls back to parseClock when the attribute is junk.
+function startTimeFromDataDt(dataDt: string, clock: string, dayKey?: string): number {
+  const parts = String(dataDt || '').split(',').map((s) => Number(s.trim()));
+  if (parts.length >= 5 && parts.slice(0, 5).every((n) => Number.isFinite(n))) {
+    const [day, month, year, hour, minute] = parts;
+    const hm = String(clock || '').match(/(\d{1,2}):(\d{2})/);
+    if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const h = hm ? Number(hm[1]) : hour;
+      const mi = hm ? Number(hm[2]) : minute;
+      if (h >= 0 && h <= 23 && mi >= 0 && mi <= 59) {
+        return Date.UTC(year, month - 1, day, h, mi) - 60 * 60 * 1000;
+      }
+    }
+  }
+  return parseClock(clock, dayKey);
+}
+
+export function parseFixtures(
+  text: string,
+  sportId: string,
+  sourceUrl: string,
+  dayKey?: string,
+  opts?: { trustLeagueHeaders?: boolean }
+): ScrapeMatch[] {
   const seen = new Set<string>();
   const out: ScrapeMatch[] = [];
   const push = (m: ScrapeMatch) => {
@@ -220,12 +321,25 @@ export function parseFixtures(text: string, sportId: string, sourceUrl: string, 
     const key = `${sportId}|${canonLeague}|${m.homeTeam}|${m.awayTeam}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
     if (seen.has(key)) return;
     if (!serverLeagueBelongsToSport(canonLeague || m.league || '', sportId)) return;
-    if (!matchBelongsToSport({ league: canonLeague || m.league, homeTeam: m.homeTeam, awayTeam: m.awayTeam, source: m.source }, sportId)) return;
+    // When the page is a sport-scoped directory (e.g. betexplorer.com/football/)
+    // and the row carries a REAL tournament header, the league gate above is the
+    // authority — the header text itself pins the sport, so unknown minor-league
+    // teams don't get dropped for lacking a famous-name fingerprint. Headerless
+    // generic rows still go through the strict keyword gate to block cross-sport
+    // misclassification (e.g. an "Arsenal - Chelsea" line read as basketball).
+    const hasRealLeagueHeader =
+      opts?.trustLeagueHeaders &&
+      !!canonLeague &&
+      canonLeague !== (SPORT_LABELS[sportId] || '') &&
+      !UNKNOWN_LABELS.test(canonLeague);
+    if (!hasRealLeagueHeader && !matchBelongsToSport({ league: canonLeague || m.league, homeTeam: m.homeTeam, awayTeam: m.awayTeam, source: m.source }, sportId)) return;
     seen.add(key);
     out.push(m);
   };
 
-  // 1. BetExplorer-style tables.
+  // 0. BetExplorer raw-HTML tables (free direct-fetch path — no reader credits).
+  for (const m of parseBetexplorerHtml(text, sportId, sourceUrl, dayKey)) push(m);
+  // 1. BetExplorer-style markdown tables.
   for (const m of parseBetexplorer(text, sportId, sourceUrl, dayKey)) push(m);
   // 2. SoccerVista-style markdown-link rows.
   for (const m of parseSoccervista(text, sportId, sourceUrl, dayKey)) push(m);
@@ -353,7 +467,10 @@ export async function scrapeRealFixtures(sportId: string, dayKey?: string): Prom
     const page = await readAny(url, { timeoutMs: 18_000 });
     pagesFetched.push({ url, ok: page.ok, engine: page.engine });
     if (!page.ok) return;
-    const parsed = parseFixtures(page.text, sportId, url, dayKey);
+    // trustLeagueHeaders: FIXTURE_PAGES are sport-scoped roots (betexplorer.com/football/),
+    // so rows under a real tournament header are authoritative for this sport even
+    // when their minor-league team names aren't in the famous-name keyword lists.
+    const parsed = parseFixtures(page.text, sportId, url, dayKey, { trustLeagueHeaders: true });
     if (parsed.length > 0) collected.push(...parsed);
   });
 

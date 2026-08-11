@@ -24,6 +24,7 @@ import type * as savedScreeners from "../savedScreeners.js";
 import type * as scores from "../scores.js";
 import type * as scrapers_betwatch from "../scrapers/betwatch.js";
 import type * as scrapers_brightdata from "../scrapers/brightdata.js";
+import type * as scrapers_dataQuality from "../scrapers/dataQuality.js";
 import type * as scrapers_firecrawl from "../scrapers/firecrawl.js";
 import type * as scrapers_fixtures from "../scrapers/fixtures.js";
 import type * as scrapers_jinaReader from "../scrapers/jinaReader.js";
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   scores: typeof scores;
   "scrapers/betwatch": typeof scrapers_betwatch;
   "scrapers/brightdata": typeof scrapers_brightdata;
+  "scrapers/dataQuality": typeof scrapers_dataQuality;
   "scrapers/firecrawl": typeof scrapers_firecrawl;
   "scrapers/fixtures": typeof scrapers_fixtures;
   "scrapers/jinaReader": typeof scrapers_jinaReader;

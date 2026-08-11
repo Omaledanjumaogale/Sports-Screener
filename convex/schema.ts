@@ -170,6 +170,7 @@ export default defineSchema({
     source: v.string(),
     marketsAvailable: v.array(v.string()),
     scopes: v.any(),
+    dataQuality: v.optional(v.string()),
     oddsSnapshot: v.optional(v.any()),
     finalScore: v.optional(v.string()),
     status: v.optional(

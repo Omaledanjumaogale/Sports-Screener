@@ -107,6 +107,35 @@ describe('leagueCountries', () => {
     expect(countryForLeague('V.League 1')).toBe('Vietnam');
   });
 
+  it('maps the newly-added extended global leagues', () => {
+    // Football — extended global coverage
+    expect(countryForLeague('Virsliga')).toBe('Latvia');
+    expect(countryForLeague('A Lyga')).toBe('Lithuania');
+    expect(countryForLeague('Meistriliiga')).toBe('Estonia');
+    expect(countryForLeague('Erovnuli Liga')).toBe('Georgia');
+    expect(countryForLeague('Girabola')).toBe('Angola');
+    expect(countryForLeague('Linafoot')).toBe('DR Congo');
+    expect(countryForLeague('Kenya Premier League')).toBe('Kenya');
+    expect(countryForLeague('Uganda Premier League')).toBe('Uganda');
+    expect(countryForLeague('Zambia Super League')).toBe('Zambia');
+    expect(countryForLeague('Kosovo Superleague')).toBe('Kosovo');
+    expect(countryForLeague('Uzbekistan Super League')).toBe('Uzbekistan');
+    expect(countryForLeague('Singapore Premier League')).toBe('Singapore');
+    expect(countryForLeague('Hong Kong Premier League')).toBe('Hong Kong');
+    // Basketball minor leagues
+    expect(countryForLeague('BNXT League')).toBe('Belgium');
+    expect(countryForLeague('Korisliiga')).toBe('Finland');
+    expect(countryForLeague('Basketligan')).toBe('Sweden');
+    expect(countryForLeague('NBB')).toBe('Brazil');
+    expect(countryForLeague('LNBP')).toBe('Mexico');
+    expect(countryForLeague('LBA')).toBe('Italy');
+    // Volleyball minor leagues
+    expect(countryForLeague('Sultanlar Ligi')).toBe('Turkey');
+    // BBL stays cricket (Australia) — basketball must arrive as 'German BBL'.
+    expect(countryForLeague('BBL')).toBe('Australia');
+    expect(countryForLeague('German BBL')).toBe('Germany');
+  });
+
   it('resolves word-boundary conflicts correctly', () => {
     // 'del' inside 'Sunderland' must NOT map to Germany; 'DEL2' must map to Germany.
     expect(displayLeague('Sunderland U21')).toBe('Sunderland U21');

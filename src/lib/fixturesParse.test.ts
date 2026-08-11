@@ -65,4 +65,65 @@ describe('parseFixtures (convex scrapers)', () => {
     expect(legitHoops.length).toBe(1);
     expect(legitHoops[0].league).toBe('Basketball');
   });
+
+  it('parses raw BetExplorer HTML tables with country-prefixed league context', () => {
+    const html = [
+      '<table>',
+      '<tr class="js-tournament"><th class="h-text-left" colspan="2"><a href="/football/asia/afc-champions-league/" class="table-main__tournament"><i><img src="https://cci.betexplorer.com/5.svg" alt="Asia"></i>Asia: AFC Champions League</a></th><th class="table-main__odds">1</th><th class="table-main__odds">X</th><th class="table-main__odds">2</th></tr>',
+      '<tr data-dt="11,8,2026,17,00">',
+      '<td class="h-text-left"><span class="table-main__time">17:00</span><a href="/football/asia/afc-champions-league/al-jazira-al-ittihad/ILHMildL/">Al Jazira - Al Ittihad</a></td>',
+      '<td class="table-main__streams h-text-right"></td>',
+      '<td class="table-main__odds " data-oid="a"><button data-odd="3.71"></button></td>',
+      '<td class="table-main__odds " data-oid="b"><button data-odd="3.69"></button></td>',
+      '<td class="table-main__odds " data-oid="c"><button data-odd="1.86"></button></td>',
+      '</tr>',
+      '<tr class="js-tournament"><th class="h-text-left" colspan="2"><a href="/football/czech-republic/mol-cup/" class="table-main__tournament"><i><img src="https://cci.betexplorer.com/cz.svg" alt="Czech Republic"></i>Czech Republic: MOL Cup</a></th></tr>',
+      '<tr data-dt="11,8,2026,17,30">',
+      '<td class="h-text-left"><span class="table-main__time">17:30</span><a href="/football/czech-republic/mol-cup/hostoun-sk-kladno/xU0OWDIj/">Hostoun - SK Kladno</a></td>',
+      '<td class="table-main__odds " data-oid="d"><button data-odd="5.62"></button></td>',
+      '<td class="table-main__odds " data-oid="e"><button data-odd="4.41"></button></td>',
+      '<td class="table-main__odds " data-oid="f"><button data-odd="1.45"></button></td>',
+      '</tr>',
+      '</table>'
+    ].join('\n');
+
+    const matches = parseFixtures(html, 'football', 'https://www.betexplorer.com/football/', undefined, { trustLeagueHeaders: true });
+    expect(matches.length).toBe(2);
+
+    const [first, second] = matches;
+    expect(first.homeTeam).toBe('Al Jazira');
+    expect(first.awayTeam).toBe('Al Ittihad');
+    expect(first.league).toContain('Asia: AFC Champions League');
+    expect(first.oddsText).toBe('3.71, 3.69, 1.86');
+    // data-dt 11,8,2026 17:00 WAT == UTC 16:00 same day.
+    expect(new Date(first.startTime).toISOString().slice(0, 16)).toBe('2026-08-11T16:00');
+
+    // League context flows from header to the rows below it — no one-constant-league.
+    expect(second.league).toContain('Czech Republic: MOL Cup');
+    expect(second.homeTeam).toBe('Hostoun');
+    expect(second.awayTeam).toBe('SK Kladno');
+  });
+
+  it('drops HTML rows with odds-shaped or non-team opponents', () => {
+    const html = [
+      '<tr data-dt="11,8,2026,17,00">',
+      '<td><span class="table-main__time">17:00</span><a href="/football/x/y/z/">Real Madrid - 2.10</a></td>',
+      '<td class="table-main__odds"><button data-odd="1.20"></button></td>',
+      '</tr>'
+    ].join('\n');
+    const matches = parseFixtures(html, 'football', 'https://www.betexplorer.com/football/');
+    expect(matches.some((m) => m.awayTeam === '2.10' || /^\d/.test(m.awayTeam))).toBe(false);
+  });
+
+  it('rejects script/code fragments leaking from JS-heavy pages', () => {
+    const text = [
+      'var diff = now.getTime() - lastActiveTime1.getTime();',
+      'document.querySelector(".table-main__time").innerHTML = "17:00";',
+      'Rangers - Celtic',
+      'Al Jazira - Al Ittihad'
+    ].join('\n');
+    const matches = parseFixtures(text, 'football', 'https://www.betexplorer.com/football/');
+    expect(matches.length).toBe(2);
+    expect(matches.some((m) => /var |getTime|querySelector|innerHTML/.test(m.homeTeam + ' ' + m.awayTeam))).toBe(false);
+  });
 });

@@ -11,13 +11,45 @@ export interface PageReadResult {
   ok: boolean;
   status: number;
   text: string;
-  engine: 'jina' | 'firecrawl' | 'brightdata' | 'none';
+  engine: 'direct' | 'jina' | 'firecrawl' | 'brightdata' | 'none';
 }
 
 const MIN_TEXT = 60;
 
+// Free direct fetch — tried FIRST so we don't burn paid reader credits when the
+// site serves plain HTML to a browser-like request (BetExplorer, SoccerVista,
+// 24live, etc.). Only falls through to the paid readers when it fails/returns
+// too little text.
+export async function directRead(url: string, opts: { timeoutMs?: number } = {}): Promise<PageReadResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20_000);
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9'
+      },
+      redirect: 'follow',
+      signal: controller.signal
+    });
+    const text = await res.text().catch(() => '');
+    return { ok: res.ok && text.length > 0, status: res.status, text, engine: 'direct' };
+  } catch {
+    return { ok: false, status: 0, text: '', engine: 'none' };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function readAny(url: string, opts: { timeoutMs?: number } = {}): Promise<PageReadResult> {
   const timeoutMs = opts.timeoutMs ?? 20_000;
+
+  const direct = await directRead(url, { timeoutMs });
+  if (direct.ok && direct.text && direct.text.trim().length >= MIN_TEXT) {
+    return { ok: true, status: direct.status, text: direct.text, engine: 'direct' };
+  }
 
   const jina = await jinaRead(url, { timeoutMs });
   if (jina.ok && jina.text && jina.text.trim().length >= MIN_TEXT) {

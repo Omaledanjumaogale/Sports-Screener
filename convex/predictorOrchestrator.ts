@@ -11,6 +11,7 @@ import { dailyCap, watTodayKey } from './scrapers/sources';
 import { FILTER_CONFIDENCE_FLOOR } from './scrapers/normalize';
 import { generatePredictorVerdict, type VerdictOutcome } from './llm';
 import { isFootballMatch, matchBelongsToSport, validateFixture } from './predictor';
+import { assessDataQuality, hasRealOdds } from './scrapers/dataQuality';
 
 const sportId = v.union(
   v.literal('football'),
@@ -86,16 +87,21 @@ async function executeRefresh(
 
     const result = await runSmoaPipeline(args.sportId, dayKey, report, floor, cap);
 
-    // Apply strict positive sport identity + multi-point fixture validation before
-    // storing matches. Teams are rewritten to canonical names so "Man Utd" and
-    // "Manchester United" collapse to the same stable matchId, and TBD/promo
-    // rows (score < 10) are dropped entirely.
+    // Apply strict positive sport identity + multi-point fixture validation AND
+    // the data-quality showcase gate before storing matches. Teams are rewritten
+    // to canonical names so "Man Utd" and "Manchester United" collapse to the
+    // same stable matchId; TBD/promo rows (score < 10) are dropped; matches
+    // without real odds (post research-fill) are blocked from showcase entirely.
+    const qualityReport = (m: any) => assessDataQuality(m, args.sportId);
     const validated = result.matches
       .map((m) => {
         const v = validateFixture(m, args.sportId);
         if (!v.valid) return null;
+        const q = qualityReport({ ...m, league: v.normalizedLeague || m.league });
+        if (!q.eligible) return null;
         return {
           ...m,
+          dataQuality: q.level,
           league: v.normalizedLeague || m.league,
           homeTeam: v.normalizedHome || m.homeTeam,
           awayTeam: v.normalizedAway || m.awayTeam
@@ -105,8 +111,17 @@ async function executeRefresh(
     const cleanMatches = validated.filter((m) => matchBelongsToSport(m, args.sportId));
     const validIds = new Set(cleanMatches.map((m) => m.matchId));
 
+    // Only matches carrying real odds can produce qualifying picks (Amara's
+    // gate enforces the same rule, but this keeps the day-status honest).
+    const qualifyingSet = new Set(
+      result.qualifyingIds.filter((id) =>
+        cleanMatches.some((m) => m.matchId === id && hasRealOdds(m))
+      )
+    );
+    const blockedCount = result.matches.length - cleanMatches.length;
 
-    // Cache EVERY parsed fixture so the schedule always populates.
+
+    // Cache EVERY validated fixture so the schedule always populates.
     await ctx.runMutation(internal.predictor.replaceMatches, {
       sportId: args.sportId,
       dayKey: dayKey,
@@ -118,7 +133,8 @@ async function executeRefresh(
         startTime: m.startTime,
         source: m.source,
         marketsAvailable: m.markets,
-        scopes: m.scope
+        scopes: m.scope,
+        dataQuality: m.dataQuality
       }))
     });
 
@@ -127,7 +143,7 @@ async function executeRefresh(
       // floor (Amara's gate). Everything else gets a deterministic engine-built
       // verdict so the schedule still populates with analysis without exhausting
       // LLM quota on low-signal fixtures.
-      const qualifies = result.qualifyingIds.includes(m.matchId);
+      const qualifies = qualifyingSet.has(m.matchId);
       const fallbackSummary = qualifies
         ? `${m.homeTeam} vs ${m.awayTeam} (${m.league}) — confidence floor ${floor}%. Analysed by ${result.agentsRun.length} agents across ${result.sourcesUsed.length} sources.`
         : `${m.homeTeam} vs ${m.awayTeam} (${m.league}) — cached for review; no selection cleared the ${floor}% confidence floor.`;
@@ -187,15 +203,15 @@ async function executeRefresh(
     await ctx.runMutation(internal.predictor.upsertDay, {
       sportId: args.sportId,
       dayKey: dayKey,
-      status: result.qualifyingIds.length > 0 ? 'ready' : 'partial',
+      status: qualifyingSet.size > 0 ? 'ready' : 'partial',
       runId,
       cap,
       sourcesUsed: result.sourcesUsed,
-      message: result.matches.length > 0
-        ? result.qualifyingIds.length > 0
-          ? `${result.matches.length} matches cached, ${result.qualifyingIds.length} qualifying`
-          : `${result.matches.length} matches cached (none cleared the ${floor}% floor)`
-        : 'No matches cleared the confidence floor this cycle.'
+      message: cleanMatches.length > 0
+        ? qualifyingSet.size > 0
+          ? `${cleanMatches.length} verified matches cached, ${qualifyingSet.size} qualifying${blockedCount ? ` (${blockedCount} blocked by quality gate)` : ''}`
+          : `${cleanMatches.length} matches cached (none cleared the ${floor}% floor)`
+        : `All ${result.matches.length} parsed rows blocked by the quality gate — no verified fixtures this cycle.`
     });
 
     await ctx.runMutation(internal.predictor.updateRun, {

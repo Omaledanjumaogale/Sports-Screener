@@ -287,32 +287,133 @@ export function primarySourcesForSport(sportId: string): PrimarySource[] {
 // BetExplorer /next/ pages carry live decimal odds; Forebet/TennisBrain/AnnaBet
 // give per-sport prediction rows; SoccerVista gives match links with form context.
 export const FIXTURE_PAGES: Record<string, string[]> = {
-  // Pruned 2026-08-10 from the diagnoseFixturePages report (34 URLs probed:
-  // 1 healthy, 8 unparseable, 25 unreachable). Pages removed here either
-  // returned text our parsers could not turn into fixtures (Forebet, AnnaBet,
-  // SoccerVista, ATP Tour, basketball-reference) or were unreachable by the
-  // reader chain (no Jina key; Firecrawl bot-walled the rest — ESPN, NHL,
-  // FlashScore, ITTF, FIVB, Sherdog, BetExplorer /next/ …). Re-run
-  // diagnostics:diagnoseFixturePages after configuring reader API keys to
-  // re-add any of these sources.
+  // Verified-parseable BetExplorer sport roots, probed live 2026-08-11:
+  //   /football/ /basketball/ /tennis/ /baseball/ /hockey/ /volleyball/  → 200 + js-tournament tables
+  // The following paths return 404 and are intentionally NOT listed (the API
+  // layer — OddsPapi/SharpAPI/TheOddsAPI/TheSportsDB — carries those sports):
+  //   table-tennis (rally), american-football, rugby-union, cricket, mma
+  // Re-run diagnostics:diagnoseFixturePages after any reader-key changes.
   football: ['https://www.betexplorer.com/football/'],
-  basketball: [],
-  tennis: [],
-  rally: [],
-  hockey: [],
-  baseball: [],
-  americanfootball: [],
-  rugby: [],
-  cricket: [],
-  mma: [],
-  volleyball: []
+  basketball: ['https://www.betexplorer.com/basketball/'],
+  tennis: ['https://www.betexplorer.com/tennis/'],
+  hockey: ['https://www.betexplorer.com/hockey/'],
+  baseball: ['https://www.betexplorer.com/baseball/'],
+  volleyball: ['https://www.betexplorer.com/volleyball/']
 };
 export const MINOR_LEAGUES: { name: string; code: string }[] = [
+  // Football — Europe
   { name: 'Eredivisie (Netherlands)', code: 'NED-1' },
   { name: 'Liga Portugal', code: 'POR-1' },
   { name: 'Championship (England)', code: 'ENG-2' },
   { name: 'Serie B (Italy)', code: 'ITA-2' },
-  { name: 'Segunda Division (Spain)', code: 'ESP-2' }
+  { name: 'Segunda Division (Spain)', code: 'ESP-2' },
+  { name: 'Bundesliga 2 (Germany)', code: 'GER-2' },
+  { name: 'Ligue 2 (France)', code: 'FRA-2' },
+  { name: 'Scottish Premiership', code: 'SCO-1' },
+  { name: 'Belgian Pro League', code: 'BEL-1' },
+  { name: 'Swiss Super League', code: 'SUI-1' },
+  { name: 'Greek Super League', code: 'GRE-1' },
+  { name: 'Austrian Bundesliga', code: 'AUT-1' },
+  { name: 'Danish Superliga', code: 'DEN-1' },
+  { name: 'Allsvenskan (Sweden)', code: 'SWE-1' },
+  { name: 'Eliteserien (Norway)', code: 'NOR-1' },
+  { name: 'Ekstraklasa (Poland)', code: 'POL-1' },
+  { name: 'Czech First League', code: 'CZE-1' },
+  { name: 'Croatian First League', code: 'CRO-1' },
+  { name: 'Serbian SuperLiga', code: 'SRB-1' },
+  { name: 'Romanian Liga 1', code: 'ROU-1' },
+  { name: 'Hungarian NB I', code: 'HUN-1' },
+  { name: 'Bulgarian First League', code: 'BUL-1' },
+  { name: 'Veikkausliiga (Finland)', code: 'FIN-1' },
+  { name: 'Besta deild (Iceland)', code: 'ISL-1' },
+  // Football — Rest of world
+  { name: 'Brazil Serie B', code: 'BRA-2' },
+  { name: 'Argentina Primera Nacional', code: 'ARG-2' },
+  { name: 'Colombia Primera A', code: 'COL-1' },
+  { name: 'Peru Liga 1', code: 'PER-1' },
+  { name: 'Paraguay Primera', code: 'PAR-1' },
+  { name: 'Uruguay Primera', code: 'URU-1' },
+  { name: 'Ecuador Liga Pro', code: 'ECU-1' },
+  { name: 'Chile Primera', code: 'CHI-1' },
+  { name: 'Mexico Liga de Expansion', code: 'MEX-2' },
+  { name: 'USL Championship (USA)', code: 'USA-2' },
+  { name: 'Saudi Pro League', code: 'KSA-1' },
+  { name: 'UAE Pro League', code: 'UAE-1' },
+  { name: 'Qatar Stars League', code: 'QAT-1' },
+  { name: 'Egyptian Premier League', code: 'EGY-1' },
+  { name: 'Botola (Morocco)', code: 'MAR-1' },
+  { name: 'Tunisian Ligue', code: 'TUN-1' },
+  { name: 'Nigerian Premier League', code: 'NGA-1' },
+  { name: 'Ghana Premier League', code: 'GHA-1' },
+  { name: 'South African Premiership', code: 'RSA-1' },
+  { name: 'Indian Super League', code: 'IND-1' },
+  { name: 'A-League (Australia)', code: 'AUS-1' },
+  { name: 'J1 League (Japan)', code: 'JPN-1' },
+  { name: 'K League 1 (Korea)', code: 'KOR-1' },
+  { name: 'Chinese Super League', code: 'CHN-1' },
+  { name: 'Russian Premier League', code: 'RUS-1' },
+  { name: 'Ukrainian Premier League', code: 'UKR-1' },
+  // Basketball
+  { name: 'ACB / Liga Endesa (Spain)', code: 'ESP-B1' },
+  { name: 'LNB Pro A (France)', code: 'FRA-B1' },
+  { name: 'Greek Basket League', code: 'GRE-B1' },
+  { name: 'BSL (Turkey)', code: 'TUR-B1' },
+  { name: 'Ligat HaAl (Israel)', code: 'ISR-B1' },
+  { name: 'VTB United League', code: 'RUS-B1' },
+  { name: 'NBL (Australia)', code: 'AUS-B1' },
+  { name: 'KBL (Korea)', code: 'KOR-B1' },
+  { name: 'B.League (Japan)', code: 'JPN-B1' },
+  { name: 'G League (USA)', code: 'USA-B2' },
+  { name: 'CBA (China)', code: 'CHN-B1' },
+  { name: 'PBA (Philippines)', code: 'PHI-B1' },
+  { name: 'LBA (Italy)', code: 'ITA-B1' },
+  { name: 'BNXT League', code: 'EUR-B2' },
+  { name: 'German BBL', code: 'GER-B1' },
+  { name: 'Superliga Argentina', code: 'ARG-B1' },
+  { name: 'NBB (Brazil)', code: 'BRA-B1' },
+  { name: 'LNBP (Mexico)', code: 'MEX-B1' },
+  // Tennis
+  { name: 'ATP Challenger Tour', code: 'TEN-CH' },
+  { name: 'ITF World Tennis Tour', code: 'TEN-ITF' },
+  { name: 'WTA 125', code: 'TEN-125' },
+  // Ice Hockey
+  { name: 'Czech Extraliga', code: 'CZE-H1' },
+  { name: 'Slovak Extraliga', code: 'SVK-H1' },
+  { name: 'ICEHL', code: 'AUT-H1' },
+  { name: 'Swiss National League', code: 'SUI-H1' },
+  { name: 'HockeyAllsvenskan (Sweden)', code: 'SWE-H2' },
+  { name: 'GET Ligaen (Norway)', code: 'NOR-H1' },
+  { name: 'DEL2 (Germany)', code: 'GER-H2' },
+  { name: 'Ligue Magnus (France)', code: 'FRA-H1' },
+  // Baseball
+  { name: 'CPBL (Taiwan)', code: 'TPE-BB1' },
+  { name: 'KBO (Korea)', code: 'KOR-BB1' },
+  { name: 'NPB (Japan)', code: 'JPN-BB1' },
+  { name: 'LMB (Mexico)', code: 'MEX-BB1' },
+  { name: 'LVBP (Venezuela)', code: 'VEN-BB1' },
+  { name: 'LIDOM (Dominican Republic)', code: 'DOM-BB1' },
+  { name: 'ABL (Australia)', code: 'AUS-BB1' },
+  // Rugby
+  { name: 'Pro D2 (France)', code: 'FRA-R2' },
+  { name: 'Japan League One', code: 'JPN-R1' },
+  { name: 'Major League Rugby (USA)', code: 'USA-R1' },
+  { name: 'Currie Cup (South Africa)', code: 'RSA-R1' },
+  { name: 'NPC (New Zealand)', code: 'NZL-R1' },
+  // Cricket
+  { name: 'Caribbean Premier League', code: 'WIN-T20' },
+  { name: 'Lanka Premier League', code: 'SL-T20' },
+  { name: 'Bangladesh Premier League', code: 'BAN-T20' },
+  { name: 'Nepal Premier League', code: 'NEP-T20' },
+  { name: 'SA20', code: 'RSA-T20' },
+  { name: 'ILT20 (UAE)', code: 'UAE-T20' },
+  { name: 'Pakistan Super League', code: 'PAK-T20' },
+  { name: 'Major League Cricket (USA)', code: 'USA-T20' },
+  // Volleyball
+  { name: 'Polish PlusLiga', code: 'POL-V1' },
+  { name: 'Efeler Ligi (Turkey)', code: 'TUR-V1' },
+  { name: 'Brazilian Superliga', code: 'BRA-V1' },
+  { name: 'Italian Serie A1', code: 'ITA-V1' },
+  { name: 'German Volleyball Bundesliga', code: 'GER-V1' }
 ];
 
 // Backwards-compatible alias: ALL_SOURCES now maps to the unified PRIMARY
