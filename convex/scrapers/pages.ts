@@ -18,8 +18,11 @@ const MIN_TEXT = 60;
 
 // Free direct fetch — tried FIRST so we don't burn paid reader credits when the
 // site serves plain HTML to a browser-like request (BetExplorer, SoccerVista,
-// 24live, etc.). Only falls through to the paid readers when it fails/returns
-// too little text.
+// 24live, etc.). Only falls through to the paid readers when it fails, returns
+// too little text, or serves an obvious bot-challenge/JS-gate page.
+const CHALLENGE_PATTERNS =
+  /captcha|cf-challenge|challenge-platform|just a moment|checking your browser|enable javascript|please enable javascript|access denied|request blocked|cloudflare|incapsula|perimeterx/i;
+
 export async function directRead(url: string, opts: { timeoutMs?: number } = {}): Promise<PageReadResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20_000);
@@ -35,9 +38,15 @@ export async function directRead(url: string, opts: { timeoutMs?: number } = {})
       signal: controller.signal
     });
     const text = await res.text().catch(() => '');
+    // A 200 challenge/JS-only page must NOT short-circuit the paid readers —
+    // that is exactly the case they exist for. Treat it as a failed leg so
+    // readAny continues to Jina → Firecrawl → Bright Data.
+    if (res.ok && text.length > 0 && CHALLENGE_PATTERNS.test(text.slice(0, 8000))) {
+      return { ok: false, status: res.status, text: '', engine: 'direct' };
+    }
     return { ok: res.ok && text.length > 0, status: res.status, text, engine: 'direct' };
   } catch {
-    return { ok: false, status: 0, text: '', engine: 'none' };
+    return { ok: false, status: 0, text: '', engine: 'direct' };
   } finally {
     clearTimeout(timeout);
   }

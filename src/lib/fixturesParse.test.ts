@@ -98,6 +98,12 @@ describe('parseFixtures (convex scrapers)', () => {
     // data-dt 11,8,2026 17:00 WAT == UTC 16:00 same day.
     expect(new Date(first.startTime).toISOString().slice(0, 16)).toBe('2026-08-11T16:00');
 
+    // A data-dt on the wrong date gets re-anchored onto the target dayKey so
+    // the fixture never splits the cache across two day keys.
+    const anchored = parseFixtures(html, 'football', 'https://www.betexplorer.com/football/', '2026-08-11', { trustLeagueHeaders: true });
+    expect(anchored.length).toBe(2);
+    expect(new Date(anchored[0].startTime).toISOString().slice(0, 16)).toBe('2026-08-11T16:00');
+
     // League context flows from header to the rows below it — no one-constant-league.
     expect(second.league).toContain('Czech Republic: MOL Cup');
     expect(second.homeTeam).toBe('Hostoun');

@@ -291,6 +291,10 @@ function parseBetexplorerHtml(text: string, sportId: string, sourceUrl: string, 
 // BetExplorer data-dt "D,M,YYYY,H,MM" → WAT-anchored epoch. The wall-clock is
 // treated as West Africa Time (UTC+1) so fixtures land on the same calendar day
 // the UI's dayKey expects; falls back to parseClock when the attribute is junk.
+// When a target dayKey is given and the scraped date disagrees with it (the site
+// serves CET/CEST, we read WAT — a near-midnight kickoff can straddle two days),
+// the clock is re-anchored onto the target day so the cache never splits a
+// fixture across two dayKeys.
 function startTimeFromDataDt(dataDt: string, clock: string, dayKey?: string): number {
   const parts = String(dataDt || '').split(',').map((s) => Number(s.trim()));
   if (parts.length >= 5 && parts.slice(0, 5).every((n) => Number.isFinite(n))) {
@@ -300,7 +304,15 @@ function startTimeFromDataDt(dataDt: string, clock: string, dayKey?: string): nu
       const h = hm ? Number(hm[1]) : hour;
       const mi = hm ? Number(hm[2]) : minute;
       if (h >= 0 && h <= 23 && mi >= 0 && mi <= 59) {
-        return Date.UTC(year, month - 1, day, h, mi) - 60 * 60 * 1000;
+        const ts = Date.UTC(year, month - 1, day, h, mi) - 60 * 60 * 1000;
+        if (dayKey) {
+          const scrapedDay = new Date(ts + 60 * 60 * 1000).toISOString().slice(0, 10);
+          if (scrapedDay !== dayKey) {
+            // Re-anchor the clock onto the target WAT day.
+            return baseOfDay(dayKey) + h * 60 * 60 * 1000 + mi * 60 * 1000;
+          }
+        }
+        return ts;
       }
     }
   }
@@ -327,9 +339,15 @@ export function parseFixtures(
     // teams don't get dropped for lacking a famous-name fingerprint. Headerless
     // generic rows still go through the strict keyword gate to block cross-sport
     // misclassification (e.g. an "Arsenal - Chelsea" line read as basketball).
+    //
+    // Only headers in the BetExplorer "Country: League" colon format (the shape
+    // its js-tournament rows emit, e.g. "Asia: AFC Champions League") are trusted
+    // — a bare league label with no country prefix still needs the keyword gate,
+    // so a generic "World: Club Friendly"-style row can never bypass it.
     const hasRealLeagueHeader =
       opts?.trustLeagueHeaders &&
       !!canonLeague &&
+      canonLeague.includes(':') &&
       canonLeague !== (SPORT_LABELS[sportId] || '') &&
       !UNKNOWN_LABELS.test(canonLeague);
     if (!hasRealLeagueHeader && !matchBelongsToSport({ league: canonLeague || m.league, homeTeam: m.homeTeam, awayTeam: m.awayTeam, source: m.source }, sportId)) return;

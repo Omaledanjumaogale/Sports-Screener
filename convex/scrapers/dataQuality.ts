@@ -17,7 +17,7 @@
 // different providers (LiveAPI, LiveScrape, BetWatch, research…) collapse to one
 // canonical row, preferring the entry that carries real odds.
 
-import { validateFixture, matchBelongsToSport, normalizeName, serverCanonicalizeLeague, serverLeagueBelongsToSport } from '../predictor';
+import { validateFixture, matchBelongsToSport, normalizeName, serverCanonicalizeLeague, serverLeagueBelongsToSport, SPORT_KEYWORDS } from '../predictor';
 import { parseOddsText } from './normalize';
 import { serperSearch } from './serper';
 import type { ScrapeMatch } from './betwatch';
@@ -106,9 +106,10 @@ export function assessDataQuality(
   // keyword set — a league that positively matches another sport is blocked.
   let leagueFingerprintsElsewhere = false;
   if (v.normalizedLeague) {
-    const OTHER_SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball', 'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'];
+    // Derived from the live sport registry so adding/removing a sport can never
+    // silently skip the cross-sport check.
+    const OTHER_SPORTS = Object.keys(SPORT_KEYWORDS).filter((s) => s !== sportId);
     for (const other of OTHER_SPORTS) {
-      if (other === sportId) continue;
       if (matchBelongsToSport({ league: v.normalizedLeague }, other, { trustTypedApi: false })) {
         leagueFingerprintsElsewhere = true;
         break;
