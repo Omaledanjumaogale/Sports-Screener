@@ -2,7 +2,7 @@
 // reuses the existing `analyzeScope` engine + `filterHighConfidence` to compute
 // live probabilities from the cached scopes (no engine duplication).
 
-import { api, queryConvex, callConvex, actionConvex } from './convexClient';
+import { api, queryConvex, callConvex, actionConvex, getSessionId } from './convexClient';
 import { watTodayKey, watDayKeyFor } from './watTime';
 import { analyzeScope, filterHighConfidence, type Analysis, type ScopeState, type SportId } from './engine';
 import { DEFAULT_CONFIDENCE_FLOOR, type PredictorDay, type PredictorMatch, type PredictorRun, type PredictorSportId } from './predictorTypes';
@@ -158,4 +158,45 @@ export function analyzeCachedMatch(match: PredictorMatch, floor = DEFAULT_CONFID
   }
   const qualifying = filterHighConfidence(analysis, floor);
   return { analysis, qualifying };
+}
+
+// ── Realtime presence (native heartbeat) ───────────────────────────────────────
+// Non-throwing helpers: heartbeat the current session on an interval and read
+// the live online count for the predictor header indicator.
+
+export async function heartbeatPresence(sportId: string): Promise<void> {
+  try {
+    await callConvex(api.presence.update, { owner: getSessionId(), sportId });
+  } catch (_) {
+    /* non-fatal — presence is best-effort */
+  }
+}
+
+export async function fetchPresenceOnline(sportId?: string): Promise<number> {
+  try {
+    const res = await queryConvex<{ online: number }>(api.presence.list, sportId ? { sportId } : {});
+    return res?.online ?? 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+export interface PredictorTotals {
+  picks: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  units: number;
+  updatedAt: number;
+}
+
+export async function fetchPredictorTotals(): Promise<PredictorTotals> {
+  try {
+    const res = await queryConvex<PredictorTotals>(api.scores.getPredictorTotals, {});
+    return (
+      res ?? { picks: 0, wins: 0, losses: 0, pushes: 0, units: 0, updatedAt: 0 }
+    );
+  } catch (_) {
+    return { picks: 0, wins: 0, losses: 0, pushes: 0, units: 0, updatedAt: 0 };
+  }
 }

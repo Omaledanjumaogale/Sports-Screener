@@ -1,7 +1,8 @@
 import { query, mutation, action } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
-import { api } from './_generated/api';
+import { internal, api } from './_generated/api';
 import { v } from 'convex/values';
+import { logAuditEvent } from './auditLog';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -248,6 +249,7 @@ export const registerProfile = mutation({
     const email = args.email.trim().toLowerCase();
     const isAdmin = isSuperAdminEmail(email);
     const isTester = isTesterEmail(email);
+    await logAuditEvent(ctx, email, 'user.register', email, { fullName: args.fullName });
     const existing = await ctx.db
       .query('userProfiles')
       .withIndex('by_email', (q) => q.eq('email', email))
@@ -316,6 +318,22 @@ export const verifyFlutterwaveCharge = action({
     email: v.string()
   },
   handler: async (ctx, args) => {
+    // Enterprise hardening: cap payment verification attempts per email (5/min)
+    // so a forged/retry loop can't hammer the Flutterwave verify API.
+    const allowed = await ctx.runMutation(internal.rateLimit.enforceRateLimitViaMutation, {
+      name: 'paymentVerify',
+      key: args.email.trim().toLowerCase(),
+      rate: 5,
+      periodMs: 60_000
+    });
+    if (!allowed) throw new Error('Payment verification is rate limited — please try again in a minute.');
+    await ctx.runMutation(internal.auditLog.logAudit, {
+      actor: args.email.trim().toLowerCase(),
+      action: 'payments.verify',
+      subject: args.txRef,
+      metadata: { transactionId: args.transactionId ?? null }
+    });
+
     const secretKey = process.env.FLW_SECRET_KEY;
     if (!secretKey) throw new Error('Payment verification is not configured (FLW_SECRET_KEY missing)');
 

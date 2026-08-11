@@ -12,6 +12,7 @@ import { FILTER_CONFIDENCE_FLOOR } from './scrapers/normalize';
 import { generatePredictorVerdict, type VerdictOutcome } from './llm';
 import { isFootballMatch, matchBelongsToSport, validateFixture } from './predictor';
 import { assessDataQuality, hasRealOdds } from './scrapers/dataQuality';
+import { actionCacheKey } from './actionCache';
 
 const sportId = v.union(
   v.literal('football'),
@@ -150,18 +151,36 @@ async function executeRefresh(
 
       let llm: VerdictOutcome;
       if (qualifies) {
-        llm = await generatePredictorVerdict(
-          {
-            matchId: m.matchId,
-            homeTeam: m.homeTeam,
-            awayTeam: m.awayTeam,
-            league: m.league,
-            scopes: m.scope,
-            sourceUrl: m.sourceUrl,
-            citations: result.citations
-          },
-          { sportId: m.sportId, fallbackSummary }
-        );
+        // Enterprise: cache the LLM verdict per (day, match) for 15 minutes so
+        // repeat refresh cycles serve the cached analysis instead of paying the
+        // LLM again for identical inputs (native action-cache equivalent).
+        const cacheKey = actionCacheKey('generatePredictorVerdict', {
+          dayKey,
+          matchId: m.matchId,
+          sportId: m.sportId
+        });
+        const cached = await ctx.runQuery(internal.actionCache.getCachedActionValue, { cacheKey });
+        if (cached) {
+          llm = cached as VerdictOutcome;
+        } else {
+          llm = await generatePredictorVerdict(
+            {
+              matchId: m.matchId,
+              homeTeam: m.homeTeam,
+              awayTeam: m.awayTeam,
+              league: m.league,
+              scopes: m.scope,
+              sourceUrl: m.sourceUrl,
+              citations: result.citations
+            },
+            { sportId: m.sportId, fallbackSummary }
+          );
+          await ctx.runMutation(internal.actionCache.setCachedActionValue, {
+            cacheKey,
+            result: llm,
+            ttlMs: 15 * 60_000
+          });
+        }
       } else {
         llm = {
           usedLlm: false,

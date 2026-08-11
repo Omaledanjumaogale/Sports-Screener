@@ -218,5 +218,60 @@ export default defineSchema({
     oddsFormat: v.union(v.literal('decimal'), v.literal('american')),
     notificationsEnabled: v.boolean(),
     updatedAt: v.number()
-  }).index('by_user', ['userId'])
+  }).index('by_user', ['userId']),
+
+  // ── Enterprise hardening tables (native components) ──────────────────────────
+  // Application-layer fixed-window rate limiting. One row per (name, key) per
+  // window; mutations read-modify-write the bucket atomically (Convex serializes
+  // per-document writes).
+  rateLimitBuckets: defineTable({
+    name: v.string(),
+    key: v.string(),
+    windowStart: v.number(),
+    count: v.number()
+  })
+    .index('by_name_key', ['name', 'key'])
+    .index('by_window', ['windowStart']),
+
+  // Deterministic action-result cache (LLM verdicts, expensive computations).
+  // Keyed by a stable hash of the function name + args; rows expire via TTL.
+  actionCache: defineTable({
+    cacheKey: v.string(),
+    result: v.any(),
+    expiresAt: v.number()
+  }).index('by_cacheKey', ['cacheKey']),
+
+  // Realtime presence heartbeats (owner = session/user id, per sport scope).
+  presence: defineTable({
+    owner: v.string(),
+    sportId: v.optional(v.string()),
+    lastSeen: v.number()
+  })
+    .index('by_owner', ['owner'])
+    .index('by_lastSeen', ['lastSeen'])
+    .index('by_sport_lastSeen', ['sportId', 'lastSeen']),
+
+  // Immutable enterprise audit trail (sign-ins, refresh runs, score syncs,
+  // payments). Append-only by convention.
+  auditEvents: defineTable({
+    actor: v.string(),
+    action: v.string(),
+    subject: v.string(),
+    metadata: v.optional(v.any()),
+    createdAt: v.number()
+  })
+    .index('by_createdAt', ['createdAt'])
+    .index('by_actor', ['actor'])
+    .index('by_action', ['action']),
+
+  // Running lifetime aggregate of graded predictor picks (win/loss/push/units)
+  // maintained incrementally by the score-settlement engine.
+  predictorTotals: defineTable({
+    picks: v.number(),
+    wins: v.number(),
+    losses: v.number(),
+    pushes: v.number(),
+    units: v.number(),
+    updatedAt: v.number()
+  })
 });

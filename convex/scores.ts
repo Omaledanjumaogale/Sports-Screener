@@ -2,11 +2,13 @@
 // Emeka Obi's score engine: continuously syncs live match scores, updates finished
 // match status, and calculates settled PnL statistics on Convex.
 
-import { internalAction, internalMutation, mutation } from './_generated/server';
+import { internalAction, internalMutation, mutation, query } from './_generated/server';
 import { internal, api } from './_generated/api';
 import { v } from 'convex/values';
 import { fetchScoresForDate, fetchHtmlResultScores, scoreIsPlausible } from './apis/sportsApis';
 import { watTodayKey, watDayKeyFor } from './scrapers/sources';
+import { enforceRateLimit } from './rateLimit';
+import { logAuditEvent } from './auditLog';
 
 const PREDICTOR_SPORT_IDS = [
   'football',
@@ -405,6 +407,19 @@ export const settleDayPnl = internalAction({
       }
     }
 
+    // Running lifetime aggregate (native aggregate wiring): accumulate this
+    // day's graded picks into the single predictorTotals doc so long-term
+    // accuracy/PnL counters are maintained incrementally, not re-scanned.
+    await ctx
+      .runMutation(internal.scores.accumulatePredictorTotals, {
+        picks: buckets.ALL.picks,
+        wins: buckets.ALL.wins,
+        losses: buckets.ALL.losses,
+        pushes: buckets.ALL.push,
+        units: buckets.ALL.units
+      })
+      .catch(() => {});
+
     for (const filter of SETTLE_FILTERS) {
       const b = buckets[filter];
       const winRatePct = b.picks > 0 ? Math.round((b.wins / b.picks) * 100) : 0;
@@ -447,6 +462,15 @@ export const triggerScoreSync = mutation({
   args: { dayKey: v.optional(v.string()), includePastDays: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
     const day = args.dayKey || watTodayKey();
+
+    // Enterprise hardening: cap manual score-sync requests (6/min) so a loop or
+    // repeated button mashing can't schedule unlimited sync actions.
+    const allowed = await enforceRateLimit(ctx, 'scoreSync', day, 6, 60_000);
+    if (!allowed) {
+      return { ok: false, message: 'Score sync is rate limited — try again in a moment.' };
+    }
+    await logAuditEvent(ctx, 'user', 'scores.sync', day, { includePastDays: !!args.includePastDays });
+
     await ctx.scheduler.runAfter(0, internal.scores.syncScoresAction, { dayKey: day });
     if (args.includePastDays) {
       for (let i = 1; i <= 7; i++) {
@@ -454,5 +478,59 @@ export const triggerScoreSync = mutation({
       }
     }
     return { ok: true, message: `Score sync scheduled for ${day}${args.includePastDays ? ' + past 7 days' : ''}` };
+  }
+});
+
+// ── Running lifetime totals (native aggregate) ────────────────────────────────
+// Incrementally maintained counters of every graded pick, updated by
+// settleDayPnl. The AccuracyMonitorPanel / PnL summary can read this without
+// re-scanning the match cache.
+export const accumulatePredictorTotals = internalMutation({
+  args: {
+    picks: v.number(),
+    wins: v.number(),
+    losses: v.number(),
+    pushes: v.number(),
+    units: v.number()
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.query('predictorTotals').first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        picks: existing.picks + args.picks,
+        wins: existing.wins + args.wins,
+        losses: existing.losses + args.losses,
+        pushes: existing.pushes + args.pushes,
+        units: Number((existing.units + args.units).toFixed(1)),
+        updatedAt: Date.now()
+      });
+    } else {
+      await ctx.db.insert('predictorTotals', {
+        picks: args.picks,
+        wins: args.wins,
+        losses: args.losses,
+        pushes: args.pushes,
+        units: Number(args.units.toFixed(1)),
+        updatedAt: Date.now()
+      });
+    }
+    return { ok: true };
+  }
+});
+
+export const getPredictorTotals = query({
+  args: {},
+  handler: async (ctx) => {
+    const t = await ctx.db.query('predictorTotals').first();
+    return (
+      t ?? {
+        picks: 0,
+        wins: 0,
+        losses: 0,
+        pushes: 0,
+        units: 0,
+        updatedAt: 0
+      }
+    );
   }
 });

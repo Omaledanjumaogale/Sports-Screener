@@ -8,10 +8,12 @@
  * @module
  */
 
+import type * as actionCache from "../actionCache.js";
 import type * as agents_agentDefinitions from "../agents/agentDefinitions.js";
 import type * as agents_smoa from "../agents/smoa.js";
 import type * as agents_specialists from "../agents/specialists.js";
 import type * as apis_sportsApis from "../apis/sportsApis.js";
+import type * as auditLog from "../auditLog.js";
 import type * as auth from "../auth.js";
 import type * as crons from "../crons.js";
 import type * as diagnostics from "../diagnostics.js";
@@ -20,6 +22,8 @@ import type * as http from "../http.js";
 import type * as llm from "../llm.js";
 import type * as predictor from "../predictor.js";
 import type * as predictorOrchestrator from "../predictorOrchestrator.js";
+import type * as presence from "../presence.js";
+import type * as rateLimit from "../rateLimit.js";
 import type * as retention from "../retention.js";
 import type * as retentionPolicy from "../retentionPolicy.js";
 import type * as savedScreeners from "../savedScreeners.js";
@@ -43,10 +47,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  actionCache: typeof actionCache;
   "agents/agentDefinitions": typeof agents_agentDefinitions;
   "agents/smoa": typeof agents_smoa;
   "agents/specialists": typeof agents_specialists;
   "apis/sportsApis": typeof apis_sportsApis;
+  auditLog: typeof auditLog;
   auth: typeof auth;
   crons: typeof crons;
   diagnostics: typeof diagnostics;
@@ -55,6 +61,8 @@ declare const fullApi: ApiFromModules<{
   llm: typeof llm;
   predictor: typeof predictor;
   predictorOrchestrator: typeof predictorOrchestrator;
+  presence: typeof presence;
+  rateLimit: typeof rateLimit;
   retention: typeof retention;
   retentionPolicy: typeof retentionPolicy;
   savedScreeners: typeof savedScreeners;

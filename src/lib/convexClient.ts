@@ -105,29 +105,60 @@ async function getRealtimeClient(): Promise<RealtimeClientLike> {
   return realtimeClient;
 }
 
-// Subscribe to a live Convex query. Resolves to an unsubscribe function. If the
-// realtime client cannot be created (offline/SSR) a no-op unsubscribe is
-// returned and the error is routed to `onError`.
+// Subscribe to a live Convex query. Resolves to an unsubscribe function. The
+// WebSocket client auto-reconnects, but a transient query failure must not kill
+// the live subscription silently: we retry with 1s/2s/4s backoff (up to 3
+// attempts) before giving up, keeping the UI in sync with the backend.
 export async function subscribeConvexQuery<Result = any>(
   name: string,
   args: any,
   onChange: (result: Result | null) => void,
   onError?: (err: unknown) => void
 ): Promise<() => void> {
-  try {
-    const client = await getRealtimeClient();
-    const unsub = client.onUpdate(name, args, onChange, (err) => {
+  let unsub: (() => void) | null = null;
+  let cancelled = false;
+  let retries = 0;
+  const MAX_RETRIES = 3;
+
+  const cleanup = () => {
+    if (unsub && typeof unsub === 'function') {
+      try {
+        unsub();
+      } catch {
+        /* already dead */
+      }
+      unsub = null;
+    }
+  };
+
+  const trySubscribe = async () => {
+    if (cancelled) return;
+    try {
+      const client = await getRealtimeClient();
+      if (cancelled) return;
+      unsub = client.onUpdate(name, args, onChange, (err) => {
+        const msg = (err as any)?.message || err;
+        console.warn(`[Convex] realtime query '${name}' failed:`, msg);
+        onError?.(err);
+        if (!cancelled && retries < MAX_RETRIES) {
+          retries += 1;
+          const delay = 1000 * 2 ** (retries - 1);
+          cleanup();
+          setTimeout(() => void trySubscribe(), delay);
+        }
+      });
+    } catch (err) {
       const msg = (err as any)?.message || err;
-      console.warn(`[Convex] realtime query '${name}' failed:`, msg);
+      console.warn('[Convex] realtime client unavailable:', msg);
       onError?.(err);
-    });
-    return typeof unsub === 'function' ? unsub : () => {};
-  } catch (err) {
-    const msg = (err as any)?.message || err;
-    console.warn('[Convex] realtime client unavailable:', msg);
-    onError?.(err);
-    return () => {};
-  }
+    }
+  };
+
+  await trySubscribe();
+  return () => {
+    cancelled = true;
+    cleanup();
+  };
 }
 
 export async function getConvexClient(): Promise<HttpClientLike> {
@@ -223,7 +254,15 @@ export const api = {
     runRefresh: 'predictorOrchestrator:runRefresh'
   },
   scores: {
-    triggerScoreSync: 'scores:triggerScoreSync'
+    triggerScoreSync: 'scores:triggerScoreSync',
+    getPredictorTotals: 'scores:getPredictorTotals'
+  },
+  presence: {
+    update: 'presence:updatePresence',
+    list: 'presence:listPresence'
+  },
+  audit: {
+    log: 'auditLog:logAudit'
   }
 };
 

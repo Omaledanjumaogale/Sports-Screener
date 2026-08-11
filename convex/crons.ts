@@ -70,6 +70,11 @@ crons.interval('predictor-sync-live-scores', { minutes: 5 }, internal.scores.syn
 // statuses to 'finished', and settles PnL historical summaries.
 crons.interval('predictor-sync-past-history', { minutes: 180 }, internal.scores.syncPastHistoryAction, {});
 
+// ── Realtime presence sweep — every 10 minutes ───────────────────────────────
+// Removes heartbeat rows older than the presence window so the online counter
+// stays accurate and the table never accumulates stale sessions.
+crons.interval('presence-sweep', { minutes: 10 }, internal.presence.sweepStalePresence, {});
+
 // ── Finished-match retention — daily ───────────────────────────────────────────
 // Completed games accumulate indefinitely by default. When PREDICTOR_RETENTION_DAYS
 // is configured, outdated finished matches (and their verdicts) are wiped once a

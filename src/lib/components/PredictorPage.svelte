@@ -23,7 +23,9 @@
     startPredictorRefresh,
     analyzeCachedMatch,
     bootstrapTodayAllSports,
-    triggerScoreSync
+    triggerScoreSync,
+    heartbeatPresence,
+    fetchPresenceOnline
   } from '$lib/predictorClient';
   import {
     DEFAULT_CONFIDENCE_FLOOR,
@@ -559,6 +561,8 @@ $effect(() => {
   });
 
   let scoreSyncing = $state(false);
+  // Realtime presence — live count of online analysts viewing this sport.
+  let onlineCount = $state(0);
   const SCORE_SYNC_THROTTLE_MS = 5 * 60 * 1000;
   const SCORE_SYNC_KEY = 'scoreSyncLastAt_v1';
 
@@ -593,8 +597,16 @@ $effect(() => {
     const timer = setInterval(() => {
       now = Date.now();
     }, 60_000);
+    // Realtime presence: heartbeat this session and refresh the online counter.
+    void heartbeatPresence(effectiveSport);
+    void fetchPresenceOnline(effectiveSport).then((n) => (onlineCount = n));
+    const presenceTimer = setInterval(() => {
+      void heartbeatPresence(effectiveSport);
+      void fetchPresenceOnline(effectiveSport).then((n) => (onlineCount = n));
+    }, 30_000);
     return () => {
       clearInterval(timer);
+      clearInterval(presenceTimer);
       disposeSubs();
       clearProgress();
     };
@@ -683,6 +695,12 @@ $effect(() => {
       >
         <span class:spin={busy || isRunning}><RefreshCw size={18} stroke-width={2.2} /></span>
       </button>
+      {#if onlineCount > 0}
+        <span class="presence-chip" title="{onlineCount} analyst{onlineCount === 1 ? '' : 's'} online now">
+          <span class="presence-dot" aria-hidden="true"></span>
+          {onlineCount}
+        </span>
+      {/if}
     </header>
 
     <PredictorTeamSelect active={sportId} {accent} />
@@ -793,7 +811,7 @@ $effect(() => {
         aria-label="Sync live scores"
       >
         <span class:spin={scoreSyncing}><RefreshCw size={13} stroke-width={2.4} /></span>
-        {scoreSyncing ? 'Syncing…' : 'Sync scores'}
+        <span class="sync-label">{scoreSyncing ? 'Syncing…' : 'Sync scores'}</span>
       </button>
       </div>
 
@@ -1167,6 +1185,34 @@ $effect(() => {
     display: inline-flex;
     margin-top: 3px;
     filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 60%, transparent));
+  }
+
+  .presence-chip {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #22c55e;
+    border: 1px solid color-mix(in srgb, #22c55e 35%, transparent);
+    background: color-mix(in srgb, #22c55e 10%, transparent);
+  }
+
+  .presence-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #22c55e;
+    animation: presence-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes presence-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, #22c55e 60%, transparent); }
+    50% { box-shadow: 0 0 0 5px color-mix(in srgb, #22c55e 0%, transparent); }
   }
 
   .placeholder {
@@ -1618,13 +1664,29 @@ $effect(() => {
   .tabs-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     margin-bottom: 16px;
   }
 
   .tabs-row .game-tabs {
     flex: 1;
+    min-width: 0;
     margin-bottom: 0;
+    /* Mobile: tabs scroll horizontally instead of pushing the Sync button off
+       the edge of the screen. */
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tabs-row .game-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabs-row .game-tab {
+    flex: 1 0 auto;
+    min-width: 96px;
   }
 
   .scores-sync-btn {
@@ -1656,6 +1718,20 @@ $effect(() => {
 
   .scores-sync-btn:active:not(:disabled) { transform: scale(0.96); }
   .scores-sync-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Very narrow phones: collapse the Sync button to an icon-only chip so the
+     tab row never spills past the viewport edge. */
+  @media (max-width: 400px) {
+    .scores-sync-btn {
+      padding: 10px;
+    }
+    .scores-sync-btn .sync-label {
+      display: none;
+    }
+    .tabs-row {
+      gap: 6px;
+    }
+  }
 
   .game-tabs {
     display: flex;

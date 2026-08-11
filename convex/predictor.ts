@@ -6,6 +6,8 @@ import { query, mutation, action, internalMutation, internalAction, internalQuer
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { watTodayKey } from './scrapers/sources';
+import { enforceRateLimit } from './rateLimit';
+import { logAuditEvent } from './auditLog';
 
 const sportId = v.union(
   v.literal('football'),
@@ -613,6 +615,21 @@ export const startRefresh = mutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const incremental = args.incremental ?? false;
+
+    // Enterprise hardening: cap user-triggered refresh bursts per sport (4/min)
+    // so a stuck client or scraper loop can't hammer the orchestrator/LLM quota.
+    const allowed = await enforceRateLimit(ctx, 'predictorRefresh', args.sportId, 4, 60_000, now);
+    if (!allowed) {
+      return {
+        alreadyRunning: true,
+        runId: '',
+        message: 'Too many refresh requests — please wait a minute before refreshing again.'
+      };
+    }
+    await logAuditEvent(ctx, 'user', 'predictor.refresh', `${args.sportId}/${args.dayKey}`, {
+      incremental
+    });
+
     const runId = `run_${incremental ? 'inc_' : ''}${args.sportId}_${args.dayKey}_${now}`;
 
     const existing = await ctx.db
@@ -1090,6 +1107,23 @@ export const seedAllSports = internalAction({
 export const bootstrapToday = action({
   args: {},
   handler: async (ctx): Promise<{ seeded: number; message: string }> => {
+    // Enterprise hardening: one full bootstrap per 5 minutes (token bucket
+    // semantics via the native rate limiter) — bootstrapping all 11 sports is
+    // the heaviest user-triggerable operation in the app.
+    const allowed = await ctx.runMutation(internal.rateLimit.enforceRateLimitViaMutation, {
+      name: 'bootstrapAll',
+      key: 'global',
+      rate: 1,
+      periodMs: 300_000
+    });
+    if (!allowed) {
+      return { seeded: 0, message: 'Bootstrap already started recently — data will keep populating.' };
+    }
+    await ctx.runMutation(internal.auditLog.logAudit, {
+      actor: 'user',
+      action: 'predictor.bootstrap',
+      subject: 'all-sports'
+    });
     const result: any = await ctx.runAction(internal.predictor.seedAllSports, {});
     return {
       seeded: result?.seeded ?? 0,
