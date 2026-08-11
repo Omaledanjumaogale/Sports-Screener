@@ -1057,65 +1057,120 @@ function dWithSlashes(date: string): string {
   return `${y}/${m}/${dd}`;
 }
 
+// ── Score plausibility guards ─────────────────────────────────────────────────
+// A kickoff clock rendered as a bold/linked cell (e.g. **19:00**) is easily
+// misread as a scoreline ("19 - 0") and marked FINISHED — exactly the garbage
+// that previously leaked into the Finished tab. Two independent guards keep
+// scorelines honest across every parsing path:
+//   1. A candidate equal to the row's leading clock cell is never a score.
+//   2. A per-sport plausibility cap rejects scores no real match can produce
+//      (football will never show "112 - 98"; basketball will never show "3 - 1").
+const SCORE_CAPS: Record<string, number> = {
+  football: 15, // real football rarely exceeds ~10; 15 is generous
+  basketball: 250, // NBA games run ~80-160 points
+  tennis: 5, // sets won: 0-3 (or 0-2 retired)
+  rally: 5, // sets won: 0-3 / 0-4
+  hockey: 15,
+  baseball: 40,
+  americanfootball: 80,
+  rugby: 120,
+  cricket: 999, // innings totals are large; only the clock guard constrains them
+  mma: 5, // MMA has no numeric scoreline; never trust high digits
+  volleyball: 5 // sets won: 0-3 / 0-5
+};
+
+/** Whether a parsed home/away pair is plausible for a given sport. */
+export function scoreIsPlausible(sportId: string, hs: number, as: number): boolean {
+  const cap = SCORE_CAPS[sportId] ?? 99;
+  return Number.isFinite(hs) && Number.isFinite(as) && hs >= 0 && as >= 0 && hs <= cap && as <= cap;
+}
+
+// Explicit full-time markers — presence means the row describes a finished game.
+const FT_MARKER = /FT|full.?time|finished|ended|postponed|a\.?e\.?t|so\.?\(|result/i;
+
+// Any pair inside the 13:00-23:59 / 00:13-00:59 window with no FT marker is a
+// clock, not a score (clocks run 00-23 hours / 00-59 minutes; real scorelines
+// like football 2-1 or hockey 3-2 never reach 13 on a side without a marker).
+function scoreIsAcceptable(
+  sportId: string,
+  line: string,
+  hs: number,
+  as: number,
+  clockH?: number,
+  clockM?: number
+): boolean {
+  if (!scoreIsPlausible(sportId, hs, as)) return false;
+  if (clockH !== undefined && hs === clockH && as === clockM) return false; // equals the leading clock cell
+  if (hs <= 23 && as <= 59 && (hs >= 13 || as >= 13) && !FT_MARKER.test(line)) return false;
+  return true;
+}
+
 // Parse the strongest "<home> <score> - <score> <away>" row that contains BOTH
-// team names. Returns null unless a numeric score is found.
+// team names. Returns null unless a numeric, sport-plausible score is found.
 //
 // BetExplorer markdown rows look like:
 //   | 20:30[**Home** - Away](url) | [**2:0**](url) | (1:0, 1:0) |
 // The bolded `**2:0**` (or link-wrapped `[2:0](url)`) cell is the full-time
 // score; the leading `20:30` is the kickoff CLOCK, not a score — a naive
-// `(\d+)[-:]\d+` match would read "20 - 30". We therefore prefer bolded/linked
-// score cells, then fall back to a non-clock score pattern.
-function scoreFromResultText(text: string, home: string, away: string): { home: string; away: string; finalScore: string; status: 'upcoming' | 'inplay' | 'finished' } | null {
+// `(\d+)[-:]\d+` match would read "20 - 30". Every path therefore runs the
+// candidate through `scoreIsAcceptable` (clock equality + plausibility cap).
+export function scoreFromResultText(
+  sportId: string,
+  text: string,
+  home: string,
+  away: string
+): { home: string; away: string; finalScore: string; status: 'upcoming' | 'inplay' | 'finished' } | null {
   const h = normalizeTeam(home);
   const a = normalizeTeam(away);
   if (!h || !a) return null;
   const lines = String(text || '').split(/\r?\n/);
-  for (let li = 0; li < lines.length; li++) {
-    const line = lines[li];
+  for (const line of lines) {
     const norm = normalizeTeam(line);
     if (!norm.includes(h) || !norm.includes(a)) continue;
 
-    // 1. Bolded score cell (BetExplorer): **2:0** / **2 - 0**
-    const bold = line.match(/\*\*(\d{1,3})\s*[-—:]\s*(\d{1,3})\*\*/);
-    if (bold) {
+    // Leading clock cell (BetExplorer markdown `| 20:30 ...`, a bare row
+    // starting with the time, or a whitespace-indented clock). Used to reject
+    // any candidate that equals it.
+    const clock = line.match(/(?:^\s*|\|\s*)(\d{1,2}):(\d{2})/);
+    const clockH = clock ? Number(clock[1]) : undefined;
+    const clockM = clock ? Number(clock[2]) : undefined;
+
+    // 1. Bolded cell: **2:0** / **2 - 0**. A bolded kickoff clock such as
+    //    **19:00** fails the caps/clock guards below and is never a score.
+    const boldRe = /\*\*(\d{1,3})\s*[-—:]\s*(\d{1,3})\*\*/g;
+    let bold: RegExpExecArray | null;
+    while ((bold = boldRe.exec(line)) !== null) {
       const hs = Number(bold[1]);
       const as = Number(bold[2]);
-      if (hs <= 999 && as <= 999) {
+      if (scoreIsAcceptable(sportId, line, hs, as, clockH, clockM)) {
+        // Result pages only list finished matches, so an accepted bolded cell
+        // is the full-time scoreline.
         return { home, away, finalScore: `${hs} - ${as}`, status: 'finished' };
       }
     }
 
     // 2. Link-wrapped score cell: [2:0](url) / [2 - 0](url)
-    const linked = line.match(/\[(\d{1,3})\s*[-—:]\s*(\d{1,3})\]\([^)]*\)/);
-    if (linked) {
+    const linkedRe = /\[(\d{1,3})\s*[-—:]\s*(\d{1,3})\]\([^)]*\)/g;
+    let linked: RegExpExecArray | null;
+    while ((linked = linkedRe.exec(line)) !== null) {
       const hs = Number(linked[1]);
       const as = Number(linked[2]);
-      if (hs <= 999 && as <= 999) {
-        const ft = /FT|full.?time|finished|ended|postponed|a\.?e\.?t|so\.?\(/i.test(line);
-        return { home, away, finalScore: `${hs} - ${as}`, status: ft ? 'finished' : 'inplay' };
+      if (scoreIsAcceptable(sportId, line, hs, as, clockH, clockM)) {
+        return { home, away, finalScore: `${hs} - ${as}`, status: FT_MARKER.test(line) ? 'finished' : 'inplay' };
       }
     }
 
     // 3. Generic "Home 2 - 1 Away" row. Iterate EVERY score-shaped pair on the
     //    line, skipping kickoff-clock patterns (HH:MM <= 23:59 matching the
-    //    row's leading time cell). The first pair is often the clock, so a
-    //    naive single match would miss the real score later in the row.
-    const clock = line.match(/\|\s*(\d{1,2}):(\d{2})/);
+    //    row's leading time cell) and implausible scores. The first pair is
+    //    often the clock, so a naive single match would miss the real score.
     const genericRe = /\b(\d{1,3})\s*[-—:]\s*(\d{1,3})\b/g;
     let generic: RegExpExecArray | null;
     while ((generic = genericRe.exec(line)) !== null) {
       const hs = Number(generic[1]);
       const as = Number(generic[2]);
-      const isClock =
-        !!clock &&
-        hs === Number(clock[1]) &&
-        as === Number(clock[2]) &&
-        hs <= 23 &&
-        as <= 59;
-      if (!isClock && hs <= 999 && as <= 999) {
-        const ft = /FT|full.?time|finished|ended|postponed|a\.?e\.?t|so\.?\(/i.test(line);
-        return { home, away, finalScore: `${hs} - ${as}`, status: ft ? 'finished' : 'inplay' };
+      if (scoreIsAcceptable(sportId, line, hs, as, clockH, clockM)) {
+        return { home, away, finalScore: `${hs} - ${as}`, status: FT_MARKER.test(line) ? 'finished' : 'inplay' };
       }
     }
   }
@@ -1148,7 +1203,7 @@ export async function fetchHtmlResultScores(
     for (const t of targets) {
       const key = `${normalizeTeam(t.home)}|${normalizeTeam(t.away)}`;
       if (found.has(key)) continue;
-      const matched = scoreFromResultText(pageText, t.home, t.away);
+      const matched = scoreFromResultText(sportId, pageText, t.home, t.away);
       if (matched) {
         found.add(key);
         out.push(matched);

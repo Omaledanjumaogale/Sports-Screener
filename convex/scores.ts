@@ -5,7 +5,7 @@
 import { internalAction, internalMutation, mutation } from './_generated/server';
 import { internal, api } from './_generated/api';
 import { v } from 'convex/values';
-import { fetchScoresForDate, fetchHtmlResultScores } from './apis/sportsApis';
+import { fetchScoresForDate, fetchHtmlResultScores, scoreIsPlausible } from './apis/sportsApis';
 import { watTodayKey, watDayKeyFor } from './scrapers/sources';
 
 const PREDICTOR_SPORT_IDS = [
@@ -47,6 +47,13 @@ export const updateScoresBatch = internalMutation({
         .first();
 
       if (match) {
+        // Final gate: never write a scoreline that is physically impossible for
+        // this sport (e.g. a kickoff clock "19:00" misread as football "19 - 0"
+        // or a basketball score applied to a football match).
+        if (u.finalScore) {
+          const p = parseScore(u.finalScore);
+          if (p && !scoreIsPlausible(match.sportId, p.home, p.away)) continue;
+        }
         if (match.finalScore !== u.finalScore || match.status !== u.status) {
           await ctx.db.patch(match._id, {
             finalScore: u.finalScore,
@@ -71,6 +78,10 @@ export const syncScoresAction = internalAction({
   handler: async (ctx, args): Promise<{ updated: number }> => {
     const targetDay = args.dayKey || watTodayKey();
     let totalUpdated = 0;
+
+    // Self-heal: purge implausible scorelines (clock-as-score leaks, cross-sport
+    // contamination) before this cycle scans — each pass starts from clean data.
+    await ctx.runMutation(internal.scores.sanitizeImplausibleScores, {}).catch(() => {});
 
     for (const sport of PREDICTOR_SPORT_IDS) {
       try {
@@ -107,7 +118,7 @@ export const syncScoresAction = internalAction({
             return (fhk === hk && fak === ak) || (fhk.includes(hk) && fak.includes(ak)) || (hk.includes(fhk) && ak.includes(fak));
           });
 
-          if (found) {
+          if (found && scorePassesGate(sport, found.finalScore)) {
             updatesToApply.push({
               dayKey: targetDay,
               matchId: m.matchId,
@@ -139,7 +150,7 @@ export const syncScoresAction = internalAction({
                 normalizeName(s.home) === normalizeName(u.home) &&
                 normalizeName(s.away) === normalizeName(u.away)
             );
-            if (fs) {
+            if (fs && scorePassesGate(sport, fs.finalScore)) {
               updatesToApply.push({
                 dayKey: targetDay,
                 matchId: u.matchId,
@@ -185,6 +196,50 @@ export const syncPastHistoryAction = internalAction({
     }
 
     return { daysProcessed, matchesUpdated };
+  }
+});
+
+// A numeric scoreline passes only when it is plausible for the sport. Empty
+// scorelines (status-only updates such as a transition to in-play before any
+// score exists) and non-numeric markers (e.g. "PPD") pass through unchanged;
+// updateScoresBatch applies its own plausibility gate to non-empty scores.
+function scorePassesGate(sportId: string, finalScore: string): boolean {
+  if (!finalScore) return true;
+  const p = parseScore(finalScore);
+  if (!p) return true;
+  return scoreIsPlausible(sportId, p.home, p.away);
+}
+
+// ── Implausible-score sanitizer ───────────────────────────────────────────────
+// Backstop that scans the cache and strips any stored scoreline that cannot be
+// produced by the match's own sport (kickoff-clock misreads like "19 - 0",
+// cross-sport contamination like a basketball score on a football match). Such
+// rows are demoted to 'upcoming'/'inplay' so the Finished tab never shows them.
+// Idempotent and safe to run on every score cycle.
+export const sanitizeImplausibleScores = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query('predictorMatches').collect();
+    let fixed = 0;
+    for (const m of all) {
+      const raw = m.finalScore ?? m.oddsSnapshot?.finalScore;
+      if (!raw) continue;
+      const p = parseScore(raw);
+      if (!p || scoreIsPlausible(m.sportId, p.home, p.away)) continue;
+
+      const started = m.startTime > 0 && m.startTime <= Date.now();
+      const nextStatus = started ? 'inplay' : 'upcoming';
+      const snap: Record<string, unknown> = { ...(m.oddsSnapshot ?? {}) };
+      delete snap.finalScore;
+      delete snap.status;
+      await ctx.db.patch(m._id, {
+        finalScore: undefined,
+        status: nextStatus,
+        oddsSnapshot: snap
+      });
+      fixed++;
+    }
+    return { fixed };
   }
 });
 

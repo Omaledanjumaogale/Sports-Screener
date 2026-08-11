@@ -102,7 +102,12 @@
   let gameTab = $state<GameTab>('upcoming');
 
   // ── Search / sort / accordion state ──────────────────────────────────────────
+  // Debounced search: the input drives searchInput immediately; searchQuery is
+  // updated 150ms after the user stops typing so the filter pass stays well
+  // under the 500ms budget even with thousands of cached matches.
+  let searchInput = $state('');
   let searchQuery = $state('');
+  let searchDebounce: ReturnType<typeof setTimeout> | null = null;
   let sortOrder = $state<SortOrder>('asc');
   // League accordion: expanded by default; keyed by `dayKey|league` so the same
   // league on different days collapses independently.
@@ -263,6 +268,19 @@
     });
     filterMs = Math.round(metrics.elapsedMs);
     filterOverBudget = metrics.overBudget;
+  });
+
+  // Debounce: copy searchInput into searchQuery 150ms after the last keystroke.
+  $effect(() => {
+    const q = searchInput;
+    if (searchDebounce) clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      searchQuery = q;
+    }, 150);
+    return () => {
+      if (searchDebounce) clearTimeout(searchDebounce);
+      searchDebounce = null;
+    };
   });
 
   // ── Deterministic per-match screening (memoized) ─────────────────────────────
@@ -529,6 +547,7 @@ $effect(() => {
     phase = 'select';
     gameTab = 'upcoming';
     timeBand = 'all';
+    searchInput = '';
     searchQuery = '';
     sortOrder = 'asc';
     collapsedLeagues = {};
@@ -683,10 +702,18 @@ $effect(() => {
             type="search"
             placeholder="Search team, player or match id…"
             aria-label="Search matches"
-            bind:value={searchQuery}
+            bind:value={searchInput}
           />
           {#if searchActive}
-            <button class="search-clear" type="button" aria-label="Clear search" onclick={() => (searchQuery = '')}>
+            <button
+              class="search-clear"
+              type="button"
+              aria-label="Clear search"
+              onclick={() => {
+                searchInput = '';
+                searchQuery = '';
+              }}
+            >
               <X size={13} stroke-width={2.4} />
             </button>
           {/if}

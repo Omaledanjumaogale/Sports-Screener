@@ -88,6 +88,33 @@ describe('matchesQuery', () => {
     expect(matchesQuery(m, 'arsenal chelsea')).toBe(false);
     expect(matchesQuery(m, 'arsenal premier')).toBe(true);
   });
+
+  it('searches player names embedded in the cached scope (tennis/MMA bouts)', () => {
+    const bout = match({
+      matchId: 'ufc-1',
+      homeTeam: 'Fighter A',
+      awayTeam: 'Fighter B',
+      scopes: {
+        markets: {
+          winner: { title: 'Match Winner', odds: { 'Fighter A': 1.6, 'Fighter B': 2.4 } },
+          mainTotal: { title: 'Total Rounds', pairs: [{ line: 2.5, over: 1.9, under: 1.9 }] }
+        }
+      }
+    });
+    expect(matchesQuery(bout, 'fighter a')).toBe(true);
+    expect(matchesQuery(bout, 'rounds')).toBe(true);
+    expect(matchesQuery(bout, 'ufc-1')).toBe(true);
+  });
+
+  it('searches player names in oddsSnapshot market text', () => {
+    const m2 = match({
+      homeTeam: 'Team X',
+      awayTeam: 'Team Y',
+      oddsSnapshot: { finalScore: '2 - 1', markets: { result: { 'Kylian Mbappe': 1.9, 'Erling Haaland': 3.4 } } }
+    });
+    expect(matchesQuery(m2, 'mbappe')).toBe(true);
+    expect(matchesQuery(m2, 'haaland')).toBe(true);
+  });
 });
 
 describe('searchPriorityCompare — scheduled → finished → in-play', () => {

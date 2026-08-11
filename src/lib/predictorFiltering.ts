@@ -51,9 +51,45 @@ export function filterByTimeBand(list: PredictorMatch[], band: TimeBand): Predic
   });
 }
 
-/** Normalized haystack for a match: teams + league + match id. */
+// Per-match search-haystack cache. PredictorMatch rows are stable references
+// from the Convex subscription (replaced wholesale on each poll), so a WeakMap
+// keeps the expensive scope walk from re-running on every keystroke.
+const searchTextCache = new WeakMap<object, string>();
+
+// Recursively collect every meaningful string inside the cached scope/odds data
+// (bounded depth) so player names embedded in market selections (tennis / MMA
+// bouts, totals lines, handicap labels) are searchable, not just team names.
+function collectSearchStrings(value: unknown, out: string[], depth: number): void {
+  if (depth > 3 || value == null) return;
+  if (typeof value === 'string') {
+    const t = value.trim();
+    if (t.length >= 2) out.push(t);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const v of value) collectSearchStrings(v, out, depth + 1);
+    return;
+  }
+  if (typeof value === 'object') {
+    // Player names usually sit as object KEYS in odds markets (e.g.
+    // { 'Kylian Mbappe': 1.9 }), so both keys and values are collected.
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k.trim().length >= 2) out.push(k);
+      collectSearchStrings(v, out, depth + 1);
+    }
+  }
+}
+
+/** Normalized haystack for a match: teams + league + match id + scope/player data. */
 export function matchSearchText(m: PredictorMatch): string {
-  return `${m.homeTeam} ${m.awayTeam} ${m.league} ${m.matchId}`.toLowerCase();
+  const cached = searchTextCache.get(m);
+  if (cached !== undefined) return cached;
+  const parts = [m.homeTeam, m.awayTeam, m.league, m.matchId];
+  if (m.scopes) collectSearchStrings(m.scopes, parts, 0);
+  if (m.oddsSnapshot) collectSearchStrings(m.oddsSnapshot, parts, 0);
+  const text = parts.join(' ').toLowerCase();
+  searchTextCache.set(m, text);
+  return text;
 }
 
 /** Whether a match matches a free-text query (team / player / match id). */

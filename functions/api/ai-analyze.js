@@ -51,7 +51,10 @@ async function callAgnesAi(messages, max_tokens, temperature, env) {
       messages,
       max_tokens,
       temperature
-    })
+    }),
+    // Hard timeout so a hung upstream can never burn the worker's CPU budget
+    // and surface as a Cloudflare 500 error page to the user.
+    signal: AbortSignal.timeout(30_000)
   });
 
   if (!res.ok) {
@@ -91,7 +94,8 @@ async function callOpenRouter(messages, max_tokens, temperature, env) {
       messages,
       max_tokens,
       temperature
-    })
+    }),
+    signal: AbortSignal.timeout(30_000)
   });
 
   if (!res.ok) {
@@ -222,7 +226,8 @@ export async function onRequestPost(context) {
               'Content-Type': 'application/json',
               'Accept': 'application/json'
             },
-            body: JSON.stringify({ messages, max_tokens, temperature })
+            body: JSON.stringify({ messages, max_tokens, temperature }),
+            signal: AbortSignal.timeout(30_000)
           }
         );
 
@@ -279,4 +284,21 @@ export async function onRequestOptions() {
       'Access-Control-Allow-Headers': 'Content-Type'
     }
   });
+}
+
+// Any non-POST method (GET/HEAD/PUT/DELETE...) gets a clean 405 JSON instead of
+// falling through to the SPA fallback or surfacing an edge error page.
+export async function onRequest() {
+  return new Response(
+    JSON.stringify({ success: false, error: 'Method not allowed' }),
+    {
+      status: 405,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Content-Type': 'application/json'
+      }
+    }
+  );
 }

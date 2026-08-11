@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseOddsText, normalizeMatches } from '../../convex/scrapers/normalize';
-import { apiFixturesFor, consolidateOdds, consolidateSharp, matchOddsText } from '../../convex/apis/sportsApis';
+import { apiFixturesFor, consolidateOdds, consolidateSharp, matchOddsText, scoreFromResultText, scoreIsPlausible } from '../../convex/apis/sportsApis';
 import { amaraFilter } from '../../convex/agents/specialists';
 
 describe('parseOddsText (normalize)', () => {
@@ -260,6 +260,71 @@ describe('incremental refresh gate (cache-only re-score)', () => {
     );
     const rebuilt = { matchId: pickem.matchId, scope: { markets: pickem.scope.markets } };
     expect(amaraFilter([rebuilt as any], 60).matchIds).not.toContain(pickem.matchId);
+  });
+});
+
+describe('scoreFromResultText — sport-plausible scoreline guards', () => {
+  it('parses a real BetExplorer finished row (bold score cell, clock ignored)', () => {
+    const row = '| 20:30[**Arsenal** - **Chelsea**](url) | [**2:0**](url) | (1:0, 1:0) |';
+    expect(scoreFromResultText('football', row, 'Arsenal', 'Chelsea')).toEqual({
+      home: 'Arsenal', away: 'Chelsea', finalScore: '2 - 0', status: 'finished'
+    });
+  });
+
+  it('never treats a bolded kickoff clock as a football score (19:00 != 19 - 0)', () => {
+    // This is the exact regression that leaked "19 - 0" into the Finished tab.
+    expect(scoreFromResultText('football', '**19:00** Fenix Central Ballester', 'Fenix', 'Central Ballester')).toBeNull();
+    expect(scoreFromResultText('football', '**17:30** Klaksvik HB Torshavn', 'Klaksvik', 'HB Torshavn')).toBeNull();
+    expect(scoreFromResultText('football', '**23:00** Osasco Sporting U20 Botafogo SP U20', 'Osasco Sporting U20', 'Botafogo SP U20')).toBeNull();
+  });
+
+  it('rejects a row-leading clock that equals the candidate (generic path)', () => {
+    // 19:00 is the leading clock cell AND the first pair — must be skipped.
+    const row = '19:00 Fenix Central Ballester';
+    expect(scoreFromResultText('football', row, 'Fenix', 'Central Ballester')).toBeNull();
+    const withScore = '19:00 Fenix Central Ballester FT 2 - 1';
+    expect(scoreFromResultText('football', withScore, 'Fenix', 'Central Ballester')).toEqual({
+      home: 'Fenix', away: 'Central Ballester', finalScore: '2 - 1', status: 'finished'
+    });
+  });
+
+  it('rejects a bolded clock even for high-cap sports (basketball 21:00 != 21 - 0)', () => {
+    expect(scoreFromResultText('basketball', '**21:00** Boston Celtics Los Angeles Lakers', 'Boston Celtics', 'Los Angeles Lakers')).toBeNull();
+  });
+
+  it('accepts a real basketball scoreline', () => {
+    expect(scoreFromResultText('basketball', 'Boston Celtics 112 - 98 Los Angeles Lakers FT', 'Boston Celtics', 'Los Angeles Lakers')).toEqual({
+      home: 'Boston Celtics', away: 'Los Angeles Lakers', finalScore: '112 - 98', status: 'finished'
+    });
+  });
+
+  it('keeps plausible low scores across sports (hockey 2-3, tennis sets)', () => {
+    expect(scoreFromResultText('hockey', 'Rangers 2 - 3 Bruins FT', 'Rangers', 'Bruins')?.finalScore).toBe('2 - 3');
+    expect(scoreFromResultText('tennis', 'Alcaraz 2 - 1 Sinner FT', 'Alcaraz', 'Sinner')?.finalScore).toBe('2 - 1');
+  });
+
+  it('caps rugby-style high scores only when an FT marker is present', () => {
+    expect(scoreFromResultText('rugby', 'England 20 - 15 Wales FT', 'England', 'Wales')?.finalScore).toBe('20 - 15');
+    // No FT marker -> ambiguous 13+ pair is treated as a clock, not a result.
+    expect(scoreFromResultText('rugby', 'England 20 - 15 Wales', 'England', 'Wales')).toBeNull();
+  });
+});
+
+describe('scoreIsPlausible — per-sport caps', () => {
+  it('football rejects clock-shaped and cross-sport scores', () => {
+    expect(scoreIsPlausible('football', 2, 1)).toBe(true);
+    expect(scoreIsPlausible('football', 0, 0)).toBe(true);
+    expect(scoreIsPlausible('football', 19, 0)).toBe(false); // clock 19:00
+    expect(scoreIsPlausible('football', 17, 30)).toBe(false); // clock 17:30
+    expect(scoreIsPlausible('football', 112, 98)).toBe(false); // basketball score
+  });
+  it('basketball accepts real totals but rejects single-digit games', () => {
+    expect(scoreIsPlausible('basketball', 112, 98)).toBe(true);
+    expect(scoreIsPlausible('basketball', 3, 1)).toBe(true); // low but structurally fine
+  });
+  it('rejects negative and NaN pairs', () => {
+    expect(scoreIsPlausible('football', -1, 0)).toBe(false);
+    expect(scoreIsPlausible('football', NaN, 1)).toBe(false);
   });
 });
 

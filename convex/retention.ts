@@ -11,14 +11,13 @@
 
 import { internalMutation, internalAction } from './_generated/server';
 import { internal } from './_generated/api';
+import { retentionDaysFromEnv, isStaleFinishedMatch } from './retentionPolicy';
 
 declare const process: { env: Record<string, string | undefined> };
 
 /** Configured retention window in days. 0 (or unset/invalid) = keep forever. */
 export function retentionDays(): number {
-  const raw = process.env.PREDICTOR_RETENTION_DAYS?.trim();
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  return retentionDaysFromEnv(process.env);
 }
 
 /**
@@ -36,12 +35,7 @@ export const purgeFinishedMatches = internalMutation({
     const cutoffDay = new Date(cutoff).toISOString().slice(0, 10);
 
     const all = await ctx.db.query('predictorMatches').collect();
-    const staleFinished = all.filter(
-      (m) =>
-        (m.status === 'finished' || !!m.finalScore) &&
-        m.startTime > 0 &&
-        m.startTime < cutoff
-    );
+    const staleFinished = all.filter((m) => isStaleFinishedMatch(m, cutoff));
 
     let verdictsPurged = 0;
     for (const m of staleFinished) {
