@@ -65,6 +65,9 @@ const SEGMENT_BY_ID: Record<string, PickSegmentKey> = {
   playerBTotal: 'teamTotal',
   setPlayerA: 'teamTotal',
   setPlayerB: 'teamTotal',
+  // Basketball 1st-half team totals
+  firstHalfHomeTotal: 'firsthalf',
+  firstHalfAwayTotal: 'firsthalf',
   // Handicap / spread family
   handicap: 'handicap',
   pointsHandicap: 'handicap',

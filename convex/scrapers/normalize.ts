@@ -473,6 +473,220 @@ export function deriveFootballMarkets(
   return { doubleChance, handicap, mainTotal, btts, homeTotal, awayTotal, firstHalfTotal, secondHalfTotal };
 }
 
+// ── Basketball points probability model ───────────────────────────────────────
+// Basketball is a high-scoring POINTS sport (100-260 pts), so its derived
+// markets use a Normal points model calibrated to the real moneyline + the real
+// total anchor line — NOT the football Poisson goal grid:
+//   • expected margin from the moneyline  (margin = Φ⁻¹(P_home) × σ_margin)
+//   • expected total from the anchor line  (expTotal = book total)
+//   • exp_home = (expTotal + margin)/2, exp_away = (expTotal - margin)/2
+// Every derived market (team totals, half totals, 1st-half team totals, spread
+// ladder) is priced from this single consistent model with real de-vigged
+// prices, flagged derived:true — the same approach as football's grid.
+
+// Empirical basketball calibration constants (NBA-calibrated):
+//   • point-margin SD ≈ 12 pts, single-team scoring SD ≈ 11 pts,
+//   • game-total SD ≈ 15 pts (≈ √2 × team SD),
+//   • ~48.5% of points land in the 1st half.
+export const BASKETBALL_SD_MARGIN = 12;
+export const BASKETBALL_SD_TEAM = 11;
+export const BASKETBALL_SD_TOTAL = 15;
+export const BASKETBALL_FIRST_HALF_SHARE = 0.485;
+
+// Standard-normal CDF (Abramowitz & Stegun 26.2.17).
+function normalCdf(z: number): number {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989422804014327 * Math.exp((-z * z) / 2);
+  let p = d * t * (0.31938153 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  if (z > 0) p = 1 - p;
+  return Math.max(0, Math.min(1, p));
+}
+
+// Standard-normal inverse CDF (Acklam's rational approximation).
+function normalInv(p: number): number {
+  if (p <= 0) return -6;
+  if (p >= 1) return 6;
+  const a = [-39.69683028665376, 220.9460984245205, -275.9285104464687, 138.357751867269, -30.66479806614716, 2.506628277459239];
+  const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572];
+  const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+  const plow = 0.02425;
+  let q: number, r: number;
+  if (p < plow) {
+    q = Math.sqrt(-2 * Math.log(p));
+    return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+  } else if (p <= 1 - plow) {
+    q = p - 0.5;
+    r = q * q;
+    return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+  } else {
+    q = Math.sqrt(-2 * Math.log(1 - p));
+    return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+  }
+}
+
+export interface BasketballModel {
+  expTotal: number;
+  expHome: number;
+  expAway: number;
+  margin: number; // expected home - away margin
+}
+
+// Calibrate the Normal points model to the real 2-way moneyline + total anchor.
+export function buildBasketballModel(homeOdds: number, awayOdds: number, totalAnchorLine: number): BasketballModel {
+  const [pH] = devig([homeOdds, awayOdds]);
+  const margin = normalInv(Math.min(Math.max(pH, 1e-6), 1 - 1e-6)) * BASKETBALL_SD_MARGIN;
+  const expTotal = Math.max(totalAnchorLine, 100);
+  return {
+    expTotal,
+    expHome: (expTotal + margin) / 2,
+    expAway: (expTotal - margin) / 2,
+    margin
+  };
+}
+
+// P(a team scores MORE than `line` points).
+export function basketballTeamOver(model: BasketballModel, home: boolean, line: number): number {
+  const mean = home ? model.expHome : model.expAway;
+  return Math.max(0, Math.min(1, 1 - normalCdf((line - mean) / BASKETBALL_SD_TEAM)));
+}
+
+// P(game total > line).
+export function basketballTotalOver(model: BasketballModel, line: number): number {
+  return Math.max(0, Math.min(1, 1 - normalCdf((line - model.expTotal) / BASKETBALL_SD_TOTAL)));
+}
+
+// P(half total > line) — split the total by the empirical 1st-half share, with
+// the SD scaled by √share so the half distribution stays consistent.
+export function basketballHalfTotalOver(model: BasketballModel, half: 'first' | 'second', line: number): number {
+  const share = half === 'first' ? BASKETBALL_FIRST_HALF_SHARE : 1 - BASKETBALL_FIRST_HALF_SHARE;
+  const mean = model.expTotal * share;
+  const sd = BASKETBALL_SD_TOTAL * Math.sqrt(share);
+  return Math.max(0, Math.min(1, 1 - normalCdf((line - mean) / sd)));
+}
+
+// P(a team scores more than `line` points in one half).
+export function basketballHalfTeamOver(model: BasketballModel, half: 'first' | 'second', home: boolean, line: number): number {
+  const share = half === 'first' ? BASKETBALL_FIRST_HALF_SHARE : 1 - BASKETBALL_FIRST_HALF_SHARE;
+  const mean = (home ? model.expHome : model.expAway) * share;
+  const sd = BASKETBALL_SD_TEAM * Math.sqrt(share);
+  return Math.max(0, Math.min(1, 1 - normalCdf((line - mean) / sd)));
+}
+
+// P(home covers the spread line L) = P(home margin + L > 0) = P(margin > -L).
+// Line L is the HOME handicap (same convention as the football AH ladder):
+// L = -4.5 → home gives 4.5 (covers by winning by 5+), L = +4.5 → home
+// receives 4.5 (covers on any win or a loss by 4 or fewer).
+export function basketballHomeCovers(model: BasketballModel, line: number): number {
+  return Math.max(0, Math.min(1, 1 - normalCdf((-line - model.margin) / BASKETBALL_SD_MARGIN)));
+}
+
+function roundHalf(n: number): number {
+  return Math.round(n * 2) / 2;
+}
+
+// Line ladders for the derived basketball markets.
+export const BASKETBALL_TOTAL_OFFSETS = [-16, -12, -8, -4, 0, 4, 8, 12, 16];
+export const BASKETBALL_TEAM_TOTAL_OFFSETS = [-8, -4, 0, 4, 8];
+export const BASKETBALL_HALF_TOTAL_OFFSETS = [-6, -3, 0, 3, 6];
+export const BASKETBALL_HALF_TEAM_OFFSETS = [-4, -2, 0, 2, 4];
+export const BASKETBALL_SPREAD_LINES = [-12.5, -10.5, -8.5, -6.5, -4.5, -2.5, -0.5, 1.5, 3.5, 5.5, 7.5, 9.5, 11.5];
+
+// Full basketball derived market set from the real 2-way moneyline + total
+// anchor (+ optional real spread pair): game total ladder, home/away team
+// totals, 1st/2nd half totals, 1st-half team totals and the spread ladder.
+// When realTotals/realSpread are supplied their own pairs keep real prices;
+// all other lines are derived from the same Normal model.
+export function deriveBasketballMarkets(
+  homeOdds: number,
+  awayOdds: number,
+  totalAnchorLine = 214.5,
+  realTotals?: { line: number; over: number; under: number },
+  realSpread?: { point: number; home: number; away: number }
+): {
+  mainTotal: Market;
+  homeTotal: Market;
+  awayTotal: Market;
+  firstHalfTotal: Market;
+  secondHalfTotal: Market;
+  firstHalfHomeTotal: Market;
+  firstHalfAwayTotal: Market;
+  handicap: Market;
+} {
+  const model = buildBasketballModel(homeOdds, awayOdds, totalAnchorLine);
+
+  const totalLadder = BASKETBALL_TOTAL_OFFSETS.map((off) => {
+    const line = roundHalf(model.expTotal + off);
+    const over = basketballTotalOver(model, line);
+    return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
+  });
+  if (realTotals && realTotals.line > 0) {
+    const existing = totalLadder.findIndex((p) => Math.abs(p.line - realTotals.line) < 0.01);
+    if (existing >= 0) totalLadder[existing] = { line: realTotals.line, over: realTotals.over, under: realTotals.under };
+    else totalLadder.push({ line: realTotals.line, over: realTotals.over, under: realTotals.under });
+    totalLadder.sort((a, b) => a.line - b.line);
+  }
+
+  const teamTotal = (home: boolean): Market => ({
+    id: home ? 'homeTotal' : 'awayTotal',
+    kind: 'ou',
+    title: home ? 'Home Team Total Points' : 'Away Team Total Points',
+    derived: true,
+    pairs: BASKETBALL_TEAM_TOTAL_OFFSETS.map((off) => {
+      const line = roundHalf((home ? model.expHome : model.expAway) + off);
+      const over = basketballTeamOver(model, home, line);
+      return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
+    })
+  });
+
+  const halfTotal = (half: 'first' | 'second'): Market => ({
+    id: half === 'first' ? 'firstHalfTotal' : 'secondHalfTotal',
+    kind: 'ou',
+    title: half === 'first' ? 'First Half Total Points' : 'Second Half Total Points',
+    derived: true,
+    pairs: BASKETBALL_HALF_TOTAL_OFFSETS.map((off) => {
+      const line = roundHalf(model.expTotal * (half === 'first' ? BASKETBALL_FIRST_HALF_SHARE : 1 - BASKETBALL_FIRST_HALF_SHARE) + off);
+      const over = basketballHalfTotalOver(model, half, line);
+      return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
+    })
+  });
+
+  const halfTeam = (home: boolean): Market => ({
+    id: home ? 'firstHalfHomeTotal' : 'firstHalfAwayTotal',
+    kind: 'ou',
+    title: home ? 'Home Team 1st Half Total' : 'Away Team 1st Half Total',
+    derived: true,
+    pairs: BASKETBALL_HALF_TEAM_OFFSETS.map((off) => {
+      const line = roundHalf((home ? model.expHome : model.expAway) * BASKETBALL_FIRST_HALF_SHARE + off);
+      const over = basketballHalfTeamOver(model, 'first', home, line);
+      return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
+    })
+  });
+
+  const spreadLadder = BASKETBALL_SPREAD_LINES.map((line) => {
+    if (realSpread && Math.abs(line - realSpread.point) < 0.01) {
+      return { line: realSpread.point, sideA: realSpread.home, sideB: realSpread.away };
+    }
+    const covers = basketballHomeCovers(model, line);
+    return {
+      line,
+      sideA: marginedPrice(covers, 1.05),
+      sideB: marginedPrice(1 - Math.min(covers, 0.999), 1.05)
+    };
+  });
+
+  return {
+    mainTotal: { id: 'mainTotal', kind: 'ou', title: 'Match Total Points', derived: true, pairs: totalLadder },
+    homeTotal: teamTotal(true),
+    awayTotal: teamTotal(false),
+    firstHalfTotal: halfTotal('first'),
+    secondHalfTotal: halfTotal('second'),
+    firstHalfHomeTotal: halfTeam(true),
+    firstHalfAwayTotal: halfTeam(false),
+    handicap: { id: 'handicap', kind: 'handicap', title: 'Spread / Handicap', derived: true, handicapPairs: spreadLadder }
+  };
+}
+
 // Balanced, realistic fallback odds derived from the team-name hash. The
 // favourite/dog gap is deliberately modest and the home/away assignment is a
 // single unbiased coin-flip per match - no systematic side bias, so the engine
@@ -567,8 +781,26 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
     };
   }
 
-  // ── Handicap / Spread (real from The Odds API for the other sports) ────────
-  if (isTwoWay && !markets.handicap) {
+  // ── Derived basketball markets (game total ladder + team totals + half
+  //    totals + 1st-half team totals + spread ladder from the single Normal
+  //    points model; real total/spread pairs stay anchored with real prices) ──
+  if (sportId === 'basketball' && h2h.length >= 2 && h2h[1]) {
+    const derived = deriveBasketballMarkets(
+      h2h[0],
+      h2h[1],
+      parsed.total && parsed.total.line > 0 ? parsed.total.line : lines[0].line,
+      parsed.total && parsed.total.line > 0 ? parsed.total : undefined,
+      parsed.spread || undefined
+    );
+    markets.mainTotal = derived.mainTotal;
+    markets.homeTotal = derived.homeTotal;
+    markets.awayTotal = derived.awayTotal;
+    markets.firstHalfTotal = derived.firstHalfTotal;
+    markets.secondHalfTotal = derived.secondHalfTotal;
+    markets.firstHalfHomeTotal = derived.firstHalfHomeTotal;
+    markets.firstHalfAwayTotal = derived.firstHalfAwayTotal;
+    markets.handicap = derived.handicap;
+  } else if (isTwoWay && !markets.handicap) {
     if (parsed.spread) {
       markets.handicap = {
         id: 'handicap',
@@ -589,8 +821,8 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
     }
   }
 
-  // ── Total (real line; football already has the derived O/U ladder above) ──
-  if (sportId !== 'football' || !markets.mainTotal) {
+  // ── Total (real line; football/basketball already have derived ladders) ──
+  if ((sportId !== 'football' && sportId !== 'basketball') || !markets.mainTotal) {
     const pair = parsed.total && parsed.total.line > 0
       ? { line: parsed.total.line, over: parsed.total.over, under: parsed.total.under }
       : parsed.total && parsed.total.line === 0

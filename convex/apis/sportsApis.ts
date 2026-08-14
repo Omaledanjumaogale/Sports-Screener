@@ -786,7 +786,7 @@ export function mapSharpFixtures(rows: any[], sportId: string): ApiFixture[] {
       home,
       away,
       league: String(r?.league || '') || (lg[sportId] ?? ''),
-      startTime: Date.parse(String(r?.event_start_time || '')) || now + out.length * 2 * 60 * 60 * 1000,
+      startTime: parseUtcStamp(String(r?.event_start_time || '')) || now + out.length * 2 * 60 * 60 * 1000,
       sourceUrl: 'https://api.sharpapi.io/api/v1/odds'
     });
   }
@@ -818,7 +818,7 @@ export function mapBalldontlieGames(games: any[]): ApiFixture[] {
       home: String(home),
       away: String(away),
       league: g?.home_team?.conference ? 'NBA' : '',
-      startTime: Date.parse(g?.date ?? '') || Date.now(),
+      startTime: parseUtcStamp(String(g?.date || '')) || Date.now(),
       sourceUrl: 'https://api.balldontlie.io/v1/games'
     });
   }
@@ -850,7 +850,7 @@ export function mapSportsDataNbaGames(games: any[]): ApiFixture[] {
       home: String(home),
       away: String(away),
       league: 'NBA',
-      startTime: Date.parse(g?.DateTime ?? '') || Date.now(),
+      startTime: parseUtcStamp(String(g?.DateTime ?? '')) || Date.now(),
       sourceUrl: 'https://api.sportsdata.io/v3/nba/scores/json/GamesByDate'
     });
   }

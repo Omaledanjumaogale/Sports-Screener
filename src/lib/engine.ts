@@ -756,7 +756,11 @@ export function analyzeBasketball(scope: ScopeState): Analysis {
   const ouPicks = [
     ...analyzeLines(scope.markets.mainTotal ?? { id: 'mainTotal', kind: 'ou', title: '' }),
     ...analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' }),
-    ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' })
+    ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(scope.markets.firstHalfTotal ?? { id: 'firstHalfTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(scope.markets.secondHalfTotal ?? { id: 'secondHalfTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(scope.markets.firstHalfHomeTotal ?? { id: 'firstHalfHomeTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(scope.markets.firstHalfAwayTotal ?? { id: 'firstHalfAwayTotal', kind: 'ou', title: '' })
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
   const hdp = scope.markets.handicap;
@@ -768,7 +772,17 @@ export function analyzeBasketball(scope: ScopeState): Analysis {
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
   const allBasketballPicks = [...ouPicks, ...rankPicks].sort((a, b) => b.probability - a.probability);
-  const primaryPicks = allBasketballPicks.filter((p) => p.marketId === 'mainTotal' || p.marketId === 'winner' || p.marketId === 'homeTotal' || p.marketId === 'awayTotal');
+  const primaryPicks = allBasketballPicks.filter(
+    (p) =>
+      p.marketId === 'mainTotal' ||
+      p.marketId === 'winner' ||
+      p.marketId === 'homeTotal' ||
+      p.marketId === 'awayTotal' ||
+      p.marketId === 'firstHalfTotal' ||
+      p.marketId === 'secondHalfTotal' ||
+      p.marketId === 'firstHalfHomeTotal' ||
+      p.marketId === 'firstHalfAwayTotal'
+  );
   const safestPick = topPick(primaryPicks) ?? topPick(allBasketballPicks);
   const bestValuePick = primaryPicks.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allBasketballPicks);
 
@@ -847,7 +861,7 @@ export function analyzeBasketball(scope: ScopeState): Analysis {
       { label: 'MET', value: total ? `${total.expected}${total.approx ? ' approx' : ''}` : '-', note: 'Market Expected Total Points', status: total ? ('green' as Status) : ('empty' as Status) },
       { label: 'Team sum diff (TTC)', value: combinedDiff === null ? '-' : `${combinedDiff > 0 ? '+' : ''}${combinedDiff}`, note: 'T1 MET + T2 MET vs Game MET', status: combinedDiff === null ? ('empty' as Status) : Math.abs(combinedDiff) <= teamSumTight ? ('green' as Status) : ('amber' as Status) },
       { label: 'Pace projection', value: paceProj ? `${paceProj} pts` : '-', note: scope.id === 'ft' ? 'Full time MET' : scope.id === 'h1' ? '1H MET × 2' : 'Q1 MET × 4', status: paceProj ? ('green' as Status) : ('empty' as Status) },
-      { label: 'Ranked picks', value: String(allBasketballPicks.length), note: 'Across Moneyline, Spread & Totals' },
+      { label: 'Ranked picks', value: String(allBasketballPicks.length), note: 'Across Moneyline, Spread, Team & Half Totals' },
       { label: 'Best-value EV', value: bestValuePick?.ev !== undefined ? `${round(bestValuePick.ev * 100, 1)}%` : '-', note: 'Margin read, not profit forecast' }
     ]
   };
@@ -1515,11 +1529,12 @@ function finishAnalysis(scope: ScopeState, profiles: Profile[], picks: Pick[], r
     })),
     profiles,
     // Keep a generous pool (not just the raw top-20): with team/half-total
-    // markets present, the near-1.01 "certainty" sides would otherwise crowd
-    // the fair game-total line (e.g. Over/Under 2.5) out of the ranked picks
-    // the Great Minds total selection consumes. Display layers cap their own
-    // slices (12-20), so a larger pool costs nothing in the UI.
-    picks: picks.sort((a, b) => b.probability - a.probability).slice(0, 48),
+    // markets present (basketball alone now derives ~100 picks), the
+    // near-1.01 "certainty" sides would otherwise crowd the fair game-total
+    // line (e.g. Over/Under 2.5 goals, Over/Under 220.5 pts) out of the
+    // ranked picks the Great Minds total selection consumes. Display layers
+    // cap their own slices (12-20), so a larger pool costs nothing in the UI.
+    picks: picks.sort((a, b) => b.probability - a.probability).slice(0, 120),
     metrics: []
   };
 }

@@ -187,6 +187,12 @@ const SPORT_RULES: Record<string, string> = {
 - Half over 0.5 angles separate a fast-starting fixture (1H Over 0.5 strong) from a second-half fixture (2H Over 0.5 strong) — use the half totals to pick the stronger half.
 - Cross-check the markets against each other: BTTS Yes agrees with Over 2.5; BTTS No agrees with Under 2.5; a team's Over 0.5 agrees with that team's Asian Handicap cover.
 - Pick the market with the strongest probability/edge FOR THIS MATCH — the model must choose the safest, most probable selection per fixture, never the same market for every game.`,
+  basketball: `BASKETBALL-SPECIFIC MARKET MODEL:
+- Analyse EVERY basketball market shown, not just the moneyline and game total: the moneyline (team straight win), the full-game point total (Over/Under points in regular time), the Home Team Total and Away Team Total (Over/Under points in regular time), the 1st Half and 2nd Half Totals ("Over" = at least that many points in that half), the Home/Away Team Totals in the 1st Half, and the point spread / team handicap.
+- The team handicap can favour EITHER the home or away team depending on the match — analyse both sides of the spread and project whichever team's cover is stronger for THIS game. NEVER default to one specific team.
+- Use the half totals to pick the stronger half, and the 1st-half team totals to pick the stronger team in the first half.
+- Cross-check the markets against each other: the favourite's straight win agrees with its negative handicap cover; Home Team Total + Away Team Total should sum near the game total; a strong 1st-half total supports the Over; a team's Over total agrees with its handicap cover.
+- Pick the market with the strongest probability/edge FOR THIS MATCH — the model must choose the safest, most probable selection per fixture, never the same market for every game.`,
   generic: `GENERIC MARKET MODEL:
 - Analyse EVERY market shown for this sport and rank selections by Real Win Chance and punter edge.
 - Pick the strongest, most probable selection FOR THIS MATCH — never default to the same market for every game.
