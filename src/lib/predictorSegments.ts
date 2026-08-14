@@ -123,6 +123,8 @@ const SEGMENT_BY_ID: Record<string, PickSegmentKey> = {
   cardTotal: 'cards',
   // Football runline etc
   runline: 'handicap',
+  // Derived football markets
+  secondHalfTotal: 'total',
   // Extra engine market ids → sensible buckets
   doubleChance: 'winner',
   btts: 'props',

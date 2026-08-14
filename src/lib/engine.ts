@@ -646,6 +646,8 @@ export function analyzeFootball(scope: ScopeState): Analysis {
     ...totalPicks,
     ...analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' }),
     ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(scope.markets.firstHalfTotal ?? { id: 'firstHalfTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(scope.markets.secondHalfTotal ?? { id: 'secondHalfTotal', kind: 'ou', title: '' }),
     ...(scope.markets.btts
       ? analyzeOddsMarket(scope.markets.btts, { yes: 'BTTS Yes (GG)', no: 'BTTS No (NG)' })
       : [])
@@ -732,7 +734,7 @@ export function analyzeFootball(scope: ScopeState): Analysis {
     metrics: [
       { label: 'Low-score cluster', value: grid.length ? pct(lowScores, 1) : '-', note: '0-0 / 1-0 / 0-1 / 1-1', status: grid.length ? statusFromPct(lowScores, cfg.a2.green, cfg.a2.amber) : 'empty' },
       { label: scope.id === 'ft' ? '0-0 resistance' : 'None odds prob', value: scope.id === 'ft' ? (nilNil !== undefined ? pct(nilNil, 1) : '-') : (noneProb !== null ? pct(noneProb, 1) : '-'), note: scope.id === 'ft' ? 'Nil-nil probability' : 'No goal in half', status: scope.id === 'ft' ? (nilNil !== undefined ? statusFromPct(nilNil, cfg.a5.green, cfg.a5.amber) : 'empty') : (noneProb !== null ? statusFromPct(noneProb, 30, 20) : 'empty') },
-      { label: 'Ranked picks', value: String(allFootballPicks.length), note: 'Across 1X2, DC, AH & Totals' },
+      { label: 'Ranked picks', value: String(allFootballPicks.length), note: 'Across 1X2, DC, AH, BTTS, Team & Half Totals' },
       { label: 'Best-value EV', value: bestValuePick?.ev !== undefined ? `${round(bestValuePick.ev * 100, 1)}%` : '-', note: 'Margin read, not profit forecast' }
     ]
   };
@@ -1512,7 +1514,12 @@ function finishAnalysis(scope: ScopeState, profiles: Profile[], picks: Pick[], r
       status: p.top ? statusFromPct(p.top.probability, rankGreen, rankAmber) : p.status
     })),
     profiles,
-    picks: picks.sort((a, b) => b.probability - a.probability).slice(0, 20),
+    // Keep a generous pool (not just the raw top-20): with team/half-total
+    // markets present, the near-1.01 "certainty" sides would otherwise crowd
+    // the fair game-total line (e.g. Over/Under 2.5) out of the ranked picks
+    // the Great Minds total selection consumes. Display layers cap their own
+    // slices (12-20), so a larger pool costs nothing in the UI.
+    picks: picks.sort((a, b) => b.probability - a.probability).slice(0, 48),
     metrics: []
   };
 }

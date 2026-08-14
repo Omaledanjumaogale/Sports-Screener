@@ -3,10 +3,14 @@ import {
   buildFootballGrid,
   gridTotals,
   gridBtts,
+  gridTeamOver,
+  halfTotalOver,
   homeCoversProbability,
   deriveFootballMarkets,
   FOOTBALL_AH_LINES,
   FOOTBALL_TOTAL_LINES,
+  FOOTBALL_TEAM_TOTAL_LINES,
+  FOOTBALL_HALF_TOTAL_LINES,
   devig,
   devigPair
 } from '../../convex/scrapers/normalize';
@@ -89,5 +93,76 @@ describe('predictor markets (Poisson football model)', () => {
     expect(mk.btts.odds?.yes).toBeGreaterThan(1.01);
     expect(mk.btts.odds?.no).toBeGreaterThan(1.01);
     expect(Object.keys(mk.doubleChance.odds ?? {}).length).toBe(3);
+  });
+
+  it('derives home/away team totals (Over 0.5 = team scores at least once)', () => {
+    const mk = deriveFootballMarkets(HOME, DRAW, AWAY, 2.5);
+    // Both team-total markets exist with the 0.5/1.5 ladder.
+    expect(mk.homeTotal.handicapPairs).toBeUndefined();
+    expect(mk.homeTotal.pairs?.length).toBe(FOOTBALL_TEAM_TOTAL_LINES.length);
+    expect(mk.awayTotal.pairs?.length).toBe(FOOTBALL_TEAM_TOTAL_LINES.length);
+    const homeOver05 = mk.homeTotal.pairs?.find((p) => p.line === 0.5);
+    const awayOver05 = mk.awayTotal.pairs?.find((p) => p.line === 0.5);
+    expect(homeOver05?.over).toBeGreaterThan(1.01);
+    expect(awayOver05?.over).toBeGreaterThan(1.01);
+    // Favourite's team total is stronger than the underdog's (home is favourite).
+    expect(homeOver05!.over).toBeLessThan(awayOver05!.over);
+    // Pairs are complementary (de-vig back to ~100).
+    const { aPct, bPct } = devigPair(homeOver05!.over, homeOver05!.under);
+    expect(aPct + bPct).toBeCloseTo(100, 1);
+  });
+
+  it('gridTeamOver is monotonic and complementary with the under side', () => {
+    const grid = buildFootballGrid(HOME, DRAW, AWAY, 2.5);
+    const over05 = gridTeamOver(grid, true, 0.5);
+    const over15 = gridTeamOver(grid, true, 1.5);
+    expect(over05).toBeGreaterThan(over15);
+    expect(over05).toBeGreaterThan(0.5); // favourite scores in a majority of sims
+    expect(over05).toBeLessThan(1);
+    // Over 0.5 is complementary to the no-goal outcome: P(team fails to
+    // score) = 1 - over0.5 — both sides are valid probabilities.
+    expect(1 - over05).toBeGreaterThan(0.01);
+    expect(1 - over05).toBeLessThan(0.5);
+  });
+
+  it('derives 1st/2nd half totals and picks the stronger half per match', () => {
+    const mk = deriveFootballMarkets(HOME, DRAW, AWAY, 2.5);
+    expect(mk.firstHalfTotal.pairs?.length).toBe(FOOTBALL_HALF_TOTAL_LINES.length);
+    expect(mk.secondHalfTotal.pairs?.length).toBe(FOOTBALL_HALF_TOTAL_LINES.length);
+    const grid = buildFootballGrid(HOME, DRAW, AWAY, 2.5);
+    const fh = halfTotalOver(grid, 'first', 0.5);
+    const sh = halfTotalOver(grid, 'second', 0.5);
+    expect(fh).toBeGreaterThan(0.1);
+    expect(sh).toBeGreaterThan(0.1);
+    expect(fh + sh).toBeGreaterThan(0.7); // almost always at least one goal in a half
+    expect(fh).toBeLessThan(1);
+    expect(sh).toBeLessThan(1);
+    // The stronger half is marketable as a standalone pick.
+    expect(Math.max(fh, sh)).toBeGreaterThan(0.45);
+  });
+
+  it('BTTS evaluates BOTH sides — yes and no both derived, stronger side wins', () => {
+    const mk = deriveFootballMarkets(HOME, DRAW, AWAY, 2.5);
+    expect(mk.btts.odds?.yes).toBeGreaterThan(1.01);
+    expect(mk.btts.odds?.no).toBeGreaterThan(1.01);
+    const grid = buildFootballGrid(HOME, DRAW, AWAY, 2.5);
+    const b = gridBtts(grid);
+    expect(b.yes + b.no).toBeCloseTo(1, 6);
+    // Neither side is pre-baked: with a home favourite at 1.85/3.4/4.2 the
+    // match is not an automatic BTTS-No — both sides carry real mass.
+    expect(b.yes).toBeGreaterThan(0.25);
+    expect(b.no).toBeGreaterThan(0.2);
+  });
+
+  it('high-scoring line-up flips BTTS toward YES (no hardcoded No bias)', () => {
+    // 1X2 with a strong favourite AND a high total anchor → goals expected on
+    // both sides: BTTS Yes must exceed a low-total counterpart.
+    const high = deriveFootballMarkets(1.6, 4.2, 6.0, 3.5);
+    const low = deriveFootballMarkets(1.6, 4.2, 6.0, 2.0);
+    expect(high.btts.odds?.yes ?? 99).toBeLessThan(low.btts.odds?.yes ?? 0);
+    // And a defensive dead-rubber tilts to BTTS No: a low total with an extreme
+    // favourite gives NO the shorter price.
+    const tight = deriveFootballMarkets(1.25, 5.5, 11.0, 1.5);
+    expect(tight.btts.odds?.no ?? 99).toBeLessThan(tight.btts.odds?.yes ?? 0);
   });
 });

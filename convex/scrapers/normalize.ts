@@ -277,6 +277,33 @@ export function gridBtts(grid: FootballScoreGrid): { yes: number; no: number } {
   return { yes, no: Math.max(0, 1 - yes) };
 }
 
+// P(a single team scores MORE than `line` goals) from the grid marginals.
+// line=0.5 → the team scores at least once; line=1.5 → at least twice.
+export function gridTeamOver(grid: FootballScoreGrid, home: boolean, line: number): number {
+  let over = 0;
+  for (let i = 0; i <= GRID_MAX_GOALS; i++) {
+    for (let j = 0; j <= GRID_MAX_GOALS; j++) {
+      const goals = home ? i : j;
+      if (goals > line) over += grid.p[i][j];
+    }
+  }
+  return Math.max(0, Math.min(1, over));
+}
+
+// Empirical share of goals scored in the FIRST half (the remainder lands in the
+// second half). Used to split each team's full-time Poisson lambda into two
+// independent half-time Poissons so the 1H/2H totals are derived, not guessed.
+export const FIRST_HALF_GOAL_SHARE = 0.45;
+
+// P(half total goals > line) from a Poisson(lambda) split of the match lambda.
+export function halfTotalOver(grid: FootballScoreGrid, half: 'first' | 'second', line: number): number {
+  const share = half === 'first' ? FIRST_HALF_GOAL_SHARE : 1 - FIRST_HALF_GOAL_SHARE;
+  const lambda = Math.max(0.01, (grid.lambdaH + grid.lambdaA) * share);
+  let cdf = 0;
+  for (let k = 0; k <= Math.floor(line); k++) cdf += poissonPmf(lambda, k);
+  return Math.max(0, Math.min(1, 1 - cdf));
+}
+
 // P(home covers handicap line L) using grid-derived one-goal margin masses
 // blended with the de-vigged 1X2 (whole/half lines win, quarter lines split
 // the stake - pushes refund and do not change the win probability).
@@ -328,6 +355,10 @@ export const FOOTBALL_AH_LINES = [-1.5, -1.25, -1, -0.75, -0.5, -0.25, 0, 0.25, 
 // Soccer Over/Under goal lines.
 export const FOOTBALL_TOTAL_LINES = [0.5, 1.5, 2.5, 3.5, 4.5];
 
+// Team total (home/away) lines and half total lines, all derived from the grid.
+export const FOOTBALL_TEAM_TOTAL_LINES = [0.5, 1.5];
+export const FOOTBALL_HALF_TOTAL_LINES = [0.5, 1.5];
+
 // Full football derived market set from the real 1X2 + a total anchor line:
 // Double Chance, Asian Handicap ladder, O/U goals ladder (0.5-4.5) and BTTS.
 // When realTotals is supplied its line/prices become the anchor pair (all other
@@ -343,6 +374,10 @@ export function deriveFootballMarkets(
   handicap: Market;
   mainTotal: Market;
   btts: Market;
+  homeTotal: Market;
+  awayTotal: Market;
+  firstHalfTotal: Market;
+  secondHalfTotal: Market;
 } {
   const fair = devig([homeOdds, drawOdds, awayOdds]); // [pH, pD, pA]
   const grid = buildFootballGrid(homeOdds, drawOdds, awayOdds, totalAnchorLine);
@@ -406,7 +441,36 @@ export function deriveFootballMarkets(
     }
   };
 
-  return { doubleChance, handicap, mainTotal, btts };
+  // Team totals — "{Team} Over 0.5 goals" (team scores at least once).
+  const teamTotal = (home: boolean): Market => ({
+    id: home ? 'homeTotal' : 'awayTotal',
+    kind: 'ou',
+    title: home ? 'Home Team Total' : 'Away Team Total',
+    derived: true,
+    pairs: FOOTBALL_TEAM_TOTAL_LINES.map((line) => {
+      const over = gridTeamOver(grid, home, line);
+      return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
+    })
+  });
+
+  // Half totals — "1st Half Over 0.5 / 2nd Half Over 0.5 goals".
+  const halfTotal = (half: 'first' | 'second'): Market => ({
+    id: half === 'first' ? 'firstHalfTotal' : 'secondHalfTotal',
+    kind: 'ou',
+    title: half === 'first' ? 'First Half Total' : 'Second Half Total',
+    derived: true,
+    pairs: FOOTBALL_HALF_TOTAL_LINES.map((line) => {
+      const over = halfTotalOver(grid, half, line);
+      return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
+    })
+  });
+
+  const homeTotal = teamTotal(true);
+  const awayTotal = teamTotal(false);
+  const firstHalfTotal = halfTotal('first');
+  const secondHalfTotal = halfTotal('second');
+
+  return { doubleChance, handicap, mainTotal, btts, homeTotal, awayTotal, firstHalfTotal, secondHalfTotal };
 }
 
 // Balanced, realistic fallback odds derived from the team-name hash. The
@@ -477,7 +541,7 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
   // ── Derived football markets (DC + AH ladder + O/U ladder + BTTS from the
   //    single Poisson grid; a real total anchors its own line when present) ──
   if (sportId === 'football' && h2h.length === 3 && h2h[1]) {
-    const { doubleChance, handicap, mainTotal, btts } = deriveFootballMarkets(
+    const { doubleChance, handicap, mainTotal, btts, homeTotal, awayTotal, firstHalfTotal, secondHalfTotal } = deriveFootballMarkets(
       h2h[0],
       h2h[1],
       h2h[2],
@@ -488,6 +552,10 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
     markets.handicap = handicap;
     markets.mainTotal = mainTotal;
     markets.btts = btts;
+    markets.homeTotal = homeTotal;
+    markets.awayTotal = awayTotal;
+    markets.firstHalfTotal = firstHalfTotal;
+    markets.secondHalfTotal = secondHalfTotal;
   } else if (!isTwoWay) {
     // football without a draw leg: still give a pick handicap from the 1X2.
     markets.handicap = {
