@@ -181,7 +181,8 @@ const SPORT_SCALE: Record<string, string> = {
 // separately instead of one generic prompt for all of them.
 const SPORT_RULES: Record<string, string> = {
   football: `FOOTBALL-SPECIFIC MARKET MODEL:
-- Analyse EVERY football market shown, not just the match total and Asian Handicap: the 1X2 result, Double Chance (1X / 12 / X2), the full Asian Handicap ladder, the match goals total, BTTS, Home Team Total and Away Team Total ("Over 0.5" = the team scores at least once), and the 1st Half / 2nd Half Totals ("Over 0.5" = at least one goal in that half).
+- Analyse EVERY football market shown, not just the match total and Asian Handicap: the 1X2 result, Double Chance (1X / 12 / X2), the full Asian Handicap ladder, the match goals total, BTTS, Home Team Total and Away Team Total ("Over 0.5" = the team scores at least once), the 1st Half / 2nd Half Totals ("Over 0.5" = at least one goal in that half), Team One Goal Up / Two Goal Up ("1UP"/"2UP": the team is one / two goals ahead at ANY moment — scoring first or taking a lead later), Team Never Down (the team wins without ever trailing the opponent on goals) and Double Chance 1UP (1X pays when the HOME team leads at any moment, X2 when the AWAY team leads at any moment).
+- Lead/momentum reads: a heavy favourite's "1UP" is near-certain but 2UP and Never Down are materially less likely — price them from the team's scoring strength and defensive solidity, and never treat the 1UP side as a guaranteed win just because the straight win is short. 1UP is always more likely than 2UP; Never Down is more likely for strong defensive favourites than for teams that concede early.
 - BTTS: evaluate BOTH "BTTS Yes" AND "BTTS No" from their Real Win Chances and punter edges, then project whichever side is STRONGER for this specific match. NEVER default to "BTTS No" — a high-scoring, two-attacking-side fixture often makes BTTS Yes the stronger side. Only claim one side when its Real Win Chance / punter edge actually beats the other.
 - Team over 0.5 angles are low-risk "team scores at least once" picks: use them when the favourite's straight win is priced too tight for value but the favourite scoring is highly probable.
 - Half over 0.5 angles separate a fast-starting fixture (1H Over 0.5 strong) from a second-half fixture (2H Over 0.5 strong) — use the half totals to pick the stronger half.
@@ -329,11 +330,29 @@ function summarizeScope(scope: unknown): { lines: string[]; markets: string[]; t
     // Odds markets (result / winner / doubleChance / regResult).
     if (mkt?.odds && typeof mkt.odds === 'object') {
       const title = mkt?.title || key;
+      const probs = (mkt?.probs ?? null) as Record<string, number> | null;
       const entries = Object.entries(mkt.odds)
-        .map(([k, o]) => ({ label: humanLeg(title, k), odds: Number(o) }))
+        .map(([k, o]) => ({ key: k, label: humanLeg(title, k), odds: Number(o) }))
         .filter((e) => e.odds > 1);
       if (entries.length < 2) continue;
-      const { items, overround } = devigItems(entries);
+      let items: { label: string; odds: number; implied: number; fair: number; edge: number }[];
+      let overround: number;
+      if (probs) {
+        // Non-exclusive sides (football 1UP/2UP/Never Down/DC-1UP — both teams
+        // can lead at some point, neither in 0-0): use the TRUE fair
+        // probabilities the market carries instead of de-vigging, which would
+        // wrongly force the sides to sum to 100% and inflate the unlikely side.
+        items = entries.map((e) => {
+          const fair = (probs[e.key] ?? 0) * 100;
+          const implied = (1 / e.odds) * 100;
+          return { label: e.label, odds: e.odds, implied, fair, edge: fair - implied };
+        });
+        overround = 0;
+      } else {
+        const d = devigItems(entries.map((e) => ({ label: e.label, odds: e.odds })));
+        items = d.items;
+        overround = d.overround;
+      }
       const parts = items.map(
         (i) => `${i.label} @ ${i.odds.toFixed(2)} (implied ${i.implied.toFixed(1)}%, real ${i.fair.toFixed(1)}%, edge ${i.edge >= 0 ? '+' : ''}${i.edge.toFixed(1)}%)`
       );

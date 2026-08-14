@@ -128,6 +128,11 @@ const SEGMENT_BY_ID: Record<string, PickSegmentKey> = {
   runline: 'handicap',
   // Derived football markets
   secondHalfTotal: 'total',
+  // Football lead / momentum markets (1UP, 2UP, Never Down, DC-1UP)
+  oneGoalUp: 'props',
+  twoGoalUp: 'props',
+  neverDown: 'props',
+  doubleChanceUp: 'winner',
   // Extra engine market ids → sensible buckets
   doubleChance: 'winner',
   btts: 'props',

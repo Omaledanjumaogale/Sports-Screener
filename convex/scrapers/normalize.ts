@@ -41,6 +41,11 @@ export interface Market {
   pairs?: { line: number; over: number; under: number }[];
   handicapPairs?: { line: number; sideA: number; sideB: number }[];
   odds?: Record<string, number | null>;
+  // True FAIR probabilities (0-1) per side for markets whose sides are NOT
+  // mutually exclusive (e.g. 1UP/2UP/Never Down — both teams can lead at some
+  // point, neither in 0-0). Consumers must use these instead of de-vigging the
+  // odds, which would wrongly force the sides to sum to 100%.
+  probs?: Record<string, number>;
   // True when the prices are DERIVED from another market (Double Chance / Asian
   // Handicap from the 1X2) rather than quoted live. Derived markets stay fully
   // available for analysis but never gate the confidence floor.
@@ -378,6 +383,10 @@ export function deriveFootballMarkets(
   awayTotal: Market;
   firstHalfTotal: Market;
   secondHalfTotal: Market;
+  oneGoalUp: Market;
+  twoGoalUp: Market;
+  neverDown: Market;
+  doubleChanceUp: Market;
 } {
   const fair = devig([homeOdds, drawOdds, awayOdds]); // [pH, pD, pA]
   const grid = buildFootballGrid(homeOdds, drawOdds, awayOdds, totalAnchorLine);
@@ -470,7 +479,116 @@ export function deriveFootballMarkets(
   const firstHalfTotal = halfTotal('first');
   const secondHalfTotal = halfTotal('second');
 
-  return { doubleChance, handicap, mainTotal, btts, homeTotal, awayTotal, firstHalfTotal, secondHalfTotal };
+  // Team lead / momentum markets (1UP, 2UP, Never Down, Double Chance 1UP).
+  // The home/away sides are NOT mutually exclusive — both teams can lead at
+  // some point in the same match and neither does in 0-0 — so each side is
+  // priced independently from the grid (same margin treatment as Double
+  // Chance), never de-vigged as a complementary pair.
+  const oneGoalUp: Market = {
+    id: 'oneGoalUp',
+    kind: 'winner',
+    title: 'Team One Goal Up (1UP)',
+    derived: true,
+    probs: { home: gridTeamLeadUp(grid, true, 1), away: gridTeamLeadUp(grid, false, 1) },
+    odds: {
+      home: marginedPrice(gridTeamLeadUp(grid, true, 1), 1.05),
+      away: marginedPrice(gridTeamLeadUp(grid, false, 1), 1.05)
+    }
+  };
+  const twoGoalUp: Market = {
+    id: 'twoGoalUp',
+    kind: 'winner',
+    title: 'Team Two Goal Up (2UP)',
+    derived: true,
+    probs: { home: gridTeamLeadUp(grid, true, 2), away: gridTeamLeadUp(grid, false, 2) },
+    odds: {
+      home: marginedPrice(gridTeamLeadUp(grid, true, 2), 1.05),
+      away: marginedPrice(gridTeamLeadUp(grid, false, 2), 1.05)
+    }
+  };
+  const neverDown: Market = {
+    id: 'neverDown',
+    kind: 'winner',
+    title: 'Team Never Down',
+    derived: true,
+    probs: { home: gridTeamNeverDown(grid, true), away: gridTeamNeverDown(grid, false) },
+    odds: {
+      home: marginedPrice(gridTeamNeverDown(grid, true), 1.05),
+      away: marginedPrice(gridTeamNeverDown(grid, false), 1.05)
+    }
+  };
+  const doubleChanceUp: Market = {
+    id: 'doubleChanceUp',
+    kind: 'winner',
+    title: 'Double Chance 1UP',
+    derived: true,
+    // 1UP pays the double-chance leg when the chosen side leads at any moment:
+    // 1X-1UP pays when HOME leads at any point, X2-1UP when AWAY leads at any
+    // point (identical events to the oneGoalUp sides by the user's definition).
+    probs: { home: gridTeamLeadUp(grid, true, 1), away: gridTeamLeadUp(grid, false, 1) },
+    odds: {
+      home: marginedPrice(gridTeamLeadUp(grid, true, 1), 1.05),
+      away: marginedPrice(gridTeamLeadUp(grid, false, 1), 1.05)
+    }
+  };
+
+  return { doubleChance, handicap, mainTotal, btts, homeTotal, awayTotal, firstHalfTotal, secondHalfTotal, oneGoalUp, twoGoalUp, neverDown, doubleChanceUp };
+}
+
+// ── Football lead / momentum probability model (1UP, 2UP, Never Down) ────────
+// These markets depend on the ORDER of goals (does a team lead at some point,
+// by how much, does it ever trail), not just the final score. Under the Poisson
+// model the goal order is uniformly random given the final counts (goals arrive
+// in one merged process whose marks are i.i.d.), so the exact path
+// probabilities are the classical ballot numbers:
+//   P(lead by ≥1 at some point | mine, theirs) = min(1, mine / (theirs + 1))
+//   P(lead by ≥2 at some point | mine, theirs) = min(1, C(n, mine-2)/C(n, theirs))
+//   P(win without ever trailing | mine, theirs) = (mine + 1 - theirs)/(mine + 1)
+// Every market probability is the grid-weighted sum over all final scores.
+// Semantics: "1UP" = the team is a goal ahead at any moment (scores first OR
+// takes a lead later); "2UP" = two goals ahead at any moment; "Never Down" =
+// the team wins without ever trailing the opponent on goals.
+
+function comb(n: number, k: number): number {
+  if (k < 0 || k > n) return 0;
+  let r = 1;
+  for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i;
+  return r;
+}
+
+// P(team is `margin` goals ahead at some point in the match). margin=1 → 1UP,
+// margin=2 → 2UP.
+export function gridTeamLeadUp(grid: FootballScoreGrid, home: boolean, margin: number): number {
+  let total = 0;
+  for (let h = 0; h <= GRID_MAX_GOALS; h++) {
+    for (let a = 0; a <= GRID_MAX_GOALS; a++) {
+      const mine = home ? h : a;
+      const theirs = home ? a : h;
+      const n = h + a;
+      let cond: number;
+      if (margin === 1) {
+        cond = Math.min(1, mine / (theirs + 1));
+      } else {
+        cond = mine >= margin ? Math.min(1, comb(n, mine - margin) / comb(n, theirs)) : 0;
+      }
+      total += grid.p[h][a] * cond;
+    }
+  }
+  return Math.max(0, Math.min(1, total));
+}
+
+// P(team wins the match without ever trailing the opponent on goals).
+export function gridTeamNeverDown(grid: FootballScoreGrid, home: boolean): number {
+  let total = 0;
+  for (let h = 0; h <= GRID_MAX_GOALS; h++) {
+    for (let a = 0; a <= GRID_MAX_GOALS; a++) {
+      const mine = home ? h : a;
+      const theirs = home ? a : h;
+      if (mine <= theirs) continue; // must win the match
+      total += grid.p[h][a] * ((mine + 1 - theirs) / (mine + 1));
+    }
+  }
+  return Math.max(0, Math.min(1, total));
 }
 
 // ── Basketball points probability model ───────────────────────────────────────
@@ -755,7 +873,7 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
   // ── Derived football markets (DC + AH ladder + O/U ladder + BTTS from the
   //    single Poisson grid; a real total anchors its own line when present) ──
   if (sportId === 'football' && h2h.length === 3 && h2h[1]) {
-    const { doubleChance, handicap, mainTotal, btts, homeTotal, awayTotal, firstHalfTotal, secondHalfTotal } = deriveFootballMarkets(
+    const { doubleChance, handicap, mainTotal, btts, homeTotal, awayTotal, firstHalfTotal, secondHalfTotal, oneGoalUp, twoGoalUp, neverDown, doubleChanceUp } = deriveFootballMarkets(
       h2h[0],
       h2h[1],
       h2h[2],
@@ -770,6 +888,10 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
     markets.awayTotal = awayTotal;
     markets.firstHalfTotal = firstHalfTotal;
     markets.secondHalfTotal = secondHalfTotal;
+    markets.oneGoalUp = oneGoalUp;
+    markets.twoGoalUp = twoGoalUp;
+    markets.neverDown = neverDown;
+    markets.doubleChanceUp = doubleChanceUp;
   } else if (!isTwoWay) {
     // football without a draw leg: still give a pick handicap from the 1X2.
     markets.handicap = {

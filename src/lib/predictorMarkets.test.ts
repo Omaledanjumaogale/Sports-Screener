@@ -19,9 +19,12 @@ import {
   basketballHomeCovers,
   deriveBasketballMarkets,
   BASKETBALL_SPREAD_LINES,
+  gridTeamLeadUp,
+  gridTeamNeverDown,
   devig,
   devigPair
 } from '../../convex/scrapers/normalize';
+import type { FootballScoreGrid } from '../../convex/scrapers/normalize';
 
 describe('predictor markets (Poisson football model)', () => {
   // A realistic home-favoured 1X2: 1.85 / 3.40 / 4.20 → ~54% / 29% / 17%.
@@ -172,6 +175,92 @@ describe('predictor markets (Poisson football model)', () => {
     // favourite gives NO the shorter price.
     const tight = deriveFootballMarkets(1.25, 5.5, 11.0, 1.5);
     expect(tight.btts.odds?.no ?? 99).toBeLessThan(tight.btts.odds?.yes ?? 0);
+  });
+});
+
+describe('predictor markets (football lead / momentum — 1UP, 2UP, Never Down)', () => {
+  // Same realistic home-favoured 1X2 as the Poisson block: 1.85 / 3.40 / 4.20.
+  const HOME = 1.85;
+  const DRAW = 3.4;
+  const AWAY = 4.2;
+
+  // Hand-built single-cell grids verify the exact ballot numbers: with a fixed
+  // final score (h,a) the goal ORDER is uniformly random, so the path
+  // probabilities are known exactly.
+  const cellGrid = (h: number, a: number): FootballScoreGrid => {
+    const p: number[][] = [];
+    for (let i = 0; i <= 9; i++) p.push(new Array(10).fill(0));
+    p[h][a] = 1;
+    return { p, lambdaH: h, lambdaA: a };
+  };
+
+  it('1UP: P(team leads at some point) follows min(1, mine/(theirs+1))', () => {
+    expect(gridTeamLeadUp(cellGrid(1, 0), true, 1)).toBeCloseTo(1, 6);
+    expect(gridTeamLeadUp(cellGrid(1, 0), false, 1)).toBeCloseTo(0, 6);
+    expect(gridTeamLeadUp(cellGrid(2, 1), true, 1)).toBeCloseTo(1, 6);
+    expect(gridTeamLeadUp(cellGrid(1, 2), true, 1)).toBeCloseTo(1 / 3, 6);
+    expect(gridTeamLeadUp(cellGrid(1, 2), false, 1)).toBeCloseTo(1, 6);
+    expect(gridTeamLeadUp(cellGrid(2, 2), true, 1)).toBeCloseTo(2 / 3, 6);
+    expect(gridTeamLeadUp(cellGrid(0, 0), true, 1)).toBeCloseTo(0, 6);
+    expect(gridTeamLeadUp(cellGrid(0, 0), false, 1)).toBeCloseTo(0, 6);
+  });
+
+  it('2UP: P(team leads by 2) uses the reflection count C(n, mine-2)/C(n, theirs)', () => {
+    expect(gridTeamLeadUp(cellGrid(2, 1), true, 2)).toBeCloseTo(1 / 3, 6);
+    expect(gridTeamLeadUp(cellGrid(3, 2), true, 2)).toBeCloseTo(0.5, 6);
+    expect(gridTeamLeadUp(cellGrid(2, 2), true, 2)).toBeCloseTo(1 / 6, 6);
+    expect(gridTeamLeadUp(cellGrid(4, 2), true, 2)).toBeCloseTo(1, 6); // final margin 2 → always led by 2
+    expect(gridTeamLeadUp(cellGrid(1, 0), true, 2)).toBeCloseTo(0, 6);
+  });
+
+  it('Never Down: win without ever trailing uses the ballot stay-≥0 fraction', () => {
+    expect(gridTeamNeverDown(cellGrid(1, 0), true)).toBeCloseTo(1, 6);
+    expect(gridTeamNeverDown(cellGrid(2, 1), true)).toBeCloseTo(2 / 3, 6);
+    expect(gridTeamNeverDown(cellGrid(3, 2), true)).toBeCloseTo(0.5, 6); // (3+1-2)/(3+1)
+    expect(gridTeamNeverDown(cellGrid(1, 2), true)).toBeCloseTo(0, 6); // loses
+    expect(gridTeamNeverDown(cellGrid(2, 2), true)).toBeCloseTo(0, 6); // draw
+    expect(gridTeamNeverDown(cellGrid(1, 0), false)).toBeCloseTo(0, 6);
+  });
+
+  it('derived lead markets are consistent: 1UP dominates 2UP and Never Down in probability', () => {
+    const mk = deriveFootballMarkets(HOME, DRAW, AWAY, 2.5);
+    const grid = buildFootballGrid(HOME, DRAW, AWAY, 2.5);
+    const p1h = gridTeamLeadUp(grid, true, 1);
+    const p2h = gridTeamLeadUp(grid, true, 2);
+    const pndh = gridTeamNeverDown(grid, true);
+    // Guaranteed orderings: 2UP ⇒ 1UP and Never Down ⇒ 1UP (both imply the
+    // team led at some point). 2UP vs Never Down has NO fixed order — winning
+    // 1-0 without trailing beats leading by 2 in a low-scoring match.
+    expect(p1h).toBeGreaterThan(p2h);
+    expect(p1h).toBeGreaterThan(pndh);
+    expect(p2h).toBeGreaterThan(0.05);
+    expect(pndh).toBeGreaterThan(0.05);
+    // Lower probability → higher price: 1UP odds ≤ 2UP and ≤ Never Down odds.
+    const oh1 = mk.oneGoalUp.odds?.home ?? 0;
+    const oh2 = mk.twoGoalUp.odds?.home ?? 0;
+    const ohnd = mk.neverDown.odds?.home ?? 0;
+    expect(oh1).toBeGreaterThan(1.01);
+    expect(oh2).toBeGreaterThanOrEqual(oh1);
+    expect(ohnd).toBeGreaterThanOrEqual(oh1);
+    // Every momentum market carries both sides (never de-vigged as a pair).
+    expect(mk.oneGoalUp.odds?.away ?? 0).toBeGreaterThan(1.01);
+    expect(mk.twoGoalUp.odds?.away ?? 0).toBeGreaterThan(1.01);
+    expect(mk.neverDown.odds?.away ?? 0).toBeGreaterThan(1.01);
+    expect(mk.doubleChanceUp.odds?.home ?? 0).toBeGreaterThan(1.01);
+    expect(mk.doubleChanceUp.odds?.away ?? 0).toBeGreaterThan(1.01);
+  });
+
+  it('home favourite: home 1UP priced shorter than away 1UP; heavy favourite 1UP near-certain but 2UP clearly less', () => {
+    const fav = deriveFootballMarkets(1.5, 4.0, 6.5, 2.5);
+    expect(fav.oneGoalUp.odds?.home ?? 99).toBeLessThan(fav.oneGoalUp.odds?.away ?? 0);
+    // Never Down must be strictly harder than 1UP for a favourite too.
+    expect(fav.neverDown.odds?.home ?? 99).toBeGreaterThan(fav.oneGoalUp.odds?.home ?? 0);
+    const grid = buildFootballGrid(1.5, 4.0, 6.5, 2.5);
+    const p1 = gridTeamLeadUp(grid, true, 1);
+    const p2 = gridTeamLeadUp(grid, true, 2);
+    expect(p1).toBeGreaterThan(0.6);
+    expect(p2).toBeLessThan(p1);
+    expect(p2).toBeGreaterThan(0.3);
   });
 });
 

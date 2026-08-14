@@ -52,6 +52,11 @@ export interface MarketInput {
   pairs?: LinePair[];
   handicapPairs?: HandicapPair[];
   odds?: Record<string, number | null>;
+  // True fair probabilities (0-1) for markets whose sides are NOT mutually
+  // exclusive (football 1UP/2UP/Never Down/DC-1UP). When present, picks use
+  // these instead of de-vigging the odds, which would wrongly force the sides
+  // to sum to 100%.
+  probs?: Record<string, number>;
 }
 
 export interface ScopeState {
@@ -478,6 +483,23 @@ export function analyzeHandicap(market: MarketInput, sideALabel = 'Side A', side
   });
 }
 
+// Analyze an odds market whose sides are NOT mutually exclusive (football
+// 1UP/2UP/Never Down/DC-1UP — both teams can lead at some point, neither in
+// 0-0). Such markets carry their TRUE fair probabilities in `probs`, so picks
+// are built from those directly; de-vigging implied odds here would force the
+// sides to sum to 100% and inflate the unlikely sides into nonsense EVs.
+export function analyzeIndependentMarket(market: MarketInput, labels: Record<string, string>): Pick[] {
+  const probs = market.probs ?? {};
+  const out: Pick[] = [];
+  for (const [key, label] of Object.entries(labels)) {
+    const odds = Number(market.odds?.[key]);
+    const prob = probs[key];
+    if (!odds || odds <= 1 || !Number.isFinite(prob) || prob <= 0 || prob >= 1) continue;
+    out.push({ marketId: market.id, marketTitle: market.title, label, probability: prob * 100, odds });
+  }
+  return out;
+}
+
 export function analyzeOddsMarket(market: MarketInput, labels: Record<string, string>): Pick[] {
   const entries = Object.entries(market?.odds ?? {}).filter(([, odds]) => odds && odds > 1) as [string, number][];
   if (entries.length < 2) return [];
@@ -663,6 +685,22 @@ export function analyzeFootball(scope: ScopeState): Analysis {
     ...analyzeLines(scope.markets.secondHalfTotal ?? { id: 'secondHalfTotal', kind: 'ou', title: '' }),
     ...(scope.markets.btts
       ? analyzeOddsMarket(scope.markets.btts, { yes: 'BTTS Yes (GG)', no: 'BTTS No (NG)' })
+      : []),
+    // Lead / momentum markets (1UP, 2UP, Never Down, Double Chance 1UP). Their
+    // sides are NOT complementary (both teams can lead at some point, neither
+    // in 0-0), so picks come from the markets' own `probs` (true fair
+    // probabilities) instead of de-vigging the odds.
+    ...(scope.markets.oneGoalUp
+      ? analyzeIndependentMarket(scope.markets.oneGoalUp, { home: 'Home 1UP (leads at any time)', away: 'Away 1UP (leads at any time)' })
+      : []),
+    ...(scope.markets.twoGoalUp
+      ? analyzeIndependentMarket(scope.markets.twoGoalUp, { home: 'Home 2UP (leads by 2)', away: 'Away 2UP (leads by 2)' })
+      : []),
+    ...(scope.markets.neverDown
+      ? analyzeIndependentMarket(scope.markets.neverDown, { home: 'Home Never Down', away: 'Away Never Down' })
+      : []),
+    ...(scope.markets.doubleChanceUp
+      ? analyzeIndependentMarket(scope.markets.doubleChanceUp, { home: '1X 1UP (Home leads)', away: 'X2 1UP (Away leads)' })
       : [])
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
@@ -747,7 +785,7 @@ export function analyzeFootball(scope: ScopeState): Analysis {
     metrics: [
       { label: 'Low-score cluster', value: grid.length ? pct(lowScores, 1) : '-', note: '0-0 / 1-0 / 0-1 / 1-1', status: grid.length ? statusFromPct(lowScores, cfg.a2.green, cfg.a2.amber) : 'empty' },
       { label: scope.id === 'ft' ? '0-0 resistance' : 'None odds prob', value: scope.id === 'ft' ? (nilNil !== undefined ? pct(nilNil, 1) : '-') : (noneProb !== null ? pct(noneProb, 1) : '-'), note: scope.id === 'ft' ? 'Nil-nil probability' : 'No goal in half', status: scope.id === 'ft' ? (nilNil !== undefined ? statusFromPct(nilNil, cfg.a5.green, cfg.a5.amber) : 'empty') : (noneProb !== null ? statusFromPct(noneProb, 30, 20) : 'empty') },
-      { label: 'Ranked picks', value: String(allFootballPicks.length), note: 'Across 1X2, DC, AH, BTTS, Team & Half Totals' },
+      { label: 'Ranked picks', value: String(allFootballPicks.length), note: 'Across 1X2, DC, AH, BTTS, Team/Half Totals & 1UP/2UP/NeverDown' },
       { label: 'Best-value EV', value: bestValuePick?.ev !== undefined ? `${round(bestValuePick.ev * 100, 1)}%` : '-', note: 'Margin read, not profit forecast' }
     ]
   };
