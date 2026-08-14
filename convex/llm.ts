@@ -189,9 +189,11 @@ const SPORT_RULES: Record<string, string> = {
 - Pick the market with the strongest probability/edge FOR THIS MATCH — the model must choose the safest, most probable selection per fixture, never the same market for every game.`,
   basketball: `BASKETBALL-SPECIFIC MARKET MODEL:
 - Analyse EVERY basketball market shown, not just the moneyline and game total: the moneyline (team straight win), the full-game point total (Over/Under points in regular time), the Home Team Total and Away Team Total (Over/Under points in regular time), the 1st Half and 2nd Half Totals ("Over" = at least that many points in that half), the Home/Away Team Totals in the 1st Half, and the point spread / team handicap.
+- LEAGUE SCORING CONTEXT: scoring is NOT uniform across basketball. NBA/NCAAB/EuroLeague games run 200-240+ pts, while WNBA, women's tournaments, FIBA windows and most lower European leagues run materially lower (150-190 typical full-game totals). The real total for THIS match already encodes its league — read every line relative to that anchor, never blanket NBA expectations: a 160.5 total in a women's league is a normal full-game line, and a 79.5 team total there is NOT a low line. Let the depth of your analysis follow the league's own scoring level.
 - The team handicap can favour EITHER the home or away team depending on the match — analyse both sides of the spread and project whichever team's cover is stronger for THIS game. NEVER default to one specific team.
 - Use the half totals to pick the stronger half, and the 1st-half team totals to pick the stronger team in the first half.
 - Cross-check the markets against each other: the favourite's straight win agrees with its negative handicap cover; Home Team Total + Away Team Total should sum near the game total; a strong 1st-half total supports the Over; a team's Over total agrees with its handicap cover.
+- ODDS ARE INDICATORS, NOT GUARANTEES: a very short price (e.g. 1.01 at 90%+) is NOT a sure win when staked — bookmaker odds are market signals, not a true reflection of the match outcome. They become meaningful only when computed (de-vigged), compared and cross-referenced against related markets (moneyline vs spread vs totals vs team totals). Value and appreciate the positive edges that genuinely convert to winning bets; treat near-1.01 sides as near-certainty noise, never as the recommendation.
 - Pick the market with the strongest probability/edge FOR THIS MATCH — the model must choose the safest, most probable selection per fixture, never the same market for every game.`,
   generic: `GENERIC MARKET MODEL:
 - Analyse EVERY market shown for this sport and rank selections by Real Win Chance and punter edge.
@@ -252,7 +254,20 @@ function humanLeg(marketTitle: string, key: string): string {
   return key;
 }
 
+// Odds band that qualifies a side for the TOP VALUE ranking: prices below min
+// are near-certainty noise (tiny return even when they land — e.g. derived
+// ladder tails like spread +11.5 @ 1.01) and prices above max are long shots
+// (tiny probability). With every margined price carrying a NEGATIVE edge, the
+// least-negative edge always falls on the longest shot, so banding keeps the
+// value section on lines a punter can actually back (the fair-value zone
+// around the expected total / spread / moneyline).
+export const TOP_VALUE_ODDS_BAND = { min: 1.2, max: 3.0 };
+export function isTopValueCandidate(odds: number): boolean {
+  return odds >= TOP_VALUE_ODDS_BAND.min && odds <= TOP_VALUE_ODDS_BAND.max;
+}
+
 function pushTop(item: { label: string; odds: number; edge: number }, marketTitle: string, out: string[]) {
+  if (!isTopValueCandidate(item.odds)) return;
   const line = `${item.edge >= 0 ? '+' : ''}${item.edge.toFixed(1)}% edge | ${marketTitle}: ${item.label} @ ${item.odds.toFixed(2)}`;
   out.push(line);
 }
@@ -464,13 +479,14 @@ RULES:
 1. Use simple plain English. Use "Real Win Chance" for fair probability, "implied probability" for 1/odds, "Bookies Profit Cut" for the bookmaker's margin / overround, and "punter edge" for Real Win Chance minus implied.
 2. Reference the actual odds, implied probabilities and edge numbers above — never invent numbers.
 3. PICK THE BEST MARKET FOR THIS MATCH. Each match is different: some win with Over/Under, some with Asian Handicap / Spread, some with Double Chance, some with a straight win, some with BTTS, team totals or half totals. Evaluate EVERY market above and choose the one(s) where the punter edge is highest for THIS match — do NOT default to the total market for every game.
-4. The top3Selections must come from DIFFERENT market options (e.g. one from the result/winner market, one from a total line, one from Double Chance, BTTS, Handicap, a team total or a half total) ranked by punter edge. Never repeat the same market for all three.
+4. The top3Selections must come from DIFFERENT market options (e.g. one from the result/winner market, one from a total line, one from a spread / handicap line, one from a team total or a half total — plus Double Chance / BTTS where those markets exist for this sport) ranked by punter edge. Never repeat the same market for all three.
 5. For each selection show the metric-strip numbers: its Real Win Chance, implied probability and punter edge (e.g. "Home @ 1.90: real 52.0%, implied 52.6%, edge +0.6%"). Project the punter's edge over the bookie explicitly in "punterEdge".
 6. If STATUS notes IN-PLAY, flag that odds are live/moving and reflect it in tacticalRecommendation; otherwise treat as pre-match.
-7. Cross-reference the odds across markets: note where the Double Chance / Handicap line gives a lower-risk angle vs the straight win, where BTTS Yes agrees with the Over and BTTS No with the Under, and where a team's Over 0.5 supports its handicap cover.
+7. Cross-reference the odds across markets: note where a spread / handicap line gives a lower-risk angle vs the straight win, where the team totals and half totals agree with the game total, and where a team's total supports its handicap cover. (Football only: BTTS Yes agrees with the Over, BTTS No with the Under, and a team's Over 0.5 supports its handicap cover.)
 8. The crossCheckSteps list must contain at least 4 distinct checks.
 9. Never recommend betting beyond a small stake; always flag risk.
 10. STANDALONE MATCH: Treat this match as a completely independent fixture. Every verdict, recommendation and top-3 selection must be derived from THIS match's own odds and probabilities above. Do NOT copy, replicate or reuse analysis, recommendations or verdicts from any other match — matches with similar-looking lines must still get their own verdict reasoned from their own numbers. No two matches should share identical verdict wording or identical top-3 selections unless the underlying data is genuinely identical.
+11. ODDS ARE INDICATORS, NOT CERTAINTIES: bookmaker odds are market signals, not a true reflection of the match outcome — they become meaningful when computed (de-vigged), compared and cross-referenced across related markets. A very short price (e.g. 1.01 at 90%+) does NOT guarantee a win when staked; value the positive edges that genuinely convert, and never present a near-1.01 side as a sure thing.
 
 RESPOND ONLY with a valid JSON object, no markdown, no code fences:
 {

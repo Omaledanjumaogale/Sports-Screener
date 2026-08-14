@@ -552,6 +552,19 @@ function topPick(picks: Pick[]): Pick | undefined {
   return picks.slice().sort((a, b) => b.probability - a.probability)[0];
 }
 
+// A "certainty" side: odds so short the bet returns almost nothing even when it
+// lands — the deep-fringe lines of derived ladders (e.g. spread +11.5 @ 1.01,
+// Over 204.5 @ 1.11). A pure probability ranking always puts these on top, so
+// headlines, profile tops and "safest" selections prefer the strongest
+// BETTABLE side instead (odds above CERTAINTY_ODDS).
+export const CERTAINTY_ODDS = 1.15;
+function isCertaintySide(p: Pick): boolean {
+  return p.odds <= CERTAINTY_ODDS;
+}
+function topBettable(picks: Pick[]): Pick | undefined {
+  return picks.filter((p) => !isCertaintySide(p)).sort((a, b) => b.probability - a.probability)[0] ?? topPick(picks);
+}
+
 export function withEv(pick: Pick): Pick {
   return { ...pick, ev: (pick.probability / 100) * pick.odds - 1 };
 }
@@ -655,10 +668,10 @@ export function analyzeFootball(scope: ScopeState): Analysis {
 
   const allFootballPicks = [...rankPicks, ...goalLinePicks].sort((a, b) => b.probability - a.probability);
   const primaryPicks = allFootballPicks.filter((p) => p.marketId === 'mainTotal' || p.marketId === 'result');
-  const safestPick = topPick(primaryPicks) ?? topPick(allFootballPicks);
+  const safestPick = topBettable(primaryPicks);
   const bestValuePick =
     primaryPicks.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allFootballPicks);
-  const shapePick = topPick(grid.length ? grid : goalLinePicks);
+  const shapePick = topBettable(grid.length ? grid : goalLinePicks);
 
   const aChecks: Check[] = [
     {
@@ -726,7 +739,7 @@ export function analyzeFootball(scope: ScopeState): Analysis {
     profileFromChecks('A', 'Safest Selection — lowest margin read', aChecks, cfg.strong, cfg.borderline, safestPick, 'Final Verdict'),
     profileFromChecks('B', 'Best Value — margin-cost ranking', bChecks, cfg.strong, cfg.borderline, bestValuePick, 'Margin Rank'),
     profileFromChecks('C', 'Match-Shape Intelligence (Score-shape)', [], cfg.strong, cfg.borderline, shapePick, 'Shape Read'),
-    profileFromChecks('D', 'All Markets Ranking', [], cfg.strong, cfg.borderline, topPick(allFootballPicks), 'All Markets')
+    profileFromChecks('D', 'All Markets Ranking', [], cfg.strong, cfg.borderline, topBettable(allFootballPicks), 'All Markets')
   ];
 
   return {
@@ -783,7 +796,7 @@ export function analyzeBasketball(scope: ScopeState): Analysis {
       p.marketId === 'firstHalfHomeTotal' ||
       p.marketId === 'firstHalfAwayTotal'
   );
-  const safestPick = topPick(primaryPicks) ?? topPick(allBasketballPicks);
+  const safestPick = topBettable(primaryPicks);
   const bestValuePick = primaryPicks.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allBasketballPicks);
 
   const combinedDiff = total && p1 && p2 ? round(p1.expected + p2.expected - total.expected, 1) : null;
@@ -851,8 +864,8 @@ export function analyzeBasketball(scope: ScopeState): Analysis {
   const profiles = [
     profileFromChecks('A', 'Safest Selection — lowest margin read', aChecks, 0.72, 0.45, safestPick, 'Final Verdict'),
     profileFromChecks('B', 'Best Value — margin-cost ranking', bChecks, 0.72, 0.45, bestValuePick, 'Margin Rank'),
-    profileFromChecks('C', 'Match-Shape Intelligence (Pace & Score-shape)', [], 0.72, 0.45, topPick(rankPicks), 'Shape Read'),
-    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topPick(allBasketballPicks), 'All Markets')
+    profileFromChecks('C', 'Match-Shape Intelligence (Pace & Score-shape)', [], 0.72, 0.45, topBettable(rankPicks), 'Shape Read'),
+    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topBettable(allBasketballPicks), 'All Markets')
   ];
 
   return {
@@ -925,10 +938,10 @@ export function analyzeTennis(scope: ScopeState): Analysis {
   const primaryPicks = allTennisPicks.filter(
     (p) => p.marketId === 'mainTotal' || p.marketId === 'winner' || p.marketId === 'homeTotal' || p.marketId === 'awayTotal'
   );
-  const safestPick = topPick(primaryPicks) ?? topPick(allTennisPicks);
+  const safestPick = topBettable(primaryPicks);
   const bestValuePick =
     primaryPicks.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allTennisPicks);
-  const shapePick = topPick(csPicks.length ? csPicks : rankPicks);
+  const shapePick = topBettable(csPicks.length ? csPicks : rankPicks);
 
   const underProb = total?.bestUnder ? (total.bestUnder as any).normUnder * 100 : null;
   const overProb = total?.bestOver ? (total.bestOver as any).normOver * 100 : null;
@@ -993,7 +1006,7 @@ export function analyzeTennis(scope: ScopeState): Analysis {
     profileFromChecks('A', 'Safest Selection — lowest margin read', aChecks, 0.72, 0.45, safestPick, 'Final Verdict'),
     profileFromChecks('B', 'Best Value — margin-cost ranking', bChecks, 0.72, 0.45, bestValuePick, 'Margin Rank'),
     profileFromChecks('C', 'Match-Shape Intelligence (CSI & Set-shape)', [], 0.72, 0.45, shapePick, 'Shape Read'),
-    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topPick(allTennisPicks), 'All Markets')
+    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topBettable(allTennisPicks), 'All Markets')
   ];
 
   const extraMetrics = csPicks.length
@@ -1038,7 +1051,7 @@ export function analyzeRally(scope: ScopeState): Analysis {
     .sort((a, b) => b.probability - a.probability);
 
   const primary = allPicks.filter((pick) => markets[pick.marketId]?.primary);
-  const safest = topPick(primary) ?? topPick(allPicks);
+  const safest = topBettable(primary);
   const bestValue = primary.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allPicks);
 
   const csMarket = markets.correctScore ?? { id: 'correctScore', kind: 'correctScore' as MarketKind, title: '', odds: {} };
@@ -1054,7 +1067,7 @@ export function analyzeRally(scope: ScopeState): Analysis {
   const totalSetsMarket = markets.totalSets ?? { id: 'totalSets', kind: 'ou' as MarketKind, title: '', pairs: [] };
   const tsPicks = analyzeLines(totalSetsMarket);
   const tsU35 = tsPicks.find((p) => p.label === 'Under 3.5');
-  const setsLean = topPick(tsPicks) ?? topPick(cs);
+  const setsLean = topBettable(tsPicks) ?? topBettable(cs);
 
   const checks: Check[] = [
     {
@@ -1088,7 +1101,7 @@ export function analyzeRally(scope: ScopeState): Analysis {
     profileFromChecks('A', 'Safest Selection — Lowest Bookies Cut', checks, 0.72, 0.45, safest, 'Final Verdict'),
     profileFromChecks('B', 'Best Value — Margin-Cost Rank', [], 0.72, 0.45, bestValue, 'Margin Rank'),
     profileFromChecks('C', 'Match-Shape and Sets Intelligence', [], 0.72, 0.45, setsLean, 'Shape Read'),
-    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topPick(allPicks), 'All Markets')
+    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topBettable(allPicks), 'All Markets')
   ];
 
   return {
@@ -1269,16 +1282,16 @@ export function analyzeHockey(scope: ScopeState): Analysis {
   const primaryPicks = allHockeyPicks.filter(
     (p) => p.marketId === 'mainTotal' || p.marketId === 'result' || p.marketId === 'moneyline'
   );
-  const safestPick = topPick(primaryPicks) ?? topPick(allHockeyPicks);
+  const safestPick = topBettable(primaryPicks);
   const bestValuePick =
     primaryPicks.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allHockeyPicks);
-  const shapePick = topPick(csPicks.length ? csPicks : rankPicks);
+  const shapePick = topBettable(csPicks.length ? csPicks : rankPicks);
 
   const profiles = [
     profileFromChecks('A', 'Safest Selection — lowest margin read', aChecks, 0.72, 0.45, safestPick, 'Final Verdict'),
     profileFromChecks('B', 'Best Value — margin-cost ranking', bChecks, 0.72, 0.45, bestValuePick, 'Margin Rank'),
     profileFromChecks('C', 'Match-Shape Intelligence (OT & CS Reconciliation)', [], 0.72, 0.45, shapePick, 'Shape Read'),
-    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topPick(allHockeyPicks), 'All Markets')
+    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topBettable(allHockeyPicks), 'All Markets')
   ];
 
   const hockeyMetrics = [
@@ -1309,7 +1322,7 @@ export function buildConfluenceLedger(
 ): MasterConfluenceLedger | null {
   const currentAnalysis = precomputedAnalysis ?? analyzeScope(sportId, currentScope);
 
-  const safest = currentAnalysis.profiles.find((p) => p.key === 'A')?.top ?? currentAnalysis.picks[0];
+  const safest = currentAnalysis.profiles.find((p) => p.key === 'A')?.top ?? topBettable(currentAnalysis.picks);
   if (!safest) return null;
 
   const candidateLabel = safest.label;
@@ -1504,16 +1517,18 @@ function finishAnalysis(scope: ScopeState, profiles: Profile[], picks: Pick[], r
   const d = profiles.find((p) => p.key === 'D');
 
   let headline = 'Pick a market line and decimal odds below. A recommendation will build here.';
+  // Headline candidates come from the strongest BETTABLE side (skipping the
+  // near-1.01 "certainty" ladder tails a raw probability ranking would put on
+  // top), so a headline never reads "+11.5 @ 94.8%" off a 1.01 line.
+  const bettableTop = topBettable(picks);
   if ((a?.completed ?? 0) >= 2 || (b?.completed ?? 0) >= 2 || c?.top || d?.top) {
     if (a && b && ((a.completed >= 2 && a.ratio >= 0.72) || (b.completed >= 2 && b.ratio >= 0.72))) {
       const winner = a.ratio >= b.ratio ? a : b;
       headline = `${scope.title}: ${winner.title} — leading fit ${round(winner.ratio * 100, 0)}%.`;
-    } else if (d?.top && d.top.probability >= rankGreen) {
-      headline = `${scope.title}: ${d.top.label} stands out (${d.top.marketTitle}) @ ${pct(d.top.probability, 1)}`;
-    } else if (c?.top && c.top.probability >= rankGreen) {
-      headline = `${scope.title}: ${c.top.label} stands out (${c.top.marketTitle}) @ ${pct(c.top.probability, 1)}`;
+    } else if (bettableTop && bettableTop.probability >= rankGreen) {
+      headline = `${scope.title}: ${bettableTop.label} stands out (${bettableTop.marketTitle}) @ ${pct(bettableTop.probability, 1)}`;
     } else {
-      const best = topPick(picks);
+      const best = bettableTop ?? topPick(picks);
       headline = best
         ? `${scope.title}: no strong profile yet. Current best: ${best.label} @ ${pct(best.probability, 1)}.`
         : `${scope.title}: add more odds or consider skipping.`;
@@ -1715,7 +1730,7 @@ export function analyzeInstantFootball(scope: ScopeState): Analysis {
       ratio: allPicks.length ? 1 : 0,
       status: allPicks.length ? 'green' : 'empty',
       checks: [],
-      top: bestOver ?? bestBtts ?? topPick(allPicks)
+      top: bestOver ?? bestBtts ?? topBettable(allPicks)
     }
   ];
 
@@ -1900,7 +1915,7 @@ export function analyzeVirtualFootball(scope: ScopeState): Analysis {
       ratio: allPicks.length ? 1 : 0,
       status: allPicks.length ? 'green' : 'empty',
       checks: [],
-      top: topPick(allPicks)
+      top: topBettable(allPicks)
     }
   ];
 
@@ -2016,7 +2031,7 @@ export function analyzeBaseball(scope: ScopeState): Analysis {
           status: drawProb !== undefined ? 'green' : 'empty'
         }
       ],
-      top: topPick(allPicks)
+      top: topBettable(allPicks)
     }
   ];
 
@@ -2062,7 +2077,7 @@ function analyzeTeamPointsGame(scope: ScopeState, o: TeamPointsOpts): Analysis {
 
   const allPicks = [...ouPicks, ...rankPicks].sort((x, y) => y.probability - x.probability);
   const primaryPicks = allPicks.filter((p) => p.marketId === 'mainTotal' || p.marketId === 'winner' || p.marketId === 'homeTotal' || p.marketId === 'awayTotal');
-  const safestPick = topPick(primaryPicks) ?? topPick(allPicks);
+  const safestPick = topBettable(primaryPicks);
   const bestValuePick = primaryPicks.filter((p) => p.probability >= 55).sort((x, y) => (y.ev ?? -99) - (x.ev ?? -99))[0] ?? topPick(allPicks);
 
   const combinedDiff = total && p1 && p2 ? round(p1.expected + p2.expected - total.expected, 1) : null;
@@ -2129,8 +2144,8 @@ function analyzeTeamPointsGame(scope: ScopeState, o: TeamPointsOpts): Analysis {
   const profiles = [
     profileFromChecks('A', 'Safest Selection — lowest margin read', aChecks, 0.72, 0.45, safestPick, 'Final Verdict'),
     profileFromChecks('B', 'Best Value — margin-cost ranking', bChecks, 0.72, 0.45, bestValuePick, 'Margin Rank'),
-    profileFromChecks('C', 'Match-Shape Intelligence', [], 0.72, 0.45, topPick(rankPicks), 'Shape Read'),
-    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topPick(allPicks), 'All Markets')
+    profileFromChecks('C', 'Match-Shape Intelligence', [], 0.72, 0.45, topBettable(rankPicks), 'Shape Read'),
+    profileFromChecks('D', 'All Markets Ranking', [], 0.72, 0.45, topBettable(allPicks), 'All Markets')
   ];
 
   return {
