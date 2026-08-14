@@ -278,7 +278,11 @@ export function generateGreatMindsDebate(
   const spreadDissent = (hash % 3) === 0 ? 'grok' : (hash % 5) === 0 ? 'qwen' : undefined;
   const totalDissent = ((hash + 1) % 4) === 0 ? 'grok' : ((hash + 2) % 3) === 0 ? 'kimi' : undefined;
 
-  // Helper to build model choices for a market
+  // Helper to build model choices for a market. Every model backs the SAME
+  // winning selection — the debate is over confidence and price, never the
+  // opposite outcome — so the card never projects the losing side of a market
+  // ("Over 2.5" consensus with a contrarian "Under 2.5" pick is a contradiction
+  // that confuses punters, not a recommendation).
   const buildModelChoices = (
     marketType: 'winner' | 'spread' | 'total',
     mainSelection: string,
@@ -289,7 +293,9 @@ export function generateGreatMindsDebate(
   ): GreatMindsPick => {
     const choices: GreatMindsModelChoice[] = GREAT_MINDS_MODELS.map((m) => {
       const isDissenter = m.id === dissentModelId;
-      const pick = isDissenter ? altSelection : mainSelection;
+      // All models back the main selection; a dissenter simply lowers its
+      // confidence (EV/probability haircut) instead of flipping sides.
+      const pick = mainSelection;
       const odds = isDissenter ? Number((mainOddsVal * 1.12).toFixed(2)) : mainOddsVal;
       const ev = calcEv(isDissenter ? Math.max(35.0, probPct - 20) : probPct, odds);
 
@@ -303,8 +309,8 @@ export function generateGreatMindsDebate(
       } else if (m.id === 'qwen') {
         reasoning = `Technical line resistance band holds firmly at ${odds}.`;
       } else if (m.id === 'grok') {
-        reasoning = isDissenter 
-          ? `Contrarian dissent: market price over-adjusts baseline; value sits on ${pick}.`
+        reasoning = isDissenter
+          ? `Contrarian note: price may over-adjust; confidence trimmed on ${pick}.`
           : `Validates majority angle: market line is stale.`;
       }
 

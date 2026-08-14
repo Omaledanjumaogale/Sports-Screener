@@ -32,6 +32,16 @@
     debate?.consensusPicks.spread ? { key: 'Spread', pick: debate.consensusPicks.spread, grade: gradeOf(debate.consensusPicks.spread.selection, 'spread') } : null,
     debate?.consensusPicks.total ? { key: 'Total', pick: debate.consensusPicks.total, grade: gradeOf(debate.consensusPicks.total.selection, 'total') } : null
   ].filter(Boolean) as { key: string; pick: GreatMindsPick; grade: SelectionGrade }[]);
+
+  // 3 Core Market Recommendations Grid. Only QUALIFIED consensus picks are
+  // projected — a synthetic fallback or a Reference-Only pick is never
+  // rendered as a recommendation, so the panel never projects the opposite
+  // side of a market and every featured selection has a real chance.
+  const recPicks = $derived([
+    debate?.consensusPicks.winner?.qualified ? { key: 'winner', p: debate.consensusPicks.winner } : null,
+    debate?.consensusPicks.spread?.qualified ? { key: 'spread', p: debate.consensusPicks.spread } : null,
+    debate?.consensusPicks.total?.qualified ? { key: 'total', p: debate.consensusPicks.total } : null
+  ].filter((r): r is { key: string; p: GreatMindsPick } => !!r));
 </script>
 
 {#if debate}
@@ -70,98 +80,39 @@
       </div>
     {/if}
 
-    <!-- 3 Core Market Recommendations Grid -->
-    <div class="recommendations-grid">
-      <!-- Winner / Moneyline -->
-      {#if debate.consensusPicks.winner}
-        {@const p = debate.consensusPicks.winner}
-        <div class="rec-card winner-card">
-          <span class="market-type-label">WINNER</span>
-          <h3 class="rec-selection">{p.selection}</h3>
-          <div class="rec-odds-line">
-            <span class="odds-val">{p.odds}</span>
-            <span class="consensus-tag tag-unanimous">
-              <CheckCircle2 size={12} /> {p.consensusRatio}
-            </span>
-          </div>
+    {#if recPicks.length > 0}
+      <div class="recommendations-grid">
+        {#each recPicks as { key, p } (key)}
+          <div class="rec-card {key}-card">
+            <span class="market-type-label">{key === 'winner' ? 'WINNER' : key === 'spread' ? 'SPREAD' : 'TOTAL'}</span>
+            <h3 class="rec-selection">{p.selection}</h3>
+            <div class="rec-odds-line">
+              <span class="odds-val">{p.odds}</span>
+              <span class="consensus-tag tag-strong">
+                <CheckCircle2 size={12} /> {p.consensusRatio}
+              </span>
+            </div>
 
-          <div class="model-breakdown-list">
-            {#each p.modelChoices as choice}
-              {@const mDef = GREAT_MINDS_MODELS.find(m => m.id === choice.modelId)}
-              <div class="model-row" class:is-dissent={!choice.isAgree}>
-                <span class="model-icon" style={`background:${mDef?.iconBg || '#6366f1'}`}>
-                  <Bot size={11} />
-                </span>
-                <span class="model-name">{choice.modelName}</span>
-                <span class="model-pick" class:pick-agree={choice.isAgree} class:pick-dissent={!choice.isAgree}>
-                  {choice.pick}
-                </span>
-              </div>
-            {/each}
+            <div class="model-breakdown-list">
+              {#each p.modelChoices as choice}
+                {@const mDef = GREAT_MINDS_MODELS.find(m => m.id === choice.modelId)}
+                <div class="model-row" class:is-dissent={!choice.isAgree}>
+                  <span class="model-icon" style={`background:${mDef?.iconBg || '#6366f1'}`}>
+                    <Bot size={11} />
+                  </span>
+                  <span class="model-name">{choice.modelName}</span>
+                  <span class="model-pick" class:pick-agree={choice.isAgree} class:pick-dissent={!choice.isAgree}>
+                    {choice.pick}
+                  </span>
+                </div>
+              {/each}
+            </div>
           </div>
-        </div>
-      {/if}
-
-      <!-- Spread / Asian Handicap -->
-      {#if debate.consensusPicks.spread}
-        {@const p = debate.consensusPicks.spread}
-        <div class="rec-card spread-card">
-          <span class="market-type-label">SPREAD</span>
-          <h3 class="rec-selection">{p.selection}</h3>
-          <div class="rec-odds-line">
-            <span class="odds-val">{p.odds}</span>
-            <span class="consensus-tag tag-strong">
-              <CheckCircle2 size={12} /> {p.consensusRatio}
-            </span>
-          </div>
-
-          <div class="model-breakdown-list">
-            {#each p.modelChoices as choice}
-              {@const mDef = GREAT_MINDS_MODELS.find(m => m.id === choice.modelId)}
-              <div class="model-row" class:is-dissent={!choice.isAgree}>
-                <span class="model-icon" style={`background:${mDef?.iconBg || '#6366f1'}`}>
-                  <Bot size={11} />
-                </span>
-                <span class="model-name">{choice.modelName}</span>
-                <span class="model-pick" class:pick-agree={choice.isAgree} class:pick-dissent={!choice.isAgree}>
-                  {choice.pick}
-                </span>
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/if}
-
-      <!-- Total / Over-Under -->
-      {#if debate.consensusPicks.total}
-        {@const p = debate.consensusPicks.total}
-        <div class="rec-card total-card">
-          <span class="market-type-label">TOTAL</span>
-          <h3 class="rec-selection">{p.selection}</h3>
-          <div class="rec-odds-line">
-            <span class="odds-val">{p.odds}</span>
-            <span class="consensus-tag tag-strong">
-              <CheckCircle2 size={12} /> {p.consensusRatio}
-            </span>
-          </div>
-
-          <div class="model-breakdown-list">
-            {#each p.modelChoices as choice}
-              {@const mDef = GREAT_MINDS_MODELS.find(m => m.id === choice.modelId)}
-              <div class="model-row" class:is-dissent={!choice.isAgree}>
-                <span class="model-icon" style={`background:${mDef?.iconBg || '#6366f1'}`}>
-                  <Bot size={11} />
-                </span>
-                <span class="model-name">{choice.modelName}</span>
-                <span class="model-pick" class:pick-agree={choice.isAgree} class:pick-dissent={!choice.isAgree}>
-                  {choice.pick}
-                </span>
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/if}
-    </div>
+        {/each}
+      </div>
+    {:else}
+      <p class="no-qualified-note">No selection cleared the confidence floor this cycle — the panel holds its recommendation until a stronger signal appears.</p>
+    {/if}
 
     <!-- 5-Round Outcome Timeline -->
     <div class="rounds-timeline">
@@ -314,6 +265,17 @@
   }
 
   /* 3 Core Market Recommendation Grid */
+  .no-qualified-note {
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px dashed rgba(255, 255, 255, 0.14);
+    color: #94a3b8;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    margin-bottom: 24px;
+  }
+
   .recommendations-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

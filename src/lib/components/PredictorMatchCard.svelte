@@ -204,42 +204,31 @@
 
   <!-- Great AI Minds Mini Badges -->
   {#if greatMindsData}
-    <div class="gm-mini-badges">
-      <span class="gm-mini-title"><Trophy size={13} /> Great Minds Verdict:</span>
-      {#if greatMindsData.consensusPicks.winner}
-        <span class="gm-badge bg-winner">
-          {greatMindsData.consensusPicks.winner.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.winner.consensusRatio}</strong>
-          {#if score && isFinished}
-            {@const g = gradeOf(greatMindsData.consensusPicks.winner.selection, 'result')}
-            {#if g === 'win'}<CheckCircle2 size={11} class="g-win" />{:else if g === 'loss'}<XCircle size={11} class="g-loss" />{:else if g === 'push'}<MinusCircle size={11} class="g-push" />{:else if g === 'void'}<X size={11} class="g-void" />{/if}
-          {:else}
-            <Check size={11} />
-          {/if}
-        </span>
-      {/if}
-      {#if greatMindsData.consensusPicks.spread}
-        <span class="gm-badge bg-spread">
-          {greatMindsData.consensusPicks.spread.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.spread.consensusRatio}</strong>
-          {#if score && isFinished}
-            {@const g = gradeOf(greatMindsData.consensusPicks.spread.selection, 'spread')}
-            {#if g === 'win'}<CheckCircle2 size={11} class="g-win" />{:else if g === 'loss'}<XCircle size={11} class="g-loss" />{:else if g === 'push'}<MinusCircle size={11} class="g-push" />{:else if g === 'void'}<X size={11} class="g-void" />{/if}
-          {:else}
-            <Check size={11} />
-          {/if}
-        </span>
-      {/if}
-      {#if greatMindsData.consensusPicks.total}
-        <span class="gm-badge bg-total">
-          {greatMindsData.consensusPicks.total.selection} <strong class="ratio-text">{greatMindsData.consensusPicks.total.consensusRatio}</strong>
-          {#if score && isFinished}
-            {@const g = gradeOf(greatMindsData.consensusPicks.total.selection, 'total')}
-            {#if g === 'win'}<CheckCircle2 size={11} class="g-win" />{:else if g === 'loss'}<XCircle size={11} class="g-loss" />{:else if g === 'push'}<MinusCircle size={11} class="g-push" />{:else if g === 'void'}<X size={11} class="g-void" />{/if}
-          {:else}
-            <Check size={11} />
-          {/if}
-        </span>
-      {/if}
-    </div>
+    <!-- Only qualified (real, above-floor) consensus picks are projected — a
+         synthetic 50% fallback or a Reference-Only pick never renders as a
+         recommendation, so the card features only selections with a real
+         chance of winning. -->
+    {@const gmPicks = [
+      greatMindsData.consensusPicks.winner?.qualified ? greatMindsData.consensusPicks.winner : null,
+      greatMindsData.consensusPicks.spread?.qualified ? greatMindsData.consensusPicks.spread : null,
+      greatMindsData.consensusPicks.total?.qualified ? greatMindsData.consensusPicks.total : null
+    ].filter((p): p is NonNullable<typeof p> => !!p)}
+    {#if gmPicks.length > 0}
+      <div class="gm-mini-badges">
+        <span class="gm-mini-title"><Trophy size={13} /> Great Minds Verdict:</span>
+        {#each gmPicks as p (p.market)}
+          <span class="gm-badge bg-{p.market}">
+            {p.selection} <strong class="ratio-text">{p.consensusRatio}</strong>
+            {#if score && isFinished}
+              {@const g = gradeOf(p.selection, p.market)}
+              {#if g === 'win'}<CheckCircle2 size={11} class="g-win" />{:else if g === 'loss'}<XCircle size={11} class="g-loss" />{:else if g === 'push'}<MinusCircle size={11} class="g-push" />{:else if g === 'void'}<X size={11} class="g-void" />{/if}
+            {:else}
+              <Check size={11} />
+            {/if}
+          </span>
+        {/each}
+      </div>
+    {/if}
   {/if}
 
   {#if isFinished && score}
