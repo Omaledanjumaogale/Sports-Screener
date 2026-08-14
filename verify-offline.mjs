@@ -3,7 +3,7 @@
 // Usage: node verify-offline.mjs
 import { chromium } from 'playwright';
 
-const BASE = 'https://pulseodds-screener.pages.dev';
+const BASE = 'https://pulseodds.ewinproject.org';
 const report = { ok: true, steps: [] };
 const consoleErrors = [];
 

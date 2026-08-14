@@ -17,7 +17,7 @@
  * this machine) and handed to Lighthouse over the remote-debugging port.
  *
  * Usage:
- *   node audit-pwa.mjs                      # audits https://pulseodds-screener.pages.dev
+ *   node audit-pwa.mjs                      # audits https://pulseodds.ewinproject.org
  *   node audit-pwa.mjs <url>                # audit a specific deployment URL
  *   AUDIT_URL=<url> node audit-pwa.mjs      # same, via env
  *
@@ -28,7 +28,7 @@ import { chromium } from 'playwright';
 import lighthouse from 'lighthouse';
 import * as chromeLauncher from 'chrome-launcher';
 
-const target = process.argv[2] || process.env.AUDIT_URL || 'https://pulseodds-screener.pages.dev';
+const target = process.argv[2] || process.env.AUDIT_URL || 'https://pulseodds.ewinproject.org';
 
 // Lighthouse 11 PWA category — `installable-manifest` is the installability
 // gate; the rest are PWA-optimized signals we report but don't block on.

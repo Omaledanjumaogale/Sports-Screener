@@ -1,4 +1,4 @@
-name = "pulseodds-screener"
+name = "sports-screener"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-07-27"
 

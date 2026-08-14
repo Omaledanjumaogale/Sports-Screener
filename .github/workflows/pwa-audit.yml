@@ -11,7 +11,7 @@ on:
       url:
         description: 'URL to audit (defaults to production)'
         required: false
-        default: 'https://pulseodds-screener.pages.dev'
+        default: 'https://pulseodds.ewinproject.org'
         type: string
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run Lighthouse PWA audit
-        run: node audit-pwa.mjs "${{ inputs.url || 'https://pulseodds-screener.pages.dev' }}"
+        run: node audit-pwa.mjs "${{ inputs.url || 'https://pulseodds.ewinproject.org' }}"
 
       - name: Upload Lighthouse report
         if: always()
