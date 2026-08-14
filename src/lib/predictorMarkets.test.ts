@@ -152,6 +152,32 @@ describe('predictor markets (Poisson football model)', () => {
     expect(Math.max(fh, sh)).toBeGreaterThan(0.45);
   });
 
+  it('buildFootballGrid fits the real totals when provided (two-target calibration)', () => {
+    // EPL-style 1X2 (home ~47%) + a real Over/Under 2.5 pair at ~51.8% over.
+    const overOdds = 1.83;
+    const underOdds = 1.97;
+    const [pOver] = devig([overOdds, underOdds]);
+    const [pH] = devig([1.95, 3.6, 4.0]);
+    const g = buildFootballGrid(1.95, 3.6, 4.0, 2.5, { line: 2.5, over: overOdds, under: underOdds });
+    // The totals market is now fitted: grid Over 2.5 matches the de-vigged odds.
+    expect(gridTotals(g, 2.5).over).toBeCloseTo(pOver, 2);
+    // The 1X2 is still fitted: home-win mass matches the de-vigged moneyline.
+    let w = 0;
+    for (let i = 0; i < g.p.length; i++) for (let j = 0; j < g.p[i].length; j++) if (i > j) w += g.p[i][j];
+    expect(w).toBeCloseTo(pH, 2);
+    // The goal expectation is materially higher than the 1X2-only grid (the
+    // gap the backtest quantified: ~2.3 implied vs ~2.9 real EPL average).
+    const gOld = buildFootballGrid(1.95, 3.6, 4.0, 2.5);
+    const goals = (gr: typeof g) => {
+      let s = 0;
+      for (let i = 0; i < gr.p.length; i++) for (let j = 0; j < gr.p[i].length; j++) s += gr.p[i][j] * (i + j);
+      return s;
+    };
+    expect(goals(g)).toBeGreaterThan(goals(gOld) + 0.3);
+    // Without real totals the fallback path is unchanged and still calibrated.
+    expect(Math.abs(w - pH)).toBeLessThan(0.03);
+  });
+
   it('BTTS evaluates BOTH sides — yes and no both derived, stronger side wins', () => {
     const mk = deriveFootballMarkets(HOME, DRAW, AWAY, 2.5);
     expect(mk.btts.odds?.yes).toBeGreaterThan(1.01);

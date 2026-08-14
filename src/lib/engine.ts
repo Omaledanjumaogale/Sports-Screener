@@ -708,7 +708,7 @@ export function analyzeFootball(scope: ScopeState): Analysis {
   const primaryPicks = allFootballPicks.filter((p) => p.marketId === 'mainTotal' || p.marketId === 'result');
   const safestPick = topBettable(primaryPicks);
   const bestValuePick =
-    primaryPicks.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allFootballPicks);
+    primaryPicks.filter((p) => p.probability >= 55 && !isCertaintySide(p)).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allFootballPicks);
   const shapePick = topBettable(grid.length ? grid : goalLinePicks);
 
   const aChecks: Check[] = [
@@ -835,7 +835,7 @@ export function analyzeBasketball(scope: ScopeState): Analysis {
       p.marketId === 'firstHalfAwayTotal'
   );
   const safestPick = topBettable(primaryPicks);
-  const bestValuePick = primaryPicks.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allBasketballPicks);
+  const bestValuePick = primaryPicks.filter((p) => p.probability >= 55 && !isCertaintySide(p)).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allBasketballPicks);
 
   const combinedDiff = total && p1 && p2 ? round(p1.expected + p2.expected - total.expected, 1) : null;
   const paceProj = total ? round(scope.id === 'q1' ? total.expected * 4 : scope.id === 'h1' ? total.expected * 2 : total.expected, 1) : null;
@@ -978,7 +978,7 @@ export function analyzeTennis(scope: ScopeState): Analysis {
   );
   const safestPick = topBettable(primaryPicks);
   const bestValuePick =
-    primaryPicks.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allTennisPicks);
+    primaryPicks.filter((p) => p.probability >= 55 && !isCertaintySide(p)).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allTennisPicks);
   const shapePick = topBettable(csPicks.length ? csPicks : rankPicks);
 
   const underProb = total?.bestUnder ? (total.bestUnder as any).normUnder * 100 : null;
@@ -1322,7 +1322,7 @@ export function analyzeHockey(scope: ScopeState): Analysis {
   );
   const safestPick = topBettable(primaryPicks);
   const bestValuePick =
-    primaryPicks.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allHockeyPicks);
+    primaryPicks.filter((p) => p.probability >= 55 && !isCertaintySide(p)).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allHockeyPicks);
   const shapePick = topBettable(csPicks.length ? csPicks : rankPicks);
 
   const profiles = [
@@ -2116,7 +2116,7 @@ function analyzeTeamPointsGame(scope: ScopeState, o: TeamPointsOpts): Analysis {
   const allPicks = [...ouPicks, ...rankPicks].sort((x, y) => y.probability - x.probability);
   const primaryPicks = allPicks.filter((p) => p.marketId === 'mainTotal' || p.marketId === 'winner' || p.marketId === 'homeTotal' || p.marketId === 'awayTotal');
   const safestPick = topBettable(primaryPicks);
-  const bestValuePick = primaryPicks.filter((p) => p.probability >= 55).sort((x, y) => (y.ev ?? -99) - (x.ev ?? -99))[0] ?? topPick(allPicks);
+  const bestValuePick = primaryPicks.filter((p) => p.probability >= 55 && !isCertaintySide(p)).sort((x, y) => (y.ev ?? -99) - (x.ev ?? -99))[0] ?? topPick(allPicks);
 
   const combinedDiff = total && p1 && p2 ? round(p1.expected + p2.expected - total.expected, 1) : null;
 

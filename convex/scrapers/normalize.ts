@@ -206,18 +206,91 @@ export interface FootballScoreGrid {
   lambdaA: number;
 }
 
-// Build the grid. Lambda is split between the two sides by their share of the
-// non-draw probability, then both lambdas are scaled by a fixed point so the
-// grid's win+loss mass matches the de-vigged 1X2 (draw mass lands where it
-// lands).
+function buildGridFromLambdas(lambdaH: number, lambdaA: number): FootballScoreGrid {
+  const p: number[][] = [];
+  let sum = 0;
+  for (let i = 0; i <= GRID_MAX_GOALS; i++) {
+    p.push([]);
+    for (let j = 0; j <= GRID_MAX_GOALS; j++) {
+      const prob = poissonPmf(lambdaH, i) * poissonPmf(lambdaA, j);
+      p[i].push(prob);
+      sum += prob;
+    }
+  }
+  for (let i = 0; i <= GRID_MAX_GOALS; i++) {
+    for (let j = 0; j <= GRID_MAX_GOALS; j++) p[i][j] /= sum;
+  }
+  return { p, lambdaH, lambdaA };
+}
+
+// Two-target fit: λH = t·s, λA = t·(1−s) with the HOME SHARE s and TOTAL
+// GOALS t chosen so the grid's home-win mass W matches the de-vigged 1X2 and
+// its Over(line) mass matches the de-vigged totals market at the same time
+// (nested bisections: inner t → Over = targetOver, outer s → W = pH). Draw
+// mass lands where it lands. Returns null when the two targets are infeasible
+// together, so callers can fall back to the 1X2-only fit.
+function fitTwoTargetGrid(pH: number, targetOver: number, line: number): FootballScoreGrid | null {
+  const region = (lh: number, la: number) => {
+    let w = 0, o = 0;
+    for (let i = 0; i <= GRID_MAX_GOALS; i++) {
+      for (let j = 0; j <= GRID_MAX_GOALS; j++) {
+        const prob = poissonPmf(lh, i) * poissonPmf(la, j);
+        if (i > j) w += prob;
+        if (i + j > line) o += prob;
+      }
+    }
+    return { w, o };
+  };
+  // Over(line) is monotone increasing in t → bisection.
+  const fitTotal = (s: number): number => {
+    let lo = 0.3, hi = 9;
+    for (let i = 0; i < 45; i++) {
+      const mid = (lo + hi) / 2;
+      if (region(mid * s, mid * (1 - s)).o < targetOver) lo = mid;
+      else hi = mid;
+    }
+    return (lo + hi) / 2;
+  };
+  let best: { s: number; t: number; errW: number } | null = null;
+  let lo = 0.04, hi = 0.96;
+  for (let iter = 0; iter < 40; iter++) {
+    const s = (lo + hi) / 2;
+    const t = fitTotal(s);
+    const w = region(t * s, t * (1 - s)).w;
+    const errW = Math.abs(w - pH);
+    if (!best || errW < best.errW) best = { s, t, errW };
+    if (errW < 0.001 && Math.abs(region(t * s, t * (1 - s)).o - targetOver) < 0.001) break;
+    if (w > pH) hi = s;
+    else lo = s;
+  }
+  if (!best || best.errW > 0.03) return null;
+  return buildGridFromLambdas(best.t * best.s, best.t * (1 - best.s));
+}
+
+// Build the grid. When a real totals pair is supplied the grid is calibrated
+// to BOTH the de-vigged 1X2 (home-win mass) and the de-vigged totals market
+// (Over at the real line), so the goal expectation tracks the book's totals
+// rather than the 1X2 alone. Without real totals only the 1X2 is fitted — the
+// classic "Poisson calibrated to 1X2 + totals" approach, with the draw mass
+// landing where it lands.
 export function buildFootballGrid(
   homeOdds: number,
   drawOdds: number,
   awayOdds: number,
-  totalLine: number
+  totalLine: number,
+  realTotals?: { line: number; over: number; under: number }
 ): FootballScoreGrid {
   const [pH, pD, pA] = devig([homeOdds, drawOdds, awayOdds]);
   const nonDraw = Math.max(pH + pA, 1e-6);
+
+  if (realTotals && realTotals.line > 0.4 && realTotals.over > 1 && realTotals.under > 1) {
+    const targetOver = devig([realTotals.over, realTotals.under])[0];
+    if (targetOver > 0.03 && targetOver < 0.97) {
+      const fitted = fitTwoTargetGrid(pH, targetOver, realTotals.line);
+      if (fitted) return fitted;
+    }
+  }
+
   const lambda = Math.max(totalLine, 0.2);
   let lambdaH = (lambda * pH) / nonDraw;
   let lambdaA = (lambda * pA) / nonDraw;
@@ -248,20 +321,7 @@ export function buildFootballGrid(
     if (Math.abs(k - 1) < 0.002) break;
   }
 
-  const p: number[][] = [];
-  let sum = 0;
-  for (let i = 0; i <= GRID_MAX_GOALS; i++) {
-    p.push([]);
-    for (let j = 0; j <= GRID_MAX_GOALS; j++) {
-      const prob = poissonPmf(lambdaH, i) * poissonPmf(lambdaA, j);
-      p[i].push(prob);
-      sum += prob;
-    }
-  }
-  for (let i = 0; i <= GRID_MAX_GOALS; i++) {
-    for (let j = 0; j <= GRID_MAX_GOALS; j++) p[i][j] /= sum;
-  }
-  return { p, lambdaH, lambdaA };
+  return buildGridFromLambdas(lambdaH, lambdaA);
 }
 
 export function gridTotals(grid: FootballScoreGrid, line: number): { over: number; under: number } {
@@ -389,7 +449,7 @@ export function deriveFootballMarkets(
   doubleChanceUp: Market;
 } {
   const fair = devig([homeOdds, drawOdds, awayOdds]); // [pH, pD, pA]
-  const grid = buildFootballGrid(homeOdds, drawOdds, awayOdds, totalAnchorLine);
+  const grid = buildFootballGrid(homeOdds, drawOdds, awayOdds, totalAnchorLine, realTotals);
 
   const doubleChance: Market = {
     id: 'doubleChance',
