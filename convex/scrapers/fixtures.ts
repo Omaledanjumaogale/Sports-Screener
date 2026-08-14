@@ -127,6 +127,9 @@ function parseBetexplorer(text: string, sportId: string, sourceUrl: string, dayK
 
   const leagueRe = /\]:\s*([^\]]+?)\]\(/;
   const rowRe = /^\|\s*(\d{1,2}:\d{2})\s*\[([^\]]+?)\s*-\s*([^\]]+)\]\([^)]*\)\s*(\|.*)?$/;
+  // Finished rows carry a score cell (e.g. "| [**2:0**](url) | (1:0, 1:0)")
+  // while fixture rows carry odds — never cache a result as a fixture.
+  const scoreCellRe = /\|\s*(?:\[\*\*|\*\*)?\d{1,2}\s*[-:]\s*\d{1,2}(?:\*\*|\]\()/;
 
   for (const line of lines) {
     const lm = line.match(leagueRe);
@@ -139,6 +142,7 @@ function parseBetexplorer(text: string, sportId: string, sourceUrl: string, dayK
     }
     const rm = line.match(rowRe);
     if (!rm) continue;
+    if (scoreCellRe.test(line)) continue;
     const home = clean(rm[2]);
     const away = clean(rm[3]);
     if (!looksLikeTeam(home) || !looksLikeTeam(away)) continue;
@@ -183,6 +187,11 @@ function parseSoccervista(text: string, sportId: string, sourceUrl: string, dayK
     }
     const links = line.match(/\[([^\[\]]+)\]\(([^)]*)\)/g) ?? [];
     if (links.length < 3) continue;
+    // A score link (e.g. "[2:1]") marks a finished result row — skip it so
+    // finished matches never enter the fixture cache. The leading "[20:00]"
+    // kickoff clock is not a score, so only test the rest of the line.
+    const rest = line.replace(/^\[\s*\d{1,2}:\d{2}\s*\]/, '');
+    if (/\[\s*\d{1,2}\s*[-:]\s*\d{1,2}\s*\]/.test(rest)) continue;
     const time = links[0]?.match(/\d{1,2}:\d{2}/)?.[0] ?? '';
     const labels = links.map((l) => l.match(/^\[([^\]]*)\]/)?.[1] ?? '');
     const teamA = stripForm(labels[1] ?? '');
@@ -243,6 +252,11 @@ function parseBetexplorerHtml(text: string, sportId: string, sourceUrl: string, 
   const timeRe = /class="table-main__time">\s*(\d{1,2}:\d{2})/;
   const teamRe = /<a[^>]*href="[^"]*"[^>]*>\s*([^<>]*?)\s*-\s*([^<>]*?)\s*<\/a>/;
   const oddRe = /data-odd="(\d+\.\d{1,3})"/g;
+  // A row that already carries a final score (e.g. the "yesterday's results"
+  // section on a fixtures page) is a FINISHED match, not an upcoming fixture.
+  // It must never be cached as a fixture for the target day — the scores engine
+  // handles finished matches through its own result scan.
+  const resultCellRe = /class="table-main__result"/;
 
   for (const row of rows) {
     // League / tournament header row resets the current league context.
@@ -259,6 +273,14 @@ function parseBetexplorerHtml(text: string, sportId: string, sourceUrl: string, 
 
     const dt = row.match(dtRe);
     if (!dt) continue;
+    // Skip finished rows (results section) so yesterday's matches never leak
+    // into today's fixture cache with a re-stamped date.
+    if (resultCellRe.test(row)) continue;
+    // The row's own WAT date is authoritative. When scraping for a specific
+    // dayKey, a row dated on any other day belongs to that day's cache, not
+    // this one — skip it instead of re-anchoring the clock (the old re-anchor
+    // moved finished matches onto today's schedule with the wrong time).
+    if (dayKey && dataDtWatDay(dt[1]) && dataDtWatDay(dt[1]) !== dayKey) continue;
     const time = row.match(timeRe)?.[1] ?? '';
     const teams = row.match(teamRe);
     if (!teams) continue;
@@ -273,7 +295,7 @@ function parseBetexplorerHtml(text: string, sportId: string, sourceUrl: string, 
       if (v >= 1.01 && v <= 15) odds.push(v);
     }
 
-    const startTime = startTimeFromDataDt(dt[1], time, dayKey);
+    const startTime = startTimeFromDataDt(dt[1], time);
     out.push({
       source: 'LiveScrape',
       sourceUrl,
@@ -288,14 +310,16 @@ function parseBetexplorerHtml(text: string, sportId: string, sourceUrl: string, 
   return out;
 }
 
-// BetExplorer data-dt "D,M,YYYY,H,MM" → WAT-anchored epoch. The wall-clock is
-// treated as West Africa Time (UTC+1) so fixtures land on the same calendar day
-// the UI's dayKey expects; falls back to parseClock when the attribute is junk.
-// When a target dayKey is given and the scraped date disagrees with it (the site
-// serves CET/CEST, we read WAT — a near-midnight kickoff can straddle two days),
-// the clock is re-anchored onto the target day so the cache never splits a
-// fixture across two dayKeys.
-function startTimeFromDataDt(dataDt: string, clock: string, dayKey?: string): number {
+// BetExplorer data-dt "D,M,YYYY,H,MM" → WAT-anchored epoch. BetExplorer renders
+// its server-side clock in West Africa Time by default (its own JS falls back to
+// timezone_key "+1" = WAT), so the scraped wall-clock is treated as WAT (UTC+1)
+// and converted to a UTC epoch — this keeps every fixture on the same calendar
+// day the UI's dayKey expects. Falls back to parseClock when the attribute is junk.
+// IMPORTANT: the scraped date is authoritative — a row whose own date differs
+// from the target dayKey (e.g. yesterday's results section on a today page) is
+// NOT re-anchored; parseBetexplorerHtml drops those rows instead, so a finished
+// match can never be re-stamped onto a future dayKey at the wrong time.
+function startTimeFromDataDt(dataDt: string, clock: string): number {
   const parts = String(dataDt || '').split(',').map((s) => Number(s.trim()));
   if (parts.length >= 5 && parts.slice(0, 5).every((n) => Number.isFinite(n))) {
     const [day, month, year, hour, minute] = parts;
@@ -304,19 +328,25 @@ function startTimeFromDataDt(dataDt: string, clock: string, dayKey?: string): nu
       const h = hm ? Number(hm[1]) : hour;
       const mi = hm ? Number(hm[2]) : minute;
       if (h >= 0 && h <= 23 && mi >= 0 && mi <= 59) {
-        const ts = Date.UTC(year, month - 1, day, h, mi) - 60 * 60 * 1000;
-        if (dayKey) {
-          const scrapedDay = new Date(ts + 60 * 60 * 1000).toISOString().slice(0, 10);
-          if (scrapedDay !== dayKey) {
-            // Re-anchor the clock onto the target WAT day.
-            return baseOfDay(dayKey) + h * 60 * 60 * 1000 + mi * 60 * 1000;
-          }
-        }
-        return ts;
+        // Wall-clock is WAT: Date.UTC(...) treats h:mi as UTC, so subtract 1h.
+        return Date.UTC(year, month - 1, day, h, mi) - 60 * 60 * 1000;
       }
     }
   }
-  return parseClock(clock, dayKey);
+  return parseClock(clock);
+}
+
+// The WAT calendar date ('YYYY-MM-DD') of a data-dt "D,M,YYYY,H,MM" row, used to
+// decide whether a row belongs to the target dayKey's cache.
+function dataDtWatDay(dataDt: string): string {
+  const parts = String(dataDt || '').split(',').map((s) => Number(s.trim()));
+  if (parts.length >= 3 && parts.slice(0, 3).every((n) => Number.isFinite(n))) {
+    const [day, month, year] = parts;
+    if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+  return '';
 }
 
 export function parseFixtures(

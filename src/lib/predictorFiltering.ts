@@ -25,10 +25,17 @@ export function statusOfMatch(
   m: Pick<PredictorMatch, 'status' | 'finalScore' | 'startTime'>,
   now: number
 ): GameTab {
-  if (m.status === 'finished' || !!m.finalScore) return 'finished';
+  // Explicit server status is authoritative: a live match with a partial
+  // scoreline stored in finalScore is IN-PLAY, not finished (checking the
+  // score first would push every live match into the Finished tab).
+  if (m.status === 'finished') return 'finished';
   if (m.status === 'inplay') return 'inplay';
-  if (m.startTime <= 0) return 'upcoming';
-  if (m.startTime > now) return 'upcoming';
+  if (!!m.finalScore) return 'finished';
+  // No explicit status: derive from the schedule. A match that has NOT kicked
+  // off yet (startTime in the future) is always upcoming — only a startTime in
+  // the past can be in-play/finished, so a future fixture can never leak into
+  // the Finished or In-Play tabs early.
+  if (m.startTime <= 0 || m.startTime > now) return 'upcoming';
   if (m.startTime > now - IN_PLAY_WINDOW_MS) return 'inplay';
   return 'finished';
 }

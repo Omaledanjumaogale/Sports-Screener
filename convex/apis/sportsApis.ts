@@ -76,6 +76,22 @@ function normalizeTeam(name: string): string {
   return String(name || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
 }
 
+// Parse a provider datetime stamp as UTC. Accepts ISO with/without 'Z', and the
+// space-separated "2026-08-14 18:00:00" form several APIs return. A date-only
+// stamp ("2026-08-14") is anchored to NOON UTC so it lands on the correct WAT
+// calendar day instead of 01:00 AM WAT (midnight UTC + 1h). Returns NaN when
+// unparseable so callers can fall back.
+function parseUtcStamp(stamp: string): number {
+  const s = String(stamp || '').trim();
+  if (!s) return NaN;
+  const iso = s.replace(' ', 'T');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    return Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)), 12, 0, 0, 0);
+  }
+  const ms = Date.parse(/(Z|[+-]\d{2}:?\d{2})$/.test(iso) ? iso : iso + 'Z');
+  return Number.isFinite(ms) ? ms : NaN;
+}
+
 // ── TheSportsDB (multi-sport events for a date) ──────────────────────────────
 export async function fetchTheSportsDbEvents(date: string): Promise<any[]> {
   try {
@@ -650,7 +666,12 @@ export function mapODDSPAPIFixtures(raw: any[], sportId: string): ApiFixture[] {
     const key = normalizeTeam(home) + '|' + normalizeTeam(away);
     if (seen.has(key)) continue;
     seen.add(key);
-    const startTime = Date.parse(String(f?.startTime || '').split(' ')[0]) || now + out.length * 2 * 60 * 60 * 1000;
+    // OddsPapi startTime is a full UTC datetime ("2026-08-14 18:00:00"); the old
+    // date-only truncation (.split(' ')[0]) stored every fixture at UTC midnight,
+    // which WAT renders as 01:00 AM — the wrong-time bug. Parse the full stamp
+    // as UTC so the WAT wall-clock is preserved.
+    const rawStart = String(f?.startTime || '').trim();
+    const startTime = rawStart ? parseUtcStamp(rawStart) : now + out.length * 2 * 60 * 60 * 1000;
     out.push({
       home,
       away,
@@ -945,8 +966,17 @@ export async function fetchScoresForDate(sportId: string, date: string): Promise
 
     let finalScore = '';
     if (hs !== undefined && hs !== null && as !== undefined && as !== null && String(hs).trim() !== '' && String(as).trim() !== '') {
-      finalScore = `${hs} - ${as}`;
-      if (status === 'upcoming') status = 'finished';
+      const h = Number(hs);
+      const a = Number(as);
+      // A scheduled (upcoming) match reporting "0 - 0" is a placeholder, not a
+      // result — marking it finished pushed not-yet-started matches into the
+      // Finished tab with a fake 0-0 scoreline. Only a real status string
+      // (FT/finished/live) or a non-zero scoreline is treated as a result.
+      const isZeroZeroPlaceholder = status === 'upcoming' && h === 0 && a === 0;
+      if (!isZeroZeroPlaceholder) {
+        finalScore = `${hs} - ${as}`;
+        if (status === 'upcoming') status = 'finished';
+      }
     }
 
     if (finalScore || status !== 'upcoming') {
