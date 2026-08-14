@@ -175,6 +175,24 @@ const SPORT_SCALE: Record<string, string> = {
   volleyball: 'Sets (3-5 typical), market expected sets 3-5'
 };
 
+// Sport-specific analysis model. Football gets its own market model (double
+// chance, team totals, half totals, BTTS evaluated on BOTH sides); every other
+// sport uses the generic multi-market model. This keeps each sport treated
+// separately instead of one generic prompt for all of them.
+const SPORT_RULES: Record<string, string> = {
+  football: `FOOTBALL-SPECIFIC MARKET MODEL:
+- Analyse EVERY football market shown, not just the match total and Asian Handicap: the 1X2 result, Double Chance (1X / 12 / X2), the full Asian Handicap ladder, the match goals total, BTTS, Home Team Total and Away Team Total ("Over 0.5" = the team scores at least once), and the 1st Half / 2nd Half Totals ("Over 0.5" = at least one goal in that half).
+- BTTS: evaluate BOTH "BTTS Yes" AND "BTTS No" from their Real Win Chances and punter edges, then project whichever side is STRONGER for this specific match. NEVER default to "BTTS No" — a high-scoring, two-attacking-side fixture often makes BTTS Yes the stronger side. Only claim one side when its Real Win Chance / punter edge actually beats the other.
+- Team over 0.5 angles are low-risk "team scores at least once" picks: use them when the favourite's straight win is priced too tight for value but the favourite scoring is highly probable.
+- Half over 0.5 angles separate a fast-starting fixture (1H Over 0.5 strong) from a second-half fixture (2H Over 0.5 strong) — use the half totals to pick the stronger half.
+- Cross-check the markets against each other: BTTS Yes agrees with Over 2.5; BTTS No agrees with Under 2.5; a team's Over 0.5 agrees with that team's Asian Handicap cover.
+- Pick the market with the strongest probability/edge FOR THIS MATCH — the model must choose the safest, most probable selection per fixture, never the same market for every game.`,
+  generic: `GENERIC MARKET MODEL:
+- Analyse EVERY market shown for this sport and rank selections by Real Win Chance and punter edge.
+- Pick the strongest, most probable selection FOR THIS MATCH — never default to the same market for every game.
+- Cross-check result/winner, handicap/spread and totals markets against each other before recommending.`
+};
+
 function safeStr(val: unknown, fallback = ''): string {
   if (val === null || val === undefined) return fallback;
   if (typeof val === 'string') return val;
@@ -208,10 +226,15 @@ function devigItems(entries: { label: string; odds: number }[]) {
 }
 
 function humanLeg(marketTitle: string, key: string): string {
-  if (marketTitle.toLowerCase().includes('double chance')) {
+  const title = (marketTitle || '').toLowerCase();
+  if (title.includes('double chance')) {
     if (key === 'hd') return 'Home or Draw';
     if (key === 'ha') return 'Home or Away';
     if (key === 'da') return 'Draw or Away';
+  }
+  if (title.includes('both teams') || title.includes('btts')) {
+    if (key === 'yes') return 'BTTS Yes';
+    if (key === 'no') return 'BTTS No';
   }
   if (key === 'home') return 'Home';
   if (key === 'away') return 'Away';
@@ -392,6 +415,7 @@ export async function generatePredictorVerdict(
 ): Promise<VerdictOutcome> {
   const sport = VALID_SPORTS.includes(opts.sportId ?? '') ? opts.sportId! : 'football';
   const scale = SPORT_SCALE[sport] ?? SPORT_SCALE.football;
+  const sportRules = SPORT_RULES[sport] ?? SPORT_RULES.generic;
   const fallback = fallbackVerdict(
     match,
     opts.fallbackSummary ?? `${match.homeTeam} vs ${match.awayTeam} (${match.league}) — agent analysis prepared. No LLM verdict was available this cycle.`
@@ -415,6 +439,7 @@ export async function generatePredictorVerdict(
 
   const userContent = `SPORT: ${sport}
 SCORING SCALE: ${scale}
+SPORT MODEL: ${sportRules.replace(/\n/g, ' ')}
 STATUS:${noteStr}
 
 MATCH: ${match.homeTeam} vs ${match.awayTeam} (${match.league})
@@ -432,13 +457,14 @@ You are PulseOdds AI Predictor — an expert sports betting analyst backed by a 
 RULES:
 1. Use simple plain English. Use "Real Win Chance" for fair probability, "implied probability" for 1/odds, "Bookies Profit Cut" for the bookmaker's margin / overround, and "punter edge" for Real Win Chance minus implied.
 2. Reference the actual odds, implied probabilities and edge numbers above — never invent numbers.
-3. PICK THE BEST MARKET FOR THIS MATCH. Each match is different: some win with Over/Under, some with Asian Handicap / Spread, some with Double Chance, some with a straight win. Evaluate EVERY market above and choose the one(s) where the punter edge is highest for THIS match — do NOT default to the total market for every game.
-4. The top3Selections must come from DIFFERENT market options (e.g. one from the result/winner market, one from a total line, one from Double Chance or Handicap) ranked by punter edge. Never repeat the same market for all three.
+3. PICK THE BEST MARKET FOR THIS MATCH. Each match is different: some win with Over/Under, some with Asian Handicap / Spread, some with Double Chance, some with a straight win, some with BTTS, team totals or half totals. Evaluate EVERY market above and choose the one(s) where the punter edge is highest for THIS match — do NOT default to the total market for every game.
+4. The top3Selections must come from DIFFERENT market options (e.g. one from the result/winner market, one from a total line, one from Double Chance, BTTS, Handicap, a team total or a half total) ranked by punter edge. Never repeat the same market for all three.
 5. For each selection show the metric-strip numbers: its Real Win Chance, implied probability and punter edge (e.g. "Home @ 1.90: real 52.0%, implied 52.6%, edge +0.6%"). Project the punter's edge over the bookie explicitly in "punterEdge".
 6. If STATUS notes IN-PLAY, flag that odds are live/moving and reflect it in tacticalRecommendation; otherwise treat as pre-match.
-7. Cross-reference the odds across markets: note where the Double Chance / Handicap line gives a lower-risk angle vs the straight win, and where the total line disagrees with the result market.
+7. Cross-reference the odds across markets: note where the Double Chance / Handicap line gives a lower-risk angle vs the straight win, where BTTS Yes agrees with the Over and BTTS No with the Under, and where a team's Over 0.5 supports its handicap cover.
 8. The crossCheckSteps list must contain at least 4 distinct checks.
 9. Never recommend betting beyond a small stake; always flag risk.
+10. STANDALONE MATCH: Treat this match as a completely independent fixture. Every verdict, recommendation and top-3 selection must be derived from THIS match's own odds and probabilities above. Do NOT copy, replicate or reuse analysis, recommendations or verdicts from any other match — matches with similar-looking lines must still get their own verdict reasoned from their own numbers. No two matches should share identical verdict wording or identical top-3 selections unless the underlying data is genuinely identical.
 
 RESPOND ONLY with a valid JSON object, no markdown, no code fences:
 {
