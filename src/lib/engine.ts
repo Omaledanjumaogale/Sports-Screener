@@ -1090,7 +1090,7 @@ export function analyzeRally(scope: ScopeState): Analysis {
 
   const primary = allPicks.filter((pick) => markets[pick.marketId]?.primary);
   const safest = topBettable(primary);
-  const bestValue = primary.filter((p) => p.probability >= 55).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topPick(allPicks);
+  const bestValue = primary.filter((p) => p.probability >= 55 && !isCertaintySide(p)).sort((a, b) => (b.ev ?? -99) - (a.ev ?? -99))[0] ?? topBettable(allPicks);
 
   const csMarket = markets.correctScore ?? { id: 'correctScore', kind: 'correctScore' as MarketKind, title: '', odds: {} };
   const cs = analyzeOddsMarket(csMarket, Object.fromEntries(RALLY_SCORES.map((s) => [s, s])));

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildFootballGrid,
+  fitTwoTargetGrid,
   gridTotals,
   gridBtts,
   gridTeamOver,
@@ -290,6 +291,93 @@ describe('predictor markets (football lead / momentum — 1UP, 2UP, Never Down)'
   });
 });
 
+describe('predictor markets (Dixon-Coles draw correction)', () => {
+  const gridDraw = (g: FootballScoreGrid) => {
+    let d = 0;
+    for (let i = 0; i <= 9; i++) d += g.p[i][i];
+    return d;
+  };
+
+  it('grid draw mass matches the de-vigged 1X2 draw probability (with and without real totals)', () => {
+    // Typical mid-league 1X2: 2.10 / 3.30 / 3.40 → draw ~28.4% de-vigged.
+    const [pH, pD, pA] = devig([2.1, 3.3, 3.4]);
+    const g = buildFootballGrid(2.1, 3.3, 3.4, 2.5);
+    expect(gridDraw(g)).toBeCloseTo(pD, 3);
+    // Same fixture with a real totals pair — the three-target solve keeps the
+    // draw pinned while fitting win + totals.
+    const g2 = buildFootballGrid(2.1, 3.3, 3.4, 2.5, { line: 2.5, over: 1.83, under: 1.97 });
+    expect(gridDraw(g2)).toBeCloseTo(pD, 3);
+    expect(pH).toBeGreaterThan(0.4);
+    expect(pA).toBeGreaterThan(0.25);
+  });
+
+  it('DC lifts the draw toward the de-vigged probability vs the raw two-target grid (the ~3pp shortfall)', () => {
+    // The independent-Poisson grid under-predicts draws; the DC correction must
+    // close that gap for a realistic fixture with real totals.
+    const odds = { h: 2.1, d: 3.3, a: 3.4 };
+    const totals = { line: 2.5, over: 1.85, under: 1.95 };
+    const [pH, pD] = devig([odds.h, odds.d, odds.a]);
+    const [pOver] = devig([totals.over, totals.under]);
+    const raw = fitTwoTargetGrid(pH, pOver, totals.line)!;
+    const dc = buildFootballGrid(odds.h, odds.d, odds.a, 2.5, totals);
+    const rawD = gridDraw(raw);
+    const dcD = gridDraw(dc);
+    // The no-DC grid is missing draw mass; DC closes (most of) the gap.
+    expect(pD - rawD).toBeGreaterThan(0.015);
+    expect(Math.abs(dcD - pD)).toBeLessThan(0.002);
+    expect(dcD).toBeGreaterThan(rawD);
+  });
+
+  it('draw correction preserves the win + totals calibration', () => {
+    const odds = { h: 1.95, d: 3.6, a: 4.0 };
+    const totals = { line: 2.5, over: 1.83, under: 1.97 };
+    const [pH, pD] = devig([odds.h, odds.d, odds.a]);
+    const [pOver] = devig([totals.over, totals.under]);
+    const g = buildFootballGrid(odds.h, odds.d, odds.a, 2.5, totals);
+    let w = 0;
+    for (let i = 0; i <= 9; i++) for (let j = 0; j <= 9; j++) if (i > j) w += g.p[i][j];
+    // Win mass and totals stay pinned at the de-vigged targets...
+    expect(w).toBeCloseTo(pH, 3);
+    expect(gridTotals(g, 2.5).over).toBeCloseTo(pOver, 3);
+    // ...while the draw is now exact too (all three targets simultaneously).
+    expect(gridDraw(g)).toBeCloseTo(pD, 3);
+    // And the goal expectation still tracks the totals market (not the 1X2).
+    const gOld = buildFootballGrid(odds.h, odds.d, odds.a, 2.5);
+    const goals = (gr: FootballScoreGrid) => {
+      let s = 0;
+      for (let i = 0; i <= 9; i++) for (let j = 0; j <= 9; j++) s += gr.p[i][j] * (i + j);
+      return s;
+    };
+    expect(goals(g)).toBeGreaterThan(goals(gOld) + 0.3);
+  });
+
+  it('balanced coin-flip fixture: the Draw is a fully competitive outcome the verdict can project', () => {
+    // 2.62 / 3.25 / 2.80 — no decisive favourite on either side.
+    const [pH, pD, pA] = devig([2.62, 3.25, 2.8]);
+    const g = buildFootballGrid(2.62, 3.25, 2.8, 2.5);
+    expect(Math.abs(pH - pA)).toBeLessThan(0.05);
+    expect(gridDraw(g)).toBeCloseTo(pD, 3);
+    // The draw's real chance is within a few points of both win sides — it must
+    // never be dismissed in a genuinely level match.
+    expect(pD).toBeGreaterThan(0.24);
+    expect(Math.abs(pD - pH)).toBeLessThan(0.08);
+    expect(Math.abs(pD - pA)).toBeLessThan(0.08);
+  });
+
+  it('Double Chance legs are the highest-certainty market (each covers two outcomes)', () => {
+    const mk = deriveFootballMarkets(2.62, 3.25, 2.8, 2.5);
+    const [pH, pD, pA] = devig([2.62, 3.25, 2.8]);
+    // Every DC leg covers two outcomes, so its real mass exceeds any single
+    // 1X2 leg — the "greatest certainty" expression of a level fixture.
+    expect(pH + pD).toBeGreaterThan(pH);
+    expect(pH + pD).toBeGreaterThan(pD);
+    expect(pD + pA).toBeGreaterThan(pA);
+    expect(pD + pA).toBeGreaterThan(pD);
+    // The favourite-side leg (1X here) prices shortest of the three.
+    expect(mk.doubleChance.odds?.hd ?? 99).toBeLessThan(mk.doubleChance.odds?.da ?? 0);
+  });
+});
+
 describe('predictor markets (basketball Normal points model)', () => {
   // A realistic home-favoured NBA moneyline + total: 1.75 / 2.10 → ~55% home
   // win, 220.5 game total.
@@ -328,15 +416,15 @@ describe('predictor markets (basketball Normal points model)', () => {
     expect(basketballTotalOver(model, TOTAL + 8)).toBeLessThan(over);
   });
 
-  it('half totals are complementary and 1H < 2H by the empirical split', () => {
+  it('half totals are complementary around each half\'s mean (1H share 50.3%)', () => {
     const model = buildBasketballModel(HOME, AWAY, TOTAL);
-    const fh = basketballHalfTotalOver(model, 'first', 105.5);
-    const sh = basketballHalfTotalOver(model, 'second', 115.5);
+    const fh = basketballHalfTotalOver(model, 'first', 110.5);
+    const sh = basketballHalfTotalOver(model, 'second', 109.5);
     expect(fh).toBeGreaterThan(0.05);
     expect(fh).toBeLessThan(1);
     expect(sh).toBeGreaterThan(0.05);
     expect(sh).toBeLessThan(1);
-    // 1st-half share 48.5% → 1H mean ≈ 107 pts, 2H ≈ 113.5 pts at 220.5 total.
+    // 1st-half share 50.3% → 1H mean ≈ 111 pts, 2H ≈ 109.5 pts at 220.5 total.
     expect(Math.abs(fh - 0.5)).toBeLessThan(0.1);
     expect(Math.abs(sh - 0.5)).toBeLessThan(0.1);
   });
