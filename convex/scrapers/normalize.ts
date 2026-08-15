@@ -902,6 +902,20 @@ export interface BasketballModel {
   expHome: number;
   expAway: number;
   margin: number; // expected home - away margin
+  sdTotal: number; // league-scaled game-total SD
+}
+
+// Damped scoring-level scaling for the game-total SD. Country leagues and
+// women's tournaments score far fewer points than the NBA (NBA ~210 avg
+// total, NBL ~181, WNBA ~163, NCAA-M ~145, NCAA-W ~134 — measured across the
+// multi-league backtest dataset), yet their absolute total variance stays
+// within a few points of the NBA's (18-20 vs ~21 within-era NBA), so the SD
+// compresses toward a floor instead of collapsing with the scoring level.
+// The market anchor line carries the mean automatically; this only trims the
+// variance tail for low-scoring leagues.
+export const BASKETBALL_TOTAL_SD_ANCHOR = 210;
+export function basketballTotalSdScale(expTotal: number): number {
+  return Math.max(0.75, Math.min(1, 0.5 + (0.5 * expTotal) / BASKETBALL_TOTAL_SD_ANCHOR));
 }
 
 // Calibrate the Normal points model to the real 2-way moneyline + total anchor.
@@ -913,7 +927,8 @@ export function buildBasketballModel(homeOdds: number, awayOdds: number, totalAn
     expTotal,
     expHome: (expTotal + margin) / 2,
     expAway: (expTotal - margin) / 2,
-    margin
+    margin,
+    sdTotal: BASKETBALL_SD_TOTAL * basketballTotalSdScale(expTotal)
   };
 }
 
@@ -925,7 +940,7 @@ export function basketballTeamOver(model: BasketballModel, home: boolean, line: 
 
 // P(game total > line).
 export function basketballTotalOver(model: BasketballModel, line: number): number {
-  return Math.max(0, Math.min(1, 1 - normalCdf((line - model.expTotal) / BASKETBALL_SD_TOTAL)));
+  return Math.max(0, Math.min(1, 1 - normalCdf((line - model.expTotal) / model.sdTotal)));
 }
 
 // P(half total > line) — split the total by the empirical 1st-half share, with
@@ -933,7 +948,7 @@ export function basketballTotalOver(model: BasketballModel, line: number): numbe
 export function basketballHalfTotalOver(model: BasketballModel, half: 'first' | 'second', line: number): number {
   const share = half === 'first' ? BASKETBALL_FIRST_HALF_SHARE : 1 - BASKETBALL_FIRST_HALF_SHARE;
   const mean = model.expTotal * share;
-  const sd = BASKETBALL_SD_TOTAL * Math.sqrt(share);
+  const sd = model.sdTotal * Math.sqrt(share);
   return Math.max(0, Math.min(1, 1 - normalCdf((line - mean) / sd)));
 }
 
