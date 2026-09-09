@@ -13,6 +13,7 @@ import { generatePredictorVerdict, type VerdictOutcome } from './llm';
 import { isFootballMatch, matchBelongsToSport, validateFixture } from './predictor';
 import { assessDataQuality, hasRealOdds } from './scrapers/dataQuality';
 import { actionCacheKey } from './actionCache';
+import { requireMasterPassInAction } from './access';
 
 const sportId = v.union(
   v.literal('football'),
@@ -246,6 +247,9 @@ async function executeRefresh(
       await ctx.scheduler.runAfter(0, internal.scores.syncScoresAction, { dayKey });
     } catch {}
 
+    await ctx.scheduler
+      .runAfter(0, internal.cronHealth.stampCron, { job: 'orchestrator', ok: true, note: `${args.sportId}/${dayKey} kept:${result.matches.length}` })
+      .catch(() => {});
     return { ok: true, kept: result.matches.length, runId, message: 'Refresh complete' };
   } catch (err: any) {
     console.error('[Predictor Orchestrator]', err?.message || err);
@@ -257,6 +261,9 @@ async function executeRefresh(
       message: String(err?.message || err).slice(0, 300),
       completedAt: Date.now()
     });
+    await ctx.scheduler
+      .runAfter(0, internal.cronHealth.stampCron, { job: 'orchestrator', ok: false, note: String(err?.message || err).slice(0, 120) })
+      .catch(() => {});
     await ctx.runMutation(internal.predictor.upsertDay, {
       sportId: args.sportId,
       dayKey: dayKey,
@@ -270,7 +277,12 @@ async function executeRefresh(
 
 export const runRefresh = action({
   args: refreshArgs,
-  handler: async (ctx, args) => executeRefresh(ctx, args)
+  handler: async (ctx, args) => {
+    // P0 SECURITY: this public action spins up the full scraping + LLM pipeline
+    // (real money in API spend). Master Pass + predictor flag enforced here.
+    await requireMasterPassInAction(ctx);
+    return executeRefresh(ctx, args);
+  }
 });
 
 // Internal variant for the cron — avoids exposing an unauthenticated public

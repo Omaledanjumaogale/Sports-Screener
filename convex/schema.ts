@@ -45,7 +45,8 @@ export default defineSchema({
   })
     .index('by_owner_sport', ['owner', 'sportId'])
     .index('by_session_sport', ['sessionId', 'sportId'])
-    .index('by_user_sport', ['userId', 'sportId']),
+    .index('by_user_sport', ['userId', 'sportId'])
+    .index('by_updatedAt', ['updatedAt']),
 
   savedScreeners: defineTable({
     sportId: v.union(
@@ -210,7 +211,8 @@ export default defineSchema({
     updatedAt: v.number()
   })
     .index('by_day', ['dayKey'])
-    .index('by_day_filter', ['dayKey', 'filter']),
+    .index('by_day_filter', ['dayKey', 'filter'])
+    .index('by_filter', ['filter']),
 
   userPreferences: defineTable({
     userId: v.string(),
@@ -239,7 +241,9 @@ export default defineSchema({
     cacheKey: v.string(),
     result: v.any(),
     expiresAt: v.number()
-  }).index('by_cacheKey', ['cacheKey']),
+  })
+    .index('by_cacheKey', ['cacheKey'])
+    .index('by_expiresAt', ['expiresAt']),
 
   // Realtime presence heartbeats (owner = session/user id, per sport scope).
   presence: defineTable({
@@ -273,5 +277,60 @@ export default defineSchema({
     pushes: v.number(),
     units: v.number(),
     updatedAt: v.number()
+  }),
+
+  // ── P0–P2 hardening tables (enterprise wave) ──────────────────────────────────
+
+  // Kill switch / feature flags. Absence of a row = enabled (default-open),
+  // so this table stays tiny (one row per known flag at most).
+  featureFlags: defineTable({
+    key: v.string(),
+    enabled: v.boolean(),
+    note: v.optional(v.string()),
+    updatedAt: v.number()
+  }).index('by_key', ['key']),
+
+  // Cron heartbeat: one upserted row per scheduled job. Flat, effectively zero
+  // storage, gives /api/health a live view of silent cron failures.
+  cronHealth: defineTable({
+    job: v.string(),
+    ok: v.boolean(),
+    note: v.optional(v.string()),
+    lastRunAt: v.number()
+  }).index('by_job', ['job']),
+
+  // Ring-buffer error log (capped rows per source — see convex/errorLog.ts).
+  // Never grows: new errors evict the oldest row for the same source.
+  errorLog: defineTable({
+    source: v.string(),
+    message: v.string(),
+    stack: v.optional(v.string()),
+    meta: v.optional(v.any()),
+    createdAt: v.number()
   })
+    .index('by_source_time', ['source', 'createdAt'])
+    .index('by_time', ['createdAt']),
+
+  // Browser push subscriptions (one per user device, capped at 5 per user).
+  pushSubscriptions: defineTable({
+    userId: v.optional(v.string()),
+    endpointHash: v.string(),
+    endpoint: v.string(),
+    keys: v.any(),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index('by_user_ep', ['userId', 'endpointHash'])
+    .index('by_user', ['userId'])
+    .index('by_updated', ['updatedAt']),
+
+  // Single-use password-reset codes (hashed, 30-minute TTL, swept daily).
+  emailTokens: defineTable({
+    email: v.string(),
+    codeHash: v.string(),
+    expiresAt: v.number(),
+    createdAt: v.number()
+  })
+    .index('by_email', ['email'])
+    .index('by_expiry', ['expiresAt'])
 });

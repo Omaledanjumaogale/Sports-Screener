@@ -116,3 +116,4 @@ lighthouse-pwa-*.json
 
 # Runtime aggregate counter snapshots (local tooling only)
 _counts/
+backups/

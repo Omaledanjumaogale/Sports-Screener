@@ -86,3 +86,37 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// ── Web-push handlers (P2) ────────────────────────────────────────────────────
+// Delivery is inert until VAPID keys are provisioned and a sender is wired;
+// these handlers make the SW push-ready today so no redeploy is needed then.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_) {
+    data = { title: 'PulseOdds', body: event.data ? event.data.text() : '' };
+  }
+  const title = data.title || 'PulseOdds';
+  const options = {
+    body: data.body || 'Tap to open your latest picks.',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    tag: data.tag || 'pulseodds',
+    data: { url: data.url || '/predictor/football' }
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/predictor/football';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) return client.focus();
+      }
+      return self.clients.openWindow(url);
+    })
+  );
+});

@@ -16,6 +16,7 @@
     "wrangler:dev": "wrangler pages dev dist",
     "wrangler:deploy": "wrangler pages deploy dist",
     "audit:pwa": "node audit-pwa.mjs",
+    "e2e": "node e2e/smoke.mjs",
     "deploy:pwa": "npm run build && npm run wrangler:deploy && npm run audit:pwa"
   },
   "devDependencies": {

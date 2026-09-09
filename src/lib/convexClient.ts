@@ -244,7 +244,7 @@ export const api = {
     listDaysInRange: 'predictor:listDaysInRange',
     getVerdict: 'predictor:getVerdict',
     getDailyPnlSummary: 'predictor:getDailyPnlSummary',
-    saveDailyPnlSummary: 'predictor:saveDailyPnlSummary',
+    // saveDailyPnlSummary moved internal (server-only settlement writes).
     getActiveRun: 'predictor:getActiveRun',
     startRefresh: 'predictor:startRefresh',
     updateMatchResult: 'predictor:updateMatchResult',
@@ -263,6 +263,18 @@ export const api = {
   },
   audit: {
     log: 'auditLog:logAudit'
+  },
+  push: {
+    saveSubscription: 'pushSubscriptions:saveSubscription',
+    removeSubscription: 'pushSubscriptions:removeSubscription',
+    setEnabled: 'pushSubscriptions:setEnabled'
+  },
+  email: {
+    requestPasswordReset: 'email:requestPasswordReset',
+    completePasswordReset: 'email:completePasswordReset'
+  },
+  flags: {
+    list: 'featureFlags:listFlags'
   }
 };
 

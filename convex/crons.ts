@@ -81,4 +81,18 @@ crons.interval('presence-sweep', { minutes: 10 }, internal.presence.sweepStalePr
 // day per the retention policy; otherwise this job is a no-op.
 crons.daily('predictor-retention-finished', { hourUTC: 3, minuteUTC: 30 }, internal.retention.purgeFinishedMatchesAction, {});
 
+// ── Database hygiene sweep — hourly, bounded & incremental ────────────────────
+// Each pass deletes at most ~1200 expired/over-retention rows (oldest days
+// first) using indexed per-day reads, so it can never hit mutation limits no
+// matter how large the DB grows: finished matches + cascaded verdicts beyond
+// the retention window, dead runs, stale operational audits, dead rate-limit
+// buckets, expired cache rows, orphaned day rows, old drafts, anonymous push
+// subs, expired email tokens. Keeps free-tier storage flat.
+crons.hourly('db-hygiene-sweep', { minuteUTC: 50 }, internal.hygiene.hygieneSweepAction, {});
+
+// ── Subscription-expiry enforcement — hourly ──────────────────────────────────
+// Flips lapsed userProfiles.isSubscribed off so expired subscriptions are
+// enforced at the data level (deriveAccess also ignores them on read).
+crons.hourly('subscription-expiry-enforce', { minuteUTC: 12 }, internal.users.expireLapsedSubscriptions, {});
+
 export default crons;

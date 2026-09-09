@@ -83,5 +83,29 @@
         });
       }
     </script>
+    <script>
+      // Lightweight error beacon → Convex ring-buffer errorLog (capped, never
+      // grows). 10% sampling + 5s throttle so an error storm can't spam writes.
+      (function () {
+        var last = 0;
+        function report(msg) {
+          var now = Date.now();
+          if (now - last < 5000) return;
+          last = now;
+          if (Math.random() > 0.1) return;
+          try {
+            fetch('https://modest-lark-218.eu-west-1.convex.site/api/error-report', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ source: 'client', message: String(msg).slice(0, 500), href: location.href })
+            }).catch(function () {});
+          } catch (_) { /* ignore */ }
+        }
+        window.addEventListener('error', function (e) { report(e.message); });
+        window.addEventListener('unhandledrejection', function (e) {
+          report((e.reason && (e.reason.message || e.reason)) || 'unhandled rejection');
+        });
+      })();
+    </script>
   </body>
 </html>

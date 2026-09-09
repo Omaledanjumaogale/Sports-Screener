@@ -1,4 +1,4 @@
-import { query, mutation, action } from './_generated/server';
+import { query, mutation, action, internalMutation } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import { internal, api } from './_generated/api';
 import { v } from 'convex/values';
@@ -56,6 +56,7 @@ async function identityDetails(
   if (!email) return null;
   return { email, name: identity.name ?? userDoc?.name, subject };
 }
+export { identityDetails };
 
 // Derive the effective access for a user. Read-only (no writes) — used by `me`
 // and `checkSubscription`. Tester trial is computed from `trialStartsAt`; when a
@@ -107,6 +108,7 @@ async function deriveAccess(
     hasMasterPass
   };
 }
+export { deriveAccess };
 
 // ── Identity-aware queries / mutations ───────────────────────────────────────
 
@@ -249,11 +251,15 @@ export const registerProfile = mutation({
     const email = args.email.trim().toLowerCase();
     const isAdmin = isSuperAdminEmail(email);
     const isTester = isTesterEmail(email);
-    await logAuditEvent(ctx, email, 'user.register', email, { fullName: args.fullName });
+    // Audit only REGISTRATIONS OF NEW accounts — updates fire on every profile
+    // edit and would bloat auditEvents (storage-minimization).
     const existing = await ctx.db
       .query('userProfiles')
       .withIndex('by_email', (q) => q.eq('email', email))
       .first();
+    if (!existing) {
+      await logAuditEvent(ctx, email, 'user.register', email, { fullName: args.fullName });
+    }
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -318,6 +324,10 @@ export const verifyFlutterwaveCharge = action({
     email: v.string()
   },
   handler: async (ctx, args) => {
+    // Kill switch: payments can be disabled instantly (flag defaults to on).
+    const flags = await ctx.runQuery(internal.access.flagStatus, {});
+    if (!flags.payments) throw new Error('Payments are temporarily unavailable. Please try again later.');
+
     // Enterprise hardening: cap payment verification attempts per email (5/min)
     // so a forged/retry loop can't hammer the Flutterwave verify API.
     const allowed = await ctx.runMutation(internal.rateLimit.enforceRateLimitViaMutation, {
@@ -473,5 +483,29 @@ export const checkSubscription = query({
       ...access,
       txRef: access.isAdmin ? 'SUPER_ADMIN_PASS' : undefined
     };
+  }
+});
+
+// ── Subscription-expiry enforcement (P0) ─────────────────────────────────────
+// deriveAccess() already ignores expired subscriptions on READ, but the stored
+// profile rows stayed isSubscribed=true forever. This internal mutation flips
+// lapsed rows off (single indexed scan per run) so expiry is enforced at the
+// data level and expired users lose access everywhere at once.
+export const expireLapsedSubscriptions = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    let expired = 0;
+    const rows = await ctx.db.query('userProfiles').collect();
+    for (const p of rows) {
+      if (p.isSubscribed && p.subscriptionExpiresAt && p.subscriptionExpiresAt < now) {
+        await ctx.db.patch(p._id, { isSubscribed: false, updatedAt: now });
+        await logAuditEvent(ctx, 'system', 'subscription.expired', p.email, {
+          expiredAt: p.subscriptionExpiresAt
+        });
+        expired++;
+      }
+    }
+    return { expired };
   }
 });

@@ -7,6 +7,7 @@ import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { watTodayKey } from './scrapers/sources';
 import { enforceRateLimit } from './rateLimit';
+import { requireMasterPass, requireAdmin } from './access';
 import { logAuditEvent } from './auditLog';
 
 const sportId = v.union(
@@ -446,10 +447,14 @@ export function isFootballMatch(m: { league?: string; homeTeam?: string; awayTea
 }
 
 // ── Public queries ────────────────────────────────────────────────────────────
+// P0 SECURITY: every premium query resolves the caller's identity from the
+// attached Convex auth token and enforces Master Pass SERVER-SIDE. Anonymous
+// API callers get a clean 401-style error, not premium data.
 
 export const getDay = query({
   args: { sportId, dayKey: v.string() },
   handler: async (ctx, args) => {
+    await requireMasterPass(ctx);
     return await ctx.db
       .query('predictorDays')
       .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey))
@@ -461,6 +466,7 @@ export const getDay = query({
 export const listMatches = query({
   args: { sportId, dayKey: v.string() },
   handler: async (ctx, args) => {
+    await requireMasterPass(ctx);
     const raw = await ctx.db
       .query('predictorMatches')
       .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey))
@@ -481,6 +487,7 @@ export const listMatches = query({
 export const listMatchesInRange = query({
   args: { sportId, fromDay: v.string(), toDay: v.string() },
   handler: async (ctx, args) => {
+    await requireMasterPass(ctx);
     const raw = await ctx.db
       .query('predictorMatches')
       .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).gte('dayKey', args.fromDay).lte('dayKey', args.toDay))
@@ -500,6 +507,7 @@ export const listMatchesInRange = query({
 export const listDaysInRange = query({
   args: { sportId, fromDay: v.string(), toDay: v.string() },
   handler: async (ctx, args) => {
+    await requireMasterPass(ctx);
     return await ctx.db
       .query('predictorDays')
       .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).gte('dayKey', args.fromDay).lte('dayKey', args.toDay))
@@ -509,6 +517,18 @@ export const listDaysInRange = query({
 });
 
 export const getVerdict = query({
+  args: { dayKey: v.string(), matchId: v.string() },
+  handler: async (ctx, args) => {
+    await requireMasterPass(ctx);
+    return await ctx.db
+      .query('predictorVerdicts')
+      .withIndex('by_day_match', (q) => q.eq('dayKey', args.dayKey).eq('matchId', args.matchId))
+      .first();
+  }
+});
+
+// Internal verdict read for server-side settlement (no auth context).
+export const getVerdictInternal = internalQuery({
   args: { dayKey: v.string(), matchId: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
@@ -521,6 +541,7 @@ export const getVerdict = query({
 export const getDailyPnlSummary = query({
   args: { dayKey: v.string(), filter: v.optional(v.union(v.literal('ALL'), v.literal('MONEYLINE'), v.literal('SPREAD'), v.literal('TOTAL'))) },
   handler: async (ctx, args) => {
+    await requireMasterPass(ctx);
     const filter = args.filter ?? 'ALL';
     return await ctx.db
       .query('aiPredictorStats')
@@ -529,7 +550,7 @@ export const getDailyPnlSummary = query({
   }
 });
 
-export const saveDailyPnlSummary = mutation({
+export const saveDailyPnlSummary = internalMutation({
   args: {
     dayKey: v.string(),
     filter: v.union(v.literal('ALL'), v.literal('MONEYLINE'), v.literal('SPREAD'), v.literal('TOTAL')),
@@ -578,6 +599,9 @@ export const updateMatchResult = mutation({
     )
   },
   handler: async (ctx, args) => {
+    // P0 SECURITY: score writes require Master Pass (manually-reported results
+    // must never be anonymous). The cron path uses its own internal mutation.
+    await requireMasterPass(ctx);
     const match = await ctx.db
       .query('predictorMatches')
       .withIndex('by_day_match', (q) => q.eq('dayKey', args.dayKey).eq('matchId', args.matchId))
@@ -600,6 +624,7 @@ export const updateMatchResult = mutation({
 export const getActiveRun = query({
   args: { sportId, dayKey: v.string() },
   handler: async (ctx, args) => {
+    await requireMasterPass(ctx);
     return await ctx.db
       .query('predictorRuns')
       .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey))
@@ -613,6 +638,9 @@ export const getActiveRun = query({
 export const startRefresh = mutation({
   args: { sportId, dayKey: v.string(), incremental: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
+    // P0 SECURITY: refresh is a Master Pass action, and honors the `predictor`
+    // feature flag (kill switch) — requireMasterPass throws when disabled.
+    await requireMasterPass(ctx);
     const now = Date.now();
     const incremental = args.incremental ?? false;
 
@@ -626,9 +654,8 @@ export const startRefresh = mutation({
         message: 'Too many refresh requests — please wait a minute before refreshing again.'
       };
     }
-    await logAuditEvent(ctx, 'user', 'predictor.refresh', `${args.sportId}/${args.dayKey}`, {
-      incremental
-    });
+    // Storage-minimization: refresh taps are high-frequency; the predictorRuns
+    // row IS the audit record for refreshes, so no separate audit row is written.
 
     const runId = `run_${incremental ? 'inc_' : ''}${args.sportId}_${args.dayKey}_${now}`;
 

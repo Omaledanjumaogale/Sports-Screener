@@ -144,4 +144,57 @@ http.route({
   })
 });
 
+// ── Health probe (uptime monitoring) ──────────────────────────────────────────
+// GET /api/health → 200 with a liveness + cron-freshness snapshot. External
+// uptime monitors (BetterStack/UptimeRobot) point here; the flags object turns
+// non-zero when a scheduled job stops stamping. Deliberately unauthenticated
+// and side-effect free (safe to poll every minute).
+http.route({
+  path: "/api/health",
+  method: "GET",
+  handler: httpAction(async (ctx) => {
+    try {
+      const health = await ctx.runQuery(api.cronHealth.getHealth, {});
+      const stale = Object.values(health.flags).some(Boolean);
+      return new Response(
+        JSON.stringify({ status: stale ? 'degraded' : 'ok', ...health }),
+        { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ status: "error", message: String(err?.message || err).slice(0, 200) }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  })
+});
+
+// ── Error beacon (client error capture) ───────────────────────────────────
+// POST /api/error-report → ring-buffer errorLog row (capped per source, see
+// convex/errorLog.ts). Body: { source, message, href }. Deliberately minimal:
+// no auth (anonymous errors are exactly the ones we can't see otherwise),
+// tightly truncated fields, and the ring buffer bounds total storage.
+http.route({
+  path: "/api/error-report",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body: any = await request.json().catch(() => ({}));
+      const source = String(body.source || 'client').slice(0, 60);
+      const message = String(body.message || 'unknown').slice(0, 500);
+      const meta = { href: String(body.href || '').slice(0, 200) };
+      await ctx.runMutation(api.errorLog.report, { source, message, meta });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    } catch {
+      return new Response(JSON.stringify({ ok: false }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+  })
+});
+
 export default http;

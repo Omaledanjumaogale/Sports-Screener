@@ -8,6 +8,7 @@ import { v } from 'convex/values';
 import { fetchScoresForDate, fetchHtmlResultScores, scoreIsPlausible } from './apis/sportsApis';
 import { watTodayKey, watDayKeyFor } from './scrapers/sources';
 import { enforceRateLimit } from './rateLimit';
+import { requireMasterPass } from './access';
 import { logAuditEvent } from './auditLog';
 
 const PREDICTOR_SPORT_IDS = [
@@ -80,6 +81,8 @@ export const syncScoresAction = internalAction({
   handler: async (ctx, args): Promise<{ updated: number }> => {
     const targetDay = args.dayKey || watTodayKey();
     let totalUpdated = 0;
+
+    // Cron heartbeat for /api/health (scheduled write — actions can't write DB).
 
     // Self-heal: purge implausible scorelines (clock-as-score leaks, cross-sport
     // contamination) before this cycle scans — each pass starts from clean data.
@@ -178,6 +181,11 @@ export const syncScoresAction = internalAction({
       await ctx.scheduler.runAfter(0, internal.scores.settleDayPnl, { dayKey: targetDay });
     } catch {}
 
+    // Cron heartbeat for /api/health (scheduled write — actions can't write DB).
+    await ctx.scheduler
+      .runAfter(0, internal.cronHealth.stampCron, { job: 'scoreSync', ok: true, note: `updated:${totalUpdated}` })
+      .catch(() => {});
+
     return { updated: totalUpdated };
   }
 });
@@ -196,6 +204,10 @@ export const syncPastHistoryAction = internalAction({
       const res = await ctx.runAction(internal.scores.syncScoresAction, { dayKey });
       matchesUpdated += res?.updated ?? 0;
     }
+
+    await ctx.scheduler
+      .runAfter(0, internal.cronHealth.stampCron, { job: 'pastHistory', ok: true, note: `d:${daysProcessed}` })
+      .catch(() => {});
 
     return { daysProcessed, matchesUpdated };
   }
@@ -368,7 +380,7 @@ export const settleDayPnl = internalAction({
 
         for (const m of matches) {
           if (m.status !== 'finished' || !m.finalScore) continue;
-          const verdict = await ctx.runQuery(api.predictor.getVerdict, { dayKey, matchId: m.matchId }).catch(() => null);
+          const verdict = await ctx.runQuery(internal.predictor.getVerdictInternal, { dayKey, matchId: m.matchId }).catch(() => null);
           if (!verdict?.aiReport) continue;
           const topN = Array.isArray(verdict.aiReport.top3Selections) ? verdict.aiReport.top3Selections : [];
           if (topN.length === 0) continue;
@@ -407,25 +419,20 @@ export const settleDayPnl = internalAction({
       }
     }
 
-    // Running lifetime aggregate (native aggregate wiring): accumulate this
-    // day's graded picks into the single predictorTotals doc so long-term
-    // accuracy/PnL counters are maintained incrementally, not re-scanned.
-    await ctx
-      .runMutation(internal.scores.accumulatePredictorTotals, {
-        picks: buckets.ALL.picks,
-        wins: buckets.ALL.wins,
-        losses: buckets.ALL.losses,
-        pushes: buckets.ALL.push,
-        units: buckets.ALL.units
-      })
-      .catch(() => {});
+    // Running lifetime aggregate: settleDayPnl is re-run after EVERY 5-minute
+    // score-sync cycle for the same day, so a naive += here would re-accumulate
+    // the same picks dozens of times per day. To keep the lifetime counters
+    // accurate AND avoid unbounded growth, only the per-day aiPredictorStats
+    // rows are rewritten (upsert) — the lifetime aggregate is instead
+    // re-derived from the per-day rows for the last 14 days in getPredictorTotals.
+    // No cumulative insert happens here anymore.
 
     for (const filter of SETTLE_FILTERS) {
       const b = buckets[filter];
       const winRatePct = b.picks > 0 ? Math.round((b.wins / b.picks) * 100) : 0;
       const roiPct = b.picks > 0 ? Number(((b.units / b.picks) * 100).toFixed(1)) : 0;
       try {
-        await ctx.runMutation(api.predictor.saveDailyPnlSummary, {
+        await ctx.runMutation(internal.predictor.saveDailyPnlSummary, {
           dayKey,
           filter,
           overallWinRatePct: winRatePct,
@@ -469,7 +476,10 @@ export const triggerScoreSync = mutation({
     if (!allowed) {
       return { ok: false, message: 'Score sync is rate limited — try again in a moment.' };
     }
-    await logAuditEvent(ctx, 'user', 'scores.sync', day, { includePastDays: !!args.includePastDays });
+    // P0 SECURITY: score sync is a Master Pass action.
+    await requireMasterPass(ctx);
+    // Storage-minimization: score-sync taps are high-frequency; the rate-limit
+    // bucket already records the attempt, so no audit row is written here.
 
     await ctx.scheduler.runAfter(0, internal.scores.syncScoresAction, { dayKey: day });
     if (args.includePastDays) {
@@ -481,56 +491,28 @@ export const triggerScoreSync = mutation({
   }
 });
 
-// ── Running lifetime totals (native aggregate) ────────────────────────────────
-// Incrementally maintained counters of every graded pick, updated by
-// settleDayPnl. The AccuracyMonitorPanel / PnL summary can read this without
-// re-scanning the match cache.
-export const accumulatePredictorTotals = internalMutation({
-  args: {
-    picks: v.number(),
-    wins: v.number(),
-    losses: v.number(),
-    pushes: v.number(),
-    units: v.number()
-  },
-  handler: async (ctx, args) => {
-    const existing = await ctx.db.query('predictorTotals').first();
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        picks: existing.picks + args.picks,
-        wins: existing.wins + args.wins,
-        losses: existing.losses + args.losses,
-        pushes: existing.pushes + args.pushes,
-        units: Number((existing.units + args.units).toFixed(1)),
-        updatedAt: Date.now()
-      });
-    } else {
-      await ctx.db.insert('predictorTotals', {
-        picks: args.picks,
-        wins: args.wins,
-        losses: args.losses,
-        pushes: args.pushes,
-        units: Number(args.units.toFixed(1)),
-        updatedAt: Date.now()
-      });
-    }
-    return { ok: true };
-  }
-});
-
+// ── Rolling totals (derived, zero extra storage) ────────────────────────────
+// The lifetime-counters doc was removed: settleDayPnl re-runs after every
+// 5-minute score cycle, which made += accumulation double-count massively and
+// predictorTotals grow forever. Totals are now derived on read from the per-day
+// aiPredictorStats rows (bounded by the hygiene sweep to the retention window),
+// which is always accurate for the retained window.
 export const getPredictorTotals = query({
   args: {},
   handler: async (ctx) => {
-    const t = await ctx.db.query('predictorTotals').first();
-    return (
-      t ?? {
-        picks: 0,
-        wins: 0,
-        losses: 0,
-        pushes: 0,
-        units: 0,
-        updatedAt: 0
-      }
-    );
+    const rows = await ctx.db
+      .query('aiPredictorStats')
+      .withIndex('by_filter', (q) => q.eq('filter', 'ALL'))
+      .collect();
+    let picks = 0, wins = 0, losses = 0, pushes = 0, units = 0, updatedAt = 0;
+    for (const r of rows) {
+      picks += r.rows?.[0]?.picksCount ?? 0;
+      wins += r.rows?.[0]?.wins ?? 0;
+      losses += r.rows?.[0]?.losses ?? 0;
+      pushes += r.rows?.[0]?.push ?? 0;
+      units += r.overallUnitsPnl ?? 0;
+      updatedAt = Math.max(updatedAt, r.updatedAt ?? 0);
+    }
+    return { picks, wins, losses, pushes, units: Number(units.toFixed(1)), updatedAt };
   }
 });

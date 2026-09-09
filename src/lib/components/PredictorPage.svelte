@@ -67,6 +67,8 @@
 
   import { authState, canAccessPredictor } from '$lib/authStore.svelte';
   const predictorLocked = $derived(!canAccessPredictor(authState.user));
+  // Server gate message (Master Pass / maintenance) surfaced from Convex errors.
+  let gateMessage = $state('');
 
   import DailyPnlSummary from './DailyPnlSummary.svelte';
   import AccuracyMonitorPanel from './AccuracyMonitorPanel.svelte';
@@ -510,27 +512,49 @@
   }
 
   function subscribe(sid: PredictorSportId, fromDayArg: string, toDayArg: string, epoch: number) {
+    // P0 SERVER GATING: all four queries now require Master Pass server-side.
+    // When the gate rejects (not signed in / no pass / maintenance mode) we show
+    // the friendly upsell instead of a raw error, and stop retrying.
+    const gated = (err: unknown): boolean => {
+      const msg = String((err as any)?.message || err || '');
+      return (
+        msg.includes('sign in') ||
+        msg.includes('Master Pass') ||
+        msg.includes('disabled for maintenance')
+      );
+    };
+    const onErr = (label: string) => (err: unknown) => {
+      if (gated(err)) {
+        if (epoch === sportEpoch) {
+          gateMessage = String((err as any)?.message || err);
+          matches = [];
+          daysInRange = [];
+        }
+      } else {
+        console.warn(`[Predictor] ${label} failed:`, (err as any)?.message || err);
+      }
+    };
     void subscribeConvexQuery<PredictorRun | null>(api.predictor.getActiveRun, { sportId: sid, dayKey: fromDayArg }, (r) => {
       if (r && epoch === sportEpoch) run = r;
-    }).then((u) => {
+    }, onErr('run')).then((u) => {
       if (epoch === sportEpoch) unsubs.push(u);
       else u();
     });
     void subscribeConvexQuery<PredictorDay | null>(api.predictor.getDay, { sportId: sid, dayKey: today }, (d) => {
       if (d && epoch === sportEpoch) day = d;
-    }).then((u) => {
+    }, onErr('day')).then((u) => {
       if (epoch === sportEpoch) unsubs.push(u);
       else u();
     });
     void subscribeConvexQuery<PredictorDay[]>(api.predictor.listDaysInRange, { sportId: sid, fromDay: fromDayArg, toDay: toDayArg }, (d) => {
       if (Array.isArray(d) && epoch === sportEpoch) daysInRange = d;
-    }).then((u) => {
+    }, onErr('days')).then((u) => {
       if (epoch === sportEpoch) unsubs.push(u);
       else u();
     });
     void subscribeConvexQuery<PredictorMatch[]>(api.predictor.listMatchesInRange, { sportId: sid, fromDay: fromDayArg, toDay: toDayArg }, (m) => {
       if (Array.isArray(m) && epoch === sportEpoch) matches = m;
-    }).then((u) => {
+    }, onErr('matches')).then((u) => {
       if (epoch === sportEpoch) unsubs.push(u);
       else u();
     });
@@ -820,8 +844,14 @@ $effect(() => {
         progress={phase === 'analyzing' ? agentProgress : isRunning ? refreshProgress : day?.status === 'ready' ? 100 : 0}
         stage={phase === 'analyzing' ? agentStage : ''}
         running={phase === 'analyzing' || isRunning}
-        error={error || runError}
+        error={error || runError || gateMessage}
       />
+      {#if gateMessage}
+        <div class="gate-note">
+          <a href="/checkout?tier=master">Upgrade to Master Pass</a>
+          or <a href="/auth">sign in</a> with the account that purchased it.
+        </div>
+      {/if}
 
       {#if phase === 'select'}
         <div class="selection-bar">
@@ -1133,6 +1163,8 @@ $effect(() => {
   .pw-point :global(svg) { color: var(--accent); flex-shrink: 0; }
   .pw-cta { width: 100%; }
   .pw-hint { font-size: 11.5px; color: var(--c-muted, #94a3b8); margin: 12px 0 0; }
+  .gate-note { font-size: 12.5px; color: var(--c-muted, #94a3b8); margin: 10px 0 0; text-align: center; }
+  .gate-note a { color: var(--accent, #6366f1); text-decoration: underline; }
 
   .predictor-head {
     display: flex;

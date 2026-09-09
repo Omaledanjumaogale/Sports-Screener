@@ -71,16 +71,10 @@ export async function fetchDailyPnlSummary(dayKey: string, filter: 'ALL' | 'MONE
   return queryConvex(api.predictor.getDailyPnlSummary, { dayKey, filter });
 }
 
-export async function saveDailyPnlSummary(data: {
-  dayKey: string;
-  filter: 'ALL' | 'MONEYLINE' | 'SPREAD' | 'TOTAL';
-  overallWinRatePct: number;
-  overallUnitsPnl: number;
-  overallRoiPct: number;
-  rows: any;
-}) {
-  return callConvex(api.predictor.saveDailyPnlSummary, data);
-}
+// saveDailyPnlSummary was moved server-side (internalMutation): the PnL
+// settlement engine in convex/scores.ts is the only writer, so the client
+// wrapper was removed (P0: unauthenticated premium writes are no longer
+// possible).
 
 export async function fetchActiveRun(sportId: PredictorSportId, dayKey: string): Promise<PredictorRun | null> {
   return queryConvex<PredictorRun | null>(api.predictor.getActiveRun, { sportId, dayKey });
