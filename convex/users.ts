@@ -297,16 +297,28 @@ export const registerProfile = mutation({
 export const getProfile = query({
   args: { email: v.string() },
   handler: async (ctx, args) => {
+    const requested = args.email.trim().toLowerCase();
+    // PII gate: only the profile owner (or the super admin) may read a profile,
+    // and even then sensitive contact fields (mobile, dob, stateOfResidence)
+    // are stripped — they were collected for the donation flow only.
+    const identity = await ctx.auth.getUserIdentity();
+    const details = await identityDetails(ctx, identity);
+    const callerEmail = details?.email?.trim().toLowerCase();
+    if (!callerEmail || (callerEmail !== requested && !isSuperAdminEmail(callerEmail))) {
+      throw new Error('Not authorized to read this profile.');
+    }
+
     const profile = await ctx.db
       .query('userProfiles')
-      .withIndex('by_email', (q) => q.eq('email', args.email.trim().toLowerCase()))
+      .withIndex('by_email', (q) => q.eq('email', requested))
       .first();
 
     if (!profile) return null;
 
-    const isAdmin = isSuperAdminEmail(args.email);
+    const isAdmin = isSuperAdminEmail(requested);
+    const { mobile: _mobile, dob: _dob, stateOfResidence: _state, ...safe } = profile;
     return {
-      ...profile,
+      ...safe,
       isSubscribed: isAdmin || profile.isSubscribed
     };
   }
