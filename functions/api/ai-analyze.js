@@ -157,6 +157,24 @@ export async function onRequestPost(context) {
     }
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      // Deployment diagnostic: POST { diag: true } reports provider key
+      // visibility as booleans (never values) — passes the POST-only gate.
+      if (body && body.diag) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            diag: true,
+            keys: {
+              agnes: !!(env.AGNES_AI_KEY || env.VITE_AGNES_AI_KEY),
+              openrouter: !!(env.OPENROUTER_API_KEY || env.VITE_OPENROUTER_API_KEY),
+              cfAccount: !!(env.CF_ACCOUNT_ID || env.VITE_CF_ACCOUNT_ID),
+              cfToken: !!(env.CF_WORKER_AI_TOKEN || env.VITE_CF_WORKER_AI_TOKEN),
+              aiBinding: !!env.AI
+            }
+          }),
+          { headers: corsHeaders }
+        );
+      }
       return new Response(
         JSON.stringify({ success: false, error: 'messages array is required' }),
         { status: 400, headers: corsHeaders }
@@ -311,6 +329,24 @@ export async function onRequestOptions() {
       'Access-Control-Allow-Headers': 'Content-Type'
     }
   });
+}
+
+// Diagnostic: which provider keys does this deployment see? (booleans only)
+export async function onRequestGet(context) {
+  const { env } = context;
+  return new Response(
+    JSON.stringify({
+      success: true,
+      keys: {
+        agnes: !!(env.AGNES_AI_KEY || env.VITE_AGNES_AI_KEY),
+        openrouter: !!(env.OPENROUTER_API_KEY || env.VITE_OPENROUTER_API_KEY),
+        cfAccount: !!(env.CF_ACCOUNT_ID || env.VITE_CF_ACCOUNT_ID),
+        cfToken: !!(env.CF_WORKER_AI_TOKEN || env.VITE_CF_WORKER_AI_TOKEN),
+        aiBinding: !!env.AI
+      }
+    }),
+    { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+  );
 }
 
 // Any non-POST method (GET/HEAD/PUT/DELETE...) gets a clean 405 JSON instead of
