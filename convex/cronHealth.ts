@@ -48,17 +48,21 @@ export const getHealth = query({
     const freshness = {
       // 26h: daily jobs may legitimately skip to the next slot.
       daily: 26 * 3600_000,
-      // 20 min: 5-min score sync with generous jitter allowance.
-      frequent: 20 * 60_000
+      // 30 min: 15-min live-score sync with generous jitter allowance.
+      frequent: 30 * 60_000,
+      // 14h: 12h past-history settlement cycle (cadence + 2h margin).
+      history: 14 * 3600_000,
+      // 2h: hourly retention purge (cadence + 1h margin).
+      retention: 2 * 3600_000
     };
     const isStale = (lastRunAt: number, max: number) => lastRunAt > 0 && now - lastRunAt > max;
     const flags = {
       orchestratorStale: isStale(byJob.orchestrator.lastRunAt, freshness.daily),
       scoreSyncStale: isStale(byJob.scoreSync.lastRunAt, freshness.frequent),
       presenceStale: isStale(byJob.presence.lastRunAt, freshness.frequent),
-      retentionStale: isStale(byJob.retention.lastRunAt, freshness.daily),
+      retentionStale: isStale(byJob.retention.lastRunAt, freshness.retention),
       purgeStale: isStale(byJob.purge.lastRunAt, freshness.daily),
-      pastHistoryStale: isStale(byJob.pastHistory.lastRunAt, freshness.frequent)
+      pastHistoryStale: isStale(byJob.pastHistory.lastRunAt, freshness.history)
     };
     return { jobs: byJob, flags, now };
   }
