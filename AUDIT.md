@@ -1,7 +1,7 @@
 # PulseOdds Sports Screener — Audit & Convex Synchronization Report
 
 > Generated: Aug 2026 · App: SvelteKit static SPA (Cloudflare Pages) + Convex backend
-> Convex deployment: `https://modest-lark-218.eu-west-1.convex.cloud` (`prod:modest-lark-218`)
+> Convex deployment: `https://gallant-minnow-735.eu-west-1.convex.cloud` (`prod:gallant-minnow-735`)
 
 ---
 
@@ -199,7 +199,7 @@ The debate-level `realWinChanceTag` is computed from qualified picks only.
 ## 6. Verification performed
 
 - `npx convex typecheck` ✅
-- `npx convex deploy` ✅ → deployed to `https://modest-lark-218.eu-west-1.convex.cloud`
+- `npx convex deploy` ✅ → deployed to `https://gallant-minnow-735.eu-west-1.convex.cloud`
 - Live smoke against deployed backend ✅ (drafts save/get/remove, savedScreeners save/list/remove incl.
   `aiInsights`, users:checkSubscription, auth:signIn action present)
 - `npm run check` ✅ (0 errors/warnings)
@@ -221,3 +221,32 @@ npm run wrangler:deploy  # deploy the SPA to Cloudflare Pages
 - **Sitemap corrections:** removed the duplicated `/predictor/baseball` entry, added the missing `/predictor/basketball`, and added the public `/instant-football`, `/instant-basketball`, `/vfootball` screener routes.
 - **AI endpoint budget clamps (`/api/ai-analyze`):** `max_tokens` clamped to [200, 4000], `temperature` to [0, 1], message array capped at the 40 most recent entries and message content at 64k chars — a single request can no longer burn an unbounded share of provider quota.
 - **Workspace canonicalized:** the duplicate stale root-level app tree (and its half-finished merge) was retired; this repository is now the single source of truth and the historical planning docs live in `docs/archive/`.
+## 9. Backend migration: Convex gallant-minnow-735 + Cloudflare Workers AI (Sep 18, 2026)
+
+**Deployment switch (modest-lark-218 -> gallant-minnow-735):**
+- All hardcoded endpoints migrated: convex/auth.config.ts, src/lib/convexClient.ts (default fallback),
+  src/app.html (error-report), e2e/smoke.mjs, README.md, AUDIT.md; .env.local fully re-pointed.
+- 19 server env vars set on prod:gallant-minnow-735 via deploy key (LLM keys, CF Workers AI,
+  Flutterwave secrets, admin/tester credentials, scraper keys, PREDICTOR_DAILY_CAP, RETENTION_HOURS).
+- Full schema + functions + crons deployed (npx convex deploy) - health endpoint 200 OK, all flags green.
+- Cloudflare Pages (sports-screener): 20 env vars synced to production AND preview via API
+  (public VITE_* config + server-side Pages-Function keys). Applies on next Pages deployment.
+- wrangler.toml added: native Workers AI binding (env.AI) for functions/api/ai-analyze.js,
+  plus CF_ACCOUNT_ID/CF_WORKER_AI_TOKEN/OPENROUTER_API_KEY wired server-side everywhere.
+- convex/llm.ts: provider chain extended with Cloudflare Workers AI (tertiary) via the
+  OpenAI-compatible REST endpoint; response parser accepts the native result.response shape.
+
+**Database-usage reduction (12h retention + write de-amplification):**
+- convex/retentionPolicy.ts: new retentionMsFromEnv() accepts RETENTION_HOURS (sub-day windows)
+  and fractional PREDICTOR_RETENTION_DAYS (previously Math.floor(0.5)=0 silently disabled purging).
+- convex/retention.ts: purge cutoff computed from retentionMs(); predictorDays purge now guarded
+  by lastRefreshAt so only genuinely stale day rows are deleted.
+- convex/crons.ts: live-score sync 5m -> 15m; past-history settlement 3h -> 12h; NEW hourly
+  retention pass (predictor-retention-hourly) so 12h policies actually purge. RETENTION_HOURS=12 set
+  on the deployment: finished matches + verdicts + stale day rows now clear ~12h after kickoff.
+- PredictorPage.svelte: opening the predictor no longer auto-fires the scrape/LLM pipeline
+  (autoSeed removed) nor a score sync (on-mount syncScoresNow removed). Seeding is cron-driven
+  plus explicit user action only. Presence heartbeat 30s -> 60s (window 90s keeps users online).
+
+**Verification:** Convex tsc 0 errors - svelte-check 0/0 - vitest 19 files / 190 passed -
+production build OK - prod:gallant-minnow-735 /api/health 200.

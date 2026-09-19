@@ -9,7 +9,7 @@ const http = httpRouter();
 auth.addHttpRoutes(http);
 
 // Flutterwave Webhook Listener
-// Webhook URL: https://modest-lark-218.eu-west-1.convex.site/webhooks/flutterwave
+// Webhook URL: https://gallant-minnow-735.eu-west-1.convex.site/webhooks/flutterwave
 // Secret Hash is read from the FLW_SECRET_HASH Convex environment variable.
 http.route({
   path: "/webhooks/flutterwave",

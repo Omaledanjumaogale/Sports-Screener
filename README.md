@@ -62,7 +62,7 @@ The application features a **two-tiered hybrid storage engine**:
                                               | (Realtime HTTP/WS)     | (Mutations/Queries)
                                               v                        v
 +-----------------------------------------------------------------------------------+
-| Convex Cloud Backend (https://modest-lark-218.eu-west-1.convex.cloud)             |
+| Convex Cloud Backend (https://gallant-minnow-735.eu-west-1.convex.cloud)             |
 |                                                                                   |
 |  +---------------+  +------------------+  +--------------+  +------------------+  |
 |  | drafts Table  |  | savedScreeners   |  | userProfiles |  | predictor Tables |  |
@@ -212,8 +212,8 @@ Create a `.env.local` file in the root directory:
 
 ```env
 # Convex Deployment Settings
-CONVEX_DEPLOYMENT=prod:modest-lark-218
-VITE_CONVEX_URL=https://modest-lark-218.eu-west-1.convex.cloud
+CONVEX_DEPLOYMENT=prod:gallant-minnow-735
+VITE_CONVEX_URL=https://gallant-minnow-735.eu-west-1.convex.cloud
 
 # Admin / Tester identities — REQUIRED (no hardcoded fallbacks remain in code).
 #   Client build (VITE_*): read by src/lib/authStore.svelte.ts

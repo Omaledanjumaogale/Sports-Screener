@@ -54,7 +54,7 @@ export function getSessionId(): string {
   return id;
 }
 
-const DEFAULT_URL = 'https://modest-lark-218.eu-west-1.convex.cloud';
+const DEFAULT_URL = 'https://gallant-minnow-735.eu-west-1.convex.cloud';
 
 export function getConvexUrl(): string {
   try {

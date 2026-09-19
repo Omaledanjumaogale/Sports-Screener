@@ -38,7 +38,7 @@ try {
   check('predictor gated for anonymous users', locked && !leaked);
 
   // 4. Health endpoint (Convex) responds.
-  const convexSite = process.env.E2E_CONVEX_SITE_URL || 'https://modest-lark-218.eu-west-1.convex.site';
+  const convexSite = process.env.E2E_CONVEX_SITE_URL || 'https://gallant-minnow-735.eu-west-1.convex.site';
   let healthOk = false;
   try {
     const res = await page.request.get(`${convexSite}/api/health`, { timeout: 15000 });
