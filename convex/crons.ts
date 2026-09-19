@@ -63,12 +63,12 @@ crons.daily('predictor-seed-morning-volleyball', { hourUTC: 7, minuteUTC: 22 }, 
 // ── Live scoreline synchronization — every 5 minutes ──────────────────────────
 // Synchronizes real-time live scorelines and score updates for today's active
 // matches across all sports so the application UI stays current in real time.
-crons.interval('predictor-sync-live-scores', { minutes: 5 }, internal.scores.syncScoresAction, {});
+crons.interval('predictor-sync-live-scores', { minutes: 15 }, internal.scores.syncScoresAction, {});
 
 // ── Past match history & outcome settlement — every 3 hours ────────────────────
 // Scans completed matches from past days, fetches final scorelines, updates match
 // statuses to 'finished', and settles PnL historical summaries.
-crons.interval('predictor-sync-past-history', { minutes: 180 }, internal.scores.syncPastHistoryAction, {});
+crons.interval('predictor-sync-past-history', { minutes: 720 }, internal.scores.syncPastHistoryAction, {});
 
 // ── Realtime presence sweep — every 10 minutes ───────────────────────────────
 // Removes heartbeat rows older than the presence window so the online counter
@@ -80,6 +80,10 @@ crons.interval('presence-sweep', { minutes: 10 }, internal.presence.sweepStalePr
 // is configured, outdated finished matches (and their verdicts) are wiped once a
 // day per the retention policy; otherwise this job is a no-op.
 crons.daily('predictor-retention-finished', { hourUTC: 3, minuteUTC: 30 }, internal.retention.purgeFinishedMatchesAction, {});
+
+// Sub-day retention (RETENTION_HOURS, e.g. 12h) needs an hourly pass; the
+// daily job above remains as a catch-up for day-scale policies.
+crons.hourly('predictor-retention-hourly', { minuteUTC: 24 }, internal.retention.purgeFinishedMatchesAction, {});
 
 // ── Database hygiene sweep — hourly, bounded & incremental ────────────────────
 // Each pass deletes at most ~1200 expired/over-retention rows (oldest days

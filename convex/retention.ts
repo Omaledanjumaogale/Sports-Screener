@@ -11,27 +11,32 @@
 
 import { internalMutation, internalAction } from './_generated/server';
 import { internal } from './_generated/api';
-import { retentionDaysFromEnv, isStaleFinishedMatch } from './retentionPolicy';
+import { retentionDaysFromEnv, retentionMsFromEnv, isStaleFinishedMatch } from './retentionPolicy';
+
+const MS_PER_DAY = 86_400_000;
 
 declare const process: { env: Record<string, string | undefined> };
 
 /** Configured retention window in days. 0 (or unset/invalid) = keep forever. */
-export function retentionDays(): number {
-  return retentionDaysFromEnv(process.env);
+/** Configured retention window in ms. 0 (or unset/invalid) = keep forever. */
+export function retentionMs(): number {
+  const ms = retentionMsFromEnv(process.env);
+  return ms > 0 ? ms : retentionDaysFromEnv(process.env) * MS_PER_DAY;
 }
 
 /**
  * Purge finished matches (and their verdicts) that ended before the retention
- * cutoff. Always a no-op unless PREDICTOR_RETENTION_DAYS is explicitly set —
- * the default policy is indefinite storage.
+   * cutoff before the configured retention window elapses (RETENTION_HOURS /
+   * PREDICTOR_RETENTION_DAYS - supports sub-day windows such as 12h). No policy
+   * configured = indefinite storage.
  */
 export const purgeFinishedMatches = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const days = retentionDays();
-    if (days <= 0) return { purged: 0, verdictsPurged: 0, cutoff: null, policy: 'indefinite' };
+    const ms = retentionMs();
+    if (ms <= 0) return { purged: 0, verdictsPurged: 0, cutoff: null, policy: 'indefinite' };
 
-    const cutoff = Date.now() - days * 86_400_000;
+    const cutoff = Date.now() - retentionMs();
     const cutoffDay = new Date(cutoff).toISOString().slice(0, 10);
 
     const all = await ctx.db.query('predictorMatches').collect();
@@ -53,13 +58,14 @@ export const purgeFinishedMatches = internalMutation({
 
     // Finished matches older than the retention window no longer need their
     // predictorDays rows (they only describe the schedule cache).
-    const oldDays = await ctx.db
+    const oldDaysAll = await ctx.db
       .query('predictorDays')
       .withIndex('by_day', (q) => q.lt('dayKey', cutoffDay))
       .collect();
+    const oldDays = oldDaysAll.filter((d) => (d.lastRefreshAt ?? 0) < cutoff);
     for (const d of oldDays) await ctx.db.delete(d._id);
 
-    return { purged: staleFinished.length, verdictsPurged, cutoff, policy: `${days}d` };
+    return { purged: staleFinished.length, verdictsPurged, cutoff, policy: `${(retentionMs() / 3_600_000).toFixed(1)}h` };
   }
 });
 

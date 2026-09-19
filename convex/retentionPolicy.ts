@@ -7,6 +7,22 @@
  * Configured retention window in days, parsed from an env bag.
  * 0 (or unset/invalid/negative) = keep everything forever (default policy).
  */
+/**
+ * Configured retention window in MILLISECONDS, parsed from an env bag.
+ * Accepts fractional days (0.5 = 12h) or an explicit RETENTION_HOURS env.
+ * Returns 0 when no valid policy is configured.
+ */
+export function retentionMsFromEnv(env: Record<string, string | undefined>): number {
+  const rawHours = env?.RETENTION_HOURS?.trim();
+  if (rawHours) {
+    const h = Number(rawHours);
+    if (Number.isFinite(h) && h > 0) return Math.floor(h * 3_600_000);
+  }
+  const raw = env?.PREDICTOR_RETENTION_DAYS?.trim();
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n * 86_400_000) : 0;
+}
+
 export function retentionDaysFromEnv(env: Record<string, string | undefined>): number {
   const raw = env?.PREDICTOR_RETENTION_DAYS?.trim();
   const n = Number(raw);
