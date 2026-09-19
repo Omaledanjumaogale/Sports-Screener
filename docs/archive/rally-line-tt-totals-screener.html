@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rally Line — TT Enterprise Multi-Market Screener</title>
+<style>
+  :root{
+    --bg:#0A1420; --bg-glow: radial-gradient(120% 140% at 50% -10%, #142238 0%, #0A1420 55%);
+    --panel:#101C2B; --panel-alt:#16283B; --panel-alt2:#1B3247; --line:#223349;
+    --ink:#EAF2F5; --muted:#7C93A8; --paddle:#E8483A; --ball:#FF8A3D;
+    --green:#34C77B; --green-bg:rgba(52,199,123,0.14);
+    --red:#FF5C5C; --red-bg:rgba(255,92,92,0.14);
+    --amber:#FFB648; --amber-bg:rgba(255,182,72,0.14);
+    --empty:#4A5B6E; --empty-bg:rgba(74,91,110,0.14); --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg-glow), var(--bg);background-attachment:fixed;color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 70px;}
+  header{padding:18px 4px 22px;border-bottom:1px solid var(--line);margin-bottom:18px;}
+  .eyebrow{font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--ball);font-weight:700;margin:0 0 6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .eyebrow .badge{background:var(--panel-alt2);border:1px solid var(--paddle);color:var(--paddle);border-radius:100px;padding:2px 8px;font-size:10px;letter-spacing:0.08em;}
+  h1{font-size:clamp(22px,5vw,32px);font-weight:800;letter-spacing:-0.01em;margin:0 0 8px;line-height:1.1;}
+  h1 .dot{color:var(--paddle);}
+  .sub{color:var(--muted);font-size:13.5px;line-height:1.55;max-width:75ch;margin:0;}
+  .teamstrip{display:flex;align-items:center;gap:10px;margin:18px 0 22px;flex-wrap:wrap;}
+  .team-input{flex:1;min-width:120px;}
+  .team-input input{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);color:var(--ink);
+    padding:10px 12px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;}
+  .team-input input::placeholder{color:var(--muted);text-transform:none;font-weight:500;letter-spacing:normal;}
+  .vs{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:0.1em;padding:0 2px;}
+  .master{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:22px;}
+  .master-label{font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ball);font-weight:700;margin-bottom:8px;}
+  .master-headline{font-size:15.5px;font-weight:700;line-height:1.4;}
+  .master-headline .hl-green{color:var(--green);} .master-headline .hl-amber{color:var(--amber);} .master-headline .hl-red{color:var(--red);}
+  .section-h{font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--ball);margin:30px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line);}
+  .section-h .sh-note{display:block;color:var(--muted);font-weight:500;letter-spacing:normal;text-transform:none;font-size:11.5px;margin-top:4px;}
+  details.mkt{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+  details.mkt[open]{border-color:var(--panel-alt2);}
+  details.mkt > summary{list-style:none;cursor:pointer;padding:13px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:700;font-size:13px;}
+  details.mkt > summary::-webkit-details-marker{display:none;}
+  .sum-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .sum-right{color:var(--muted);font-size:12px;}
+  details.mkt > summary::after{content:'▾';color:var(--muted);font-size:11px;transition:transform .2s ease;flex-shrink:0;}
+  details.mkt[open] > summary::after{transform:rotate(180deg);}
+  .badge-primary{background:rgba(232,72,58,0.16);color:var(--paddle);border:1px solid rgba(232,72,58,0.35);border-radius:100px;padding:2px 8px;font-size:9px;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;white-space:nowrap;}
+  .badge-support{background:var(--empty-bg);color:var(--muted);border:1px solid var(--line);border-radius:100px;padding:2px 8px;font-size:9px;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;white-space:nowrap;}
+  .mkt-body{padding:0 14px 14px;}
+  .tier-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--panel-alt);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:6px;}
+  .tier-line{display:flex;gap:6px;align-items:center;}
+  input[type=number], select{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;
+    background:var(--panel-alt2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:7px 8px;width:74px;font-size:13.5px;}
+  select{width:auto;min-width:78px;}
+  .custom-line{width:72px;}
+  input[type=number]:focus, select:focus{outline:none;border-color:var(--ball);box-shadow:0 0 0 2px rgba(255,138,61,0.25);}
+  .tier-odds{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}
+  .tier-odds label, .tier-line label{display:flex;flex-direction:column;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.03em;gap:2px;}
+  .profile-results{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);}
+  .res-empty{font-size:11.5px;color:var(--muted);}
+  .res-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:13px;}
+  .res-pick{font-weight:800;}
+  .res-prob{font-family:ui-monospace,monospace;font-weight:800;font-size:16px;}
+  .res-prob.green{color:var(--green);} .res-prob.amber{color:var(--amber);} .res-prob.red{color:var(--red);}
+  .res-margin{font-size:10.5px;color:var(--muted);font-family:ui-monospace,monospace;}
+  .res-mini{font-size:10.5px;color:var(--muted);margin-top:5px;}
+  .intel-panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin:22px 0;}
+  .intel-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  @media(max-width:700px){.intel-grid{grid-template-columns:repeat(2,1fr);}}
+  .intel-item{background:var(--panel-alt);border:1px solid var(--line);border-radius:8px;padding:10px;}
+  .intel-label{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;}
+  .intel-value{font-size:14.5px;font-weight:800;font-family:ui-monospace,monospace;}
+  .flag-box{background:var(--panel-alt);border:1px solid var(--ball);border-radius:8px;padding:10px 12px;font-size:11.5px;line-height:1.45;margin-top:10px;color:var(--ink);}
+  .verdict-panel{background:var(--panel);border:1px solid var(--paddle);border-radius:14px;padding:18px 20px;margin:22px 0;}
+  .verdict-title{font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--paddle);font-weight:800;margin-bottom:12px;}
+  .verdict-hero{background:var(--panel-alt2);border-radius:10px;padding:14px;}
+  .verdict-hero-label{font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--ball);font-weight:700;margin-bottom:4px;}
+  .verdict-hero-pick{font-size:18px;font-weight:800;margin-bottom:3px;}
+  .verdict-hero-sub{font-size:11px;color:var(--muted);font-family:ui-monospace,monospace;line-height:1.5;}
+  table.vtable{width:100%;border-collapse:collapse;font-size:11px;margin-top:14px;}
+  table.vtable th{text-align:left;color:var(--muted);font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:0.04em;padding:6px;border-bottom:1px solid var(--line);}
+  table.vtable td{padding:7px 6px;border-bottom:1px solid var(--line);font-family:ui-monospace,monospace;}
+  table.vtable tr:last-child td{border-bottom:none;}
+  .save-note{font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.5;}
+  footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.65;}
+  footer .fver{color:var(--ball);font-weight:700;}
+  .reset-btn{background:transparent;border:1px solid var(--line);color:var(--muted);font-size:12px;padding:9px 16px;border-radius:8px;cursor:pointer;margin:18px 0 0;}
+  .reset-btn:hover{border-color:var(--paddle);color:var(--paddle);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Pre-match odds screener <span class="badge">Enterprise · v3 · Multi-Market</span></p>
+    <h1>Rally Line<span class="dot"> · </span>TT Screener</h1>
+    <p class="sub">Enter odds exactly as your bookmaker shows them across the Full Match and 1st Set tabs. Every market screens itself live — normalized probability, bookmaker margin, and a market-fair EV read — and the Final Verdict panel at the bottom ranks every safest-market pick to surface one headline selection. Runs fully offline once loaded; inputs auto-save in this browser tab until you clear them.</p>
+  </header>
+
+  <div class="teamstrip">
+    <div class="team-input"><input id="playerA" type="text" placeholder="Player A (home)"></div>
+    <span class="vs">VS</span>
+    <div class="team-input"><input id="playerB" type="text" placeholder="Player B (away)"></div>
+  </div>
+
+  <div class="master">
+    <div class="master-label">Quick read</div>
+    <div class="master-headline" id="masterHeadline">Enter odds below — a recommendation will build here. Full detail is in the Final Verdict panel at the bottom.</div>
+  </div>
+
+  <div class="section-h">Full Match Markets<span class="sh-note">1X2, game total, player totals, handicaps, total sets, correct score</span></div>
+  <div id="fullMarkets"></div>
+
+  <div class="section-h">1st Set Markets<span class="sh-note">set winner, set total, player set totals, set handicap</span></div>
+  <div id="set1Markets"></div>
+
+  <div class="intel-panel">
+    <div class="verdict-title" style="color:var(--ball);">Match Shape Intelligence</div>
+    <div class="intel-grid" id="intelGrid">
+      <div class="intel-item"><div class="intel-label">Sweep probability (3-0/0-3)</div><div class="intel-value">—</div></div>
+      <div class="intel-item"><div class="intel-label">4-set probability (3-1/1-3)</div><div class="intel-value">—</div></div>
+      <div class="intel-item"><div class="intel-label">5-set probability (3-2/2-3)</div><div class="intel-value">—</div></div>
+      <div class="intel-item"><div class="intel-label">Total Sets lean</div><div class="intel-value">—</div></div>
+    </div>
+    <div id="consistencyFlag"></div>
+  </div>
+
+  <div class="verdict-panel">
+    <div class="verdict-title">Final Verdict — Safest Bet &amp; Baseline Margin</div>
+    <div class="verdict-hero" id="verdictHero">
+      <div class="verdict-hero-label">Safest selection</div>
+      <div class="verdict-hero-pick" style="color:var(--muted);">Enter odds in at least one market above</div>
+    </div>
+    <table class="vtable">
+      <thead><tr><th>Market</th><th>Pick</th><th>Prob</th><th>Odds</th><th>EV*</th></tr></thead>
+      <tbody id="verdictTableBody"><tr><td colspan="5" style="color:var(--muted);">No data yet</td></tr></tbody>
+    </table>
+    <div class="save-note">*EV is calculated from this market's own de-vigged (margin-removed) probability against its own raw price — it shows how much bookmaker margin a pick carries, not an independent statistical edge. It will typically read at or below 0%; the closest-to-zero figure is the lowest-vig option among your candidates, not a guaranteed-profit bet. See the documentation's "What EV Here Actually Means" section before staking anything.</div>
+  </div>
+
+  <button class="reset-btn" onclick="resetAll()">Clear all fields &amp; saved data</button>
+
+  <footer>
+    <span class="fver">Rally Line v3 (Enterprise Multi-Market Edition)</span> — screening tool only; ranks and flags options based on the odds you enter. No combination of odds-reading produces a guaranteed edge over a bookmaker's margin — genuine positive EV requires probability information independent of the market itself, which this tool does not have. Not financial advice. Inputs auto-save to this browser tab's local storage so they survive accidental navigation; this only works when the file is opened directly in a standard browser (not inside a sandboxed preview) — see documentation. Works fully offline once loaded — no data leaves this page.
+  </footer>
+
+</div>
+
+<script>
+/* ===================== CONFIG ===================== */
+const FULL_TOTAL_LINES   = [66.5,68.5,69.5,70.5,71.5,72.5,73.5,74.5,75.5,76.5,77.5,78.5,79.5,80.5,82.5,84.5];
+const PLAYER_TOTAL_LINES = [24.5,26.5,28.5,30.5,31.5,32.5,34.5,36.5,38.5,39.5,40.5,42.5,44.5,46.5];
+const SET_TOTAL_LINES    = [14.5,15.5,16.5,17.5,18.5,19.5,20.5,21.5,22.5];
+const SET_PLAYER_LINES   = [6.5,7.5,8.5,9.5,10.5,11.5,12.5,13.5];
+const FULL_HCP_LINES     = [2.5,3.5,4.5,5.5,6.5,7.5,8.5,9.5,10.5,11.5,12.5];
+const SET_HCP_LINES      = [1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5];
+const SETS_HCP_LINES     = [1.5,2.5,3.5];
+const TOTAL_SETS_LINES   = [2.5,3.5,4.5];
+
+const MARKET_DEFS = [
+  {id:'matchWinner',  section:'full', title:'Match Winner (1X2)',                     kind:'winner',  priority:'primary', open:true},
+  {id:'fullTotal',    section:'full', title:'Full Match — Total Points (Game Total)', kind:'ou',       tiers:3, lines:FULL_TOTAL_LINES,   priority:'primary', open:true},
+  {id:'fullP1',       section:'full', title:'Full Match — Player A Total Points',     kind:'ou',       tiers:3, lines:PLAYER_TOTAL_LINES, priority:'primary', open:true},
+  {id:'fullP2',       section:'full', title:'Full Match — Player B Total Points',     kind:'ou',       tiers:3, lines:PLAYER_TOTAL_LINES, priority:'primary', open:true},
+  {id:'fullHandicap', section:'full', title:'Full Match — Points Handicap',           kind:'handicap', tiers:2, lines:FULL_HCP_LINES,     priority:'support', open:false},
+  {id:'setsHandicap', section:'full', title:'Full Match — Sets Handicap',             kind:'handicap', tiers:3, lines:SETS_HCP_LINES,     priority:'support', open:false},
+  {id:'totalSets',    section:'full', title:'Full Match — Total Sets Played',         kind:'ou',       tiers:2, lines:TOTAL_SETS_LINES,   priority:'support', open:false},
+  {id:'totalEven',    section:'full', title:'Full Match — Total Sets Odd / Even',     kind:'yesno',    priority:'support', open:false},
+  {id:'correctScore', section:'full', title:'Full Match — Correct Score (by sets)',   kind:'correctscore', priority:'support', open:false},
+  {id:'setWinner',    section:'set1', title:'1st Set Winner (1X2)',                   kind:'winner',   priority:'primary', open:true},
+  {id:'setTotal',     section:'set1', title:'1st Set — Total Points',                 kind:'ou',       tiers:3, lines:SET_TOTAL_LINES,    priority:'primary', open:true},
+  {id:'setP1',        section:'set1', title:'1st Set — Player A Total Points',        kind:'ou',       tiers:3, lines:SET_PLAYER_LINES,   priority:'primary', open:true},
+  {id:'setP2',        section:'set1', title:'1st Set — Player B Total Points',        kind:'ou',       tiers:3, lines:SET_PLAYER_LINES,   priority:'primary', open:true},
+  {id:'setHandicap',  section:'set1', title:'1st Set — Points Handicap',              kind:'handicap', tiers:2, lines:SET_HCP_LINES,      priority:'support', open:false}
+];
+const PRIMARY_IDS = MARKET_DEFS.filter(d=>d.priority==='primary').map(d=>d.id);
+const STORAGE_KEY = 'rallyLineTT_v3_state';
+
+/* ===================== BUILD ===================== */
+function lineOptions(lines){
+  return '<option value="">—</option>' + lines.map(l=>`<option value="${l}">${l}</option>`).join('') + '<option value="custom">Custom…</option>';
+}
+function buildOU(def){
+  let rows='';
+  for(let t=1;t<=def.tiers;t++){
+    rows += `<div class="tier-row">
+      <div class="tier-line">
+        <select id="mkt_${def.id}_t${t}_line" onchange="toggleCustom(this,'mkt_${def.id}_t${t}_custom')">${lineOptions(def.lines)}</select>
+        <input type="number" step="0.5" class="custom-line" id="mkt_${def.id}_t${t}_custom" style="display:none" placeholder="line">
+      </div>
+      <div class="tier-odds">
+        <label>Over<input type="number" step="0.01" min="1" id="mkt_${def.id}_t${t}_over"></label>
+        <label>Under<input type="number" step="0.01" min="1" id="mkt_${def.id}_t${t}_under"></label>
+      </div>
+    </div>`;
+  }
+  return rows;
+}
+function buildHandicap(def){
+  let rows='';
+  for(let t=1;t<=def.tiers;t++){
+    rows += `<div class="tier-row">
+      <div class="tier-line">
+        <select id="mkt_${def.id}_t${t}_line" onchange="toggleCustom(this,'mkt_${def.id}_t${t}_custom')">${lineOptions(def.lines)}</select>
+        <input type="number" step="0.5" class="custom-line" id="mkt_${def.id}_t${t}_custom" style="display:none" placeholder="line">
+      </div>
+      <div class="tier-odds">
+        <label>Home<input type="number" step="0.01" min="1" id="mkt_${def.id}_t${t}_home"></label>
+        <label>Away<input type="number" step="0.01" min="1" id="mkt_${def.id}_t${t}_away"></label>
+      </div>
+    </div>`;
+  }
+  return rows;
+}
+function buildWinner(def){
+  return `<div class="tier-row"><div class="tier-odds" style="margin-left:0;">
+    <label>Home<input type="number" step="0.01" min="1" id="mkt_${def.id}_home"></label>
+    <label>Away<input type="number" step="0.01" min="1" id="mkt_${def.id}_away"></label>
+  </div></div>`;
+}
+function buildYesNo(def){
+  return `<div class="tier-row"><div class="tier-odds" style="margin-left:0;">
+    <label>Yes (Even)<input type="number" step="0.01" min="1" id="mkt_${def.id}_yes"></label>
+    <label>No (Odd)<input type="number" step="0.01" min="1" id="mkt_${def.id}_no"></label>
+  </div></div>`;
+}
+function buildCorrectScore(def){
+  const pairs=[['30','3-0'],['03','0-3'],['31','3-1'],['13','1-3'],['32','3-2'],['23','2-3']];
+  return `<div class="tier-row" style="flex-direction:column;align-items:stretch;">
+    <div class="tier-odds" style="margin-left:0;flex-wrap:wrap;">
+      ${pairs.map(p=>`<label>${p[1]}<input type="number" step="0.01" min="1" id="mkt_${def.id}_${p[0]}"></label>`).join('')}
+    </div>
+  </div>`;
+}
+function buildMarkets(){
+  const fullEl=document.getElementById('fullMarkets'), setEl=document.getElementById('set1Markets');
+  MARKET_DEFS.forEach(def=>{
+    let body;
+    if(def.kind==='ou') body=buildOU(def);
+    else if(def.kind==='handicap') body=buildHandicap(def);
+    else if(def.kind==='winner') body=buildWinner(def);
+    else if(def.kind==='yesno') body=buildYesNo(def);
+    else if(def.kind==='correctscore') body=buildCorrectScore(def);
+    const badge = def.priority==='primary' ? '<span class="badge-primary">Priority</span>' : '<span class="badge-support">Context</span>';
+    const html = `<details class="mkt" ${def.open?'open':''}>
+      <summary><span class="sum-left">${def.title} ${badge}</span></summary>
+      <div class="mkt-body">${body}<div class="profile-results" id="res_${def.id}"><div class="res-empty">Enter odds to screen this market.</div></div></div>
+    </details>`;
+    (def.section==='full'?fullEl:setEl).insertAdjacentHTML('beforeend', html);
+  });
+}
+
+/* ===================== HELPERS ===================== */
+function num(id){const el=document.getElementById(id); if(!el||el.value==='') return null; const v=parseFloat(el.value); return (isNaN(v)||v<=1)?null:v;}
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+function normPair(oA,oB){ if(!oA||!oB) return null; const iA=1/oA, iB=1/oB, sum=iA+iB; return {pA:iA/sum*100, pB:iB/sum*100}; }
+function margin2(oA,oB){ return ((1/oA + 1/oB) - 1) * 100; }
+function tier(p){ return p>=70?'green':(p>=58?'amber':'red'); }
+function getLine(id,t){
+  const sel=document.getElementById(`mkt_${id}_t${t}_line`);
+  if(!sel||sel.value==='') return null;
+  if(sel.value==='custom'){
+    const c=document.getElementById(`mkt_${id}_t${t}_custom`);
+    const v=c?parseFloat(c.value):NaN;
+    return isNaN(v)?null:v;
+  }
+  return parseFloat(sel.value);
+}
+function toggleCustom(selectEl, customId){
+  const c=document.getElementById(customId);
+  if(!c) return;
+  c.style.display = selectEl.value==='custom' ? 'inline-block':'none';
+}
+function syncCustomVisibility(){
+  document.querySelectorAll('select[id^="mkt_"]').forEach(sel=>{
+    const customId = sel.id.replace('_line','_custom');
+    if(sel.id.endsWith('_line') && document.getElementById(customId)) toggleCustom(sel, customId);
+  });
+}
+
+/* ===================== EVALUATORS ===================== */
+function evalOU(def){
+  const outcomes=[];
+  for(let t=1;t<=def.tiers;t++){
+    const line=getLine(def.id,t);
+    const over=num(`mkt_${def.id}_t${t}_over`);
+    const under=num(`mkt_${def.id}_t${t}_under`);
+    if(line!==null && over && under){
+      const np=normPair(over,under);
+      const marg=margin2(over,under);
+      outcomes.push({label:`Over ${line}`,prob:np.pA,odds:over,line,margin:marg});
+      outcomes.push({label:`Under ${line}`,prob:np.pB,odds:under,line,margin:marg});
+    }
+  }
+  outcomes.sort((a,b)=>b.prob-a.prob);
+  return {outcomes, top: outcomes[0]||null};
+}
+function evalHandicap(def){
+  const outcomes=[];
+  for(let t=1;t<=def.tiers;t++){
+    const line=getLine(def.id,t);
+    const home=num(`mkt_${def.id}_t${t}_home`);
+    const away=num(`mkt_${def.id}_t${t}_away`);
+    if(line!==null && home && away){
+      const np=normPair(home,away);
+      const marg=margin2(home,away);
+      const homeWins = np.pA>=np.pB;
+      outcomes.push({label:`Home ${homeWins?'-':'+'}${line}`,prob:np.pA,odds:home,line,margin:marg,side:'home'});
+      outcomes.push({label:`Away ${!homeWins?'-':'+'}${line}`,prob:np.pB,odds:away,line,margin:marg,side:'away'});
+    }
+  }
+  outcomes.sort((a,b)=>b.prob-a.prob);
+  return {outcomes, top: outcomes[0]||null};
+}
+function evalWinner(def,pa,pb){
+  const home=num(`mkt_${def.id}_home`);
+  const away=num(`mkt_${def.id}_away`);
+  if(!home||!away) return {outcomes:[],top:null};
+  const np=normPair(home,away);
+  const marg=margin2(home,away);
+  const outcomes=[
+    {label:pa,prob:np.pA,odds:home,margin:marg},
+    {label:pb,prob:np.pB,odds:away,margin:marg}
+  ].sort((a,b)=>b.prob-a.prob);
+  return {outcomes, top:outcomes[0]};
+}
+function evalYesNo(def){
+  const yes=num(`mkt_${def.id}_yes`);
+  const no=num(`mkt_${def.id}_no`);
+  if(!yes||!no) return {outcomes:[],top:null};
+  const np=normPair(yes,no);
+  const marg=margin2(yes,no);
+  const outcomes=[
+    {label:'Even total sets',prob:np.pA,odds:yes,margin:marg},
+    {label:'Odd total sets',prob:np.pB,odds:no,margin:marg}
+  ].sort((a,b)=>b.prob-a.prob);
+  return {outcomes, top:outcomes[0]};
+}
+function evalCorrectScore(def){
+  const ids=['30','31','32','03','13','23'];
+  const label={'30':'3-0','31':'3-1','32':'3-2','03':'0-3','13':'1-3','23':'2-3'};
+  const oddsMap={}; ids.forEach(k=>{ oddsMap[k]=num(`mkt_${def.id}_${k}`); });
+  const filled=ids.filter(k=>oddsMap[k]);
+  if(filled.length<2) return {outcomes:[],top:null,filledCount:filled.length};
+  let sum=0; const implied={};
+  filled.forEach(k=>{ implied[k]=1/oddsMap[k]; sum+=implied[k]; });
+  const norm={}; filled.forEach(k=>{ norm[k]=implied[k]/sum*100; });
+  const outcomes=filled.map(k=>({label:label[k],prob:norm[k],odds:oddsMap[k]})).sort((a,b)=>b.prob-a.prob);
+  const sweep=(norm['30']||0)+(norm['03']||0);
+  const fourset=(norm['31']||0)+(norm['13']||0);
+  const fiveset=(norm['32']||0)+(norm['23']||0);
+  const marg = filled.length===6 ? (sum-1)*100 : undefined;
+  if(outcomes[0]) outcomes[0].margin = marg;
+  return {outcomes, top:outcomes[0], sweep, fourset, fiveset, filledCount:filled.length, margin:marg};
+}
+
+/* ===================== RENDER ===================== */
+function renderResults(def, ev){
+  const el=document.getElementById(`res_${def.id}`);
+  if(!ev || !ev.top){
+    let msg='Enter odds to screen this market.';
+    if(def.kind==='correctscore' && ev && ev.filledCount>0) msg=`${ev.filledCount}/6 scores entered — add at least 2 to screen, 6 for full margin accuracy.`;
+    el.innerHTML=`<div class="res-empty">${msg}</div>`;
+    return;
+  }
+  const t=tier(ev.top.prob);
+  const marginTxt = (ev.top.margin!==undefined && ev.top.margin!==null) ? ` · margin ${ev.top.margin.toFixed(1)}%` : '';
+  let mini='';
+  if(ev.outcomes && ev.outcomes.length>1){
+    mini = `<div class="res-mini">${ev.outcomes.slice(1,5).map(o=>`${o.label} ${o.prob.toFixed(0)}%`).join(' · ')}</div>`;
+  }
+  let extra='';
+  if(def.id==='correctScore' && ev.filledCount<6){
+    extra = `<div class="res-mini">${ev.filledCount}/6 scores entered — accuracy improves as you add more.</div>`;
+  }
+  el.innerHTML = `<div class="res-top"><span class="res-pick">${ev.top.label}</span><span class="res-prob ${t}">${ev.top.prob.toFixed(1)}%</span><span class="res-margin">${marginTxt}</span></div>${mini}${extra}`;
+}
+
+let profileFull = {};
+
+function renderIntel(){
+  const cs = profileFull['correctScore'];
+  const ts = profileFull['totalSets'];
+  const grid = document.getElementById('intelGrid');
+  const sweepTxt = cs && cs.sweep!==undefined ? cs.sweep.toFixed(0)+'%' : '—';
+  const fourTxt  = cs && cs.fourset!==undefined ? cs.fourset.toFixed(0)+'%' : '—';
+  const fiveTxt  = cs && cs.fiveset!==undefined ? cs.fiveset.toFixed(0)+'%' : '—';
+  const tsTxt = ts && ts.top ? `${ts.top.label} · ${ts.top.prob.toFixed(0)}%` : '—';
+  grid.innerHTML = `
+    <div class="intel-item"><div class="intel-label">Sweep probability (3-0/0-3)</div><div class="intel-value">${sweepTxt}</div></div>
+    <div class="intel-item"><div class="intel-label">4-set probability (3-1/1-3)</div><div class="intel-value">${fourTxt}</div></div>
+    <div class="intel-item"><div class="intel-label">5-set probability (3-2/2-3)</div><div class="intel-value">${fiveTxt}</div></div>
+    <div class="intel-item"><div class="intel-label">Total Sets lean</div><div class="intel-value">${tsTxt}</div></div>
+  `;
+  const flagEl=document.getElementById('consistencyFlag');
+  if(cs && cs.sweep!==undefined && ts && ts.outcomes && ts.outcomes.length){
+    const u35 = ts.outcomes.find(o=>o.label==='Under 3.5');
+    if(u35){
+      const diff=Math.abs(u35.prob - cs.sweep);
+      const agree = diff<15;
+      flagEl.innerHTML = `<div class="flag-box">${agree?'✓ Consistent — ':'⚠ Divergence — '}Correct Score implies a ${cs.sweep.toFixed(0)}% sweep chance; Total Sets Under 3.5 implies ${u35.prob.toFixed(0)}% (${diff.toFixed(0)}-pt gap). ${agree?'Both markets broadly agree on how the match ends.':'Worth double-checking both prices before backing either market — one of them may be mispriced relative to the other.'}</div>`;
+    } else { flagEl.innerHTML=''; }
+  } else { flagEl.innerHTML=''; }
+}
+
+function renderVerdict(pa,pb){
+  const marketTitleMap={}; MARKET_DEFS.forEach(d=>marketTitleMap[d.id]=d.title);
+  const candidates = PRIMARY_IDS.map(id=>{
+    const f=profileFull[id];
+    if(!f||!f.top) return null;
+    const r=f.top;
+    const ev=(r.prob/100)*r.odds - 1;
+    return {id, title:marketTitleMap[id], label:r.label, prob:r.prob, odds:r.odds, margin:r.margin, ev};
+  }).filter(Boolean);
+
+  const heroEl=document.getElementById('verdictHero');
+  const tableEl=document.getElementById('verdictTableBody');
+  const bannerEl=document.getElementById('masterHeadline');
+
+  if(candidates.length===0){
+    heroEl.innerHTML=`<div class="verdict-hero-label">Safest selection</div><div class="verdict-hero-pick" style="color:var(--muted);font-size:15px;">Enter odds in at least one priority market above</div>`;
+    tableEl.innerHTML=`<tr><td colspan="5" style="color:var(--muted);">No data yet</td></tr>`;
+    bannerEl.innerHTML='Enter odds below — a recommendation will build here. Full detail is in the Final Verdict panel at the bottom.';
+    return;
+  }
+
+  candidates.sort((a,b)=>b.prob-a.prob);
+  const safest=candidates[0];
+  const valueCandidates=candidates.filter(c=>c.prob>=55).sort((a,b)=>b.ev-a.ev);
+  const bestValue=valueCandidates[0];
+  const st=tier(safest.prob);
+
+  let heroHtml=`
+    <div class="verdict-hero-label">Safest selection</div>
+    <div class="verdict-hero-pick" style="color:var(--${st});">${safest.label}</div>
+    <div class="verdict-hero-sub">${safest.title} · ${safest.prob.toFixed(1)}% · odds ${safest.odds.toFixed(2)} · margin ${(safest.margin!==undefined&&safest.margin!==null)?safest.margin.toFixed(1)+'%':'n/a'} · EV ${(safest.ev*100).toFixed(1)}%</div>`;
+  if(bestValue && bestValue.id!==safest.id){
+    heroHtml += `
+      <div class="verdict-hero-label" style="margin-top:14px;">Best value selection <span style="color:var(--muted);text-transform:none;letter-spacing:normal;">(lowest vig among 55%+ picks)</span></div>
+      <div class="verdict-hero-pick" style="color:var(--${tier(bestValue.prob)});font-size:15px;">${bestValue.label}</div>
+      <div class="verdict-hero-sub">${bestValue.title} · ${bestValue.prob.toFixed(1)}% · odds ${bestValue.odds.toFixed(2)} · margin ${(bestValue.margin!==undefined&&bestValue.margin!==null)?bestValue.margin.toFixed(1)+'%':'n/a'} · EV ${(bestValue.ev*100).toFixed(1)}%</div>`;
+  }
+  heroEl.innerHTML=heroHtml;
+
+  tableEl.innerHTML = candidates.slice(0,8).map(c=>`
+    <tr>
+      <td>${c.title.replace('Full Match — ','FM ').replace('1st Set — ','1S ').replace(' (1X2)','')}</td>
+      <td>${c.label}</td>
+      <td style="color:var(--${tier(c.prob)});font-weight:700;">${c.prob.toFixed(1)}%</td>
+      <td>${c.odds.toFixed(2)}</td>
+      <td>${(c.ev*100).toFixed(1)}%</td>
+    </tr>`).join('');
+
+  bannerEl.innerHTML = `<strong>${pa} vs ${pb}</strong>: safest read is <span class="hl-${st}">${safest.label}</span> (${safest.title}) at ${safest.prob.toFixed(1)}%.${(bestValue && bestValue.id!==safest.id)?` Lowest-vig alternative: <span class="hl-${tier(bestValue.prob)}">${bestValue.label}</span> (${bestValue.title}).`:''}`;
+}
+
+/* ===================== PERSISTENCE ===================== */
+function saveState(){
+  try{
+    const data={};
+    document.querySelectorAll('input[type=number], input[type=text], select').forEach(el=>{ if(el.id) data[el.id]=el.value; });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }catch(e){ /* storage unavailable in this environment — silently skip, form still works for the session */ }
+}
+function loadState(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    const data=JSON.parse(raw);
+    Object.keys(data).forEach(id=>{ const el=document.getElementById(id); if(el) el.value=data[id]; });
+  }catch(e){ /* ignore */ }
+}
+function clearState(){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} }
+
+/* ===================== MASTER CALC ===================== */
+function calc(){
+  const pa=document.getElementById('playerA').value.trim() || 'Player A';
+  const pb=document.getElementById('playerB').value.trim() || 'Player B';
+  profileFull={};
+  MARKET_DEFS.forEach(def=>{
+    let ev;
+    if(def.kind==='ou') ev=evalOU(def);
+    else if(def.kind==='handicap') ev=evalHandicap(def);
+    else if(def.kind==='winner') ev=evalWinner(def,pa,pb);
+    else if(def.kind==='yesno') ev=evalYesNo(def);
+    else if(def.kind==='correctscore') ev=evalCorrectScore(def);
+    profileFull[def.id]=ev;
+    renderResults(def, ev);
+  });
+  renderIntel();
+  renderVerdict(pa,pb);
+  saveState();
+}
+
+function resetAll(){
+  document.querySelectorAll('input[type=number], input[type=text]').forEach(el=>el.value='');
+  document.querySelectorAll('select').forEach(el=>el.value='');
+  syncCustomVisibility();
+  clearState();
+  calc();
+}
+
+function attachListeners(){
+  document.querySelectorAll('#fullMarkets input, #fullMarkets select, #set1Markets input, #set1Markets select, #playerA, #playerB')
+    .forEach(el=>{ el.addEventListener('input',calc); el.addEventListener('change',calc); });
+}
+
+/* ===================== INIT ===================== */
+buildMarkets();
+loadState();
+syncCustomVisibility();
+attachListeners();
+calc();
+</script>
+</body>
+</html>

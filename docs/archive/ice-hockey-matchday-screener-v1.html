@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ice Hockey Matchday Screener v1</title>
+<style>
+:root{
+  --bg:#081418; --bg-glow:radial-gradient(120% 140% at 50% -10%, #0E2530 0%, #081418 55%);
+  --panel:#0D1F26; --panel-alt:#123039; --panel-alt2:#173B46;
+  --line:#1F4550; --ink:#E8F4F7; --muted:#7FA5AF;
+  --gold:#3FC7E0; --gold-dim:#1A6B7A;
+  --green:#4ADE80; --green-bg:rgba(74,222,128,0.13);
+  --red:#F87171; --red-bg:rgba(248,113,113,0.13);
+  --amber:#FBBF24; --amber-bg:rgba(251,191,36,0.13);
+  --over:#F97362; --over-bg:rgba(249,115,98,0.15);
+  --under:#3FC7E0; --under-bg:rgba(63,199,224,0.15);
+  --empty:#2B4B54; --empty-bg:rgba(43,75,84,0.13);
+  --radius:10px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg-glow),var(--bg);background-attachment:fixed;
+  color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px;}
+header{padding:18px 4px 20px;border-bottom:1px solid var(--line);margin-bottom:18px;}
+.eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);font-weight:700;margin:0 0 6px;}
+h1{font-size:clamp(22px,5vw,32px);font-weight:900;letter-spacing:-.02em;margin:0 0 8px;line-height:1.1;}
+h1 span{color:var(--gold);}
+.sub{color:var(--muted);font-size:14px;line-height:1.55;max-width:70ch;margin:0;}
+.tabbar{display:flex;gap:6px;margin:20px 0 18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:5px;}
+.tab-btn{flex:1;background:transparent;border:none;color:var(--muted);font-size:13px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;padding:10px 8px;border-radius:8px;cursor:pointer;font-family:inherit;}
+.tab-btn.active{background:var(--panel-alt2);color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold);}
+.tab-btn:hover:not(.active){color:var(--ink);}
+.global-actions{display:flex;justify-content:flex-end;margin-bottom:14px;}
+.scope-section{display:none;} .scope-section.active{display:block;}
+.teamstrip{display:flex;align-items:center;gap:10px;margin:0 0 12px;flex-wrap:wrap;}
+.team-input{flex:1;min-width:130px;}
+.team-input input{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  color:var(--ink);padding:10px 12px;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
+.team-input input::placeholder{color:var(--muted);text-transform:none;font-weight:500;letter-spacing:normal;}
+.vs-badge{background:var(--gold);color:#03181d;font-size:11px;font-weight:900;padding:4px 10px;border-radius:100px;letter-spacing:.08em;}
+.context-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;align-items:center;}
+.context-row label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;}
+.context-row select{font-family:inherit;background:var(--panel-alt);border:1px solid var(--line);border-radius:6px;
+  color:var(--ink);padding:6px 8px;font-size:13px;}
+.context-note{font-size:11px;color:var(--muted);line-height:1.4;flex:1;min-width:200px;}
+.master{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:24px;}
+.master-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:8px;}
+.master-headline{font-size:16px;font-weight:800;line-height:1.4;margin-bottom:14px;}
+.hl-over{color:var(--over);} .hl-under{color:var(--under);} .hl-amber{color:var(--amber);} .hl-red{color:var(--red);}
+.chip-row{display:flex;gap:8px;flex-wrap:wrap;}
+.chip{background:var(--panel-alt);border:1px solid var(--line);border-radius:100px;padding:6px 12px;
+  font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;}
+.chip .dot{width:7px;height:7px;border-radius:50%;}
+.chip .dot.green{background:var(--green);} .chip .dot.amber{background:var(--amber);}
+.chip .dot.red{background:var(--red);} .chip .dot.empty{background:var(--empty);}
+.scoreboard{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px;}
+@media(max-width:560px){.scoreboard{grid-template-columns:1fr;}}
+.board-col{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;}
+.board-col.board-under{border-top:2px solid var(--under);}
+.board-col.board-over{border-top:2px solid var(--over);}
+.board-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;
+  margin-bottom:8px;display:flex;justify-content:space-between;}
+.lamps{display:flex;gap:5px;margin-bottom:10px;}
+.lamp{flex:1;height:9px;border-radius:3px;background:var(--empty-bg);border:1px solid var(--line);transition:background .2s,box-shadow .2s;}
+.lamp.green{background:var(--green);box-shadow:0 0 8px rgba(74,222,128,.5);border-color:transparent;}
+.lamp.amber{background:var(--amber);box-shadow:0 0 8px rgba(251,191,36,.5);border-color:transparent;}
+.lamp.red{background:var(--red);box-shadow:0 0 8px rgba(248,113,113,.5);border-color:transparent;}
+.board-verdict{font-size:15px;font-weight:800;}
+.board-verdict.green{color:var(--green);} .board-verdict.amber{color:var(--amber);}
+.board-verdict.red{color:var(--red);} .board-verdict.empty{color:var(--muted);}
+.section-title{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);font-weight:700;
+  margin:26px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;}
+.st-hint{color:var(--muted);text-transform:none;letter-spacing:normal;font-weight:400;font-size:11px;}
+.met-display{background:var(--panel-alt2);border:1px solid var(--gold-dim);border-radius:8px;
+  padding:8px 12px;margin-bottom:10px;font-size:12px;line-height:1.5;}
+.met-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--gold);font-weight:700;margin-bottom:3px;}
+.met-value{font-size:16px;font-weight:900;font-family:ui-monospace,monospace;color:var(--gold);}
+.met-approx{font-size:10px;color:var(--muted);font-weight:400;}
+.met-tag{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:100px;margin:2px 4px 2px 0;}
+.met-tag.over{background:var(--over-bg);color:var(--over);}
+.met-tag.under{background:var(--under-bg);color:var(--under);}
+.met-empty{color:var(--muted);font-size:12px;}
+.line-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:6px;}
+.line-entry{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:9px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.line-num{font-size:10px;color:var(--muted);font-weight:700;width:14px;flex-shrink:0;}
+.line-fields{display:flex;gap:8px;flex-wrap:wrap;flex:1;}
+.line-fields label{display:flex;flex-direction:column;font-size:10px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;gap:3px;}
+input[type=number],input[type=text]{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-variant-numeric:tabular-nums;background:var(--panel-alt);border:1px solid var(--line);
+  border-radius:6px;color:var(--ink);padding:7px 8px;width:70px;font-size:13.5px;}
+input[type=text]{width:auto;font-family:inherit;}
+input[type=number]:focus,input[type=text]:focus,select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(63,199,224,.25);}
+input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{margin:0;}
+.line-prob{font-family:ui-monospace,monospace;font-size:10.5px;font-weight:700;
+  padding:3px 8px;border-radius:100px;white-space:nowrap;margin-left:auto;}
+.line-prob.over-lead{background:var(--over-bg);color:var(--over);}
+.line-prob.under-lead{background:var(--under-bg);color:var(--under);}
+.line-prob.neutral{background:var(--empty-bg);color:var(--muted);}
+.win-row{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:10px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.win-row label{display:flex;flex-direction:column;font-size:10px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;gap:3px;}
+.cs-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;}
+.cs-entry{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:8px 10px;display:flex;align-items:center;gap:8px;}
+.cs-label{font-size:11px;font-weight:700;color:var(--muted);width:36px;flex-shrink:0;}
+.cs-entry label{display:flex;flex-direction:column;font-size:10px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;gap:2px;flex:1;}
+.csi-panel{background:var(--panel);border:1px solid var(--gold-dim);border-radius:14px;padding:16px;margin-top:16px;border-top:2px solid var(--gold);}
+.csi-title{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:10px;}
+.csi-empty{font-size:12px;color:var(--muted);}
+.csi-coverage{font-size:11px;color:var(--muted);margin-bottom:10px;}
+.csi-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:14px;}
+.csi-stat{background:var(--panel-alt);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+  font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.csi-stat strong{font-family:ui-monospace,monospace;font-size:13px;text-align:right;}
+.csi-vs{border-color:var(--gold-dim);}
+.csi-detail{font-size:11px;color:var(--muted);margin-bottom:8px;padding:8px 10px;background:var(--panel-alt);border-radius:8px;line-height:1.6;}
+.csi-scores{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;margin-top:10px;}
+.csi-score{display:flex;align-items:center;gap:6px;background:var(--panel-alt);border-radius:6px;padding:5px 8px;}
+.csi-score.csi-top{background:var(--panel-alt2);border:1px solid var(--gold-dim);}
+.csi-sc{font-weight:800;font-size:12px;width:34px;flex-shrink:0;color:var(--ink);}
+.csi-bar-wrap{flex:1;background:var(--line);border-radius:100px;height:6px;overflow:hidden;}
+.csi-bar{height:100%;border-radius:100px;background:var(--muted);}
+.csi-pct{font-family:ui-monospace,monospace;font-size:10px;font-weight:700;width:32px;text-align:right;color:var(--muted);}
+.ot-headline{font-size:13px;font-weight:700;padding:10px 12px;background:var(--panel-alt);border-radius:8px;line-height:1.5;margin-bottom:4px;}
+.profiles{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px;}
+@media(max-width:700px){.profiles{grid-template-columns:1fr;}}
+.profile-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;}
+.profile-card.card-under{border-top:2px solid var(--under);}
+.profile-card.card-over{border-top:2px solid var(--over);}
+.profile-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;}
+.profile-name{font-size:15px;font-weight:800;letter-spacing:-.01em;}
+.profile-tag{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+.profile-desc{font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.4;}
+.check{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line);}
+.check:first-of-type{border-top:none;}
+.check-num{font-size:10px;color:var(--muted);font-weight:700;width:16px;}
+.check-text{font-size:12.5px;line-height:1.35;}
+.check-text .ct-label{font-weight:600;color:var(--ink);}
+.check-text .ct-detail{display:block;color:var(--muted);font-size:11px;margin-top:1px;}
+.pill{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 9px;border-radius:100px;white-space:nowrap;}
+.pill.green{background:var(--green-bg);color:var(--green);} .pill.amber{background:var(--amber-bg);color:var(--amber);}
+.pill.red{background:var(--red-bg);color:var(--red);} .pill.empty{background:var(--empty-bg);color:var(--empty);}
+.ranking-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:16px;}
+.ranking-top{background:var(--panel-alt2);border:1px solid var(--gold);border-radius:10px;padding:12px 14px;
+  margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+.rt-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:3px;}
+.rt-name{font-size:15px;font-weight:800;}
+.rt-prob{font-size:22px;font-weight:900;font-family:ui-monospace,monospace;}
+.ev-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel-alt);border:1px solid var(--line);
+  border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--muted);}
+.ev-row label{font-weight:700;color:var(--ink);text-transform:uppercase;font-size:10px;letter-spacing:.05em;}
+.ev-row input{width:62px;}
+.ev-badge{font-family:ui-monospace,monospace;font-weight:800;padding:4px 10px;border-radius:100px;font-size:12px;}
+.ev-badge.pos{background:var(--green-bg);color:var(--green);}
+.ev-badge.neg{background:var(--red-bg);color:var(--red);}
+.ev-badge.empty{background:var(--empty-bg);color:var(--empty);}
+.rank-row{display:grid;grid-template-columns:1fr 52px 1fr 72px;gap:10px;align-items:center;
+  padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;}
+.rank-row:first-of-type{border-top:none;}
+.rk-label{font-weight:600;} .rk-odds{font-family:ui-monospace,monospace;color:var(--muted);text-align:right;}
+.prob-bar-wrap{background:var(--panel-alt);border-radius:100px;height:8px;overflow:hidden;}
+.prob-bar{height:100%;border-radius:100px;transition:width .25s,background .25s;}
+.prob-bar.green{background:var(--green);} .prob-bar.amber{background:var(--amber);} .prob-bar.red{background:var(--red);}
+.rk-pct{font-family:ui-monospace,monospace;font-weight:700;text-align:right;}
+.rank-empty-note{font-size:12px;color:var(--muted);padding:10px 0;}
+.history-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:28px;}
+.history-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.btn{background:var(--panel-alt);border:1px solid var(--line);color:var(--ink);font-size:12px;font-weight:700;
+  padding:8px 14px;border-radius:8px;cursor:pointer;font-family:inherit;}
+.btn:hover{border-color:var(--gold);color:var(--gold);}
+.btn.primary{background:var(--panel-alt2);border-color:var(--gold);color:var(--gold);}
+.btn.danger:hover{border-color:var(--red);color:var(--red);}
+.file-btn{position:relative;overflow:hidden;}
+.file-btn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
+table.history-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+table.history-table th{text-align:left;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;
+  font-size:10px;padding:6px 8px;border-bottom:1px solid var(--line);}
+table.history-table td{padding:7px 8px;border-bottom:1px solid var(--line);}
+.history-empty{font-size:12px;color:var(--muted);padding:8px 0;}
+.rm-btn{background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;font-weight:700;}
+.scope-tag{font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:100px;background:var(--panel-alt2);color:var(--gold);}
+footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.6;}
+.reset-btn{background:transparent;border:1px solid var(--line);color:var(--muted);font-size:12px;
+  padding:8px 14px;border-radius:8px;cursor:pointer;margin-top:14px;font-family:inherit;}
+.reset-btn:hover{border-color:var(--red);color:var(--red);}
+</style>
+</head>
+<body>
+<datalist id="dl-gt"><option value="3.5"><option value="3.75"><option value="4.0"><option value="4.25"><option value="4.5"><option value="4.75"><option value="5.0"><option value="5.25"><option value="5.5"><option value="5.75"><option value="6.0"><option value="6.25"><option value="6.5"><option value="6.75"><option value="7.0"><option value="7.25"><option value="7.5"><option value="7.75"><option value="8.0"><option value="8.25"><option value="8.5"><option value="8.75"><option value="9.0"><option value="9.25"><option value="9.5"></datalist>
+<datalist id="dl-tt"><option value="0.5"><option value="1.0"><option value="1.5"><option value="2.0"><option value="2.5"><option value="3.0"><option value="3.5"><option value="4.0"><option value="4.5"><option value="5.0"><option value="5.5"></datalist>
+<datalist id="dl-hdp"><option value="-3.5"><option value="-3.0"><option value="-2.5"><option value="-2.0"><option value="-1.5"><option value="-1.0"><option value="-0.5"><option value="0.0"><option value="0.5"><option value="1.0"><option value="1.5"><option value="2.0"><option value="2.5"><option value="3.0"><option value="3.5"></datalist>
+<div class="wrap">
+<header>
+  <p class="eyebrow">Pre-match odds screener · ice hockey · v1</p>
+  <h1>Ice Hockey <span>Matchday</span> Screener</h1>
+  <p class="sub">Enter bookmaker odds for Regular Time or 1st Period markets. Uniquely for hockey: the 1X2 draw price directly reveals the market's implied probability the game reaches overtime/shootout, cross-checked against the separate Moneyline-incl-OT market. A Correct Score Reconciliation panel independently reconstructs Odd/Even, BTTS, and each team's expected goals straight from the correct-score grid. Fully offline, fully responsive.</p>
+</header>
+<div class="tabbar">
+  <button class="tab-btn active" id="tabBtn_rt" onclick="switchScope('rt')">Regular Time</button>
+  <button class="tab-btn" id="tabBtn_p1" onclick="switchScope('p1')">1st Period</button>
+</div>
+<div class="global-actions">
+  <button class="btn danger" onclick="clearScopeFields(currentScope)">Clear this tab</button>
+</div>
+
+<!-- ===================== REGULAR TIME ===================== -->
+<section class="scope-section active" id="scope_rt">
+  <div class="teamstrip">
+    <div class="team-input"><input id="rt_t1Name" type="text" placeholder="Team 1 (Home)"></div>
+    <span class="vs-badge">VS</span>
+    <div class="team-input"><input id="rt_t2Name" type="text" placeholder="Team 2 (Away)"></div>
+  </div>
+  <div class="context-row">
+    <label>League context <select id="rt_league">
+      <option value="balanced">Balanced (default)</option>
+      <option value="nhl">NHL standard</option>
+      <option value="highScoring">High-scoring matchup</option>
+      <option value="lowScoring">Low-scoring matchup</option>
+      <option value="international">International / Olympic</option>
+    </select></label>
+    <div class="context-note" id="rt_leagueNote">No league adjustment applied — thresholds as originally calibrated.</div>
+  </div>
+  <div class="master">
+    <div class="master-label">Overall recommendation — Regular Time</div>
+    <div class="master-headline" id="rt_masterHeadline">Enter odds below — a recommendation will build here.</div>
+    <div class="chip-row" id="rt_chipRow"></div>
+  </div>
+  <div class="scoreboard">
+    <div class="board-col board-under">
+      <div class="board-label"><span>Profile A — Under</span><span id="rt_aScoreText">0/0</span></div>
+      <div class="lamps" id="rt_aLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+      <div class="board-verdict empty" id="rt_aVerdict">Enter odds to screen</div>
+    </div>
+    <div class="board-col board-over">
+      <div class="board-label"><span>Profile B — Over</span><span id="rt_bScoreText">0/0</span></div>
+      <div class="lamps" id="rt_bLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+      <div class="board-verdict empty" id="rt_bVerdict">Enter odds to screen</div>
+    </div>
+  </div>
+
+  <div class="section-title">Game Total Goals — Over / Under <span class="st-hint">7 slots — mix standard &amp; Asian (quarter) lines for a sharper MEG</span></div>
+  <div class="met-display"><div class="met-label">Market Expected Goals (MEG)</div><div id="rt_gt_meg"><span class="met-empty">— enter lines above</span></div></div>
+  <div class="line-grid" id="rt-gt-lines"><div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_gt_L1" list="dl-gt" placeholder="5.5"></label><label>Over<input type="number" step="0.01" id="rt_gt_O1"></label><label>Under<input type="number" step="0.01" id="rt_gt_U1"></label></div><span class="line-prob neutral" id="rt_gt_P1">—</span></div><div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_gt_L2" list="dl-gt" placeholder="6"></label><label>Over<input type="number" step="0.01" id="rt_gt_O2"></label><label>Under<input type="number" step="0.01" id="rt_gt_U2"></label></div><span class="line-prob neutral" id="rt_gt_P2">—</span></div><div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_gt_L3" list="dl-gt" placeholder="6.5"></label><label>Over<input type="number" step="0.01" id="rt_gt_O3"></label><label>Under<input type="number" step="0.01" id="rt_gt_U3"></label></div><span class="line-prob neutral" id="rt_gt_P3">—</span></div><div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_gt_L4" list="dl-gt" placeholder="7"></label><label>Over<input type="number" step="0.01" id="rt_gt_O4"></label><label>Under<input type="number" step="0.01" id="rt_gt_U4"></label></div><span class="line-prob neutral" id="rt_gt_P4">—</span></div><div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_gt_L5" list="dl-gt" placeholder="7.5"></label><label>Over<input type="number" step="0.01" id="rt_gt_O5"></label><label>Under<input type="number" step="0.01" id="rt_gt_U5"></label></div><span class="line-prob neutral" id="rt_gt_P5">—</span></div><div class="line-entry"><span class="line-num">6</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_gt_L6" list="dl-gt"></label><label>Over<input type="number" step="0.01" id="rt_gt_O6"></label><label>Under<input type="number" step="0.01" id="rt_gt_U6"></label></div><span class="line-prob neutral" id="rt_gt_P6">—</span></div><div class="line-entry"><span class="line-num">7</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_gt_L7" list="dl-gt"></label><label>Over<input type="number" step="0.01" id="rt_gt_O7"></label><label>Under<input type="number" step="0.01" id="rt_gt_U7"></label></div><span class="line-prob neutral" id="rt_gt_P7">—</span></div></div>
+
+  <div class="section-title">Team 1 (Home) Total Goals — Over / Under</div>
+  <div class="met-display"><div class="met-label">Team 1 MEG</div><div id="rt_t1_meg"><span class="met-empty">—</span></div></div>
+  <div class="line-grid" id="rt-t1-lines"><div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_t1_L1" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="rt_t1_O1"></label><label>Under<input type="number" step="0.01" id="rt_t1_U1"></label></div><span class="line-prob neutral" id="rt_t1_P1">—</span></div><div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_t1_L2" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="rt_t1_O2"></label><label>Under<input type="number" step="0.01" id="rt_t1_U2"></label></div><span class="line-prob neutral" id="rt_t1_P2">—</span></div><div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_t1_L3" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="rt_t1_O3"></label><label>Under<input type="number" step="0.01" id="rt_t1_U3"></label></div><span class="line-prob neutral" id="rt_t1_P3">—</span></div><div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_t1_L4" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="rt_t1_O4"></label><label>Under<input type="number" step="0.01" id="rt_t1_U4"></label></div><span class="line-prob neutral" id="rt_t1_P4">—</span></div><div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_t1_L5" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="rt_t1_O5"></label><label>Under<input type="number" step="0.01" id="rt_t1_U5"></label></div><span class="line-prob neutral" id="rt_t1_P5">—</span></div></div>
+
+  <div class="section-title">Team 2 (Away) Total Goals — Over / Under</div>
+  <div class="met-display"><div class="met-label">Team 2 MEG</div><div id="rt_t2_meg"><span class="met-empty">—</span></div></div>
+  <div class="line-grid" id="rt-t2-lines"><div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_t2_L1" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="rt_t2_O1"></label><label>Under<input type="number" step="0.01" id="rt_t2_U1"></label></div><span class="line-prob neutral" id="rt_t2_P1">—</span></div><div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_t2_L2" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="rt_t2_O2"></label><label>Under<input type="number" step="0.01" id="rt_t2_U2"></label></div><span class="line-prob neutral" id="rt_t2_P2">—</span></div><div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_t2_L3" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="rt_t2_O3"></label><label>Under<input type="number" step="0.01" id="rt_t2_U3"></label></div><span class="line-prob neutral" id="rt_t2_P3">—</span></div><div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_t2_L4" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="rt_t2_O4"></label><label>Under<input type="number" step="0.01" id="rt_t2_U4"></label></div><span class="line-prob neutral" id="rt_t2_P4">—</span></div><div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="rt_t2_L5" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="rt_t2_O5"></label><label>Under<input type="number" step="0.01" id="rt_t2_U5"></label></div><span class="line-prob neutral" id="rt_t2_P5">—</span></div></div>
+
+  <div class="section-title">Puck Line Handicap <span class="st-hint">incl. overtime &amp; shootout · positive = T1 gives goals</span></div>
+  <div class="line-grid" id="rt-hdp-lines"><div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_hdp_HL1" list="dl-hdp" style="width:80px"></label><label>T1 odds<input type="number" step="0.01" id="rt_hdp_HT1_1"></label><label>T2 odds<input type="number" step="0.01" id="rt_hdp_HT2_1"></label></div></div><div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_hdp_HL2" list="dl-hdp" style="width:80px"></label><label>T1 odds<input type="number" step="0.01" id="rt_hdp_HT1_2"></label><label>T2 odds<input type="number" step="0.01" id="rt_hdp_HT2_2"></label></div></div><div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_hdp_HL3" list="dl-hdp" style="width:80px"></label><label>T1 odds<input type="number" step="0.01" id="rt_hdp_HT1_3"></label><label>T2 odds<input type="number" step="0.01" id="rt_hdp_HT2_3"></label></div></div><div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_hdp_HL4" list="dl-hdp" style="width:80px"></label><label>T1 odds<input type="number" step="0.01" id="rt_hdp_HT1_4"></label><label>T2 odds<input type="number" step="0.01" id="rt_hdp_HT2_4"></label></div></div><div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_hdp_HL5" list="dl-hdp" style="width:80px"></label><label>T1 odds<input type="number" step="0.01" id="rt_hdp_HT1_5"></label><label>T2 odds<input type="number" step="0.01" id="rt_hdp_HT2_5"></label></div></div><div class="line-entry"><span class="line-num">6</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="rt_hdp_HL6" list="dl-hdp" style="width:80px"></label><label>T1 odds<input type="number" step="0.01" id="rt_hdp_HT1_6"></label><label>T2 odds<input type="number" step="0.01" id="rt_hdp_HT2_6"></label></div></div></div>
+
+  <div class="section-title">1X2 (Regulation Time — draw preserved)</div>
+  <div class="win-row">
+    <label>W1 (Team 1)<input type="number" step="0.01" id="rt_w1"></label>
+    <label>X (Draw → OT)<input type="number" step="0.01" id="rt_x"></label>
+    <label>W2 (Team 2)<input type="number" step="0.01" id="rt_w2"></label>
+  </div>
+
+  <div class="section-title">Moneyline <span class="st-hint">incl. overtime &amp; shootout — no draw possible</span></div>
+  <div class="win-row">
+    <label>ML1 (Team 1 wins)<input type="number" step="0.01" id="rt_ml1"></label>
+    <label>ML2 (Team 2 wins)<input type="number" step="0.01" id="rt_ml2"></label>
+  </div>
+
+  <div class="section-title">Double Chance</div>
+  <div class="win-row">
+    <label>1X<input type="number" step="0.01" id="rt_dc1x"></label>
+    <label>12<input type="number" step="0.01" id="rt_dc12"></label>
+    <label>2X<input type="number" step="0.01" id="rt_dc2x"></label>
+  </div>
+
+  <div class="section-title">Both Teams To Score (GG/NG)</div>
+  <div class="win-row">
+    <label>Yes (GG)<input type="number" step="0.01" id="rt_bttsY"></label>
+    <label>No (NG)<input type="number" step="0.01" id="rt_bttsN"></label>
+  </div>
+
+  <div class="section-title">Odd / Even <span class="st-hint">total combined goals</span></div>
+  <div class="win-row">
+    <label>Odd<input type="number" step="0.01" id="rt_oddOdds"></label>
+    <label>Even<input type="number" step="0.01" id="rt_evenOdds"></label>
+  </div>
+
+  <div class="section-title">🏒 Overtime Intelligence Panel <span class="st-hint">unique to hockey — derived from 1X2 vs Moneyline-incl-OT</span></div>
+  <div class="csi-panel">
+    <div class="csi-title">Overtime / Shootout Probability &amp; Cross-Market Consistency</div>
+    <div id="rt_ot_panel"><div class="csi-empty">Enter the 1X2 (regulation) odds above to unlock this panel.</div></div>
+  </div>
+
+  <div class="section-title">Correct Score (Regular Time) <span class="st-hint">12-cell grid with "Other" catch-all bucket</span></div>
+  <div class="cs-grid" id="rt-cs-grid"><div class="cs-entry"><span class="cs-label">0-0</span><label>Odds<input type="number" step="0.01" id="rt_cs_00"></label></div><div class="cs-entry"><span class="cs-label">1-0</span><label>Odds<input type="number" step="0.01" id="rt_cs_10"></label></div><div class="cs-entry"><span class="cs-label">0-1</span><label>Odds<input type="number" step="0.01" id="rt_cs_01"></label></div><div class="cs-entry"><span class="cs-label">1-1</span><label>Odds<input type="number" step="0.01" id="rt_cs_11"></label></div><div class="cs-entry"><span class="cs-label">2-0</span><label>Odds<input type="number" step="0.01" id="rt_cs_20"></label></div><div class="cs-entry"><span class="cs-label">0-2</span><label>Odds<input type="number" step="0.01" id="rt_cs_02"></label></div><div class="cs-entry"><span class="cs-label">2-1</span><label>Odds<input type="number" step="0.01" id="rt_cs_21"></label></div><div class="cs-entry"><span class="cs-label">1-2</span><label>Odds<input type="number" step="0.01" id="rt_cs_12"></label></div><div class="cs-entry"><span class="cs-label">2-2</span><label>Odds<input type="number" step="0.01" id="rt_cs_22"></label></div><div class="cs-entry"><span class="cs-label">3-0</span><label>Odds<input type="number" step="0.01" id="rt_cs_30"></label></div><div class="cs-entry"><span class="cs-label">0-3</span><label>Odds<input type="number" step="0.01" id="rt_cs_03"></label></div><div class="cs-entry"><span class="cs-label">Other</span><label>Odds<input type="number" step="0.01" id="rt_cs_other"></label></div></div>
+
+  <div class="section-title">🥅 Correct Score Reconciliation Panel</div>
+  <div class="csi-panel">
+    <div class="csi-title">Odd/Even · BTTS · Team xG — all reconstructed from the score grid above</div>
+    <div id="rt_cs_panel"><div class="csi-empty">Enter correct score odds above to unlock this panel.</div></div>
+  </div>
+
+  <div class="profiles">
+    <div class="profile-card card-under"><div class="profile-head"><span class="profile-name">Profile A</span><span class="profile-tag">Under · RT</span></div>
+      <p class="profile-desc">Evidence for a low-scoring, tightly checked game. Checks value-zone Under, low-scoring correct-score cluster, team goal differential, period scale, and moneyline balance. A live Shutout Risk check is appended once BTTS odds are entered.</p><div id="rt_aChecks"></div></div>
+    <div class="profile-card card-over"><div class="profile-head"><span class="profile-name">Profile B</span><span class="profile-tag">Over · RT</span></div>
+      <p class="profile-desc">Evidence for a high-scoring, open game. Checks value-zone Over, high-scoring correct-score cluster, team goal differential, period scale, and empty-net/blowout risk from a lopsided moneyline.</p><div id="rt_bChecks"></div></div>
+  </div>
+
+  <div class="section-title">Profile C — Handicap &amp; Result Ranking</div>
+  <div class="ranking-card">
+    <p class="profile-desc" style="margin-bottom:14px;">Ranks puck line, 1X2, Moneyline-incl-OT, and Double Chance options by normalized implied probability.</p>
+    <div id="rt_cTop"></div>
+    <div class="ev-row"><label>Your probability estimate for top pick</label><input type="number" step="0.1" id="rt_c_userProb" placeholder="%"><span>→</span><span id="rt_c_evBadge" class="ev-badge empty">Enter your % to compute EV</span></div>
+    <div id="rt_cList"></div>
+  </div>
+
+  <div class="section-title">Profile D — Best Specific Line Finder</div>
+  <div class="ranking-card">
+    <div id="rt_dTop"></div>
+    <div class="ev-row"><label>Your probability estimate for top pick</label><input type="number" step="0.1" id="rt_d_userProb" placeholder="%"><span>→</span><span id="rt_d_evBadge" class="ev-badge empty">Enter your % to compute EV</span></div>
+    <div id="rt_dList"></div>
+  </div>
+  <button class="reset-btn" onclick="clearScopeFields('rt')">Clear Regular Time fields</button>
+</section>
+
+<!-- ===================== 1ST PERIOD ===================== -->
+<section class="scope-section" id="scope_p1">
+  <div class="teamstrip">
+    <div class="team-input"><input id="p1_t1Name" type="text" placeholder="Team 1 (Home)"></div>
+    <span class="vs-badge">VS</span>
+    <div class="team-input"><input id="p1_t2Name" type="text" placeholder="Team 2 (Away)"></div>
+  </div>
+  <div class="context-row">
+    <label>League context <select id="p1_league">
+      <option value="balanced">Balanced (default)</option>
+      <option value="nhl">NHL standard</option>
+      <option value="highScoring">High-scoring matchup</option>
+      <option value="lowScoring">Low-scoring matchup</option>
+      <option value="international">International / Olympic</option>
+    </select></label>
+    <div class="context-note" id="p1_leagueNote">1st Period MEG × 3 is auto-compared against Regular Time MEG on the RT tab when both contain data — the most reliable scale check of any sport in this family, since all 3 periods are exactly equal length by rule.</div>
+  </div>
+  <div class="master">
+    <div class="master-label">Overall recommendation — 1st Period</div>
+    <div class="master-headline" id="p1_masterHeadline">Enter odds below — a recommendation will build here.</div>
+    <div class="chip-row" id="p1_chipRow"></div>
+  </div>
+  <div class="scoreboard">
+    <div class="board-col board-under">
+      <div class="board-label"><span>Profile A — Under</span><span id="p1_aScoreText">0/0</span></div>
+      <div class="lamps" id="p1_aLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+      <div class="board-verdict empty" id="p1_aVerdict">Enter odds to screen</div>
+    </div>
+    <div class="board-col board-over">
+      <div class="board-label"><span>Profile B — Over</span><span id="p1_bScoreText">0/0</span></div>
+      <div class="lamps" id="p1_bLamps"><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div><div class="lamp"></div></div>
+      <div class="board-verdict empty" id="p1_bVerdict">Enter odds to screen</div>
+    </div>
+  </div>
+
+  <div class="section-title">1st Period Total Goals — Over / Under</div>
+  <div class="met-display"><div class="met-label">1st Period MEG</div><div id="p1_gt_meg"><span class="met-empty">—</span></div></div>
+  <div class="line-grid" id="p1-gt-lines"><div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_gt_L1" list="dl-gt" placeholder="1.5"></label><label>Over<input type="number" step="0.01" id="p1_gt_O1"></label><label>Under<input type="number" step="0.01" id="p1_gt_U1"></label></div><span class="line-prob neutral" id="p1_gt_P1">—</span></div><div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_gt_L2" list="dl-gt" placeholder="2"></label><label>Over<input type="number" step="0.01" id="p1_gt_O2"></label><label>Under<input type="number" step="0.01" id="p1_gt_U2"></label></div><span class="line-prob neutral" id="p1_gt_P2">—</span></div><div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_gt_L3" list="dl-gt" placeholder="2.5"></label><label>Over<input type="number" step="0.01" id="p1_gt_O3"></label><label>Under<input type="number" step="0.01" id="p1_gt_U3"></label></div><span class="line-prob neutral" id="p1_gt_P3">—</span></div><div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_gt_L4" list="dl-gt" placeholder="3"></label><label>Over<input type="number" step="0.01" id="p1_gt_O4"></label><label>Under<input type="number" step="0.01" id="p1_gt_U4"></label></div><span class="line-prob neutral" id="p1_gt_P4">—</span></div><div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_gt_L5" list="dl-gt"></label><label>Over<input type="number" step="0.01" id="p1_gt_O5"></label><label>Under<input type="number" step="0.01" id="p1_gt_U5"></label></div><span class="line-prob neutral" id="p1_gt_P5">—</span></div><div class="line-entry"><span class="line-num">6</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_gt_L6" list="dl-gt"></label><label>Over<input type="number" step="0.01" id="p1_gt_O6"></label><label>Under<input type="number" step="0.01" id="p1_gt_U6"></label></div><span class="line-prob neutral" id="p1_gt_P6">—</span></div><div class="line-entry"><span class="line-num">7</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_gt_L7" list="dl-gt"></label><label>Over<input type="number" step="0.01" id="p1_gt_O7"></label><label>Under<input type="number" step="0.01" id="p1_gt_U7"></label></div><span class="line-prob neutral" id="p1_gt_P7">—</span></div></div>
+
+  <div class="section-title">Team 1 Goals in 1st Period</div>
+  <div class="met-display"><div class="met-label">Team 1 Period MEG</div><div id="p1_t1_meg"><span class="met-empty">—</span></div></div>
+  <div class="line-grid" id="p1-t1-lines"><div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_t1_L1" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="p1_t1_O1"></label><label>Under<input type="number" step="0.01" id="p1_t1_U1"></label></div><span class="line-prob neutral" id="p1_t1_P1">—</span></div><div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_t1_L2" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="p1_t1_O2"></label><label>Under<input type="number" step="0.01" id="p1_t1_U2"></label></div><span class="line-prob neutral" id="p1_t1_P2">—</span></div><div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_t1_L3" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="p1_t1_O3"></label><label>Under<input type="number" step="0.01" id="p1_t1_U3"></label></div><span class="line-prob neutral" id="p1_t1_P3">—</span></div><div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_t1_L4" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="p1_t1_O4"></label><label>Under<input type="number" step="0.01" id="p1_t1_U4"></label></div><span class="line-prob neutral" id="p1_t1_P4">—</span></div><div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_t1_L5" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="p1_t1_O5"></label><label>Under<input type="number" step="0.01" id="p1_t1_U5"></label></div><span class="line-prob neutral" id="p1_t1_P5">—</span></div></div>
+
+  <div class="section-title">Team 2 Goals in 1st Period</div>
+  <div class="met-display"><div class="met-label">Team 2 Period MEG</div><div id="p1_t2_meg"><span class="met-empty">—</span></div></div>
+  <div class="line-grid" id="p1-t2-lines"><div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_t2_L1" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="p1_t2_O1"></label><label>Under<input type="number" step="0.01" id="p1_t2_U1"></label></div><span class="line-prob neutral" id="p1_t2_P1">—</span></div><div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_t2_L2" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="p1_t2_O2"></label><label>Under<input type="number" step="0.01" id="p1_t2_U2"></label></div><span class="line-prob neutral" id="p1_t2_P2">—</span></div><div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_t2_L3" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="p1_t2_O3"></label><label>Under<input type="number" step="0.01" id="p1_t2_U3"></label></div><span class="line-prob neutral" id="p1_t2_P3">—</span></div><div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_t2_L4" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="p1_t2_O4"></label><label>Under<input type="number" step="0.01" id="p1_t2_U4"></label></div><span class="line-prob neutral" id="p1_t2_P4">—</span></div><div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.25" id="p1_t2_L5" list="dl-tt"></label><label>Over<input type="number" step="0.01" id="p1_t2_O5"></label><label>Under<input type="number" step="0.01" id="p1_t2_U5"></label></div><span class="line-prob neutral" id="p1_t2_P5">—</span></div></div>
+
+  <div class="section-title">1st Period Handicap</div>
+  <div class="line-grid" id="p1-hdp-lines"><div class="line-entry"><span class="line-num">1</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="p1_hdp_HL1" list="dl-hdp" style="width:80px"></label><label>T1 odds<input type="number" step="0.01" id="p1_hdp_HT1_1"></label><label>T2 odds<input type="number" step="0.01" id="p1_hdp_HT2_1"></label></div></div><div class="line-entry"><span class="line-num">2</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="p1_hdp_HL2" list="dl-hdp" style="width:80px"></label><label>T1 odds<input type="number" step="0.01" id="p1_hdp_HT1_2"></label><label>T2 odds<input type="number" step="0.01" id="p1_hdp_HT2_2"></label></div></div><div class="line-entry"><span class="line-num">3</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="p1_hdp_HL3" list="dl-hdp" style="width:80px"></label><label>T1 odds<input type="number" step="0.01" id="p1_hdp_HT1_3"></label><label>T2 odds<input type="number" step="0.01" id="p1_hdp_HT2_3"></label></div></div><div class="line-entry"><span class="line-num">4</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="p1_hdp_HL4" list="dl-hdp" style="width:80px"></label><label>T1 odds<input type="number" step="0.01" id="p1_hdp_HT1_4"></label><label>T2 odds<input type="number" step="0.01" id="p1_hdp_HT2_4"></label></div></div><div class="line-entry"><span class="line-num">5</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="p1_hdp_HL5" list="dl-hdp" style="width:80px"></label><label>T1 odds<input type="number" step="0.01" id="p1_hdp_HT1_5"></label><label>T2 odds<input type="number" step="0.01" id="p1_hdp_HT2_5"></label></div></div><div class="line-entry"><span class="line-num">6</span><div class="line-fields"><label>Line<input type="number" step="0.5" id="p1_hdp_HL6" list="dl-hdp" style="width:80px"></label><label>T1 odds<input type="number" step="0.01" id="p1_hdp_HT1_6"></label><label>T2 odds<input type="number" step="0.01" id="p1_hdp_HT2_6"></label></div></div></div>
+
+  <div class="section-title">1st Period 1X2</div>
+  <div class="win-row">
+    <label>W1 (Team 1)<input type="number" step="0.01" id="p1_w1"></label>
+    <label>X (Period draw)<input type="number" step="0.01" id="p1_x"></label>
+    <label>W2 (Team 2)<input type="number" step="0.01" id="p1_w2"></label>
+  </div>
+
+  <div class="section-title">1st Period Double Chance</div>
+  <div class="win-row">
+    <label>1X<input type="number" step="0.01" id="p1_dc1x"></label>
+    <label>12<input type="number" step="0.01" id="p1_dc12"></label>
+    <label>2X<input type="number" step="0.01" id="p1_dc2x"></label>
+  </div>
+
+  <div class="section-title">1st Period Both Teams To Score</div>
+  <div class="win-row">
+    <label>Yes (GG)<input type="number" step="0.01" id="p1_bttsY"></label>
+    <label>No (NG)<input type="number" step="0.01" id="p1_bttsN"></label>
+  </div>
+
+  <div class="section-title">1st Period Odd / Even</div>
+  <div class="win-row">
+    <label>Odd<input type="number" step="0.01" id="p1_oddOdds"></label>
+    <label>Even<input type="number" step="0.01" id="p1_evenOdds"></label>
+  </div>
+
+  <div class="section-title">1st Period Correct Score <span class="st-hint">10-cell grid with "Other" catch-all</span></div>
+  <div class="cs-grid" id="p1-cs-grid"><div class="cs-entry"><span class="cs-label">0-0</span><label>Odds<input type="number" step="0.01" id="p1_cs_00"></label></div><div class="cs-entry"><span class="cs-label">1-0</span><label>Odds<input type="number" step="0.01" id="p1_cs_10"></label></div><div class="cs-entry"><span class="cs-label">0-1</span><label>Odds<input type="number" step="0.01" id="p1_cs_01"></label></div><div class="cs-entry"><span class="cs-label">1-1</span><label>Odds<input type="number" step="0.01" id="p1_cs_11"></label></div><div class="cs-entry"><span class="cs-label">2-0</span><label>Odds<input type="number" step="0.01" id="p1_cs_20"></label></div><div class="cs-entry"><span class="cs-label">0-2</span><label>Odds<input type="number" step="0.01" id="p1_cs_02"></label></div><div class="cs-entry"><span class="cs-label">2-1</span><label>Odds<input type="number" step="0.01" id="p1_cs_21"></label></div><div class="cs-entry"><span class="cs-label">1-2</span><label>Odds<input type="number" step="0.01" id="p1_cs_12"></label></div><div class="cs-entry"><span class="cs-label">2-2</span><label>Odds<input type="number" step="0.01" id="p1_cs_22"></label></div><div class="cs-entry"><span class="cs-label">Other</span><label>Odds<input type="number" step="0.01" id="p1_cs_other"></label></div></div>
+
+  <div class="section-title">🥅 Correct Score Reconciliation Panel — 1st Period</div>
+  <div class="csi-panel">
+    <div class="csi-title">Odd/Even · BTTS · Team xG — reconstructed from the period score grid</div>
+    <div id="p1_cs_panel"><div class="csi-empty">Enter correct score odds above to unlock this panel.</div></div>
+  </div>
+
+  <div class="profiles">
+    <div class="profile-card card-under"><div class="profile-head"><span class="profile-name">Profile A</span><span class="profile-tag">Under · P1</span></div>
+      <p class="profile-desc">Evidence for a quiet, low-scoring first period.</p><div id="p1_aChecks"></div></div>
+    <div class="profile-card card-over"><div class="profile-head"><span class="profile-name">Profile B</span><span class="profile-tag">Over · P1</span></div>
+      <p class="profile-desc">Evidence for an eventful, high-scoring first period.</p><div id="p1_bChecks"></div></div>
+  </div>
+
+  <div class="section-title">Profile C — Handicap &amp; Result Ranking</div>
+  <div class="ranking-card">
+    <div id="p1_cTop"></div>
+    <div class="ev-row"><label>Your estimate for top pick</label><input type="number" step="0.1" id="p1_c_userProb" placeholder="%"><span>→</span><span id="p1_c_evBadge" class="ev-badge empty">Enter your % to compute EV</span></div>
+    <div id="p1_cList"></div>
+  </div>
+
+  <div class="section-title">Profile D — Best Specific Line Finder</div>
+  <div class="ranking-card">
+    <div id="p1_dTop"></div>
+    <div class="ev-row"><label>Your estimate for top pick</label><input type="number" step="0.1" id="p1_d_userProb" placeholder="%"><span>→</span><span id="p1_d_evBadge" class="ev-badge empty">Enter your % to compute EV</span></div>
+    <div id="p1_dList"></div>
+  </div>
+  <button class="reset-btn" onclick="clearScopeFields('p1')">Clear 1st Period fields</button>
+</section>
+
+<div class="section-title" style="margin-top:34px;">Screening Log <span class="st-hint">shared across both tabs · session only — export to keep</span></div>
+<div class="history-card">
+  <div class="history-actions">
+    <button class="btn primary" onclick="saveScreening(currentScope)">Save current tab</button>
+    <button class="btn" onclick="exportJSON()">Export JSON</button>
+    <button class="btn" onclick="exportCSV()">Export CSV</button>
+    <span class="btn file-btn">Import JSON<input type="file" accept="application/json" onchange="importJSON(event)"></span>
+    <button class="btn danger" onclick="clearHistory()">Clear log</button>
+  </div>
+  <div id="historyTableWrap"></div>
+</div>
+<footer>
+  Screening tool only. Market Expected Goals (MEG), the Overtime Intelligence panel, and the Correct Score Reconciliation panel are all derived mathematically from odds you enter — none of them predict what will happen, they reveal what the market's own pricing already implies. No model guarantees outcomes or produces positive EV against a bookmaker independently. Not financial advice. Fully offline, fully responsive — no data leaves this page.
+</footer>
+</div>
+<script>
+/* =========================================================
+   ICE HOCKEY MATCHDAY SCREENER — LOGIC ENGINE v1
+   Two innovations unique to this sport, unavailable to football,
+   basketball, or tennis:
+
+   1. OVERTIME INTELLIGENCE — hockey's regulation 1X2 market keeps
+      a draw as a valid outcome (the game literally can end tied
+      after 60 minutes) while a separate "Moneyline incl. OT/SO"
+      market forces a winner. This means the 1X2 draw price IS a
+      direct market read of P(this game reaches overtime) — no
+      other sport in this family exposes a probability this
+      cleanly. We further cross-check that probability against the
+      Moneyline-incl-OT market under the well-known hockey betting
+      assumption that shootouts are close to a coinflip regardless
+      of regulation dominance.
+
+   2. CORRECT SCORE RECONCILIATION — hockey scorelines decompose
+      additively into (home_goals, away_goals), so a correct-score
+      grid can be mined for FOUR independent reconstructed facts
+      (Odd/Even%, BTTS%, Team1/Team2 expected goals, Shutout%) and
+      each can be cross-checked against its own direct market.
+   ========================================================= */
+
+/* =========================================================
+   SECTION 1 — CONFIG (base + delta pattern, from football v4)
+   ========================================================= */
+var HKY_BASE = {
+  rt: {
+    a1:{green:60,amber:53}, a2:{green:45,amber:35}, a3:{green:1.0,amber:2.0},
+    a4:{green:58,amber:66,lowIsGreen:true},
+    b1:{green:60,amber:53}, b2:{green:20,amber:12},
+    b3:{green:1.0,amber:2.0}, b4:{green:66,amber:58,lowIsGreen:false},
+    scaleTight:1.0, scaleStrong:2.5,
+    strong:0.72, borderline:0.45, cGreen:76, cAmber:60
+  },
+  p1: {
+    a1:{green:58,amber:52}, a2:{green:48,amber:38}, a3:{green:0.6,amber:1.2},
+    a4:{green:58,amber:66,lowIsGreen:true},
+    b1:{green:58,amber:52}, b2:{green:18,amber:10},
+    b3:{green:0.6,amber:1.2}, b4:{green:66,amber:58,lowIsGreen:false},
+    scaleTight:0, scaleStrong:0,
+    strong:0.72, borderline:0.45, cGreen:76, cAmber:60
+  }
+};
+var HKY_LEAGUE_DELTA = {
+  balanced: {note:"No league adjustment — thresholds as calibrated for a typical NHL-pace matchup."},
+  nhl: {note:"Standard NHL scoring baseline (~6 combined goals/game). Same as balanced."},
+  highScoring: {note:"High-scoring context (weak goaltending matchup, back-to-back fatigue, or a run-and-gun league) — Over bar eased, Under bar raised.",
+    a1:{g:5,a:5}, a2:{g:6,a:6}, b1:{g:-5,a:-5}, b2:{g:-4,a:-4}},
+  lowScoring: {note:"Low-scoring context (elite goaltending matchup, defensive systems, or international/Olympic bigger-ice play) — Under bar eased, Over bar raised.",
+    a1:{g:-5,a:-5}, a2:{g:-6,a:-6}, b1:{g:5,a:5}, b2:{g:4,a:4}},
+  international: {note:"International/Olympic context — bigger ice surface and larger talent gaps between nations historically produce more mismatched, lower-total games. Under eased, aggregate bar raised for uncertainty.",
+    a1:{g:-6,a:-6}, a2:{g:-7,a:-7}, b1:{g:6,a:6}, strong:0.08, cGreen:4}
+};
+function hkRound(n,dp){ var m=Math.pow(10,dp||1); return Math.round(n*m)/m; }
+function hkBuildCFG(scope, presetKey){
+  var base=JSON.parse(JSON.stringify(HKY_BASE[scope]));
+  var delta=HKY_LEAGUE_DELTA[presetKey]||{};
+  ["a1","a2","b1","b2"].forEach(function(k){
+    if(delta[k]&&base[k]){
+      if(typeof delta[k].g==="number") base[k].green=hkRound(base[k].green+delta[k].g);
+      if(typeof delta[k].a==="number") base[k].amber=hkRound(base[k].amber+delta[k].a);
+    }
+  });
+  if(typeof delta.strong==="number") base.strong=Math.min(0.95, base.strong+delta.strong);
+  if(typeof delta.cGreen==="number") base.cGreen=Math.min(95, base.cGreen+delta.cGreen);
+  base.note=delta.note||"";
+  return base;
+}
+
+var HKY = {
+  VALUE_ZONE: 1.5,       /* goals from MEG for value zone (tighter than basketball/tennis — hockey totals are a small-scale number) */
+  TGD_TIGHT: 1.0,        /* team goal differential tolerance */
+  TGD_STRONG: 2.5,
+  OT_HIGH: 0.24,         /* NHL historical OT/SO rate is ~23-25% — calibration anchor */
+  OT_MOD: 0.18,
+  SHUTOUT_HIGH: 0.15,
+  SHUTOUT_MOD: 0.08,
+  PERIOD_MULT: 3         /* 3 equal periods — the most reliable scale multiplier of any sport in this family, since periods are exactly equal length by rule */
+};
+
+/* =========================================================
+   SECTION 2 — PRIMITIVES (same shape as football/basketball/tennis)
+   ========================================================= */
+function hkNum(id){
+  var el=document.getElementById(id);
+  if(!el||el.value==="") return null;
+  var v=parseFloat(el.value);
+  return isNaN(v)||v<=0?null:v;
+}
+function hkNumSigned(id){
+  var el=document.getElementById(id);
+  if(!el||el.value==="") return null;
+  var v=parseFloat(el.value);
+  return isNaN(v)?null:v;
+}
+function hkImplied(o){ return o?1/o:0; }
+function hkTierPct(p,cfg){ return p>=cfg.cGreen?"green":(p>=cfg.cAmber?"amber":"red"); }
+function hkTier3(v,g,a,lowIsGreen){
+  if(lowIsGreen) return v<=g?"green":(v<=a?"amber":"red");
+  return v>=g?"green":(v>=a?"amber":"red");
+}
+function getLeaguePreset(scope){
+  var el=document.getElementById(scope+"_league");
+  return el?el.value:"balanced";
+}
+
+/* =========================================================
+   SECTION 3 — LINE PARSERS
+   ========================================================= */
+function hkParseOU(prefix,count){
+  var lines=[];
+  for(var i=1;i<=count;i++){
+    var line=hkNum(prefix+"_L"+i), over=hkNum(prefix+"_O"+i), under=hkNum(prefix+"_U"+i);
+    if(line!==null&&over!==null&&under!==null){
+      var io=hkImplied(over), iu=hkImplied(under), s=io+iu;
+      lines.push({line:line,over:over,under:under,normOver:io/s,normUnder:iu/s});
+    }
+  }
+  lines.sort(function(a,b){return a.line-b.line;});
+  return lines;
+}
+function hkParseHDP(prefix,count){
+  var lines=[];
+  for(var i=1;i<=count;i++){
+    var line=hkNumSigned(prefix+"_HL"+i), t1=hkNum(prefix+"_HT1_"+i), t2=hkNum(prefix+"_HT2_"+i);
+    if(line!==null&&t1!==null&&t2!==null){
+      var i1=hkImplied(t1), i2=hkImplied(t2), s=i1+i2;
+      lines.push({line:line,t1:t1,t2:t2,normT1:i1/s,normT2:i2/s});
+    }
+  }
+  return lines;
+}
+
+/* =========================================================
+   SECTION 4 — MEG (MARKET EXPECTED GOALS) — same interpolation
+   math as basketball MET / tennis MEG, unit = goals.
+   ========================================================= */
+function hkComputeMEG(lines){
+  if(!lines||lines.length===0) return null;
+  if(lines.length===1) return {meg:lines[0].line,approx:true,analyzed:lines,valueZone:{bestOver:null,bestUnder:null}};
+  var megLine=null;
+  for(var i=0;i<lines.length-1;i++){
+    var a=lines[i], b=lines[i+1];
+    if(a.normOver>=0.50&&b.normOver<=0.50){
+      var span=b.line-a.line, ratio=(a.normOver-0.50)/(a.normOver-b.normOver);
+      megLine=a.line+ratio*span; break;
+    }
+  }
+  if(megLine===null){
+    megLine=lines.reduce(function(best,cur){return Math.abs(cur.normOver-0.50)<Math.abs(best.normOver-0.50)?cur:best;}).line;
+  }
+  megLine=hkRound(megLine,1);
+  var Z=HKY.VALUE_ZONE;
+  var underCands=lines.filter(function(l){return l.line>megLine&&l.line<=megLine+Z;}).sort(function(a,b){return b.normUnder-a.normUnder;});
+  var overCands=lines.filter(function(l){return l.line<megLine&&l.line>=megLine-Z;}).sort(function(a,b){return b.normOver-a.normOver;});
+  return {meg:megLine, approx:false, analyzed:lines, valueZone:{bestUnder:underCands[0]||null, bestOver:overCands[0]||null}};
+}
+
+/* =========================================================
+   SECTION 5 — TEAM GOAL DIFFERENTIAL (TGD)
+   ========================================================= */
+function hkTGD(t1Meg,t2Meg,gameMeg){
+  if(t1Meg===null||t2Meg===null||gameMeg===null) return null;
+  var combined=hkRound(t1Meg+t2Meg,1), diff=hkRound(combined-gameMeg,1);
+  var signal=Math.abs(diff)<=HKY.TGD_TIGHT?"consistent":(diff>0?"overSum":"underSum");
+  var strength=Math.abs(diff)>=HKY.TGD_STRONG?"strong":"moderate";
+  return {t1Meg:t1Meg,t2Meg:t2Meg,gameMeg:gameMeg,combined:combined,diff:diff,signal:signal,strength:strength};
+}
+
+/* =========================================================
+   SECTION 6 — PERIOD SCALE CHECK (Period1 x 3 vs Regulation)
+   ========================================================= */
+function hkScaleCheck(p1Meg, rtMeg, cfg){
+  if(p1Meg===null||rtMeg===null) return null;
+  var projected=hkRound(p1Meg*HKY.PERIOD_MULT,1), diff=hkRound(projected-rtMeg,1);
+  var signal;
+  if(Math.abs(diff)<=cfg.scaleTight) signal="consistent";
+  else if(diff>cfg.scaleStrong) signal="fastPace";
+  else if(diff>cfg.scaleTight) signal="slightlyFast";
+  else if(diff<-cfg.scaleStrong) signal="slowPace";
+  else signal="slightlySlow";
+  return {projected:projected,rtMeg:rtMeg,diff:diff,signal:signal};
+}
+
+/* =========================================================
+   SECTION 7 — OVERTIME INTELLIGENCE (regulation-only market feature)
+   ========================================================= */
+function hkOTIntelligence(w1,x,w2,ml1,ml2){
+  if(w1===null||x===null||w2===null) return null;
+  var i1=hkImplied(w1), ix=hkImplied(x), i2=hkImplied(w2), s=i1+ix+i2;
+  var pT1Reg=i1/s, pOT=ix/s, pT2Reg=i2/s;
+  var result={
+    pT1Reg:hkRound(pT1Reg*100,1), pOT:hkRound(pOT*100,1), pT2Reg:hkRound(pT2Reg*100,1),
+    otTier: pOT>=HKY.OT_HIGH?"high":(pOT>=HKY.OT_MOD?"moderate":"low")
+  };
+  if(ml1!==null&&ml2!==null){
+    var m1=hkImplied(ml1), m2=hkImplied(ml2), ms=m1+m2;
+    var actualML1=hkRound(m1/ms*100,1), actualML2=hkRound(m2/ms*100,1);
+    var expectedML1=hkRound((pT1Reg+pOT/2)*100,1);
+    var expectedML2=hkRound((pT2Reg+pOT/2)*100,1);
+    var deviation=hkRound(actualML1-expectedML1,1);
+    result.actualML1=actualML1; result.actualML2=actualML2;
+    result.expectedML1=expectedML1; result.expectedML2=expectedML2;
+    result.deviation=deviation;
+    result.deviationTier=Math.abs(deviation)>=6?"strong":(Math.abs(deviation)>=3?"moderate":"minimal");
+  }
+  return result;
+}
+
+function hkRenderOTPanel(containerId, otRes){
+  var el=document.getElementById(containerId);
+  if(!el) return;
+  if(!otRes){el.innerHTML="<div class=\"csi-empty\">Enter the 1X2 (regulation) odds above to unlock this panel.</div>";return;}
+  var tierColor=otRes.otTier==="high"?"var(--over)":otRes.otTier==="moderate"?"var(--amber)":"var(--under)";
+  var html="<div class=\"csi-stats\">"
+    +"<div class=\"csi-stat\"><span>P(Team 1 wins in regulation):</span><strong>"+otRes.pT1Reg+"%</strong></div>"
+    +"<div class=\"csi-stat\"><span>P(Team 2 wins in regulation):</span><strong>"+otRes.pT2Reg+"%</strong></div>"
+    +"<div class=\"csi-stat csi-vs\"><span>🏒 P(game reaches OT/Shootout):</span><strong style=\"color:"+tierColor+"\">"+otRes.pOT+"%</strong></div>"
+    +"</div>";
+  html+="<div class=\"ot-headline\" style=\"color:"+tierColor+"\">"
+    +(otRes.otTier==="high"?"⚡ ELEVATED overtime probability ("+otRes.pOT+"% vs ~24% NHL historical average) — this is a close, evenly-matched game by the market's own regulation-time pricing.":
+      otRes.otTier==="moderate"?"⚠ Moderate overtime probability ("+otRes.pOT+"%, close to the ~24% NHL historical baseline).":
+      "✔ Below-average overtime probability ("+otRes.pOT+"% vs ~24% NHL baseline) — market expects a more decisive regulation result.")
+    +"</div>";
+  if(otRes.deviation!==undefined){
+    var devColor=otRes.deviationTier==="strong"?"var(--red)":otRes.deviationTier==="moderate"?"var(--amber)":"var(--muted)";
+    html+="<div class=\"csi-detail\" style=\"margin-top:10px;\">"
+      +"<strong>OT Split Consistency Check</strong> (assumes shootouts are a ~coinflip regardless of regulation dominance):<br>"
+      +"Expected Moneyline split from regulation odds: T1 "+otRes.expectedML1+"% / T2 "+otRes.expectedML2+"%<br>"
+      +"Actual Moneyline-incl-OT market: T1 "+otRes.actualML1+"% / T2 "+otRes.actualML2+"%<br>"
+      +"<span style=\"color:"+devColor+";font-weight:700;\">Deviation: "+(otRes.deviation>0?"+":"")+otRes.deviation+" pts "
+      +(otRes.deviationTier==="strong"?"— SIGNIFICANT: either a real OT/shootout skill edge exists, or the two markets are priced inconsistently.":
+        otRes.deviationTier==="moderate"?"— worth a second look.":
+        "— markets are consistent with the coinflip-OT assumption.")+"</span>"
+      +"</div>";
+  } else {
+    html+="<div class=\"csi-detail\" style=\"margin-top:10px;\">Enter the Moneyline incl. OT/Shootout odds above to run the OT Split Consistency Check.</div>";
+  }
+  el.innerHTML=html;
+}
+
+/* =========================================================
+   SECTION 8 — CORRECT SCORE RECONCILIATION
+   ========================================================= */
+var HKY_RT_CS_CELLS=["00","10","01","11","20","02","21","12","22","30","03","other"];
+var HKY_P1_CS_CELLS=["00","10","01","11","20","02","21","12","22","other"];
+
+function hkParseCS(scope,cellList){
+  var raw=[];
+  cellList.forEach(function(c){
+    var o=hkNum(scope+"_cs_"+c);
+    if(o!==null){
+      var home=null, away=null;
+      if(c!=="other"){ home=parseInt(c.charAt(0),10); away=parseInt(c.charAt(1),10); }
+      raw.push({cell:c, odds:o, implied:hkImplied(o), home:home, away:away});
+    }
+  });
+  return raw;
+}
+
+function hkCSReconcile(scope, cellList, t1Meg, t2Meg){
+  var raw=hkParseCS(scope,cellList);
+  if(raw.length===0) return null;
+  var totalImplied=raw.reduce(function(s,r){return s+r.implied;},0);
+  raw.forEach(function(r){r.normProb=r.implied/totalImplied*100;});
+
+  var oddP=0, evenP=0, bttsYesP=0, bttsNoP=0, shutoutP=0, decisiveP=0, closeP=0;
+  var t1xG=0, t2xG=0, knownMass=0;
+  var maxProb=0, mostLikely=null;
+
+  raw.forEach(function(r){
+    if(r.normProb>maxProb){maxProb=r.normProb;mostLikely=r;}
+    if(r.cell==="other") return; /* Other bucket has no known home/away split */
+    knownMass+=r.normProb;
+    var total=r.home+r.away, margin=Math.abs(r.home-r.away);
+    if(total%2===0) evenP+=r.normProb; else oddP+=r.normProb;
+    if(r.home>0&&r.away>0) bttsYesP+=r.normProb; else bttsNoP+=r.normProb;
+    if(r.home===0||r.away===0) shutoutP+=r.normProb;
+    if(margin>=3) decisiveP+=r.normProb; else if(margin<=1) closeP+=r.normProb;
+    t1xG += (r.normProb/100)*r.home;
+    t2xG += (r.normProb/100)*r.away;
+  });
+
+  /* Scale reconstructed xG up to the full known mass (excludes "Other" bucket contribution) */
+  var scaleFactor = knownMass>0 ? 100/knownMass : 1;
+
+  var result={
+    coverage:raw.length, totalCells:cellList.length,
+    oddPct:hkRound(oddP,1), evenPct:hkRound(evenP,1),
+    bttsYesPct:hkRound(bttsYesP,1), bttsNoPct:hkRound(bttsNoP,1),
+    shutoutPct:hkRound(shutoutP,1),
+    decisivePct:hkRound(decisiveP,1), closePct:hkRound(closeP,1),
+    t1xG:hkRound(t1xG*scaleFactor/100*100,2), /* keep as raw weighted sum, see note below */
+    t2xG:hkRound(t2xG*scaleFactor/100*100,2),
+    mostLikely:mostLikely, scores:raw
+  };
+  /* Correct the xG scaling: t1xG/t2xG above are already probability-weighted
+     sums over normalized probabilities (which sum to 100 including "Other"),
+     so no further scaling is needed — fix to avoid double-scaling: */
+  result.t1xG=hkRound(t1xG,2);
+  result.t2xG=hkRound(t2xG,2);
+
+  if(t1Meg!==null){ result.t1Diff=hkRound(result.t1xG-t1Meg,2); }
+  if(t2Meg!==null){ result.t2Diff=hkRound(result.t2xG-t2Meg,2); }
+
+  return result;
+}
+
+function hkRenderCSPanel(containerId, csRes, gtMeg, oddOdds, evenOdds, bttsY, bttsN){
+  var el=document.getElementById(containerId);
+  if(!el) return;
+  if(!csRes){el.innerHTML="<div class=\"csi-empty\">Enter correct score odds above to unlock this panel.</div>";return;}
+
+  var coverageNote=csRes.coverage+"/"+csRes.totalCells+" scorelines entered"+(csRes.coverage<Math.ceil(csRes.totalCells/2)?" (low coverage — treat percentages as rough)":"");
+
+  var oddEvenCross="";
+  if(oddOdds&&evenOdds){
+    var io=hkImplied(oddOdds), ie=hkImplied(evenOdds), s=io+ie;
+    var directOdd=hkRound(io/s*100,1);
+    var diff=hkRound(csRes.oddPct-directOdd,1);
+    oddEvenCross="<div class=\"csi-detail\"><strong>Odd/Even cross-check:</strong> reconstructed Odd% = "+csRes.oddPct+"% vs direct market Odd% = "+directOdd+"% (diff: "+(diff>0?"+":"")+diff+" pts)"+(Math.abs(diff)>=6?" — <span style=\"color:var(--amber);font-weight:700;\">notable discrepancy</span>":"")+"</div>";
+  }
+  var bttsCross="";
+  if(bttsY&&bttsN){
+    var iy=hkImplied(bttsY), inn=hkImplied(bttsN), s2=iy+inn;
+    var directYes=hkRound(iy/s2*100,1);
+    var diff2=hkRound(csRes.bttsYesPct-directYes,1);
+    bttsCross="<div class=\"csi-detail\"><strong>BTTS cross-check:</strong> reconstructed GG% = "+csRes.bttsYesPct+"% vs direct market GG% = "+directYes+"% (diff: "+(diff2>0?"+":"")+diff2+" pts)"+(Math.abs(diff2)>=6?" — <span style=\"color:var(--amber);font-weight:700;\">notable discrepancy</span>":"")+"</div>";
+  }
+  var t1CrossHTML="", t2CrossHTML="";
+  if(csRes.t1Diff!==undefined) t1CrossHTML="<div class=\"csi-stat\"><span>Team 1 xG (reconstructed) vs MEG:</span><strong>"+csRes.t1xG+" (diff "+(csRes.t1Diff>0?"+":"")+csRes.t1Diff+")</strong></div>";
+  if(csRes.t2Diff!==undefined) t2CrossHTML="<div class=\"csi-stat\"><span>Team 2 xG (reconstructed) vs MEG:</span><strong>"+csRes.t2xG+" (diff "+(csRes.t2Diff>0?"+":"")+csRes.t2Diff+")</strong></div>";
+
+  var scoresHTML=csRes.scores.map(function(s){
+    var isTop=csRes.mostLikely&&s.cell===csRes.mostLikely.cell;
+    var label=s.cell==="other"?"Other":s.home+"-"+s.away;
+    var bar=Math.min(s.normProb*4,100);
+    return "<div class=\"csi-score"+(isTop?" csi-top":"")+"\">"
+      +"<span class=\"csi-sc\">"+label+"</span>"
+      +"<div class=\"csi-bar-wrap\"><div class=\"csi-bar\" style=\"width:"+bar+"%;background:"+(isTop?"var(--gold)":"var(--muted)")+"\"></div></div>"
+      +"<span class=\"csi-pct\">"+hkRound(s.normProb,1)+"%</span></div>";
+  }).join("");
+
+  el.innerHTML="<div class=\"csi-coverage\">"+coverageNote+"</div>"
+    +"<div class=\"csi-stats\">"
+    +"<div class=\"csi-stat\"><span>Odd total goals:</span><strong style=\"color:var(--over)\">"+csRes.oddPct+"%</strong></div>"
+    +"<div class=\"csi-stat\"><span>Even total goals:</span><strong style=\"color:var(--under)\">"+csRes.evenPct+"%</strong></div>"
+    +"<div class=\"csi-stat\"><span>BTTS Yes (reconstructed):</span><strong>"+csRes.bttsYesPct+"%</strong></div>"
+    +"<div class=\"csi-stat\"><span>Shutout probability:</span><strong style=\"color:"+(csRes.shutoutPct>=15?"var(--under)":"var(--muted)")+"\">"+csRes.shutoutPct+"%</strong></div>"
+    +"<div class=\"csi-stat\"><span>Decisive (margin ≥3):</span><strong>"+csRes.decisivePct+"%</strong></div>"
+    +"<div class=\"csi-stat\"><span>Close (margin ≤1):</span><strong>"+csRes.closePct+"%</strong></div>"
+    +t1CrossHTML+t2CrossHTML
+    +(csRes.mostLikely?"<div class=\"csi-stat\"><span>Most likely score:</span><strong style=\"color:var(--gold)\">"+(csRes.mostLikely.cell==="other"?"Other":csRes.mostLikely.home+"-"+csRes.mostLikely.away)+" ("+hkRound(csRes.mostLikely.normProb,1)+"%)</strong></div>":"")
+    +"</div>"
+    +oddEvenCross+bttsCross
+    +"<div class=\"csi-scores\">"+scoresHTML+"</div>";
+}
+
+/* =========================================================
+   SECTION 9 — RENDER HELPERS (shared shape with other sports)
+   ========================================================= */
+function hkRenderChecks(containerId, checks){
+  var c=document.getElementById(containerId); if(!c) return;
+  c.innerHTML="";
+  checks.forEach(function(chk,i){
+    var row=document.createElement("div"); row.className="check";
+    row.innerHTML="<div class=\"check-num\">"+(i+1)+"</div><div class=\"check-text\"><span class=\"ct-label\">"+chk.title+"</span><span class=\"ct-detail\">"+chk.detail+"</span></div><div class=\"pill "+chk.status+"\">"+chk.pillText+"</div>";
+    c.appendChild(row);
+  });
+}
+function hkPush(arr,title,detail,status,pill){ arr.push({title:title,detail:detail,status:status,pillText:pill}); }
+
+function hkUpdateBoard(lampsId,scoreId,verdictId,checks,cfg){
+  var completed=checks.filter(function(c){return c.status!=="empty";});
+  var greens=checks.filter(function(c){return c.status==="green";}).length;
+  var ambers=checks.filter(function(c){return c.status==="amber";}).length;
+  var score=greens+ambers*0.5;
+  var el=document.getElementById(scoreId); if(el) el.textContent=completed.length+"/5 checked";
+  var lamps=document.querySelectorAll("#"+lampsId+" .lamp");
+  checks.forEach(function(c,i){if(lamps[i])lamps[i].className="lamp"+(c.status!=="empty"?" "+c.status:"");});
+  var v=document.getElementById(verdictId);
+  if(!v) return{score:score,completed:completed.length,ratio:0};
+  if(completed.length===0){v.className="board-verdict empty";v.textContent="Enter odds to screen";return{score:0,completed:0,ratio:0};}
+  var ratio=score/completed.length, text,cls;
+  if(completed.length<2){text="Enter more odds for a read";cls="amber";}
+  else if(ratio>=cfg.strong){text="Strong candidate";cls="green";}
+  else if(ratio>=cfg.borderline){text="Borderline — closer look needed";cls="amber";}
+  else{text="Poor fit — consider skipping";cls="red";}
+  v.className="board-verdict "+cls; v.textContent=text;
+  return{score:score,completed:completed.length,ratio:ratio};
+}
+function hkRenderMEG(elId, megResult){
+  var el=document.getElementById(elId); if(!el) return;
+  if(!megResult){el.innerHTML="<span class=\"met-empty\">— enter lines above</span>";return;}
+  var vz=megResult.valueZone;
+  var html="<span class=\"met-value\">"+megResult.meg+(megResult.approx?" <span class=\"met-approx\">(1 line — approx)</span>":"")+"</span>";
+  if(vz&&vz.bestOver) html+=" <span class=\"met-tag over\">Best Over: "+vz.bestOver.line+" @ "+vz.bestOver.over.toFixed(2)+" ("+hkRound(vz.bestOver.normOver*100,1)+"%)</span>";
+  if(vz&&vz.bestUnder) html+=" <span class=\"met-tag under\">Best Under: "+vz.bestUnder.line+" @ "+vz.bestUnder.under.toFixed(2)+" ("+hkRound(vz.bestUnder.normUnder*100,1)+"%)</span>";
+  el.innerHTML=html;
+}
+function hkRenderRanking(topId, listId, options, cfg){
+  var topEl=document.getElementById(topId), listEl=document.getElementById(listId);
+  if(!topEl||!listEl) return{topLabel:null,topOdds:null,topProb:0};
+  if(!options||options.length===0){topEl.innerHTML="";listEl.innerHTML="<div class=\"rank-empty-note\">Enter odds above to rank options here.</div>";return{topLabel:null,topOdds:null,topProb:0};}
+  options.sort(function(a,b){return b.prob-a.prob;});
+  var top=options[0], t=hkTierPct(top.prob,cfg);
+  topEl.innerHTML="<div class=\"ranking-top\"><div><div class=\"rt-label\">Highest-probability option</div><div class=\"rt-name\">"+top.label+" <span style=\"color:var(--muted);font-size:13px;\">@ "+top.odds.toFixed(2)+"</span></div></div><div class=\"rt-prob\" style=\"color:var(--"+t+")\">"+top.prob.toFixed(1)+"%</div></div>";
+  listEl.innerHTML=options.map(function(o){
+    var tt=hkTierPct(o.prob,cfg);
+    return "<div class=\"rank-row\"><div class=\"rk-label\">"+o.label+"</div><div class=\"rk-odds\">"+o.odds.toFixed(2)+"</div><div class=\"prob-bar-wrap\"><div class=\"prob-bar "+tt+"\" style=\"width:"+Math.min(o.prob,100).toFixed(1)+"%\"></div></div><div class=\"rk-pct\" style=\"color:var(--"+tt+");\">"+o.prob.toFixed(1)+"%</div></div>";
+  }).join("");
+  return{topLabel:top.label,topOdds:top.odds,topProb:top.prob};
+}
+function hkRenderEV(userProbId, badgeId, topLabel, topOdds){
+  var badge=document.getElementById(badgeId); if(!badge) return;
+  var up=hkNum(userProbId);
+  if(topLabel&&up!==null){
+    var ev=(up/100*topOdds)-1, pct=hkRound(ev*100,1);
+    badge.className="ev-badge "+(ev>=0?"pos":"neg");
+    badge.textContent="EV on \""+topLabel+"\": "+(ev>=0?"+":"")+pct+"% (your "+up+"% vs price "+topOdds.toFixed(2)+")";
+  } else if(topLabel){
+    badge.className="ev-badge empty";
+    badge.textContent="Enter your probability % to compute EV on \""+topLabel+"\" @ "+topOdds.toFixed(2);
+  } else {
+    badge.className="ev-badge empty";
+    badge.textContent="Enter your % to compare against the price";
+  }
+}
+function hkUpdateLineBadges(scope, market, count){
+  for(var i=1;i<=count;i++){
+    var badge=document.getElementById(scope+"_"+market+"_P"+i); if(!badge) continue;
+    var over=hkNum(scope+"_"+market+"_O"+i), under=hkNum(scope+"_"+market+"_U"+i);
+    if(over===null||under===null){badge.className="line-prob neutral";badge.textContent="—";continue;}
+    var io=hkImplied(over), iu=hkImplied(under), s=io+iu, nO=io/s, nU=iu/s;
+    if(nO>nU){badge.className="line-prob over-lead";badge.textContent="Over "+hkRound(nO*100,1)+"%";}
+    else{badge.className="line-prob under-lead";badge.textContent="Under "+hkRound(nU*100,1)+"%";}
+  }
+}
+
+/* =========================================================
+   SECTION 10 — PROFILE BUILDERS
+   ========================================================= */
+function hkBuildProfileA(megResult, tgd, scaleRes, hdpRes, csRes, w1, x, w2, cfg){
+  var checks=[];
+
+  /* A1: value-zone Under */
+  if(megResult&&megResult.valueZone&&megResult.valueZone.bestUnder){
+    var bu=megResult.valueZone.bestUnder, prob=hkRound(bu.normUnder*100,1);
+    hkPush(checks,"Best Under in value zone","Line "+bu.line+" is "+hkRound(bu.line-megResult.meg,1)+" goals above MEG ("+megResult.meg+"). Norm Under: "+prob+"%", hkTier3(prob,cfg.a1.green,cfg.a1.amber,false), prob+"%");
+  } else if(megResult&&megResult.analyzed&&megResult.analyzed.length>0){
+    var bestU=megResult.analyzed.slice().sort(function(a,b){return b.normUnder-a.normUnder;})[0];
+    var p2=hkRound(bestU.normUnder*100,1);
+    hkPush(checks,"Best Under from entered lines","Line "+bestU.line+". Norm Under: "+p2+"% — no line in value zone (±"+HKY.VALUE_ZONE+" goals of MEG)", hkTier3(p2,cfg.a1.green,cfg.a1.amber,false), p2+"%");
+  } else hkPush(checks,"Game total lines","Enter at least one Over/Under line pair","empty","—");
+
+  /* A2: low-scoring correct-score cluster */
+  if(csRes){
+    var lowSum=0;
+    csRes.scores.forEach(function(s){ if(s.cell!=="other"&&(s.home+s.away)<=3) lowSum+=s.normProb; });
+    lowSum=hkRound(lowSum,1);
+    hkPush(checks,"Low-scoring correct-score cluster","Combined ≤3-goal scorelines: "+lowSum+"% of entered distribution. Most likely: "+(csRes.mostLikely?(csRes.mostLikely.cell==="other"?"Other":csRes.mostLikely.home+"-"+csRes.mostLikely.away):"n/a"), hkTier3(lowSum,cfg.a2.green,cfg.a2.amber,false), lowSum+"%");
+  } else hkPush(checks,"Low-scoring correct-score cluster","Enter correct score odds to unlock this check","empty","—");
+
+  /* A3: Team Goal Differential (underSum) */
+  if(tgd){
+    var st,detail,pill;
+    if(tgd.signal==="underSum"){
+      st=Math.abs(tgd.diff)>=HKY.TGD_STRONG?"green":"amber";
+      detail="T1 MEG ("+tgd.t1Meg+") + T2 MEG ("+tgd.t2Meg+") = "+tgd.combined+" vs Game MEG "+tgd.gameMeg+" ("+tgd.diff+" goals low) — supports Under";
+      pill=tgd.diff+" g";
+    } else if(tgd.signal==="overSum"){
+      st="red"; detail="T1+T2 MEG sum ("+tgd.combined+") is +"+tgd.diff+" goals above Game MEG — works against Under"; pill="+"+tgd.diff+" g";
+    } else { st="amber"; detail="T1+T2 MEG ("+tgd.combined+") consistent with Game MEG ("+tgd.gameMeg+"). Neutral."; pill="Neutral"; }
+    hkPush(checks,"Team Goal Differential",detail,st,pill);
+  } else hkPush(checks,"Team Goal Differential","Enter Team 1 and Team 2 total lines AND game total lines","empty","—");
+
+  /* A4: Period scale (RT only) */
+  if(scaleRes){
+    var st4,detail4,pill4;
+    if(scaleRes.signal==="slowPace"||scaleRes.signal==="slightlySlow"){
+      st4=scaleRes.signal==="slowPace"?"green":"amber";
+      detail4="Period 1 MEG × 3 projects "+scaleRes.projected+" goals vs Regulation MEG "+scaleRes.rtMeg+" ("+scaleRes.diff+" low). Slow pace → supports Under.";
+      pill4=scaleRes.diff+" g";
+    } else if(scaleRes.signal==="fastPace"||scaleRes.signal==="slightlyFast"){
+      st4="red"; detail4="Period 1 × 3 projects "+scaleRes.projected+" vs Regulation MEG "+scaleRes.rtMeg+" (+"+scaleRes.diff+"). Fast pace → works against Under."; pill4="+"+scaleRes.diff+" g";
+    } else { st4="amber"; detail4="Period scale consistent (diff "+scaleRes.diff+" g)."; pill4="Consistent"; }
+    hkPush(checks,"Period → Regulation scale check",detail4,st4,pill4);
+  } else hkPush(checks,"Period → Regulation scale","Fill 1st Period tab to enable this cross-scope check (Regular Time tab only)","empty","—");
+
+  /* A5: tight moneyline = cautious/defensive game */
+  if(w1&&w2){
+    var i1=hkImplied(w1), i2=hkImplied(w2), s=i1+i2;
+    var favProb=hkRound(Math.max(i1,i2)/s*100,1);
+    var st5=hkTier3(favProb,cfg.a4.green,cfg.a4.amber,true);
+    hkPush(checks,"Moneyline balance (defensive-game signal)","Favourite at "+favProb+"%. "+(favProb<=cfg.a4.green?"Even matchup — cautious, low-event hockey more likely.":favProb<=cfg.a4.amber?"Moderate favourite.":"Lopsided matchup — see Profile B for the empty-net counter-read."),st5,favProb+"% fav");
+  } else hkPush(checks,"Moneyline balance","Enter Team 1 and Team 2 moneyline (or 1X2) odds","empty","—");
+
+  return checks;
+}
+
+function hkBuildProfileB(megResult, tgd, scaleRes, hdpRes, csRes, w1, x, w2, cfg){
+  var checks=[];
+
+  /* B1: value-zone Over */
+  if(megResult&&megResult.valueZone&&megResult.valueZone.bestOver){
+    var bo=megResult.valueZone.bestOver, prob=hkRound(bo.normOver*100,1);
+    hkPush(checks,"Best Over in value zone","Line "+bo.line+" is "+hkRound(megResult.meg-bo.line,1)+" goals below MEG ("+megResult.meg+"). Norm Over: "+prob+"%", hkTier3(prob,cfg.b1.green,cfg.b1.amber,false), prob+"%");
+  } else if(megResult&&megResult.analyzed&&megResult.analyzed.length>0){
+    var bestO=megResult.analyzed.slice().sort(function(a,b){return b.normOver-a.normOver;})[0];
+    var p2=hkRound(bestO.normOver*100,1);
+    hkPush(checks,"Best Over from entered lines","Line "+bestO.line+". Norm Over: "+p2+"% — no line in value zone", hkTier3(p2,cfg.b1.green,cfg.b1.amber,false), p2+"%");
+  } else hkPush(checks,"Game total lines","Enter at least one Over/Under line pair","empty","—");
+
+  /* B2: high-scoring correct-score cluster */
+  if(csRes){
+    var highSum=0;
+    csRes.scores.forEach(function(s){ if(s.cell!=="other"&&(s.home+s.away)>=6) highSum+=s.normProb; });
+    highSum=hkRound(highSum,1);
+    hkPush(checks,"High-scoring correct-score cluster","Combined ≥6-goal scorelines: "+highSum+"% of entered distribution.", hkTier3(highSum,cfg.b2.green,cfg.b2.amber,false), highSum+"%");
+  } else hkPush(checks,"High-scoring correct-score cluster","Enter correct score odds to unlock this check","empty","—");
+
+  /* B3: TGD overSum */
+  if(tgd){
+    var st,detail,pill;
+    if(tgd.signal==="overSum"){
+      st=Math.abs(tgd.diff)>=HKY.TGD_STRONG?"green":"amber";
+      detail="T1+T2 MEG sum ("+tgd.combined+") is +"+tgd.diff+" goals above Game MEG ("+tgd.gameMeg+") — supports Over"; pill="+"+tgd.diff+" g";
+    } else if(tgd.signal==="underSum"){
+      st="red"; detail="T1+T2 MEG sum ("+tgd.combined+") is "+tgd.diff+" goals below Game MEG — works against Over"; pill=tgd.diff+" g";
+    } else { st="amber"; detail="T1+T2 MEG consistent with Game MEG. Neutral."; pill="Neutral"; }
+    hkPush(checks,"Team Goal Differential",detail,st,pill);
+  } else hkPush(checks,"Team Goal Differential","Enter Team 1 and Team 2 total lines AND game total lines","empty","—");
+
+  /* B4: Period scale fast pace */
+  if(scaleRes){
+    var st4,detail4,pill4;
+    if(scaleRes.signal==="fastPace"||scaleRes.signal==="slightlyFast"){
+      st4=scaleRes.signal==="fastPace"?"green":"amber";
+      detail4="Period 1 × 3 projects "+scaleRes.projected+" vs Regulation MEG "+scaleRes.rtMeg+" (+"+scaleRes.diff+"). Fast pace → supports Over.";
+      pill4="+"+scaleRes.diff+" g";
+    } else if(scaleRes.signal==="slowPace"||scaleRes.signal==="slightlySlow"){
+      st4="red"; detail4="Period 1 × 3 projects "+scaleRes.projected+" vs Regulation MEG "+scaleRes.rtMeg+" ("+scaleRes.diff+"). Slow pace → works against Over."; pill4=scaleRes.diff+" g";
+    } else { st4="amber"; detail4="Period scale consistent. Neutral."; pill4="Consistent"; }
+    hkPush(checks,"Period → Regulation scale check",detail4,st4,pill4);
+  } else hkPush(checks,"Period → Regulation scale","Fill 1st Period tab to enable this cross-scope check","empty","—");
+
+  /* B5: wide moneyline = empty-net / blowout goal risk */
+  if(w1&&w2){
+    var i1=hkImplied(w1), i2=hkImplied(w2), s=i1+i2;
+    var favProb=hkRound(Math.max(i1,i2)/s*100,1);
+    var st5=hkTier3(favProb,cfg.b4.green,cfg.b4.amber,false);
+    hkPush(checks,"Moneyline balance (empty-net risk signal)","Favourite at "+favProb+"%. "+(favProb>=cfg.b4.green?"Lopsided matchup — decided games often add empty-net goals late, and the stronger side may simply outscore comfortably. Supports Over.":favProb>=cfg.b4.amber?"Moderate favourite.":"Even matchup — less blowout/empty-net risk."),st5,favProb+"% fav");
+  } else hkPush(checks,"Moneyline balance","Enter Team 1 and Team 2 moneyline (or 1X2) odds","empty","—");
+
+  return checks;
+}
+
+function hkBuildProfileC(hdpRes, w1,x,w2, ml1, ml2, dc1x, dc12, dc2x){
+  var options=[];
+  if(hdpRes&&hdpRes.length){
+    hdpRes.forEach(function(l){
+      var sign=l.line>=0?"+":"";
+      options.push({label:"T1 ("+sign+l.line+") puck line",odds:l.t1,prob:l.normT1*100});
+      options.push({label:"T2 ("+(l.line>=0?"-":"+")+Math.abs(l.line)+") puck line",odds:l.t2,prob:l.normT2*100});
+    });
+  }
+  if(w1&&x&&w2){
+    var i1=hkImplied(w1), ix=hkImplied(x), i2=hkImplied(w2), s=i1+ix+i2;
+    options.push({label:"Team 1 Win (1X2, regulation)",odds:w1,prob:i1/s*100});
+    options.push({label:"Draw (regulation → OT)",odds:x,prob:ix/s*100});
+    options.push({label:"Team 2 Win (1X2, regulation)",odds:w2,prob:i2/s*100});
+  }
+  if(ml1&&ml2){
+    var m1=hkImplied(ml1), m2=hkImplied(ml2), ms=m1+m2;
+    options.push({label:"Team 1 Moneyline (incl. OT/SO)",odds:ml1,prob:m1/ms*100});
+    options.push({label:"Team 2 Moneyline (incl. OT/SO)",odds:ml2,prob:m2/ms*100});
+  }
+  if(dc1x) options.push({label:"Double Chance: 1X",odds:dc1x,prob:hkImplied(dc1x)*100});
+  if(dc12) options.push({label:"Double Chance: 12",odds:dc12,prob:hkImplied(dc12)*100});
+  if(dc2x) options.push({label:"Double Chance: 2X",odds:dc2x,prob:hkImplied(dc2x)*100});
+  return options;
+}
+
+function hkBuildProfileD(gtLines, t1Lines, t2Lines){
+  var options=[];
+  function addLines(lines,label){
+    if(!lines) return;
+    lines.forEach(function(l){
+      var op=l.normOver>l.normUnder;
+      options.push({label:label+(op?" Over ":" Under ")+l.line, odds:op?l.over:l.under, prob:(op?l.normOver:l.normUnder)*100});
+    });
+  }
+  addLines(gtLines,"Game Total"); addLines(t1Lines,"Team 1 Total"); addLines(t2Lines,"Team 2 Total");
+  return options;
+}
+
+/* =========================================================
+   SECTION 11 — MASTER BANNER
+   ========================================================= */
+function hkWriteMasterBanner(scope, cfg, aRes, bRes, cRank, dRank, t1Name, t2Name, otRes){
+  var label=(t1Name&&t2Name)?(t1Name+" vs "+t2Name):"This match";
+  var mh=document.getElementById(scope+"_masterHeadline"), cr=document.getElementById(scope+"_chipRow");
+  if(!mh||!cr) return;
+  var scopeLabel=scope==="rt"?"Regular Time":"1st Period";
+
+  var aRatio=aRes.completed?aRes.score/aRes.completed:0, bRatio=bRes.completed?bRes.score/bRes.completed:0;
+  var aPct=aRes.completed>=2?hkRound(aRatio*100,0)+"%":"—";
+  var bPct=bRes.completed>=2?hkRound(bRatio*100,0)+"%":"—";
+  var cPct=cRank.topLabel?hkRound(cRank.topProb,0)+"%":"—";
+  var dPct=dRank.topLabel?hkRound(dRank.topProb,0)+"%":"—";
+
+  var aDot=aRes.completed<2?"empty":(aRatio>=cfg.strong?"green":aRatio>=cfg.borderline?"amber":"red");
+  var bDot=bRes.completed<2?"empty":(bRatio>=cfg.strong?"green":bRatio>=cfg.borderline?"amber":"red");
+  var cDot=cRank.topLabel?hkTierPct(cRank.topProb,cfg):"empty";
+  var dDot=dRank.topLabel?hkTierPct(dRank.topProb,cfg):"empty";
+
+  var otChip = otRes ? "<span class=\"chip\"><span class=\"dot "+(otRes.otTier==="high"?"amber":"empty")+"\"></span>OT Prob — "+otRes.pOT+"%</span>" : "";
+  cr.innerHTML="<span class=\"chip\"><span class=\"dot "+aDot+"\"></span>A (Under) — "+aPct+"</span>"
+    +"<span class=\"chip\"><span class=\"dot "+bDot+"\"></span>B (Over) — "+bPct+"</span>"
+    +"<span class=\"chip\"><span class=\"dot "+cDot+"\"></span>C (Hdp/Result) — "+cPct+(cRank.topLabel?" · "+cRank.topLabel:"")+"</span>"
+    +"<span class=\"chip\"><span class=\"dot "+dDot+"\"></span>D (Line) — "+dPct+(dRank.topLabel?" · "+dRank.topLabel:"")+"</span>"
+    +otChip;
+
+  var enoughA=aRes.completed>=2, enoughB=bRes.completed>=2;
+  var nothingYet=!enoughA&&!enoughB&&!cRank.topLabel&&!dRank.topLabel;
+  var headline;
+  if(nothingYet){ headline="Enter "+scopeLabel+" odds below — a recommendation will build here."; }
+  else if((enoughA&&aRatio>=cfg.strong)||(enoughB&&bRatio>=cfg.strong)){
+    if(aRatio>=bRatio) headline="<strong>"+label+" ("+scopeLabel+")</strong>: totals market favours <span class=\"hl-under\">Under</span> ("+aPct+" of checks support it).";
+    else headline="<strong>"+label+" ("+scopeLabel+")</strong>: totals market favours <span class=\"hl-over\">Over</span> ("+bPct+" of checks support it).";
+  } else if(dRank.topLabel&&dRank.topProb>=cfg.cGreen){
+    headline="<strong>"+label+" ("+scopeLabel+")</strong>: no clean O/U fit — best specific line: <span class=\"hl-amber\">"+dRank.topLabel+"</span> at "+hkRound(dRank.topProb,1)+"% (@ "+dRank.topOdds.toFixed(2)+").";
+  } else if(cRank.topLabel&&cRank.topProb>=cfg.cGreen){
+    headline="<strong>"+label+" ("+scopeLabel+")</strong>: no clean O/U fit — handicap/result pick: <span class=\"hl-amber\">"+cRank.topLabel+"</span> at "+hkRound(cRank.topProb,1)+"% (@ "+cRank.topOdds.toFixed(2)+").";
+  } else { headline="<strong>"+label+" ("+scopeLabel+")</strong>: <span class=\"hl-red\">no standout selection</span> — add more odds or consider skipping."; }
+  mh.innerHTML=headline;
+
+  window["_hkyState_"+scope]={
+    label:label, scope:scope.toUpperCase(), scopeLabel:scopeLabel,
+    aPct:aPct, bPct:bPct, cPct:cPct+(cRank.topLabel?" ("+cRank.topLabel+")":""), dPct:dPct+(dRank.topLabel?" ("+dRank.topLabel+")":""),
+    otPct:otRes?otRes.pOT+"%":"",
+    recommendation:nothingYet?null:(aRatio>=bRatio&&enoughA?"Under (A "+aPct+")":(enoughB?"Over (B "+bPct+")":(dRank.topLabel?dRank.topLabel:(cRank.topLabel?cRank.topLabel:"No standout"))))
+  };
+}
+
+/* =========================================================
+   SECTION 12 — SCOPE CALCULATOR
+   ========================================================= */
+function hkCalcScope(scope){
+  var t1Name=(document.getElementById(scope+"_t1Name")||{}).value||"";
+  var t2Name=(document.getElementById(scope+"_t2Name")||{}).value||"";
+  var presetKey=getLeaguePreset(scope);
+  var cfg=hkBuildCFG(scope,presetKey);
+  var noteEl=document.getElementById(scope+"_leagueNote"); if(noteEl) noteEl.textContent=cfg.note;
+
+  var gtLines=hkParseOU(scope+"_gt",7);
+  var t1Lines=hkParseOU(scope+"_t1",5);
+  var t2Lines=hkParseOU(scope+"_t2",5);
+  var hdpLines=hkParseHDP(scope+"_hdp",6);
+
+  hkUpdateLineBadges(scope,"gt",7);
+  hkUpdateLineBadges(scope,"t1",5);
+  hkUpdateLineBadges(scope,"t2",5);
+
+  var gtMEG=hkComputeMEG(gtLines), t1MEG=hkComputeMEG(t1Lines), t2MEG=hkComputeMEG(t2Lines);
+  hkRenderMEG(scope+"_gt_meg",gtMEG); hkRenderMEG(scope+"_t1_meg",t1MEG); hkRenderMEG(scope+"_t2_meg",t2MEG);
+
+  var tgd=hkTGD(t1MEG?t1MEG.meg:null, t2MEG?t2MEG.meg:null, gtMEG?gtMEG.meg:null);
+
+  var scaleRes=null;
+  if(scope==="rt"){
+    var p1GtLines=hkParseOU("p1_gt",7);
+    var p1MEG=hkComputeMEG(p1GtLines);
+    if(p1MEG) scaleRes=hkScaleCheck(p1MEG.meg, gtMEG?gtMEG.meg:null, cfg);
+  }
+
+  var w1=hkNum(scope+"_w1"), x=hkNum(scope+"_x"), w2=hkNum(scope+"_w2");
+  var ml1=scope==="rt"?hkNum(scope+"_ml1"):null, ml2=scope==="rt"?hkNum(scope+"_ml2"):null;
+  var dc1x=hkNum(scope+"_dc1x"), dc12=hkNum(scope+"_dc12"), dc2x=hkNum(scope+"_dc2x");
+  var bttsY=hkNum(scope+"_bttsY"), bttsN=hkNum(scope+"_bttsN");
+  var oddOdds=hkNum(scope+"_oddOdds"), evenOdds=hkNum(scope+"_evenOdds");
+
+  var cellList=scope==="rt"?HKY_RT_CS_CELLS:HKY_P1_CS_CELLS;
+  var csRes=hkCSReconcile(scope, cellList, t1MEG?t1MEG.meg:null, t2MEG?t2MEG.meg:null);
+  hkRenderCSPanel(scope+"_cs_panel", csRes, gtMEG?gtMEG.meg:null, oddOdds, evenOdds, bttsY, bttsN);
+
+  var otRes=null;
+  if(scope==="rt"){
+    otRes=hkOTIntelligence(w1,x,w2,ml1,ml2);
+    hkRenderOTPanel("rt_ot_panel", otRes);
+  }
+
+  var aChecks=hkBuildProfileA(gtMEG,tgd,scaleRes,hdpLines,csRes,w1,x,w2,cfg);
+  var bChecks=hkBuildProfileB(gtMEG,tgd,scaleRes,hdpLines,csRes,w1,x,w2,cfg);
+  hkRenderChecks(scope+"_aChecks",aChecks); hkRenderChecks(scope+"_bChecks",bChecks);
+  var aRes=hkUpdateBoard(scope+"_aLamps",scope+"_aScoreText",scope+"_aVerdict",aChecks,cfg);
+  var bRes=hkUpdateBoard(scope+"_bLamps",scope+"_bScoreText",scope+"_bVerdict",bChecks,cfg);
+
+  var cOptions=hkBuildProfileC(hdpLines,w1,x,w2,ml1,ml2,dc1x,dc12,dc2x);
+  var cRank=hkRenderRanking(scope+"_cTop",scope+"_cList",cOptions,cfg);
+  hkRenderEV(scope+"_c_userProb",scope+"_c_evBadge",cRank.topLabel,cRank.topOdds);
+
+  var dOptions=hkBuildProfileD(gtMEG?gtMEG.analyzed:null, t1MEG?t1MEG.analyzed:null, t2MEG?t2MEG.analyzed:null);
+  var dRank=hkRenderRanking(scope+"_dTop",scope+"_dList",dOptions,cfg);
+  hkRenderEV(scope+"_d_userProb",scope+"_d_evBadge",dRank.topLabel,dRank.topOdds);
+
+  /* Shutout risk — injected 6th check into Profile A when BTTS odds available */
+  if(bttsY&&bttsN){
+    var iy=hkImplied(bttsY), inn=hkImplied(bttsN), s=iy+inn;
+    var noPct=hkRound(inn/s*100,1);
+    var st=noPct>=HKY.SHUTOUT_HIGH*100?"green":(noPct>=HKY.SHUTOUT_MOD*100?"amber":"red");
+    var detail="Market-implied shutout probability (BTTS No): "+noPct+"%. "+(noPct>=HKY.SHUTOUT_HIGH*100?"Elevated — a real defensive/goaltending mismatch, supports Under.":noPct>=HKY.SHUTOUT_MOD*100?"Moderate.":"Low — both teams expected to score, typical hockey baseline.");
+    var aCard=document.getElementById(scope+"_aChecks");
+    if(aCard){
+      var existing=aCard.querySelector(".shutout-check");
+      if(existing) existing.parentNode.removeChild(existing);
+      var row=document.createElement("div");
+      row.className="check shutout-check";
+      row.innerHTML="<div class=\"check-num\">+</div><div class=\"check-text\"><span class=\"ct-label\">🏒 Shutout Risk (direct BTTS odds)</span><span class=\"ct-detail\">"+detail+"</span></div><div class=\"pill "+st+"\">"+noPct+"%</div>";
+      aCard.appendChild(row);
+    }
+  }
+
+  hkWriteMasterBanner(scope,cfg,aRes,bRes,cRank,dRank,t1Name.trim(),t2Name.trim(),otRes);
+}
+
+/* =========================================================
+   SECTION 13 — TAB + CLEAR
+   ========================================================= */
+var currentScope="rt";
+function switchScope(scope){
+  currentScope=scope;
+  ["rt","p1"].forEach(function(s){
+    var sec=document.getElementById("scope_"+s), btn=document.getElementById("tabBtn_"+s);
+    if(sec) sec.classList.toggle("active",s===scope);
+    if(btn) btn.classList.toggle("active",s===scope);
+  });
+}
+function clearScopeFields(scope){
+  var sec=document.getElementById("scope_"+scope); if(!sec) return;
+  sec.querySelectorAll("input[type=number],input[type=text]").forEach(function(el){el.value="";});
+  sec.querySelectorAll("select").forEach(function(el){ if(el.id.indexOf("league")>-1) el.value="balanced"; });
+  hkCalcScope(scope);
+}
+
+/* =========================================================
+   SECTION 14 — HISTORY LOG
+   ========================================================= */
+var hkyHistory=[];
+function saveScreening(scope){
+  var s=window["_hkyState_"+scope];
+  if(!s||!s.recommendation){alert("Enter some odds first so there is something to save.");return;}
+  hkyHistory.push({timestamp:new Date().toISOString(),scope:s.scope,scopeLabel:s.scopeLabel,match:s.label,
+    profileA:s.aPct,profileB:s.bPct,profileC:s.cPct,profileD:s.dPct,otProb:s.otPct,recommendation:s.recommendation});
+  renderHistory();
+}
+function renderHistory(){
+  var wrap=document.getElementById("historyTableWrap"); if(!wrap) return;
+  if(hkyHistory.length===0){wrap.innerHTML="<div class=\"history-empty\">No screenings saved yet this session.</div>";return;}
+  var rows=hkyHistory.map(function(h,i){
+    return "<tr><td><span class=\"scope-tag\">"+h.scope+"</span></td><td>"+h.match+"</td><td>"+h.profileA+"</td><td>"+h.profileB+"</td><td>"+h.profileC+"</td><td>"+h.profileD+"</td><td>"+(h.otProb||"—")+"</td><td>"+h.recommendation+"</td><td><button class=\"rm-btn\" onclick=\"removeHistory("+i+")\">✕</button></td></tr>";
+  }).join("");
+  wrap.innerHTML="<table class=\"history-table\"><thead><tr><th>Scope</th><th>Match</th><th>A</th><th>B</th><th>C</th><th>D</th><th>OT%</th><th>Recommendation</th><th></th></tr></thead><tbody>"+rows+"</tbody></table>";
+}
+function removeHistory(i){hkyHistory.splice(i,1);renderHistory();}
+function clearHistory(){if(hkyHistory.length&&!confirm("Clear the entire session log?"))return;hkyHistory=[];renderHistory();}
+function downloadBlob(content,filename,mime){
+  var blob=new Blob([content],{type:mime}); var url=URL.createObjectURL(blob);
+  var a=document.createElement("a"); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function exportJSON(){if(!hkyHistory.length){alert("Nothing to export.");return;}downloadBlob(JSON.stringify(hkyHistory,null,2),"hockey-log.json","application/json");}
+function exportCSV(){
+  if(!hkyHistory.length){alert("Nothing to export.");return;}
+  var hdr=["timestamp","scope","match","profileA","profileB","profileC","profileD","otProb","recommendation"];
+  var NL=String.fromCharCode(10);
+  var rows=hkyHistory.map(function(h){return hdr.map(function(k){return "\""+((h[k]||"").toString().replace(/"/g,"\"\""))+"\"";}).join(",");});
+  downloadBlob([hdr.join(",")].concat(rows).join(NL),"hockey-log.csv","text/csv");
+}
+function importJSON(evt){
+  var file=evt.target.files[0]; if(!file) return;
+  var r=new FileReader();
+  r.onload=function(e){try{var p=JSON.parse(e.target.result);if(!Array.isArray(p))throw new Error("bad");hkyHistory=hkyHistory.concat(p);renderHistory();}catch(err){alert("Could not read that file.");}};
+  r.readAsText(file); evt.target.value="";
+}
+
+/* =========================================================
+   SECTION 15 — INIT
+   ========================================================= */
+function initHKY(){
+  ["rt","p1"].forEach(function(scope){
+    var sec=document.getElementById("scope_"+scope); if(!sec) return;
+    sec.querySelectorAll("input, select").forEach(function(el){
+      el.addEventListener("input",function(){hkCalcScope(scope);});
+      el.addEventListener("change",function(){hkCalcScope(scope);});
+    });
+    hkCalcScope(scope);
+  });
+  renderHistory();
+}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",initHKY);}else{initHKY();}
+
+</script>
+</body>
+</html>

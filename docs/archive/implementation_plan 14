@@ -1,0 +1,71 @@
+# Automated Real-Time Score Sync, Past History Updates & Deep Odds Evaluation Plan
+
+This implementation plan details how we will enhance the Sports-Screener system to search, fetch, scrape, and deep-evaluate real-time match stats, odds, and fixtures across all 11 sports (`football`, `basketball`, `tennis`, `rally`, `hockey`, `baseball`, `americanfootball`, `rugby`, `cricket`, `mma`, `volleyball`), as well as automatically fetch and update past history for completed matches, calculate settled PnL outcomes, and synchronize live scoreline updates across all application interfaces in real time via Convex.
+
+## User Review Required
+
+> [!IMPORTANT]
+> - **API Key Availability**: Real-time score fetching uses API providers (TheSportsDB, BallDontLie, SportsData.io, OddsPapi) alongside failover HTML scrapers (BetExplorer / FlashScore / SoccerVista). If API keys are unconfigured, the system automatically falls back to public API endpoints (e.g. public key `123` for TheSportsDB) and HTML reader chains without failing.
+> - **Cron Schedule Adjustments**: Live score synchronization will run every 5 minutes on Convex, while full past history score updates and PnL re-settlements will run automatically every 3 hours and daily.
+
+## Open Questions
+
+> [!NOTE]
+> None. The current codebase schema (`predictorMatches`, `predictorDays`, `predictorVerdicts`, `aiPredictorStats`) already contains fields for `finalScore`, `status`, and `oddsSnapshot`. We will fully leverage and populate these fields.
+
+## Proposed Changes
+
+---
+
+### 1. Convex Score Fetching & Live Sync Engine
+
+#### [NEW] [convex/scores.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/scores.ts)
+- Create `convex/scores.ts` containing:
+  - `syncScoresAction`: Internal action that fetches real-time live and completed scores for target dates across all 11 sports.
+  - `syncPastHistoryAction`: Internal action that iterates over past dates (up to 7 days), fetches completed scores, updates match status to `'finished'`, and calculates settled PnL summaries.
+  - `updateScoresBatch`: Internal mutation to update `predictorMatches` (`finalScore`, `status`) and refresh `aiPredictorStats` in Convex DB atomically.
+
+#### [MODIFY] [convex/apis/sportsApis.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/apis/sportsApis.ts)
+- Add `fetchScoresForDate(sportId, date)` helper:
+  - Supports TheSportsDB (`strHomeScore`/`strAwayScore`/`strStatus`), BallDontLie NBA scores, SportsData.io NBA scores, OddsPapi fixture status, and web scraping for live scorelines.
+  - Normalizes scores into `"HomeScore - AwayScore"` strings and standardizes status to `'upcoming' | 'inplay' | 'finished'`.
+
+---
+
+### 2. Convex Cron Schedules & Pipeline Orchestration
+
+#### [MODIFY] [convex/crons.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/crons.ts)
+- Add `predictor-sync-live-scores` cron job running every 5 minutes to trigger `internal.scores.syncScoresAction`.
+- Add `predictor-sync-past-history` cron job running every 3 hours to trigger `internal.scores.syncPastHistoryAction`.
+
+#### [MODIFY] [convex/predictorOrchestrator.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/predictorOrchestrator.ts)
+- Integrate score sync into `executeRefresh` so whenever a day refresh is completed, existing match scores are preserved or updated immediately.
+
+---
+
+### 3. Real-Time Frontend Scoreline Synchronization & Past History Rendering
+
+#### [MODIFY] [src/lib/predictorClient.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/predictorClient.ts)
+- Update match data structures and helper utilities to support real-time reactive scoreline updates and settled pick outcomes.
+
+#### [MODIFY] [src/lib/components/PredictorMatchCard.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/PredictorMatchCard.svelte)
+- Add live pulse animations for `'inplay'` matches, clear scoreline displays for `'finished'` matches, and badge indicators showing win/loss settlement against predicted picks.
+
+#### [MODIFY] [src/lib/components/DailyPnlSummary.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/DailyPnlSummary.svelte)
+- Update PnL component to render settled PnL metrics based on real completed scores when available, with fallback to cross-verified model projections.
+
+---
+
+## Verification Plan
+
+### Automated Verification
+- Run TypeScript checking and Svelte check:
+  `npx svelte-check`
+- Run project build validation:
+  `npm run build`
+- Run unit/integration tests:
+  `npm test` or `npx vitest run`
+
+### Manual & Runtime Verification
+- Execute a test script to trigger `syncScoresAction` and verify match scores update in Convex DB.
+- Confirm live score badges, scorelines, and past match history render seamlessly in the frontend UI.

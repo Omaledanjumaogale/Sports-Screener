@@ -1,0 +1,293 @@
+# Implementation Plan — PulseOdds Feature Upgrade Batch 4
+
+## Overview
+
+Seven major feature areas grouped into 9 execution phases. All changes must maintain zero TypeScript errors, zero Svelte-check warnings, and the existing 48-test green suite.
+
+---
+
+## Open Questions / Design Decisions (For User Review)
+
+> [!IMPORTANT]
+> **Master Pass Flutterwave Link:** A new ₦10,000/month payment link must be created on Flutterwave for the Master Punter Access Pass. Do you have this link ready, or should the checkout page use the same existing Flutterwave inline-SDK flow with a dynamic `amount: 10000` and a new `tx_ref` prefix (e.g. `MASTER_PO_...`)? If you already created the link, please share the URL.
+>
+> **Full Analysis Route:** The "View Full Analysis" button needs a route. Should it navigate to `/predictor/[sport]/[matchId]` (a per-match detail page) or open a slide-over drawer on the same page? A separate route (`/predictor/[sport]/[matchId]`) is recommended for SEO and shareability — confirmed with your approval.
+>
+> **Result Grading Logic:** When a match is marked `finished` with a `finalScore`, the system will compare stored top-picks against the final scoreline. For this to grade correctly (Win/Loss), the `finalScore` must be in the format `"2-1"`. Confirms the existing `finalScore` field uses this format?
+
+---
+
+## Proposed Changes
+
+---
+
+### Phase 1 — Master Punter Access Pass: Subscription Tier System
+
+**Goal:** Add a `₦10,000/month` Master tier that gates AI Predictor access. The existing `₦5,000` Punter Pass still unlocks all sport screeners. Only Master Pass holders (and super admin) access the AI Predictor.
+
+---
+
+#### Phase 1 Modifications — schema.ts
+
+- Add `subscriptionTier: v.optional(v.union(v.literal('punter'), v.literal('master')))` to `userProfiles` table.
+- Add `tier` field to `subscriptions` table for logging which tier was purchased.
+
+#### Phase 1 Modifications — users.ts
+
+- Add `hasMasterPass` to `AccessStatus` type and `deriveAccess()` function.
+- Admin is always `hasMasterPass = true`.
+- `verifyFlutterwaveCharge` mutation: detect amount — if amount ≥ 9500 (≥₦10k), set `subscriptionTier = 'master'`; otherwise `'punter'`.
+- `me` query: include `subscriptionTier` and `hasMasterPass` in response.
+
+#### Phase 1 Modifications — authStore.svelte.ts
+
+- Add `subscriptionTier?: 'punter' | 'master'` and `hasMasterPass?: boolean` to `UserSession` interface.
+- `isSuperAdminEmail()` → sets `hasMasterPass = true`.
+- `setSubscribedStatus()` and `refreshAccess()` → propagate `subscriptionTier` and `hasMasterPass`.
+- Export new helper `canAccessPredictor(user)` → `user.isAdmin || user.hasMasterPass`.
+
+#### Phase 1 Modifications — checkout/+page.svelte
+
+- Read `?tier=master` or `?tier=punter` query param to determine which plan to show.
+- Show two plan cards side-by-side: Punter Pass (₦5,000) and Master Punter Access Pass (₦10,000).
+- Master plan card gets a prominent "BEST VALUE" / "🔥 Full AI Access" badge.
+- Inline Flutterwave SDK call uses `amount: selectedTier === 'master' ? 10000 : 5000`.
+- `tx_ref` prefix: `MASTER_PO_...` vs `PO_...` so server-side can distinguish on webhook.
+- On success, call `setSubscribedStatus(true, txRef, 30)` with tier info, then redirect to `/predictor` for master or `/football` for punter.
+- Update success notification to include tier name.
+
+#### Phase 1 Modifications — routes/+page.svelte
+
+- In the **Pricing Section** (L511–L571): Replace the single pricing card with two side-by-side pricing cards:
+  - **Punter Access Pass** — ₦5,000/month — Full All-Sport Screener (no AI Predictor).
+  - **Master Punter Access Pass** ⭐ — ₦10,000/month — Everything in Punter Pass **+ Full AI Predictor** access. Highlighted as the premium tier with glow/crown badge.
+- `handleDonateClick` → now takes a `tier` arg, routes to `/checkout?tier=punter` or `/checkout?tier=master`.
+- Update `handleDonateClick` to check if user already has the appropriate tier and notify.
+
+#### Phase 1 New Feature — AI Predictor Access Guard
+
+- In `PredictorPage.svelte`: Add an access guard at the top of the component. If user is not `isAdmin` and not `hasMasterPass`, render a locked paywall screen instead of the predictor content. The paywall shows:
+  - The Master Punter Access Pass card.
+  - A "Upgrade to Master Pass" CTA that routes to `/checkout?tier=master`.
+  - If user has the Punter Pass (but not Master), show an "Upgrade" message.
+  - If user is unauthenticated, show "Sign In" + "Subscribe" options.
+- In `predictor/[sport]/+page.svelte`: Apply the same guard for individual sport predictor routes.
+
+---
+
+### Phase 2 — Agent Orbit Compact Fix
+
+**Goal:** Fix the Agent Orbit SVG on the homepage — agents are clipping/overflowing the visible area.
+
+#### Phase 2 Modifications — AgentOrbit.svelte
+
+Root causes:
+
+1. The `viewBox="0 0 300 300"` with `CX=150, CY=150, R=88` — outer agent nodes at radius 88 + node radius 16 = 104px from centre, but the viewBox is 300px wide → nodes clip at ±104 from 150 → min 46, max 254. This is fine for the SVG itself.
+2. The problem is **CSS**: the SVG is `width="100%"` inside a container that is too narrow, causing clipping on mobile or in constrained panels.
+
+Fix:
+
+- Wrap the SVG in a `div.orbit-wrap` with `overflow: visible; max-width: 380px; margin: 0 auto`.
+- Increase viewBox to `0 0 360 360`, adjust `CX=180, CY=180`, keep `R=110` — gives agents more breathing room.
+- Agent node text font size from `9` → `8` and add `text-overflow: ellipsis` with max-width clip.
+- Add `role="img"` and `aria-label` to the SVG.
+- Add a compact legend below the SVG listing agent names/roles in a responsive flex row for small screens where the SVG nodes are tiny.
+
+---
+
+### Phase 3 — Post-Match Result Grading (Win/Loss Indicators)
+
+**Goal:** When a match is `finished` with a `finalScore`, decorate the verdict badges, real win chance strip, and top picks with green tick ✅ or red ❌ icons.
+
+#### Phase 3 Modifications — predictorTypes.ts
+
+- Add exported utility: `gradeSelection(selection: string, market: string, finalScore: string, sport: PredictorSportId): 'win' | 'loss' | 'void' | null`.
+  - Parses `finalScore` (e.g. `"2-1"`) into `homeGoals` and `awayGoals`.
+  - For `winner/moneyline`: check home > away → home wins; vice-versa; equal → draw.
+  - For `total/over/under`: sum goals vs threshold extracted from market label.
+  - For `spread/handicap`: apply handicap to final score.
+  - Returns `null` if it can't determine (unknown market/format).
+
+#### Phase 3 Modifications — PredictorMatchCard.svelte
+
+- Import `gradeSelection` and `CheckCircle2`, `XCircle` icons.
+- When `finished && score`, compute a `$derived` map `selectionGrades` by calling `gradeSelection` for `greatMindsData.consensusPicks.winner/spread/total` and `top` pick.
+- In the **Great Minds mini badges** row: each badge gets a green `<CheckCircle2>` or red `<XCircle>` appended based on grade.
+- In the **Cross-Verified Real Win Chance** strip: show `✅ Correct` or `❌ Missed` badge next to the percentage.
+- In the **Expanded selections** list (when `open`): each pick row gets a grade icon.
+- Style: green `#34d399` for wins, red `#f87171` for losses, muted grey for `void/null`.
+
+#### Phase 3 Modifications — GreatMindsDebatePanel.svelte
+
+- Accept `finalScore` and `finished` props.
+- Grade each top pick in the Great Minds panel and display verdict icons.
+- Add a "Result Grade" summary row at the bottom of the panel when `finished`.
+
+---
+
+### Phase 4 — Expanded Market Selections (All Markets Above 52% Floor)
+
+**Goal:** Show ALL qualifying market picks (probability ≥ DEFAULT_CONFIDENCE_FLOOR) ranked by probability, not just top 3 — with smart sport-specific market labels including 1st-half, 1st-quarter, 1st-period, 1st-set, team totals, etc.
+
+#### Phase 4 Modifications — engine.ts
+
+- Audit `analyzeMatch()` and the picks loop to ensure **all** available market scopes are iterated: `fulltime`, `firstHalf`, `firstQuarter`, `firstPeriod`, `firstSet`, `teamGoals`, `playerProps`, `corners`, `cards`, `innings`, `rounds`, `method`, `runline`.
+- Ensure picks have a descriptive `marketTitle` such as:
+  - `"Over 2.5 Goals — Full Time"`, `"Over 1.5 Goals — 1st Half"`, `"Team Goals Over 0.5 — Home"`, `"1st Half Home Win"`, `"Round 1-3 Over"`, etc.
+- All picks with `probability >= DEFAULT_CONFIDENCE_FLOOR` pass through to the card — no artificial cap of 3.
+
+#### Phase 4 Modifications — predictorSegments.ts
+
+- Add segment definitions for: `firsthalf`, `firstquarter`, `firstperiod`, `firstset`, `teamtotals`, `playerprops`, `innings`, `rounds`, `method`, `corners`, `cards`.
+- Each segment: `{ short, label, accent, priority }` — `priority` used for ranked display order within segments.
+
+#### Phase 4 Modifications — PredictorPickChart.svelte
+
+- Remove hard `limit={12}` — instead render all qualifying picks, grouped by segment.
+- Within each segment group, sort by `probability` descending.
+- Show a `#1, #2, #3...` ranked badge per pick within each segment.
+- Each pick row shows: rank · label · market title · probability% · sport-specific context tag.
+- Add `perSegment` collapse: if > 3 picks in a segment, show top 3 with "Show N more" toggle.
+
+#### Phase 4 Modifications — PredictorMatchCard.svelte
+
+- Rename "Expanded selections by market segment" → **"All Qualifying Picks by Market"** with a count badge.
+- Pass full `qualifying` array to `PredictorPickChart` (no `.slice(0, 20)` cap).
+- Add a "Ranked by win probability" subtitle.
+
+---
+
+### Phase 5 — Collapse/Expand Analysis & View Full Analysis Button
+
+**Goal:** The collapse/expand toggle works correctly in-place. A separate "View Full Analysis" button navigates to a dedicated per-match full analysis page.
+
+#### Phase 5 New Page — predictor/[sport]/[matchId]/+page.svelte
+
+- Full-screen analysis page for a single match.
+- Loads match data via `matchId` from Convex.
+- Renders: `PredictorVerdictPanel` (full), `GreatMindsDebatePanel` (full), `PredictorMatchStats`, all qualifying picks ranked, research summary, agent verdicts.
+- Back button → returns to predictor sport page.
+- SEO metadata based on `homeTeam vs awayTeam` match title.
+
+#### Phase 5 New Load — predictor/[sport]/[matchId]/+page.ts
+
+- Load function with dynamic SEO title `"[HomeTeam] vs [AwayTeam] Full Analysis — PulseOdds AI Predictor"`.
+
+#### Phase 5 Modifications — PredictorMatchCard.svelte
+
+- Accept `sport` prop (for building the full-analysis route URL).
+- In the card header / meta row:
+  - Existing "Analyze Match" / "Collapse Analysis" button → stays as the in-place toggle for the quick expanded view.
+  - Add a new `<a>` link **"View Full Analysis →"** that navigates to `/predictor/{sport}/{matchId}`.
+- The "View Full Analysis" link is only visible when `!open` (collapsed state) to avoid duplication — OR shown at the bottom of the expanded section. Preferred: at the **bottom of the expanded section** as a prominent CTA button.
+
+---
+
+### Phase 6 — Match Card UI Containment & League Grouping
+
+**Goal:** Each match card is visually distinct and well-contained. Matches are grouped by league/competition in ranked hierarchy order within each day group.
+
+#### Phase 6 Modifications — PredictorMatchCard.svelte
+
+- Card border: increase to `border: 1.5px solid` with sport accent color tint.
+- Add `border-radius: 20px` and a subtle `box-shadow` for separation.
+- Add `margin-bottom: 12px` between cards.
+- Add a thin left-border accent strip (`border-left: 3px solid var(--accent)`).
+- When `finished` and `score`: add a `background: rgba(green, 0.04)` tint; when `inPlay`: add a subtle pulse `box-shadow`.
+- Match header: make team names larger and bolder (`font-size: 1.05rem font-weight: 800`).
+- Add home/away team logos placeholder (emoji-based fallback, sport-specific).
+
+#### Phase 6 Modifications — PredictorPage.svelte
+
+- Add `groupByLeague()` helper that groups `dayMatches` by `match.league`, sorted by league priority (top-tier leagues first: Champions League, Premier League, La Liga, etc.).
+- Each **league group** gets a styled `<div class="league-group">` with a league header showing: league flag emoji (derived from league name) · league name · match count badge.
+- Within each league, matches are sorted by `startTime` ascending.
+- League header: compact pill-style chip with subtle background, league name and `(N matches)`.
+- Add `gap: 0` between cards within a league group, with a `border-top` separator between matches in the same league instead of full margin separation (keeps grouped feel).
+
+---
+
+### Phase 7 — Filter Reactivity Fix (Date, Time Band, Game Tab)
+
+**Goal:** Date picker, time band, and game-tab filters are fully reactive and immediately update the match list without stale UI.
+
+#### Phase 7 Modifications — PredictorDateFilter.svelte
+
+- Audit `bind:fromDay` and `bind:toDay` bindings — ensure they use `$state` Svelte 5 rune bindings properly with `$effect` for sync.
+- If `fromDay` changes, `toDay` should auto-clamp to `max(toDay, fromDay)`.
+- Add a "Today" quick-reset button.
+- Date buttons should have clear `aria-pressed` and `aria-current` states.
+- On mobile: render as a horizontal scrollable pill row (not a dropdown).
+
+#### Phase 7 Modifications — PredictorPage.svelte
+
+- The `$effect` that watches `[effectiveSport, fromDay, toDay]` — ensure `timeBand` and `gameTab` changes also re-derive `filteredMatches` and `tabFilteredMatches` without needing a page reload.
+- Currently `filteredMatches` is `$derived.by()` based on `timeBand` — verify this chain updates synchronously.
+- `tabFilteredMatches` is `$derived.by()` based on `gameTab` — same check.
+- The `byDay` group is `$derived.by()` from `tabFilteredMatches` — verify the full reactive chain.
+- Bug: `windowDays` may not react if `fromDay/toDay` update via `bind:`. Ensure `windowDays` is `$derived` from `fromDay` and `toDay`:
+
+```ts
+const windowDays = $derived.by(() => {
+  const days = [];
+  let cur = fromDay;
+  while (cur <= toDay) { days.push(cur); cur = dayKeyFor(dayIndexOf(cur) + 1); }
+  return days;
+});
+```
+
+- Add a reactive `matchCount` chip showing live count as filters change.
+- `gameTab` auto-reset: when sport changes, reset `gameTab` to `'upcoming'` and `timeBand` to `'all'`.
+
+---
+
+### Phase 8 — Build, Test & SEO Consistency Pass
+
+#### Phase 8 Modifications — predictor/+page.ts
+
+- Update description to reference 11 sports and Master Pass access.
+- Remove `prerender = true` from predictor route (access-guarded routes should NOT be prerendered).
+
+#### Phase 8 Modifications — predictor/[sport]/+page.ts
+
+- Remove `prerender = true`.
+- Update FAQ entries to mention 11 sports and Master Pass.
+
+#### Phase 8 Build Validation
+
+- `npx tsc --noEmit` → 0 errors.
+- `npx vitest run` → 48+ tests passing.
+- `npx svelte-check` → 0 errors, 0 warnings.
+
+---
+
+### Phase 9 — Git Commit & Push
+
+Three atomic commits:
+
+1. `feat: Master Punter Access Pass tier, Predictor access guard & two-tier checkout`
+2. `feat: Post-match result grading, expanded market picks, full analysis route & Agent Orbit fix`
+3. `feat: Match card containment, league grouping, filter reactivity & UI polish`
+
+---
+
+## Verification Plan
+
+### Automated Tests
+
+- `npx tsc --noEmit` — TypeScript compilation.
+- `npx vitest run` — All 48 existing tests must remain green; add tests for `gradeSelection()` utility.
+- `npx svelte-check` — Zero Svelte diagnostics.
+
+### Manual Verification
+
+1. **Subscription Flow:** Log in with non-admin account → go to `/predictor` → see paywall. Click "Upgrade to Master Pass" → `/checkout?tier=master` → two plans displayed. Pay ₦10,000 → redirect to predictor → access granted.
+2. **Punter Pass Flow:** Pay ₦5,000 → access granted to sport screeners but `/predictor` still shows paywall with upgrade prompt.
+3. **Super Admin:** Log in as `omaledanjumaogale@gmail.com` → AI Predictor fully accessible without payment.
+4. **Agent Orbit:** Open homepage on mobile (375px) → all agent names visible, none clipped.
+5. **Result Grading:** A finished match with `finalScore = "2-1"` — Great Minds winner badge for "Home Win" shows ✅; "Away Win" shows ❌.
+6. **Expanded Picks:** A basketball match shows both FT Over/Under AND 1st half Over/Under picks, each ranked by probability.
+7. **Full Analysis:** Click "View Full Analysis →" → navigates to `/predictor/football/{matchId}` → full analysis page loads.
+8. **League Grouping:** Premier League matches appear as a group with a header; La Liga as a separate group below.
+9. **Filter Reactivity:** Change date from "Today" to "Tomorrow" → match list updates immediately. Change time band from "All" to "Evening" → list filters in real-time.

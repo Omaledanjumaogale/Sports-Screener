@@ -1,0 +1,88 @@
+# Implementation Plan — Convex Cron Jobs, Auto-Caching, Stale Data Purging & AI Predictor Synchronization
+
+Thorough audit and resolution plan to ensure Convex cron jobs are registered, active, and automatically purging stale cache data while populating the database with fixtures, odds, stats, AI multi-agent analysis, and verdicts across all 6 sports (Football, Basketball, Tennis, Rally, Ice Hockey, Baseball) so the AI Predictor UI is fully populated and synchronized.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Environment Variables on Convex Backend**: The AI Predictor relies on server-side Convex actions to fetch odds/fixtures and run LLM analyses via `Agnes AI` and `OpenRouter`. We will push all required environment variables (`AGNES_AI_KEY`, `JINA_API_KEY`, `FIRECRAWL_API_KEY`, `SERPER_API_KEY`, `BRIGHTDATA_API_KEY`, `OPENROUTER_API_KEY`, `PREDICTOR_DAILY_CAP`) into the Convex deployment (`modest-lark-218`) via `npx convex env set` and deploy the updated Convex functions and cron definitions via `npx convex deploy`.
+
+> [!TIP]
+> **Cascading Stale Data Purge**: To prevent database bloating and ensure fresh projections, the daily purge job (`predictor-purge-daily`) will be upgraded to perform a full cascading delete across all Convex tables (`predictorDays`, `predictorMatches`, `predictorVerdicts`, and `aiPredictorStats`) for records older than 7 days before starting a new daily cache cycle.
+
+---
+
+## Proposed Changes
+
+### 1. Convex Cron Definitions & Registration
+#### [MODIFY] [convex/crons.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/crons.ts)
+- Verify `crons.ts` imports `cronJobs` from `convex/server` and uses `export default crons;` in exact compliance with Convex runtime specifications.
+- Configure explicit 12-hourly cron schedules (00:00 and 12:00 WAT / 23:00 and 11:00 UTC) across all 6 supported sports (`football`, `basketball`, `tennis`, `rally`, `hockey`, `baseball`).
+- Add an explicit daily purge job (`predictor-purge-daily`) that runs prior to the midnight refresh cycle to clean up stale data older than 7 days.
+
+---
+
+### 2. Comprehensive Stale Cache Purging & Mutation Integrity
+#### [MODIFY] [convex/predictor.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/predictor.ts)
+- Upgrade `purgeOld` mutation from only deleting `predictorDays` to a **cascading purge** that locates and removes:
+  - Stale `predictorDays` (`dayKey < cutoff`).
+  - Stale `predictorMatches` (`dayKey < cutoff`).
+  - Stale `predictorVerdicts` (`dayKey < cutoff`).
+  - Stale `aiPredictorStats` (`dayKey < cutoff`).
+- Ensure `replaceMatches` cleans up stale verdicts when refreshing a day's fixtures so no orphaned or mismatched verdicts persist.
+
+---
+
+### 3. Pipeline Orchestration, Multi-Sport Population & LLM Integration
+#### [MODIFY] [convex/predictorOrchestrator.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/predictorOrchestrator.ts)
+- Ensure `executeRefresh` handles empty or missing `dayKey` inputs gracefully by auto-targetting today (`YYYY-MM-DD`).
+- Guarantee that all scraped or fallback synthetic fixtures for niche/off-season sports (such as Rally or Tennis) clear the SMOA pipeline and insert matches into `predictorMatches`.
+- Ensure LLM verdict generation calls `Agnes AI` (primary) and `OpenRouter` (fallback) with fallback to deterministic engine reports so no match card in the AI Predictor UI is left empty or unanalyzed.
+
+---
+
+### 4. Client-Side Synchronization & Predictor Page UI Verification
+#### [MODIFY] [src/lib/predictorClient.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/predictorClient.ts)
+- Verify client queries (`fetchPredictorMatchesInRange`, `fetchPredictorDaysInRange`, `fetchPredictorVerdict`) sync seamlessly with live Convex subscriptions (`subscribeConvexQuery`).
+- Handle empty window fallbacks so if a sport has no scheduled live matches, the UI displays clear status actions to manually trigger the agent team or view upcoming match days.
+
+---
+
+### 5. Deployment & Environment Setup
+#### [EXECUTE] `npx convex env set` & `npx convex deploy`
+- Set all required server-side environment variables in Convex cloud deployment:
+  - `AGNES_AI_KEY`
+  - `OPENROUTER_API_KEY`
+  - `JINA_API_KEY`
+  - `FIRECRAWL_API_KEY`
+  - `SERPER_API_KEY`
+  - `BRIGHTDATA_API_KEY`
+  - `PREDICTOR_DAILY_CAP`
+- Deploy the compiled Convex backend to register `_crons` in the Convex cloud dashboard and activate background execution.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Run unit test suite for predictor insights and selection engines:
+  ```powershell
+  npm run test:predictor
+  npm run test:engine
+  ```
+- Validate Convex schema and build integrity:
+  ```powershell
+  npx convex dev --once
+  ```
+
+### Manual Verification
+1. **Cron Table Verification**:
+   - Check that `_crons` table in Convex is populated with the 13 active cron schedules (`predictor-purge-daily`, midnight & noon refreshes for 6 sports).
+2. **Data Population & Invalidation Verification**:
+   - Trigger `internal.predictorOrchestrator.runRefreshInternal` for sports and verify rows populate in `predictorDays`, `predictorMatches`, `predictorVerdicts`, and `aiPredictorStats`.
+   - Run `purgeAndMarkStale` and verify old days, matches, and verdicts prior to cutoff date are purged.
+3. **UI Synchronization Verification**:
+   - Navigate to `/predictor` and each sport route (`/predictor/football`, `/predictor/basketball`, `/predictor/tennis`, `/predictor/rally`, `/predictor/hockey`, `/predictor/baseball`).
+   - Confirm fixture cards, odds, Real Win Chance, Bookies Profit Cut, punter edges, AI Verdict panels, and Daily P&L summaries render with complete data.

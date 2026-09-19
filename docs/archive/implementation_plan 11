@@ -1,0 +1,112 @@
+# AI Predictor — Game Status Tabs + Final Scores + Date Filter Fix
+
+## Overview
+
+Two features are requested:
+
+1. **Game Status Tabs** — Categorize matches into three selectable tabs: **Upcoming**, **In-Play**, and **Finished**, so only relevant matches appear per tab. Finished games automatically move to the "Finished" category. This also includes showing **final scores** on completed match cards.
+2. **Date Filter Fix** — The date window dropdown panel is not easily accessible; it needs to be redesigned so it's always visible inline (not hidden behind a dropdown trigger that requires multiple clicks).
+
+---
+
+## API Feasibility & Token Impact Assessment
+
+> [!IMPORTANT]
+> **Can the Sports API deliver final scores?**
+> The `predictorMatches` table stores `startTime` (epoch ms). The current data sources (betwatch.fr + scraper agents) do **not** yet populate a `finalScore` field. However, the schema allows `oddsSnapshot: v.optional(v.any())` as a free-form field. The correct approach is:
+> - Add `finalScore: v.optional(v.any())` to `predictorMatches` in `schema.ts`.
+> - Add a public `saveMatchResult` mutation that the scraper/orchestrator can call.
+> - Add an `updateMatchResult` mutation users/admin can call manually to record scores.
+> - The "Finished" tab classification is **100% client-side** using the existing `startTime` vs `now` comparison (no additional API calls needed).
+
+> [!NOTE]
+> **Token Usage Impact: ZERO additional cost.** 
+> - The three tabs are pure **client-side filtering** of already-loaded `matches[]` data. No new Convex queries, no new API calls, no new agent runs.
+> - The `finalScore` field update uses a simple Convex mutation (lightweight DB patch).
+> - The date filter UI change is purely cosmetic — no data changes.
+
+---
+
+## Proposed Changes
+
+### Component: `PredictorDateFilter.svelte`
+
+**The Problem:** The panel uses `position: absolute` but the parent `.date-filter` has no `position: relative`, so the dropdown escapes the layout. On mobile, the trigger is small and the panel clips. It requires multiple clicks to interact.
+
+**The Fix:** Replace the collapsible dropdown pattern with an **always-visible inline filter bar** that sits directly in the page flow — no absolute positioning, no popup. Quick-select chips (Today, Next 3, etc.) are shown as a prominent pill-button row, with date inputs appearing inline beneath them.
+
+#### [MODIFY] [PredictorDateFilter.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/PredictorDateFilter.svelte)
+- Remove the toggle button and `open` state entirely
+- Make the entire filter panel always visible as an inline card
+- Keep all existing functionality (quick chips, date inputs, time bands)
+- Add `position: relative` to the wrapper so no overflow issues occur
+- Use accent-colored active states for selected chips
+
+---
+
+### Component: `PredictorPage.svelte`
+
+**The Change:** Add a three-tab game status bar between the date filter and the match list. The tabs classify matches purely by time:
+
+| Tab | Condition |
+|-----|-----------|
+| **Upcoming** | `startTime > now` (or `startTime === 0`) |
+| **In-Play** | `startTime > 0 && startTime <= now && startTime > now - 3 * 60 * 60 * 1000` (within last 3 hours) |
+| **Finished** | `startTime > 0 && startTime <= now - 3 * 60 * 60 * 1000` |
+
+The 3-hour window for In-Play is a reasonable heuristic for live games. Finished matches are those that ended more than 3 hours ago.
+
+Finished match cards will show a **final score badge** if `match.finalScore` is set (e.g., `"2-1"`), or show a "Result pending" placeholder if not.
+
+#### [MODIFY] [PredictorPage.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/PredictorPage.svelte)
+- Add `gameTab` state: `'upcoming' | 'inplay' | 'finished'` (default: `'upcoming'`)
+- Add `tabFilteredMatches` derived value that partitions `filteredMatches` by the active tab
+- Render three styled tab buttons above the match list with match counts per tab
+- Show **live pulse indicator** on the In-Play tab if count > 0
+- Show **final score** in match cards in the Finished tab (read from `match.oddsSnapshot?.finalScore` until schema migration, or from `match.finalScore` after)
+- Auto-switch to `upcoming` tab on sport/day change
+
+---
+
+### Component: `PredictorMatchCard.svelte`
+
+#### [MODIFY] [PredictorMatchCard.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/PredictorMatchCard.svelte)
+- Accept optional `finalScore?: string` prop
+- When `finalScore` is set, display a prominent score badge in the match header instead of the kickoff time (e.g., `"2 — 1"`)
+- When `inPlay` is true, show an animated green "LIVE" dot
+- When match is finished (past + no inPlay), show a "FT" (Full Time) chip
+
+---
+
+### Backend: `convex/schema.ts`
+
+#### [MODIFY] [schema.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/schema.ts)
+- Add `finalScore: v.optional(v.string())` to `predictorMatches` table
+- Add `status: v.optional(v.union(v.literal('upcoming'), v.literal('inplay'), v.literal('finished')))` to `predictorMatches` table for explicit API-driven status
+
+---
+
+### Backend: `convex/predictor.ts`
+
+#### [MODIFY] [predictor.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/predictor.ts)
+- Add `updateMatchResult` public mutation: takes `matchId`, `dayKey`, `finalScore: string`, `status: 'finished'` — patches the match record. This is how admin/scraper can record final scores.
+
+---
+
+### Client: `src/lib/predictorClient.ts`
+
+#### [MODIFY] [predictorClient.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/predictorClient.ts)
+- Add `updateMatchResult(matchId, dayKey, finalScore)` client function
+
+---
+
+## Verification Plan
+
+### Manual Verification
+- Confirm the date filter is visible immediately without any clicking
+- Confirm tab switching filters matches correctly
+- Confirm match counts per tab are accurate
+- Confirm In-Play tab shows live pulse indicator
+- Confirm Finished tab shows "FT" chip and score badge where available
+- Confirm no new API calls are made on tab switch (pure client-side)
+- Confirm the page still works on mobile (responsive layout)

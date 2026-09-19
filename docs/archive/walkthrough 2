@@ -1,0 +1,90 @@
+# SEO / AEO / GEO Implementation Walkthrough
+
+## What Was Implemented
+
+### Section 1 — Technical Crawlability Files
+| File | Purpose |
+|------|---------|
+| `static/robots.txt` | Allows all 10+ named AI bots (GPTBot, ClaudeBot, PerplexityBot, etc.), disallows `/auth`, `/admin`, `/api/private` |
+| `static/llms.txt` | Concise AI discovery index: site summary, entity list, page index with one-sentence summaries |
+| `static/llms-full.txt` | Extended 500+ word document: full page summaries, FAQ extracts, topic cluster map, author, licensing |
+| `static/.well-known/ai-agent-manifest.json` | Machine-readable site identity, capabilities list, and llms.txt pointer for AI agents |
+| `static/og-image.png` | 1200×630 Open Graph image for social sharing and LLM preview cards |
+
+### Section 2 — SEO Head & Metadata Layer
+| File | Purpose |
+|------|---------|
+| `src/lib/types/seo.ts` | TypeScript types: `PageSEO`, `OpenGraphMeta`, `TwitterMeta`, `AuthorData`, `FAQItem`, etc. |
+| `src/lib/seo.ts` | `buildMeta()` factory + `defaultSEO` config + `canonicalUrl()` utility |
+| `src/lib/components/SEO.svelte` | Universal `<svelte:head>` component — renders title, description, canonical, OG, Twitter, JSON-LD |
+| `src/app.html` | Upgraded with full SEO baseline: proper `lang="en-NG"`, complete OG, Twitter Large Card, RSS link |
+
+### Section 3 — Schema Markup System
+| File | Purpose |
+|------|---------|
+| `src/lib/schema/builders.ts` | 8 schema factory functions + `buildPageGraph()` — outputs single @graph JSON-LD |
+| Schema types covered | Organization, WebSite, WebPage, SoftwareApplication, FAQPage, HowTo, BreadcrumbList, Person |
+
+### Section 4 — E-WIN Banner
+| File | Purpose |
+|------|---------|
+| `src/lib/components/EWINBanner.svelte` | Full-width ecosystem banner with Schema.org `itemscope`/`itemtype` Organization microdata, SEO links, pulse animation |
+
+### Section 5 — Optimized Page Load Functions
+| File | Schema Applied |
+|------|---------------|
+| `src/routes/+page.ts` | Organization + WebSite + SoftwareApp + WebPage + FAQPage + HowTo @graph |
+| `src/routes/football/+page.ts` | Organization + WebPage + BreadcrumbList + FAQPage |
+| `src/routes/basketball/+page.ts` | Organization + WebPage + BreadcrumbList + FAQPage |
+| `src/routes/tennis/+page.ts` | Organization + WebPage + BreadcrumbList + FAQPage |
+| `src/routes/rally/+page.ts` | Organization + WebPage + BreadcrumbList + FAQPage |
+
+### Section 6 — Discovery Endpoints
+| Route | Purpose |
+|-------|---------|
+| `/sitemap.xml` | Dynamic sitemap with all 5 public pages, lastmod, changefreq, priority |
+| `/rss.xml` | AI-friendly RSS 2.0 feed for content aggregators and LLM indexing pipelines |
+| `/robots.txt` | Crawler rules with named AI bot permissions |
+| `/llms.txt` | LLM discovery index |
+
+### E-WIN Banner Integration
+The banner appears **between the topbar and hero** on the homepage, styled with:
+- Full-bleed layout using negative margin technique
+- Orange-to-green gradient background matching brand palette
+- Schema.org `itemscope itemtype="https://schema.org/Organization"` binding PulseOdds to E-WIN as parent org
+- `itemprop="memberOf"` link to ewinproject.org — signals parent org to Google Knowledge Graph
+- Pulsing orange dot animation (matches app brand)
+- `itemprop="founder"` footer link to author page for E-E-A-T
+
+### Footer Enhancement
+The footer now includes `itemscope itemtype="https://schema.org/Organization"` with:
+- `itemprop="legalName"` on brand name
+- `itemprop="memberOf"` E-WIN link
+- `itemprop="founder"` author attribution link
+
+---
+
+## Quick Wins Checklist (Highest AEO/GEO Impact, Under 2 Hours)
+
+- [x] `static/robots.txt` — Allow all named AI bots (GPTBot, ClaudeBot, PerplexityBot, etc.)
+- [x] `static/llms.txt` + `static/llms-full.txt` — AI discovery documents
+- [x] JSON-LD @graph schema on homepage (Organization + WebSite + SoftwareApp + FAQ + HowTo)
+- [x] EWINBanner with Schema.org microdata — entity binding for Knowledge Graph
+- [x] Unique per-page title, description, and canonical URL on all 5 screener pages
+
+## Validation Checklist
+
+- [x] `robots.txt` accessible at `/robots.txt`, correct AI bot Allow rules
+- [x] `llms.txt` accessible at `/llms.txt`
+- [x] `llms-full.txt` accessible at `/llms-full.txt`
+- [x] `sitemap.xml` accessible at `/sitemap.xml`
+- [x] RSS feed at `/rss.xml`
+- [x] JSON-LD in `<head>` on all key pages (homepage, football, basketball, tennis, rally)
+- [x] Canonical URL set on every page
+- [x] Open Graph image (1200×630) at `/og-image.png`
+- [x] E-WIN banner with Organization microdata on homepage
+- [x] Footer with founder/memberOf E-E-A-T signals
+- [x] `lang="en-NG"` on `<html>` element
+- [ ] Submit sitemap to Google Search Console — **MANUAL STEP**
+- [ ] Test JSON-LD at search.google.com/test/rich-results — **MANUAL STEP**
+- [ ] Monitor AI referral traffic from perplexity.ai, chatgpt.com — **MANUAL STEP**

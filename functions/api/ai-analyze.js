@@ -135,7 +135,22 @@ export async function onRequestPost(context) {
       );
     }
 
-    const { messages, max_tokens = 2000, temperature = 0.25 } = body || {};
+    let { messages, max_tokens = 2000, temperature = 0.25 } = body || {};
+
+    // Server-side budget clamps: one request can never burn an unreasonable
+    // share of the provider quota (cost-abuse guard).
+    max_tokens = Math.min(4000, Math.max(200, Number(max_tokens) || 2000));
+    temperature = Math.min(1, Math.max(0, Number(temperature) || 0.25));
+    if (Array.isArray(messages) && messages.length > 40) {
+      messages = messages.slice(-40); // keep the most recent context only
+    }
+    if (Array.isArray(messages)) {
+      messages = messages.map((m) =>
+        m && typeof m.content === 'string' && m.content.length > 64000
+          ? { ...m, content: m.content.slice(0, 64000) }
+          : m
+      );
+    }
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(

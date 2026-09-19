@@ -1,0 +1,50 @@
+# Master Model v2 Generation & Multi-Sport Screener Integration Plan
+
+## Goal
+Generate the unified, enterprise-grade **Offline Master Model v2 Documentation** (`OFFLINE-MASTER-MODEL-v2-Documentation.md`) incorporating all 9 sports screeners (Football, Basketball, Tennis, Table Tennis, Ice Hockey, Instant Football, Instant Basketball, Virtual Football, and Baseball). Ensure the application engine and Svelte UI accommodate the upgraded Master Model v2 structures and narrow/broad market configurations.
+
+## User Review Required
+> [!IMPORTANT]
+> **Master Model v2 Scope Expansion**:
+> - **Unified 9-Sport Constitution**: Upgrades Master Model v1 by extending full Confluence Ledger, Triangulation, and narrow target market rules to Instant Football (Flash Line), Instant Basketball (Court Line), Virtual Football (Pulse Line), and Baseball (Diamond Line).
+> - **Zero AI / Zero External Dependency**: Strictly adheres to the Prime Directive — 100% offline arithmetic derived directly from user-entered odds.
+
+## Open Questions
+None. All documentation files (`flash-line-instantfootball-documentation.md`, `court-line-basketball-documentation.md`, `pulse-line-vfootball-documentation.md`, `diamond-line-baseball-documentation.md`, `OFFLINE-MASTER-MODEL-v1-Documentation.md`) have been analyzed in full.
+
+## Proposed Changes
+
+### Documentation Architecture
+
+#### [NEW] [OFFLINE-MASTER-MODEL-v2-Documentation.md](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/OFFLINE-MASTER-MODEL-v2-Documentation.md)
+Create the comprehensive Master Model v2 documentation covering:
+- **Part 0 — The Charter & Universal Math Primitives**: Data Fidelity, De-vigging, Margin, EV, Confluence Ledger 5-vote system, Confluence Tiering, Master Verdict Card schema.
+- **Part 1 — Football Master Model (Matchday V4)**: Full match, 1H, 2H profiles, Resistance Zone clustering, BTTS-vs-Total cross-checks.
+- **Part 2 — Basketball Master Model (Matchday V1)**: Tiered line MET interpolation, Scale Check (Q1/1H to FT), Team Total Consistency (TTC), Handicap balance width.
+- **Part 3 — Tennis Master Model (Matchday V1)**: MEG in games, Correct Score Intelligence (CSI), PGD, Dual-Tiebreak agreement/discrepancy rule.
+- **Part 4 — Table Tennis (Rally Line V2)**: 1st-Set-to-Match 4.3× projection, Match Shape sweep/4-set/5-set mix, Player A/B consistency.
+- **Part 5 — Ice Hockey Master Model (Matchday V1)**: Period-to-Regulation 3× scale, OT Intelligence & split consistency, CS Reconciliation, Empty-Net Reversal.
+- **Part 6 — Flash Line Instant Football Master Model (v1)**: Deliberate 5-target market focus (Match O0.5/O1.5, Home O0.5, Away O0.5, BTTS), 2-market triangulation (Teams To Score + Correct Score Grid), 1st Half Pace Share (35–55%).
+- **Part 7 — Court Line Instant Basketball Master Model (v1)**: 4-target market focus (Match Total, Handicap, Home Total, Away Total incl. OT), Overtime 1X2 vs Winner-incl-OT check (8-point gap), Team Totals sum vs Match Total, Quarter-Pace 4x extrapolation (10% band).
+- **Part 8 — Pulse Line Virtual Football Master Model (v1)**: 5-target market focus (Match O1.5/O2.5, Home O0.5, Away O0.5, BTTS), Joint Distribution Correct Score Grid (16 scores + "Other" lower-bound rules), Goals Curve Fit, Pace Share.
+- **Part 9 — Diamond Line Baseball Master Model (v1)**: 21-market screening, 9-Inning Regulation Draw vs True Moneyline Extra-Innings check (8-point threshold), Team Totals sum vs Combined Total (1.0 run gap), 1-5 Innings Pace Ratio (45–68% band), 8 Primary target markets.
+- **Part 10 — Master Cross-Sport Synthesis & Execution Matrix**: Comparative matrix across all 9 sports.
+
+---
+
+### Application Engine & Routes
+
+#### [MODIFY] [engine.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/engine.ts)
+- Extend `SportId` type and configuration engine to support instant football, instant basketball, vfootball, and baseball screener logic where appropriate.
+
+#### [MODIFY] [+page.svelte (homepage)](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/+page.svelte)
+- Ensure all screener cards are updated and harmonized with Master Model v2 definitions.
+
+## Verification Plan
+
+### Automated Verification
+- Run `npm run check` (Svelte-check) to ensure zero TypeScript errors.
+- Run `npm run build` to verify clean SSR static build production artifact generation.
+
+### Manual Verification
+- Review generated `OFFLINE-MASTER-MODEL-v2-Documentation.md` for mathematical completeness across all 9 sports.

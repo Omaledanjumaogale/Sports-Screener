@@ -1,0 +1,105 @@
+# Implementation Plan — Application Review, Convex Schema & AI Predictor UI Upgrade
+
+Perform a complete audit of the application to identify unsynchronized or incomplete components, update the Convex database schema for enterprise-grade persistence, upgrade the AI Predictor UI on both the homepage (`+page.svelte`) and the `/predictor` dashboard, and incorporate crisp SVG icons, favicons, and visual elements across the platform.
+
+---
+
+## 🔍 Audit & Gap Analysis
+
+### 1. Backend & Data Synchronization Gaps
+- **Convex Schema (`convex/schema.ts`)**:
+  - Needs `aiPredictorStats` table to store daily consensus P&L performance stats (5/5, 4/5, 3/5 consensus win rates, ROI %, units P&L) per sport and overall.
+  - Needs `userPreferences` table to store dark/light mode preference, default odds format (Decimal/American), and notification settings per user.
+  - Extend `predictorVerdicts` schema with explicit `greatMindsDebate` and `dailyPnlSummary` fields.
+- **Convex Client API (`convex/predictor.ts`)**:
+  - Add queries `getDailyPnlSummary` and `saveDailyPnlSummary` for persistence across sessions.
+
+### 2. Homepage UI Upgrade (`src/routes/+page.svelte` & `AiPredictorButton.svelte`)
+- **New Great AI Minds Showcase Section**:
+  - Highlight the 5 AI personas (Claude Opus 4.0, ChatGPT 3.2 Pro, Kimi K2.5, Qwen 3.5, Grok 4.2) with interactive model badges and roles.
+  - Live Consensus ROI & Win Rate Ticker (`61% Win Rate`, `+293.6u P&L`, `16.3% ROI`).
+  - Interactive "Try AI Predictor" CTA card with SVG model avatars and direct sport selection.
+
+### 3. AI Predictor Page UI & Component Polish (`/predictor`)
+- **Enhanced `DailyPnlSummary.svelte`**:
+  - Add interactive filter tabs (ALL, MONEYLINE, SPREAD, TOTAL) with animated win-rate progress meters and high-contrast color badges.
+- **Enhanced `GreatMindsDebatePanel.svelte`**:
+  - Replicate the reference 3-column recommendation layout (Winner, Spread, Total) with individual model avatar badges (agree/dissent styling).
+  - Add 5-round outcome timeline and expandable full transcript modal.
+- **Enhanced `PredictorMatchCard.svelte`**:
+  - Render Great Minds consensus mini-badges directly on fixture cards.
+
+### 4. Brand Icons, Favicons & Vector Elements
+- **Favicons & PWA Manifest**:
+  - Update `static/favicon.svg` with a modern gradient shield icon.
+  - Generate/add `static/site.webmanifest`, `static/apple-touch-icon.png`, and browser favicons.
+- **Vector Icons Component (`PredictorSvgIcons.svelte`)**:
+  - Custom SVG icons for AI Model Personas (Claude, ChatGPT, Kimi, Qwen, Grok), +EV indicators, Trophy badges, and sports markets.
+
+---
+
+## 🛠️ Proposed Changes
+
+### Component 1: Convex Schema & Backend API
+
+#### [MODIFY] [schema.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/schema.ts)
+- Add `aiPredictorStats` table (`dayKey`, `sportId`, `overallWinRatePct`, `overallUnitsPnl`, `overallRoiPct`, `rows`, `updatedAt`).
+- Add `userPreferences` table (`userId`, `theme`, `oddsFormat`, `updatedAt`).
+- Update `predictorVerdicts` schema with explicit `greatMindsDebate` validator.
+
+#### [MODIFY] [predictor.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/predictor.ts)
+- Add `getDailyPnlSummary` query and `saveDailyPnlSummary` mutation.
+
+---
+
+### Component 2: Brand Icons & Vector Assets
+
+#### [NEW] [PredictorSvgIcons.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/PredictorSvgIcons.svelte)
+- Dedicated SVG icon library component for AI model personas (Claude, ChatGPT, Kimi, Qwen, Grok), trophy badges, +EV flame badges, and consensus chips.
+
+#### [MODIFY] [favicon.svg](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/static/favicon.svg)
+- Upgrade favicon to high-contrast, modern gradient vector icon with sports shield motif.
+
+#### [NEW] [site.webmanifest](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/static/site.webmanifest)
+- Web application manifest for PWA app icon rendering and mobile home screen support.
+
+---
+
+### Component 3: Homepage UI Overhaul (`src/routes/+page.svelte`)
+
+#### [MODIFY] [AiPredictorButton.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/AiPredictorButton.svelte)
+- Upgrade button with animated pulsing gradient aura, model icons, and consensus preview badge (`61% ROI · 5 AI Minds`).
+
+#### [MODIFY] [+page.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/+page.svelte)
+- Add a dedicated **"The Great AI Minds Debate"** showcase section under the hero header.
+- Display live consensus performance ticker, 5 AI model cards with role badges, and quick-launch sport links.
+
+---
+
+### Component 4: Predictor Page Polish (`src/lib/components/Predictor*`)
+
+#### [MODIFY] [DailyPnlSummary.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/DailyPnlSummary.svelte)
+- Integrate custom SVG badges from `PredictorSvgIcons.svelte`.
+- Connect to Convex query `api.predictor.getDailyPnlSummary` with local fallback.
+
+#### [MODIFY] [GreatMindsDebatePanel.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/GreatMindsDebatePanel.svelte)
+- Integrate SVG model logos for Claude, ChatGPT, Kimi, Qwen, and Grok.
+- Enhance glassmorphic card styling, agree/dissent pills, and transcript audit modal.
+
+---
+
+## 🧪 Verification Plan
+
+### Automated Tests
+1. **Unit Tests (`src/lib/greatMindsEngine.test.ts`)**:
+   - Verify daily P&L calculation and model consensus mapping.
+2. **Type Check**:
+   - Run `npm run check` to verify zero TypeScript or Svelte errors.
+3. **Vitest Suite**:
+   - Run `npm run test` to verify all 41 test cases pass cleanly.
+
+### Manual Verification
+1. Inspect homepage (`/`) for the new Great AI Minds showcase banner, live P&L ticker, and SVG model icons.
+2. Launch `/predictor` and test filter tabs on `DailyPnlSummary`.
+3. Select matches and verify Great Minds recommendations, model breakdown badges, outcome timeline, and full transcript drawer.
+4. Verify favicons and web manifest load properly in browser tab.

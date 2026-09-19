@@ -1,0 +1,278 @@
+# PulseOdds — Complete Youth-First UI Redesign Plan
+
+## Overview
+
+Rebrand **Sports Screener → PulseOdds** — a premium, youth-oriented sports odds intelligence app. The redesign introduces glassmorphism, neon accent palettes, kinetic micro-animations, bold sports-DNA iconography, and a cohesive design token system across all 16 components and 5 routes. **All analysis logic in `engine.ts` is untouched.**
+
+---
+
+## Design Direction
+
+### Brand Identity
+
+| Token | Value |
+|---|---|
+| **App Name** | **PulseOdds** |
+| **Tagline** | "Read the odds. Own the edge." |
+| **Brand Font** | `Outfit` (Google Fonts — weights 400/600/700/800/900) |
+| **Mono Font** | `JetBrains Mono` (odds/probability numbers) |
+| **Primary Palette** | Electric Indigo `#6366f1` → Violet `#8b5cf6` |
+| **Secondary** | Neon Lime `#a3e635` (CTA accent) |
+| **Sport Accents** | Football `#22c55e` · Basketball `#f97316` · Tennis `#e879f9` · Rally `#38bdf8` |
+| **Background** | Deep space `#060912` with animated aurora radial gradients |
+| **Glass Surface** | `rgba(255,255,255,0.04)` + `backdrop-filter: blur(20px)` |
+| **Glow** | Neon `box-shadow` matching each sport accent |
+
+### Youth Design Principles
+1. **Glassmorphism** — frosted-glass panels, translucent sticky header, blurred overlays
+2. **Neon glow states** — active elements pulse with sport-colour shadows
+3. **Bold numerics** — JetBrains Mono for all probability/odds digits
+4. **Micro-motion** — CSS keyframe pulses, slide-ins, animated progress bars
+5. **Sport-specific SVGs** — custom inline SVG icons: ⚽ 🏀 🎾 🏓
+6. **SVG Favicon** — lightning bolt "P⚡" monogram on indigo-violet gradient
+7. **Status glow system** — green glow = strong · amber = borderline · red = weak
+8. **Mobile-first** — touch targets ≥48px, safe-area insets, bottom-safe padding
+
+---
+
+## Proposed Changes
+
+### 1. App Shell & Global Tokens
+
+#### [MODIFY] app.html
+- Add Google Fonts: `Outfit` + `JetBrains Mono` via `<link>`
+- Update title → `"PulseOdds — Sports Odds Intelligence"`
+- Add SEO meta description + Open Graph tags
+- `theme-color` → `#6366f1`
+- Add SVG favicon + apple-touch-icon links
+
+#### [MODIFY] app.css
+- Full rewrite of CSS custom properties design token system:
+  - `--c-bg: #060912`, `--c-surface`, `--c-border`, `--c-text`, `--c-muted`
+  - `--font-brand: 'Outfit'`, `--font-mono: 'JetBrains Mono'`
+- Aurora animated body background (radial gradients with keyframe drift)
+- Global `@keyframes`: `pulse-glow`, `slide-up`, `fade-in`, `aurora`, `neon-pulse`
+- Neon scrollbar styling
+
+#### [MODIFY] +layout.svelte
+- Apply `font-family: var(--font-brand)` globally
+- Set antialiasing, `-webkit-tap-highlight-color: transparent`
+
+---
+
+### 2. Landing Page — Full Redesign
+
+#### [MODIFY] routes/+page.svelte
+- **Hero**: Animated aurora orbs, "PulseOdds" gradient wordmark (indigo→violet→neon), eyebrow neon pill badge, tagline, feature pills row (⚡ Live · 🎯 Ranking · 📊 Decimal odds · 💾 Auto-save)
+- **Sport grid**: "Choose Your Sport" section heading + count badge, 2-col ≥480px / 1-col mobile
+- **Footer**: "PulseOdds" branding with sport icon strip
+
+---
+
+### 3. SportCard — Glassmorphism
+
+#### [MODIFY] SportCard.svelte
+- Frosted glass: `backdrop-filter: blur(16px)`, `background: rgba(255,255,255,0.05)`
+- Animated aurora spot (sport accent radial, top-right)
+- Neon left-border gradient (4px, sport accent)
+- Sport-specific SVG icons (replaces Lucide): ⚽ 🏀 🎾 🏓
+- Icon wrap: neon-glowing circle
+- Hover: lift + `box-shadow` neon pulse, chevron slide
+- Active: scale-down haptic feel
+- "LIVE" pulsing dot badge (top-right corner)
+
+---
+
+### 4. Header — Sticky Glass Bar
+
+#### [MODIFY] Header.svelte
+- `background: rgba(6,9,18,0.75)` + `backdrop-filter: blur(24px) saturate(180%)`
+- Thin neon bottom border (1px gradient line in sport accent)
+- Sport SVG icon inline next to title
+- Back button: glassmorphic circle with hover glow
+- Outfit 900 title font
+
+---
+
+### 5. ScopeTabs — Pill Track
+
+#### [MODIFY] ScopeTabs.svelte
+- Glass background pill rail
+- Active tab: filled neon pill with sport-accent glow + scale
+- Inactive: frosted-glass pill with muted border
+
+---
+
+### 6. VerdictHero — Premium Banner
+
+#### [MODIFY] VerdictHero.svelte
+- Glassmorphic card with animated neon glow border
+- Outfit 800 headline; gradient text for the pick name
+- Status-specific aura: green/amber/red neon shadow
+- Chips: glassmorphic pills with status glow, animated slide-in
+- Dot-grid overlay pattern on card background
+
+---
+
+### 7. MetricStrip — Neon Stat Cards
+
+#### [MODIFY] MetricStrip.svelte
+- Each card: glassmorphic with status-specific neon border glow
+- Value: JetBrains Mono, large
+- Status glows: `#4ade80` · `#fbbf24` · `#fb7185`
+- Micro-bar at bottom showing probability
+- Hover: lift + intensify glow
+
+---
+
+### 8. ProfileCard — Glassmorphic 4-Profiles
+
+#### [MODIFY] ProfileCard.svelte
+- Glass base with status aurora top-edge gradient
+- Profile tag: neon pill with A/B/C/D letter badge
+- Score: JetBrains Mono + animated ring progress
+- 5-lamp scoreboard: 3D glass domes with radial glow
+- Checks: animated slide-in with neon dot indicators
+- Top pick row: glass inset with left accent bar
+- Empty state: dashed glass card with SVG sport illustration
+
+---
+
+### 9. RankingPanel — Live Leaderboard
+
+#### [MODIFY] RankingPanel.svelte
+- "🏆 Top Picks" heading with trophy pulse animation
+- Rank badges: gold/silver/bronze gradients for top 3
+- Rows: glassmorphic with animated left accent strip
+- EV pill: neon-green (positive) / neon-red (negative)
+- Probability bar: neon gradient fill, animated width
+- Odds: JetBrains Mono
+
+---
+
+### 10. MarketAccordion — Glass Panels
+
+#### [MODIFY] MarketAccordion.svelte
+- `backdrop-filter: blur(12px)`, semi-transparent bg
+- Primary market: neon accent left-bar
+- Chevron: spring-like rotation animation
+- Open state: neon border glow
+- Body: smooth height + fade animation
+
+---
+
+### 11. Input Components — Glass & Neon
+
+#### [MODIFY] OddsGrid.svelte, LineRowOu.svelte, LineRowHandicap.svelte, OddsPicker.svelte
+- `select`: glassmorphic with neon focus ring
+- `+`/`−` steppers: glass buttons with neon press glow
+- Over/Under labels: coloured badges (sky=over, orange=under)
+- Filled rows: subtle neon left-border indicator
+- Responsive mobile stacking
+
+---
+
+### 12. TeamInputs — VS Card
+
+#### [MODIFY] TeamInputs.svelte
+- Glassmorphic card wrapper
+- Team A / Team B: side-by-side with animated "VS" badge
+- Inputs: glass styling with sport-accent focus ring
+
+---
+
+### 13. [NEW] BottomNav.svelte — Mobile Sport Nav
+- Fixed bottom bar (visible ≤767px only)
+- 4 sport tabs with SVG icons
+- Active: neon underline + glow
+- Glassmorphic with safe-area bottom padding
+- Tapping navigates to sport screener
+
+---
+
+### 14. [NEW] SportSvgIcon.svelte — Inline SVG Library
+- Props: `sport: 'football'|'basketball'|'tennis'|'rally'`, `size`, `color`
+- Football: soccer ball (hexagon pattern)
+- Basketball: ball with curved lines
+- Tennis: racket + ball
+- Rally: ping-pong paddle + ball
+
+---
+
+### 15. SaveHistory — Glass Panel
+
+#### [MODIFY] SaveHistory.svelte
+- Glassmorphic container
+- Save CTA: neon-green pulse button
+- History rows: glass cards with timestamp + sport accent
+
+---
+
+### 16. ScreenerPage — Layout Polish
+
+#### [MODIFY] ScreenerPage.svelte
+- Sport-accent aurora page background
+- Load banner: glass toast with slide-in animation
+- Clear button: glass pill with icon
+- Footer: PulseOdds branding + sport strip
+
+---
+
+### 17. Favicon & PWA Meta
+
+#### [NEW] static/favicon.svg
+- "P⚡" lightning bolt monogram, indigo-violet gradient circle
+- Crisp at all sizes (16px → 192px)
+
+#### [MODIFY] app.html
+- `<link rel="icon" href="/favicon.svg">`
+- `<link rel="apple-touch-icon" href="/favicon.svg">`
+- PWA meta: `mobile-web-app-capable`, status-bar-style
+
+---
+
+## CSS Animation Library
+
+```css
+@keyframes pulse-glow { 0%,100% { opacity:1 } 50% { opacity:0.65 } }
+@keyframes slide-up   { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:translateY(0) } }
+@keyframes fade-in    { from { opacity:0 } to { opacity:1 } }
+@keyframes aurora     { 0%,100% { transform:translate(0,0) scale(1) } 50% { transform:translate(20px,-12px) scale(1.06) } }
+@keyframes neon-pulse { 0%,100% { box-shadow:0 0 8px var(--accent) } 50% { box-shadow:0 0 22px var(--accent) } }
+```
+
+---
+
+## Verification Plan
+
+### Build & Type Check
+```bash
+npx svelte-check --tsconfig ./tsconfig.json   # 0 errors, 0 warnings
+npm run build                                   # clean build
+```
+
+### Smoke Test (automated)
+```bash
+node qa-smoke.mjs   # all 4 sports pass: 4 profile cards, verdict present
+```
+
+### Visual Checks
+1. Landing: PulseOdds gradient wordmark, aurora orbs, 4 glassmorphic sport cards
+2. Football screener: glass sticky header, pill tabs, verdict banner with chips
+3. Profile cards: 4× glass with neon status glow
+4. Rankings: gold/silver/bronze badges, animated bars
+5. Market accordions: smooth glass open/close
+6. Mobile 375px: bottom nav visible, touch targets ≥48px
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> **App Name**: The plan proposes rebrand to **PulseOdds**. Approve this name or suggest an alternative — it affects the favicon, landing wordmark, and footer branding.
+
+> [!NOTE]
+> **BottomNav**: Mobile-only tab bar (hidden ≥768px). On tablet/desktop, the header back-button remains. Confirm this approach is correct.
+
+> [!NOTE]
+> **Animation level**: All animations use tasteful 200–300ms easing. Say "more dramatic" if you want page-level transitions or particle effects, or "reduce motion" to keep it subtle.

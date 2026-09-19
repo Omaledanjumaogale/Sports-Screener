@@ -1,0 +1,670 @@
+# Sports Screener — AI Predictor Fixes, Table Tennis Rebrand, League Expansion & New Sports
+
+## Overview
+
+This plan addresses four distinct, high-priority tasks discovered across the codebase:
+
+1. **Rename "Rally" → "Table Tennis"** across all UI labels, SEO copy, and documentation (internal sport ID `rally` is preserved to avoid a database migration)
+2. **Fix the AI Predictor Table Tennis tab** — the `rally` data pipeline currently maps to Motorsport/Formula/WRC sources in every API layer, causing football/soccer fixtures to appear in the Table Tennis predictor tab; fix it to fetch real Table Tennis data
+3. **Expand league and tournament coverage** for all 6 existing sports — Football, Basketball, Ice Hockey, Table Tennis, Tennis, and Baseball
+4. **Add new sports** — American Football, Rugby Union, Cricket, MMA/UFC, and Volleyball — with full Screener pages, Predictor tabs, API configurations, and data pipeline wiring
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> The internal `rally` sport ID is preserved in the Convex schema and all backend types. Changing it would require a database migration that clears existing cached predictor matches. This plan keeps `rally` as the stable ID and only changes display labels. Confirm this is acceptable.
+
+> [!WARNING]
+> Adding 5 new sports (American Football, Rugby, Cricket, MMA, Volleyball) requires new Convex schema `v.literal()` entries which trigger a schema push. The Convex schema change is backward-compatible (additive only), but requires running `npx convex deploy` after execution.
+
+> [!IMPORTANT]
+> New sports available via The Odds API (`american_football_nfl`, `rugbyleague_nrl`, `cricket_*`, `mma_*`, `volleyball_*`) and OddsPapi (sport IDs 14, 16, 17, 43) need to be confirmed as active in the live API key environment. The plan implements graceful fallback if keys lack credits for specific leagues.
+
+---
+
+## Open Questions
+
+> [!NOTE]
+> Should the 5 new sports also get full Matchday Screener pages (like `/football`, `/basketball`) with manual odds entry, or should they initially be **AI Predictor only** (auto-fetched data) and manually-entered screeners be added in a later phase?
+
+> [!NOTE]
+> The existing `/rally` route is the Table Tennis **Matchday Screener** (manual odds entry using `createRallyScopes` from `engine.ts`). Its URL `/rally` will remain unchanged to avoid broken links. Only the page title, sport labels, and SEO text will change to "Table Tennis".
+
+---
+
+## Proposed Changes
+
+---
+
+### Phase 1 — Table Tennis Rebrand (Rally → Table Tennis)
+
+All UI-visible references to "Rally" that actually represent the Table Tennis screener are updated. The internal sport ID `rally` is never changed.
+
+#### [MODIFY] [predictorTypes.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/predictorTypes.ts)
+- `LABEL` record in `[sport]/+page.ts`: `rally: 'Rally'` → `rally: 'Table Tennis'`
+
+#### [MODIFY] [predictor/[sport]/+page.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/predictor/%5Bsport%5D/%2Bpage.ts)
+- `LABEL.rally` → `'Table Tennis'`
+- SEO title/description strings updated to say "Table Tennis" where currently "Rally"
+
+#### [MODIFY] [predictor/+page.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/predictor/%2Bpage.ts)
+- Description strings: "rally" → "Table Tennis"
+- FAQ answers updated to reference "Table Tennis" correctly
+
+#### [MODIFY] [PredictorTeamSelect.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/PredictorTeamSelect.svelte)
+- `SPORT_LABEL.rally` → `'Table Tennis'`
+
+#### [MODIFY] [BottomNav.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION SCREENER/Sports-Screener/src/lib/components/BottomNav.svelte)
+- `label: 'Ping Pong'` → `label: 'Table Tennis'`
+
+#### [MODIFY] [+page.svelte (main landing)](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/%2Bpage.svelte)
+- `short: 'Table Tennis'` already exists at line 86 — verify and clean any stray "Rally" references in the sport card definitions
+- `sportNames` display map updated throughout the file
+
+#### [MODIFY] [rally/+page.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/rally/%2Bpage.ts)
+- Remove stray "Rally/Table Tennis" text in FAQ; use "Table Tennis" consistently
+- SEO title and description already say "Table Tennis" — confirm any remaining "Rally" occurrences are cleaned
+
+#### [MODIFY] [rally/+page.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/rally/%2Bpage.svelte)
+- `sportShort="Rally / TT"` → `sportShort="Table Tennis"`
+- `sportTitle="Rally Line Table Tennis Screener"` → `sportTitle="Table Tennis Matchday Screener"`
+
+#### [MODIFY] [sources.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/scrapers/sources.ts)
+- `MARKET_GROUPS.rally.label` → `'Table Tennis'`
+- `MARKET_GROUPS.rally.emoji` → `'🏓'`
+
+#### [MODIFY] [specialists.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/agents/specialists.ts)
+- `rally: 'Rally'` → `rally: 'Table Tennis'`
+
+#### [MODIFY] [llm.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/llm.ts)
+- Update any text referring to "Rally" for the table tennis sport context
+
+#### [MODIFY] [sportsApis.ts (SharpAPI label)](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/apis/sportsApis.ts)
+- `lg.rally = 'Rally'` → `'Table Tennis'`
+
+#### [MODIFY] [rss.xml/+server.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/rss.xml/%2Bserver.ts)
+- Update rally RSS entry title to "Table Tennis Screener"
+
+#### [MODIFY] Documentation Files
+- `rally-line-screener-documentation-v2.md` — update display labels, keep "rally" route refs
+- `README.md` — update all display references
+
+---
+
+### Phase 2 — Fix AI Predictor Table Tennis Data Pipeline
+
+This is the root cause of the football matches appearing in the Rally (Table Tennis) predictor tab.
+
+**Root cause identified:** The `rally` sport ID is mapped to `'Motorsport'` in `TSDB_SPORT`, `/motor|rally|formula/i` in `TSDB_SPORT_KEYS`, `'WRC'/'ERC'/'World Rally'` in `SPORT_LEAGUES` across betwatch.ts and fixtures.ts, and motor sport BetExplorer URLs in `FIXTURE_PAGES`. When none of these return valid matches (motor racing has very few vs-style fixtures), the fallback BetWatch scrape of `betwatch.fr` returns generic soccer rows because BetWatch is a soccer-dominant site. Those soccer rows then propagate to the Rally predictor tab.
+
+#### [MODIFY] [sportsApis.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/apis/sportsApis.ts)
+
+```typescript
+// BEFORE:
+TSDB_SPORT.rally = 'Motorsport'
+TSDB_SPORT_KEYS.rally = /motor|rally|formula/i
+ODDS_SPORT_PREFERENCE — rally key is missing (falls through to soccer)
+
+// AFTER:
+TSDB_SPORT.rally = 'TableTennis'  // TheSportsDB sport name for TT
+TSDB_SPORT_KEYS.rally = /table.?tennis|ping.?pong/i
+
+// ADD to ODDS_SPORT_PREFERENCE:
+rally: [/^tabletennis_/, /^tabletennis/]
+
+// ADD to ODDS_FALLBACK:
+rally: 'tabletennis_ittf'
+
+// ADD to leagueForOddsSportKey map:
+tabletennis_ittf: 'ITTF World Tour'
+tabletennis_wtt: 'WTT (World Table Tennis)'
+tabletennis_: 'Table Tennis'
+
+// ADD to SHARP_LEAGUES:
+rally: ['ittf', 'wtt', 'table_tennis']
+```
+
+#### [MODIFY] [betwatch.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/scrapers/betwatch.ts)
+
+```typescript
+// BEFORE:
+SPORT_LEAGUES.rally = ['WRC', 'ERC', 'World Rally']
+syntheticFixtures.rally = [['Neuville', 'Rovanpera'], ['Ogier', 'Evans']]
+
+// AFTER:
+SPORT_LEAGUES.rally = ['ITTF', 'WTT', 'Bundesliga TT', 'TTF', 'Champions League TT']
+syntheticFixtures.rally = [
+  ['Fan Zhendong', 'Ma Long'],
+  ['Timo Boll', 'Dimitrij Ovtcharov'],
+  ['Chen Meng', 'Sun Yingsha']
+]
+```
+
+#### [MODIFY] [fixtures.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/scrapers/fixtures.ts)
+
+```typescript
+// BEFORE:
+SPORT_LEAGUES.rally = ['WRC', 'ERC', 'World Rally', 'Rally', 'FIA']
+
+// AFTER:
+SPORT_LEAGUES.rally = ['ITTF', 'WTT', 'Table Tennis', 'TTF', 'Champions League TT', 'Bundesliga TT']
+```
+
+#### [MODIFY] [sources.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/scrapers/sources.ts)
+
+```typescript
+// BEFORE:
+FIXTURE_PAGES.rally = [
+  'https://www.betexplorer.com/motor-sport/',
+  'https://www.bbc.co.uk/sport/motorsport/rallying'
+]
+
+// AFTER:
+FIXTURE_PAGES.rally = [
+  'https://www.betexplorer.com/table-tennis/next/',
+  'https://www.flashscore.com/table-tennis/',
+  'https://www.sofascore.com/table-tennis',
+  'https://www.oddsportal.com/table-tennis/'
+]
+
+// ADD new Table Tennis data/prediction sources to PREDICTION_SOURCES:
+{ name: 'TableTennisDB', url: 'https://www.tabletennisdb.com/', kind: 'statistics', sport: 'rally', desc: 'Table Tennis stats and rankings' }
+{ name: 'MyTableTennis', url: 'https://mytabletennis.net/', kind: 'prediction', sport: 'rally', desc: 'TT news and match predictions' }
+
+// ADD to MARKET_GROUPS.rally.markets:
+{ id: 'match_winner', label: 'Match Winner', icon: '🏓', cat: 'Winner' }
+{ id: 'set_handicap', label: 'Set Handicap', icon: '⚖️', cat: 'Handicap' }
+{ id: 'total_sets', label: 'Total Sets O/U', icon: '📈', cat: 'Totals' }
+{ id: 'first_set_winner', label: 'First Set Winner', icon: '1️⃣', cat: 'Sets' }
+```
+
+#### [MODIFY] [normalize.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/scrapers/normalize.ts)
+- `BASE_LINES.rally` — update total lines to reflect table tennis sets (e.g., `line: 3.5` for over/under sets — this is already correct)
+- Verify `TWO_WAY_SPORTS` already includes `'rally'` — ✅ confirmed
+
+#### [MODIFY] [cloudflareAi.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/cloudflareAi.ts)
+- Update sport context for `rally`: currently `'Sets (3–6 typical), Market Expected Sets'` — this is already correct for TT; confirm description says "Table Tennis" not "Rally/Motorsport"
+
+---
+
+### Phase 3 — Expand League Coverage for All 6 Existing Sports
+
+Add comprehensive league/tournament coverage to every layer of the data pipeline.
+
+#### [MODIFY] [sportsApis.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/apis/sportsApis.ts)
+
+**Football** — expand `ODDS_SPORT_PREFERENCE` patterns to include African and Asian leagues:
+```
+Add patterns: /^soccer_africa_/, /^soccer_africa_nations/, /^soccer_nigeria_/, /^soccer_turkey_/, /^soccer_russia_/, /^soccer_japan_/, /^soccer_australia_/, /^soccer_india_/, /^soccer_mexico_/, /^soccer_colombia_/, /^soccer_scotland_/
+Increase cap: slice(0, 25) — up from slice(0, 12) to fetch more active leagues per cycle
+```
+
+**Basketball** — add more leagues:
+```
+Add patterns: /^basketball_euroleague/, /^basketball_eurocup/, /^basketball_australia_/, /^basketball_spain_/
+```
+
+**Ice Hockey** — expand:
+```
+Add patterns: /^icehockey_sweden_/, /^icehockey_finland_/, /^icehockey_czech_/, /^icehockey_swiss_/, /^icehockey_germany_/
+```
+
+**Tennis** — ensure all Slams, ATP 250/500/Masters and WTA are covered:
+```
+Already dynamically resolves via live /sports/ key list — verified as complete
+```
+
+**Baseball** — add Korean/Japanese leagues:
+```
+Add patterns: /^baseball_npb$/, /^baseball_kbo$/
+```
+
+#### [MODIFY] [sources.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/scrapers/sources.ts)
+
+Expand `leagueForOddsSportKey` (currently in `sportsApis.ts` — referenced here for clarity) to add 30+ additional league mappings:
+
+**Football additions:**
+```
+soccer_nigeria_npfl: 'NPFL (Nigeria)',
+soccer_turkey_super_league: 'Süper Lig',
+soccer_russia_premier_league: 'Russian Premier League',
+soccer_japan_j_league: 'J1 League',
+soccer_australia_a_league: 'A-League',
+soccer_india_super_league: 'Indian Super League',
+soccer_mexico_ligamx: 'Liga MX',
+soccer_colombia_primera_a: 'Liga BetPlay',
+soccer_scotland_premiership: 'Scottish Premiership',
+soccer_belgium_first_div_a: 'Belgian Pro League',
+soccer_greece_super_league: 'Super League Greece',
+soccer_denmark_superliga: 'Danish Superliga',
+soccer_sweden_allsvenskan: 'Allsvenskan',
+soccer_norway_eliteserien: 'Eliteserien',
+soccer_poland_ekstraklasa: 'Ekstraklasa',
+soccer_czech_liga: 'Czech First League',
+soccer_romania_liga_i: 'Liga I Romania',
+soccer_austria_bundesliga: 'Austrian Bundesliga',
+soccer_switzerland_super_league: 'Swiss Super League',
+soccer_south_africa_psl: 'South Africa PSL',
+soccer_egypt_premier_league: 'Egyptian Premier League',
+soccer_ghana_premier_league: 'Ghana Premier League',
+soccer_cameroon_elite_one: 'Cameroon Elite One',
+soccer_kenya_premier_league: 'Kenyan Premier League',
+soccer_senegal_ligue_1: 'Senegal Ligue 1',
+soccer_china_super_league: 'Chinese Super League',
+soccer_korea_k_league: 'K League 1',
+soccer_argentina_primera: 'Argentina Primera División',
+soccer_brazil_serie_b: 'Brazil Série B',
+soccer_chile_primera: 'Chilean Primera División',
+soccer_copa_libertadores: 'Copa Libertadores',
+soccer_conmebol_copa_america: 'Copa América',
+soccer_africa_cup_of_nations: 'Africa Cup of Nations',
+soccer_concacaf_gold_cup: 'CONCACAF Gold Cup',
+soccer_uefa_euro: 'UEFA Euro',
+soccer_world_cup: 'FIFA World Cup',
+soccer_england_fa_cup: 'FA Cup',
+soccer_spain_copa_del_rey: 'Copa del Rey',
+soccer_italy_coppa_italia: 'Coppa Italia',
+soccer_germany_dfb_pokal: 'DFB Pokal',
+soccer_france_coupe_de_france: 'Coupe de France',
+soccer_uefa_europa_league: 'UEFA Europa League',
+soccer_uefa_conference_league: 'UEFA Conference League'
+```
+
+**Basketball additions:**
+```
+basketball_euroleague: 'EuroLeague',
+basketball_eurocup: 'EuroCup',
+basketball_spain_acb: 'ACB Liga Endesa',
+basketball_australia_nbl: 'NBL Australia',
+basketball_turkey_bsl: 'BSL Turkey',
+basketball_italy_lba: 'Lega Basket Italy',
+basketball_france_pro_a: 'Pro A France',
+basketball_china_cba: 'CBA China',
+basketball_brazil_nbb: 'NBB Brazil'
+```
+
+**Ice Hockey additions:**
+```
+icehockey_sweden_shl: 'SHL Sweden',
+icehockey_finland_liiga: 'Liiga Finland',
+icehockey_czech_extraliga: 'Czech Extraliga',
+icehockey_swiss_nl: 'NL Switzerland',
+icehockey_germany_del: 'DEL Germany',
+icehockey_ahl: 'AHL (North America)'
+```
+
+#### [MODIFY] [SHARP_LEAGUES in sportsApis.ts]
+Expand `SHARP_LEAGUES` for football to include a wider selection of leagues:
+```typescript
+football: [
+  'england_-_premier_league', 'spain_-_la_liga', 'italy_-_serie_a',
+  'germany_-_bundesliga', 'france_-_ligue_1', 'netherlands_-_eredivisie',
+  'portugal_-_primeira_liga', 'turkey_-_super_lig', 'russia_-_premier_league',
+  'scotland_-_premiership', 'belgium_-_first_division_a',
+  'champions_league', 'europa_league', 'conference_league',
+  'nigeria_-_npfl', 'south_africa_-_psl', 'egypt_-_premier_league'
+]
+```
+
+#### [MODIFY] [betwatch.ts & fixtures.ts — SPORT_LEAGUES]
+Expand `SPORT_LEAGUES` to include all new leagues so the BetExplorer parser correctly classifies and attributes fixture rows:
+```typescript
+football: [
+  'Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1',
+  'Champions League', 'Europa League', 'Conference League',
+  'Eredivisie', 'Primeira Liga', 'Süper Lig', 'Scottish Premiership',
+  'NPFL', 'PSL', 'Egyptian Premier League', 'Ghana Premier',
+  'Indian Super League', 'J1 League', 'K League', 'A-League',
+  'Liga MX', 'Copa Libertadores', 'Copa América', 'AFCON',
+  'FA Cup', 'Copa del Rey', 'Coppa Italia', 'DFB Pokal', 'Euro'
+]
+```
+
+---
+
+### Phase 4 — Add New Sports
+
+Five new sports will be added: **American Football**, **Rugby Union**, **Cricket**, **MMA/UFC**, and **Volleyball**.
+
+Each sport requires:
+1. Convex schema update (new `v.literal()`)
+2. Backend type updates (`PREDICTOR_SPORTS`, `PredictorSportId`)
+3. API configuration (Odds API keys, TheSportsDB sport name, SharpAPI leagues)
+4. Data pipeline: SPORT_LEAGUES, FIXTURE_PAGES, MARKET_GROUPS
+5. Screener route (full Matchday Screener page with engine factory)
+6. Predictor route (`/predictor/american-football`, etc.)
+7. Landing page sport card
+8. BottomNav + SportSvgIcon entries
+9. Cron jobs (nightly cache refresh)
+10. SEO (sitemap, RSS feed)
+
+---
+
+#### 4A — American Football 🏈
+
+**Sport ID:** `american-football` (internal), rendered as `americanfootball` in Convex literals (no hyphens allowed)
+
+> [!IMPORTANT]
+> Convex `v.literal()` values cannot contain hyphens. The internal sport ID will be `americanfootball` (no hyphen) throughout the backend. The URL route will be `/american-football` for readability.
+
+**Odds API keys:** `americanfootball_nfl`, `americanfootball_ncaaf`, `americanfootball_cfl`, `americanfootball_xfl`
+
+**TheSportsDB sport name:** `'American Football'`
+
+**Markets:** Moneyline, Point Spread, Total Points O/U, First Half Winner, Player Props (rushing/passing yards)
+
+**Key sources:** ESPN NFL schedule, NFL.com, Pro Football Reference
+
+**Fixture pages:**
+```
+'https://www.betexplorer.com/american-football/next/'
+'https://www.espn.com/nfl/schedule'
+'https://www.espn.com/college-football/schedule'
+```
+
+---
+
+#### 4B — Rugby Union 🏉
+
+**Sport ID:** `rugby` (internal Convex literal), displayed as "Rugby" on the UI
+
+**Odds API keys:** `rugbyunion_*`, `rugbyleague_nrl`, `rugbyunion_world_cup`
+
+**TheSportsDB sport name:** `'Rugby'`
+
+**Markets:** Match Winner (3-way with draw), Handicap, Total Points O/U, Try Scorer
+
+**Key sources:** ESPN Rugby, BBC Rugby, World Rugby rankings
+
+**Fixture pages:**
+```
+'https://www.betexplorer.com/rugby-union/next/'
+'https://www.espn.com/rugby/schedule'
+```
+
+---
+
+#### 4C — Cricket 🏏
+
+**Sport ID:** `cricket` (Convex literal)
+
+**Odds API keys:** `cricket_*`, `cricket_ipl`, `cricket_international_t20`, `cricket_odi`
+
+**TheSportsDB sport name:** `'Cricket'`
+
+**Markets:** Match Winner, Series Winner, Top Batsman, Over/Under runs
+
+**Key sources:** ESPN Cricinfo, CricBuzz, ICC rankings
+
+**Fixture pages:**
+```
+'https://www.betexplorer.com/cricket/next/'
+'https://www.espncricinfo.com/series'
+```
+
+---
+
+#### 4D — MMA / UFC 🥊
+
+**Sport ID:** `mma` (Convex literal), displayed as "MMA / UFC"
+
+**Odds API keys:** `mma_mixed_martial_arts`
+
+**TheSportsDB sport name:** `'MMA'`
+
+**Markets:** Fight Winner (Moneyline), Method of Victory, Round Betting, Under X.5 rounds
+
+**Key sources:** ESPN MMA, Tapology, UFC.com
+
+**Fixture pages:**
+```
+'https://www.betexplorer.com/mma/next/'
+'https://www.tapology.com/fightcenter'
+'https://www.ufc.com/events'
+```
+
+---
+
+#### 4E — Volleyball 🏐
+
+**Sport ID:** `volleyball` (Convex literal)
+
+**Odds API keys:** OddsPapi sport ID `17` (volleyball), `volleyball_*`
+
+**TheSportsDB sport name:** `'Volleyball'`
+
+**Markets:** Match Winner, Set Handicap, Total Sets O/U, First Set Winner
+
+**Key sources:** FIVB, CEV Champions League, Italian SerieA1
+
+**Fixture pages:**
+```
+'https://www.betexplorer.com/volleyball/next/'
+'https://www.flashscore.com/volleyball/'
+```
+
+---
+
+### Phase 4 — File-Level Changes for New Sports
+
+#### [MODIFY] [schema.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/schema.ts)
+Add to `SPORT_IDS` and `PREDICTOR_SPORT_IDS`:
+```typescript
+v.literal('americanfootball'),
+v.literal('rugby'),
+v.literal('cricket'),
+v.literal('mma'),
+v.literal('volleyball')
+```
+Also add to `savedScreeners.sportId` union.
+
+#### [MODIFY] [predictorTypes.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/predictorTypes.ts)
+```typescript
+export type PredictorSportId =
+  | 'football' | 'basketball' | 'tennis' | 'rally'
+  | 'hockey' | 'baseball'
+  | 'americanfootball' | 'rugby' | 'cricket' | 'mma' | 'volleyball';
+
+export const PREDICTOR_SPORTS: PredictorSportId[] = [
+  'football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball',
+  'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'
+];
+```
+
+#### [MODIFY] [sportsApis.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/apis/sportsApis.ts)
+Add to `TSDB_SPORT`, `TSDB_SPORT_KEYS`, `ODDS_SPORT_PREFERENCE`, `ODDS_FALLBACK`, `ODDSPAPI_SPORT`, `SHARP_LEAGUES`, `leagueForOddsSportKey`:
+```typescript
+// TSDB_SPORT
+americanfootball: 'American Football',
+rugby: 'Rugby',
+cricket: 'Cricket',
+mma: 'MMA',
+volleyball: 'Volleyball'
+
+// TSDB_SPORT_KEYS
+americanfootball: /american.?football|nfl|ncaaf/i,
+rugby: /rugby/i,
+cricket: /cricket/i,
+mma: /mma|mixed.?martial/i,
+volleyball: /volleyball/i
+
+// ODDS_SPORT_PREFERENCE
+americanfootball: [/^americanfootball_nfl$/, /^americanfootball_ncaaf$/, /^americanfootball_/],
+rugby: [/^rugbyunion_/, /^rugbyleague_/],
+cricket: [/^cricket_ipl$/, /^cricket_international/, /^cricket_/],
+mma: [/^mma_mixed_martial_arts$/, /^mma_/],
+volleyball: [/^volleyball_/]
+
+// ODDS_FALLBACK
+americanfootball: 'americanfootball_nfl',
+rugby: 'rugbyunion_world_cup',
+cricket: 'cricket_ipl',
+mma: 'mma_mixed_martial_arts',
+volleyball: 'volleyball_wnt'
+```
+
+#### [MODIFY] [sources.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/scrapers/sources.ts)
+- Add `FIXTURE_PAGES` entries for all 5 new sports
+- Add `MARKET_GROUPS` entries for all 5 new sports with full market definitions
+- Add `ODDSPAPI_SPORT` IDs for new sports
+- Add relevant statistics/prediction sources tagged with `sport: 'americanfootball'` etc.
+
+#### [MODIFY] [betwatch.ts & fixtures.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/scrapers/betwatch.ts)
+- Add `SPORT_LEAGUES` entries for all 5 new sports
+- Add `syntheticFixtures` entries for all 5 new sports
+
+#### [MODIFY] [normalize.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/scrapers/normalize.ts)
+- Add `BASE_LINES` for all 5 new sports
+- American Football: `[{ line: 46.5, over: 1.9, under: 1.9 }, { line: 44.5 ... }]`
+- Rugby: `[{ line: 40.5, over: 1.9, under: 1.9 }]`
+- Cricket (T20): `[{ line: 155.5, over: 1.87, under: 1.93 }]`
+- MMA: `[{ line: 2.5, over: 1.85, under: 1.95 }]` (rounds)
+- Volleyball: `[{ line: 3.5, over: 1.8, under: 2.0 }]` (sets)
+- `TWO_WAY_SPORTS`: add `'americanfootball'`, `'mma'`, `'volleyball'` (no draw). Rugby and Cricket retain 3-way or draw support.
+
+#### [MODIFY] [predictor.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/predictor.ts)
+- Update `ALL_SPORTS` constant to include all 11 sports
+- Update all sport ID validator unions to include the 5 new literals
+
+#### [MODIFY] [predictorOrchestrator.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/predictorOrchestrator.ts)
+- Add new sport literals to the validator union
+
+#### [MODIFY] [llm.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/llm.ts)
+- Add sport context entries for all 5 new sports with appropriate descriptions (e.g., American Football: scoring units, typical totals ranges, key metrics like EPA, DVOA)
+
+#### [MODIFY] [cloudflareAi.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/cloudflareAi.ts)
+- Add sport scale/unit context for all 5 new sports
+
+#### [MODIFY] [crons.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/crons.ts)
+Add nightly (midnight/noon/morning) cron refresh jobs for all 5 new sports, staggered to avoid collision with existing 6 sports:
+```typescript
+// Midnight UTC — new sports (continuing from minute 42 onwards)
+crons.daily('predictor-refresh-midnight-americanfootball', { hourUTC: 23, minuteUTC: 50 }, ...);
+crons.daily('predictor-refresh-midnight-rugby',            { hourUTC: 0,  minuteUTC: 2  }, ...);
+crons.daily('predictor-refresh-midnight-cricket',          { hourUTC: 0,  minuteUTC: 10 }, ...);
+crons.daily('predictor-refresh-midnight-mma',              { hourUTC: 0,  minuteUTC: 18 }, ...);
+crons.daily('predictor-refresh-midnight-volleyball',       { hourUTC: 0,  minuteUTC: 26 }, ...);
+// Noon and Morning passes follow the same pattern
+```
+
+#### [NEW] Route pages for AI Predictor (auto-generated via `entries()` — no new files needed)
+The `[sport]/+page.ts` already dynamically generates pages for every sport in `PREDICTOR_SPORTS` via `export const entries`. Adding the new sport IDs to `PREDICTOR_SPORTS` automatically creates the predictor routes. Only the `LABEL` record needs updating:
+```typescript
+const LABEL: Record<string, string> = {
+  ...existing,
+  americanfootball: 'American Football',
+  rugby: 'Rugby',
+  cricket: 'Cricket',
+  mma: 'MMA / UFC',
+  volleyball: 'Volleyball'
+};
+```
+
+#### [NEW] Matchday Screener Routes
+
+**[NEW] `src/routes/american-football/+page.svelte`**
+```svelte
+<ScreenerPage sportId="americanfootball" sportShort="NFL/NCAAF"
+  sportTitle="American Football Matchday Screener" accent="#ef4444"
+  factory={createAmericanFootballScopes} />
+```
+
+**[NEW] `src/routes/american-football/+page.ts`** — SEO load function
+
+**[NEW] `src/routes/rugby/+page.svelte`** + `+page.ts`
+
+**[NEW] `src/routes/cricket/+page.svelte`** + `+page.ts`
+
+**[NEW] `src/routes/mma/+page.svelte`** + `+page.ts`
+
+**[NEW] `src/routes/volleyball/+page.svelte`** + `+page.ts`
+
+#### [MODIFY] [engine.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/engine.ts)
+Add `SportId` union entries for the 5 new sports and create analysis factory functions:
+- `createAmericanFootballScopes()` — Moneyline, Spread, Total Points, First Half
+- `createRugbyScopes()` — 3-way Match Result, Handicap, Total Points, Try Markets
+- `createCricketScopes()` — Match Winner, Total Runs O/U, First Innings Lead
+- `createMmaScopes()` — Fight Winner, Method of Victory, Round O/U
+- `createVolleyballScopes()` — Match Winner, Set Handicap, Total Sets O/U, First Set Winner
+
+Each factory follows the exact same `ScopeState[]` pattern used by `createFootballScopes`, `createBasketballScopes`, etc.
+
+#### [MODIFY] [SportSvgIcon.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/SportSvgIcon.svelte)
+Add `{:else if sport === 'americanfootball'}`, `rugby`, `cricket`, `mma`, `volleyball` SVG glyph branches.
+
+#### [MODIFY] [PredictorSportIcon.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/PredictorSportIcon.svelte)
+Add SVG icon branches for the 5 new sports.
+
+#### [MODIFY] [BottomNav.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/BottomNav.svelte)
+Add new sport entries. Note: the BottomNav uses a CSS grid with `repeat(7, 1fr)`. With 5 new sports (12 total + predictor = 13 items), the grid must change to a **horizontal scroll** pattern (already has `nav-scroll` class — confirm CSS uses `overflow-x: auto`). Update grid template to `auto-fill` or switch to a scrollable flex row.
+
+#### [MODIFY] [+page.svelte (landing page)](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/%2Bpage.svelte)
+Add 5 new sport cards in the `sports[]` array with appropriate:
+- `id`, `short`, `title`, `description`, `accent` color, `path`
+- Accent colours: American Football `#dc2626` (deep red), Rugby `#7c3aed` (purple), Cricket `#d97706` (amber), MMA `#1d4ed8` (cobalt), Volleyball `#0891b2` (teal)
+
+#### [MODIFY] [sitemap.xml/+server.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/sitemap.xml/%2Bserver.ts)
+Add sitemap entries for new sport screener routes and predictor routes.
+
+#### [MODIFY] [rss.xml/+server.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/rss.xml/%2Bserver.ts)
+Add RSS entries for new sport routes.
+
+#### [MODIFY] [convexClient.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/convexClient.ts)
+Add new sport ID literals to the type union used by the client.
+
+#### [MODIFY] [specialists.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/agents/specialists.ts)
+Add sport label mappings for all 5 new sports.
+
+#### [MODIFY] [drafts.ts, savedScreeners.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/convex/drafts.ts)
+Add new sport literals to every `v.union()` that references sport IDs.
+
+---
+
+### Phase 5 — Cleanup & Quality Assurance
+
+#### [MODIFY] [engine.test.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/engine.test.ts)
+Add test cases for new sport factory functions — verify scope structure and market definitions.
+
+#### [MODIFY] [sportsApis.test.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/sportsApis.test.ts)
+Add coverage for new sport API key resolution and fixture mapping.
+
+#### Manual Smoke-Test Checklist
+- Visit `/rally` → confirms "Table Tennis" label, no more "Rally" in heading
+- Visit `/predictor/rally` → confirms "Table Tennis" tab active, Table Tennis fixtures shown (not football)
+- Visit `/predictor/football` → confirms all previously mis-filed football matches now appear
+- Visit each new sport screener → confirms page loads with correct sport context
+- Visit `/predictor/americanfootball` → confirms predictor tab works
+- Verify BottomNav scrolls correctly on mobile with expanded sport list
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# Unit tests
+npm run test -- --reporter verbose
+
+# Type check (ensures no broken imports after type changes)
+npx tsc --noEmit
+
+# Build smoke test
+npm run build
+```
+
+### Convex Schema Push
+```bash
+npx convex deploy
+```
+
+### Manual Verification
+1. Load `/rally` — heading must read "Table Tennis Matchday Screener"
+2. Load `/predictor/rally` → sport tab label reads "Table Tennis"
+3. Run the agent refresh for the Rally (Table Tennis) predictor — cached matches must show Table Tennis players/teams, not soccer teams
+4. Load `/predictor/football` → all football matches visible (including any previously mis-routed ones)
+5. Load each new sport page (e.g., `/american-football`) and confirm the screener renders without errors
+6. Load `/predictor/americanfootball` and trigger a refresh — NFL/NCAAF fixtures should populate
+7. Open the landing page on mobile — BottomNav shows all sports in a scrollable row
+8. Run smoke-test screenshots to confirm no visual regressions

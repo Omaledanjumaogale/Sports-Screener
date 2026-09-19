@@ -1,0 +1,83 @@
+# Offline Master Model & Ice Hockey Screener Integration Plan
+
+Upgrade the **PulseOdds Sports Screener** application by integrating the **Offline Master Model — Multi-Sport Odds & Lines Analysis Framework** across all sports, and adding the **Ice Hockey Screener** to replace its "Coming Soon" status on the homepage.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Key Architectural Decisions & Principles**
+> 1. **Zero-AI / Zero-Feed Guarantee**: The entire framework operates strictly offline on user-entered decimal odds and lines. No external data feeds or LLM inferences are used.
+> 2. **Additive Confluence Layer**: The Offline Master Model's Confluence Ledger acts as a **read-only aggregation and cross-validation layer**. It does not overwrite or modify existing MET, MEG, TTC, PGD, TGD, or CSI calculations.
+> 3. **Non-Merged Dual Metrics**: Output displays will show both **Market Probability %** (raw de-vigged bookmaker price) and **Confluence Tier** (Tier 1/2/3/No Read consistency level) side-by-side without inflating probabilities.
+> 4. **Hard Conflict Cap**: Any explicit disagreement between cross-market checks (e.g. BTTS vs Over/Under, Dual Tiebreak discrepancy, or Shutout vs Moneyline) hard-caps the verdict at **Tier 3 — Conflicted**.
+
+---
+
+## Proposed Changes
+
+### 1. Engine Core & Math Layer (`src/lib/engine.ts`)
+
+#### [MODIFY] [engine.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/engine.ts)
+- Add `SportId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey'` type definition.
+- **Ice Hockey Engine Implementation**:
+  - `createHockeyScopes()`: Regular Time (`rt`) and 1st Period (`p1`) scope state builder with standard line dropdown baselines (Game Total 3.5–9.5, Team Totals 0.5–5.5, Puck Line -3.5–3.5).
+  - `analyzeHockey()`: Overtime Intelligence (1X2 regulation draw P(OT), Moneyline-incl-OT split check under coinflip assumption), CS Reconciliation (Odd/Even%, BTTS%, Team xG, Shutout%), Team Goal Differential (TGD), Period 1 Scale Check (P1 × 3 vs RT MEG), Empty-Net Reversal (lopsided Moneyline as Over signal), and Profiles A/B/C/D.
+- **Master Model Confluence Ledger & Verdict Engine**:
+  - Implement `ConfluenceLedger` interface & builder per sport:
+    - **Football**: Primary Scope (FT Profile A/B) + Cross-Scope (2H/1H) + Cross-Market (BTTS-vs-Total) + Scoreline Structure (Resistance Zone 5–6 / 7–8 / 12–13.5 bands) + Profile D Corroboration.
+    - **Basketball**: Primary Scope (FT Profile A/B) + Cross-Scope (Scale Check Q1×4 / 1H×2) + Cross-Market (TTC diff) + Handicap Width Structure + Profile D Corroboration.
+    - **Tennis**: Primary Scope (RT Profile A/B) + Cross-Scope (S1×2.4/4.1) + Cross-Market (PGD / Dual-Tiebreak signal) + Structural (CSI vs MEG expected games) + Profile D Corroboration.
+    - **Table Tennis (Rally)**: Primary Scope (Full Match O/U) + Cross-Scope (1st Set 4.3× projection) + Cross-Market (Individual Player Totals consistency) + Structural (Match Shape Sweep/4-set/5-set vs Total Sets) + Ranking Corroboration.
+    - **Ice Hockey**: Primary Scope (RT Profile A/B) + Cross-Scope (P1×3 Period Scale Check) + Cross-Market (TGD) + Structural (CS Reconciliation Shutout/BTTS) + Empty-Net/Moneyline Balance Corroboration.
+  - Implement Tier sorting: **Tier 1 (High)** -> **Tier 2 (Moderate)** -> **Tier 3 (Single-Angle or Conflicted)** -> **No Read**. Candidates ranked by Tier first, Market Probability second, Margin % third.
+
+---
+
+### 2. Components & UI Layer (`src/lib/components/`)
+
+#### [NEW] [MasterVerdictCard.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/MasterVerdictCard.svelte)
+- Display the unified Master Verdict Card format from Part 0.6 of the Master Model:
+  - Selected Candidate & Scope
+  - Market Probability % & Bookmaker Margin %
+  - Confluence Ledger breakdown table (5 independent rows with Agree / Disagree / N/A badges)
+  - Confluence Tier Badge & Conflict Alert notice (highlighting exact conflicting markets)
+  - Missing data indicators & Disclaimers
+
+#### [MODIFY] [ScreenerPage.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/ScreenerPage.svelte)
+- Integrate the Master Verdict Card alongside existing 4-profile accordion displays.
+- Support Ice Hockey scope rendering (Overtime Intelligence & CS Reconciliation specialized cards).
+- Add Master Model Candidate Ranking tab (Tier-first sorted picks).
+
+#### [MODIFY] [SportSvgIcon.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/SportSvgIcon.svelte) & [SportCard.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/SportCard.svelte)
+- Add Ice Hockey puck & sticks SVG icon and ice-blue theme styling (`#06b6d4` / `#3fc7e0`).
+
+---
+
+### 3. Routing & Pages (`src/routes/`)
+
+#### [NEW] [src/routes/hockey/+page.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/hockey/+page.svelte)
+- Ice Hockey Matchday Screener page component invoking `createHockeyScopes`.
+
+#### [NEW] [src/routes/hockey/+page.ts](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/hockey/+page.ts)
+- Page load function with SEO metadata, JSON-LD Schema (Organization, WebPage, Breadcrumbs, FAQs), and canonical URL setup.
+
+#### [MODIFY] [src/routes/+page.svelte](file:///c:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/routes/+page.svelte)
+- Promote Ice Hockey from "Coming Soon" to **Active Sports Screeners** grid (5 active sports count).
+- Update sports array, footer icons, subscription text, and landing page hero copy.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Run `npm run build` or `npx svelte-check` to verify TypeScript types and Svelte 5 compilation.
+- Run `node qa-smoke.mjs` (extending it to include Ice Hockey routes & engine assertions).
+
+### Manual Verification
+- Launch local dev server (`npm run dev`) and test:
+  1. Homepage navigation to `/hockey`.
+  2. Ice Hockey screener odds input (1X2, Moneyline, Puck Line, Totals, Correct Score) and verify Overtime Intelligence P(OT) & CS Reconciliation calculations.
+  3. Verify Master Verdict Card displays across Football, Basketball, Tennis, Rally, and Hockey.
+  4. Test dark and light mode theme toggle, mobile layout responsiveness, and localStorage saving/loading.

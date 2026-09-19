@@ -1,0 +1,54 @@
+# Convex Enterprise Integration & Auto-Save Plan
+
+This plan addresses upgrading PulseOdds with enterprise-grade Convex components for persistence, authentication, and performance, as well as fixing the immediate need for auto-saving line and odds selections locally.
+
+## 1. Local Auto-Save (Immediate Fix)
+
+To ensure users don't lose their selected odds/lines on page refresh, we will implement client-side persistence using `localStorage`.
+
+### Proposed Changes
+#### [MODIFY] [OddsPicker.svelte](file:///C:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/OddsPicker.svelte)
+#### [MODIFY] [LinePicker.svelte](file:///C:/Users/OMALE%20DANJUMA%20OGALE/Downloads/SELECTION%20SCREENER/Sports-Screener/src/lib/components/LinePicker.svelte)
+- Add a new optional `storageKey` prop to both components.
+- Use Svelte's `onMount` to load the saved value from `localStorage` on component initialization.
+- Update `localStorage` whenever `onChange` is triggered (in the `setOdds`, `setLine`, and `nudge` functions).
+
+## 2. Convex Enterprise Components
+
+Based on the Convex component ecosystem (https://www.convex.dev/components), the following components are crucial for making PulseOdds an enterprise-grade application with robust performance, interactivity, and security:
+
+### Identified Components
+
+1. **Convex Auth (`@convex-dev/auth`)**
+   - **Why:** Critical for user authentication (passwords, magic links, OAuth) and securing historical screener data. It allows users to log in across devices and retain their history and preferences.
+2. **Convex Helpers (`convex-helpers`)**
+   - **Why:** Essential for building robust backend services. It provides utilities for input validation, pagination (crucial for long history lists), and relationship management between users, sports, and saved screeners.
+3. **Convex Ents (`convex-ents`)**
+   - **Why:** A schema-first modeling layer that simplifies complex data relationships. For PulseOdds, it maps `User` -> `SavedScreeners` -> `Selections` efficiently.
+4. **Convex Rate Limiter (`@convex-dev/rate-limiter`)**
+   - **Why:** Protects the backend from abuse, automated scraping, or excessive calculations (which can be compute-heavy). Ensures stable app performance.
+5. **Convex Aggregate (`@convex-dev/aggregate`)**
+   - **Why:** Allows fast aggregation of global metrics without table scans. Perfect for building features like "Most Popular Bets Today" or global success rates.
+
+### Implementation Phases
+
+**Phase 1: Foundation & Authentication**
+- Install `convex`, `@convex-dev/auth`, and `convex-helpers`.
+- Initialize Convex in the project.
+- Implement user sign-up, login, and session persistence.
+
+**Phase 2: Data Modeling & Persistence**
+- Install `convex-ents`.
+- Define the database schema for `Users`, `Screeners`, and `History`.
+- Migrate the current `localStorage` saving mechanism to sync with Convex for authenticated users.
+
+**Phase 3: Performance & Analytics**
+- Install `@convex-dev/rate-limiter` and `@convex-dev/aggregate`.
+- Apply rate limiting to all screening mutations.
+- Implement real-time global statistics using Convex aggregations.
+
+## User Review Required
+
+> [!IMPORTANT]
+> Please review the Convex integration plan and the immediate local storage fix.
+> Do you approve this plan to proceed with the `localStorage` implementation for `OddsPicker` and `LinePicker` right now? We will then move on to the Convex setup.

@@ -1,0 +1,46 @@
+# Cloudflare Wrangler & Workers AI Integration Plan
+
+Integrate **Cloudflare Workers AI** (Llama 3.1 8B Instruct model) and **Wrangler CLI** into the PulseOdds Sports Screener app to provide real-time AI-powered odds analysis, risk assessments, and betting recommendations.
+
+> [!IMPORTANT]
+> **Offline-First Architectural Guarantee**: All core Offline Master Model calculations (Confluence Ledger, 4-Profile Engine, MEG/MET metrics, 5-lamp confidence scoring, pick rankings) run 100% locally in JavaScript/TypeScript without needing an internet connection. Cloudflare Workers AI operates exclusively as an **Online AI Copilot** when the user is connected to the network.
+
+---
+
+## Proposed Technical Changes
+
+### 1. Cloudflare Configuration & Wrangler Setup
+- **`wrangler.toml`**: Create root configuration specifying `account_id = "04ca38ff81dd0f1c0cdf584db3779aee"`, `pages_build_output_dir = "dist"`, and AI binding configuration.
+- **Dependencies**: Add `wrangler` CLI to `package.json` devDependencies for Cloudflare Pages/Worker deployment and local execution.
+
+### 2. Workers AI Engine (`src/lib/cloudflareAi.ts`)
+- Implement a dedicated module `cloudflareAi.ts` managing:
+  - Network status detection (`navigator.onLine`, online/offline window events).
+  - Workers AI REST API integration with Account ID `04ca38ff81dd0f1c0cdf584db3779aee` and API Token `cfut_[REDACTED]`.
+  - Structured prompt engineering passing the calculated `MasterConfluenceLedger`, 4-Profile scores, top picks, and sport metrics to model `@cf/meta/llama-3.1-8b-instruct`.
+  - Offline fallback handling & UI state management (online vs offline state).
+
+### 3. UI Component Integration (`CloudflareAiBanner.svelte`)
+- Create a dedicated UI component **`CloudflareAiBanner.svelte`**:
+  - Displays online status badge: **`⚡ Cloudflare Workers AI Online`** or **`📶 Offline (Master Model Active)`**.
+  - Renders AI-generated tactical insights, match shape summary, value assessment, and risk warning.
+  - "Generate AI Insights" action button with loading spinner and status feedback.
+  - Seamlessly embedded in `ScreenerPage.svelte` right next to the Master Verdict Card across all 5 sport screeners (Football, Basketball, Tennis, Rally, Hockey).
+
+### 4. Build & Deployment Synchronization
+- Update `package.json` with scripts:
+  - `"wrangler:dev"`: `wrangler dev`
+  - `"wrangler:deploy"`: `wrangler pages deploy dist`
+
+---
+
+## Verification Plan
+
+### Automated Verification
+- Verify Cloudflare Workers AI API endpoint returning HTTP 200 with valid JSON choices.
+- Run `npm run build` to ensure static adapter build succeeds cleanly with new modules.
+- Run `npx svelte-check --threshold error` for TypeScript type safety.
+
+### Manual Verification
+- Test online AI generation across Football, Basketball, Tennis, Table Tennis, and Ice Hockey.
+- Test offline toggle/network disconnection to verify Master Model local calculations remain 100% operational without errors or UI breakage.
