@@ -468,30 +468,9 @@
     selectedIds = kept;
     loading = false;
 
-    // Auto-bootstrap: if today has no cached data and nothing is running,
-    // trigger a single-sport seed for the active sport. This ensures
-    // first-time visitors see data without manually clicking 'Run agents'.
-    if (epoch === sportEpoch && windowMatches.length === 0 && !r && !bootstrapping && !bootstrapDone) {
-      void autoSeedCurrentSport(sid, fromDayArg);
-    }
-  }
-
-  // Seed just the currently-viewed sport (lighter than bootstrapping all 11).
-  async function autoSeedCurrentSport(sid: PredictorSportId, dayKey: string) {
-    if (busy || bootstrapping) return;
-    bootstrapping = true;
-    const displayName = SPORT_DISPLAY_NAME[sid] ?? sid;
-    bootstrapMsg = `Loading ${displayName} matches for today…`;
-    try {
-      await startPredictorRefresh(sid, dayKey, false);
-      bootstrapMsg = `AI agents running for ${displayName}. Data will appear shortly.`;
-      bootstrapDone = true;
-    } catch (err: any) {
-      // Silently swallow — user can still click 'Run agents now'
-      console.warn('[autoSeed]', err?.message || err);
-    } finally {
-      bootstrapping = false;
-    }
+    // Data seeding is cron-driven + on-demand ('Run agents now') — opening the
+    // page NEVER triggers the heavy scraping/LLM pipeline, so a fresh visit
+    // costs zero database writes and zero API spend.
   }
 
   // Bootstrap all 11 sports — triggered from empty-state CTA.
@@ -617,7 +596,10 @@ $effect(() => {
   }
 
   onMount(() => {
-    void syncScoresNow();
+    // Score sync is NOT fired on mount: the 15-minute cron owns it, and the
+    // 'Sync scores' button remains for on-demand refreshes (each call schedules
+    // actions + writes runs — never free). Previously every page open pushed a
+    // sync into the database.
     const timer = setInterval(() => {
       now = Date.now();
     }, 60_000);
@@ -627,7 +609,7 @@ $effect(() => {
     const presenceTimer = setInterval(() => {
       void heartbeatPresence(effectiveSport);
       void fetchPresenceOnline(effectiveSport).then((n) => (onlineCount = n));
-    }, 30_000);
+    }, 60_000); // 60s heartbeat (window is 90s) — halves presence-row writes
     return () => {
       clearInterval(timer);
       clearInterval(presenceTimer);

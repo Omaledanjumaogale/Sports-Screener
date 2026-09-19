@@ -3,6 +3,7 @@
 // Provider chain (in priority order):
 //   1. Agnes AI  — primary (https://apihub.agnes-ai.com/v1, model "Agnes AI")
 //   2. OpenRouter — fallback (openrouter.ai)
+//   3. Cloudflare Workers AI - tertiary (OpenAI-compatible REST endpoint)
 //
 // All calls are OpenAI-compatible chat completions. Every network failure
 // degrades gracefully to the next provider (or a deterministic fallback
@@ -49,6 +50,18 @@ function providerChain(): Provider[] {
       model: process.env.OPENROUTER_MODEL?.trim() || 'openai/gpt-oss-20b:free'
     });
   }
+  // Cloudflare Workers AI - native catalog via the OpenAI-compatible endpoint,
+  // so the standard chat-completions response parser works unchanged.
+  const cfAccountId = process.env.CF_ACCOUNT_ID?.trim();
+  const cfToken = process.env.CF_WORKER_AI_TOKEN?.trim();
+  if (cfAccountId && cfToken) {
+    chain.push({
+      name: 'cloudflare-ai',
+      url: `https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/ai/v1/chat/completions`,
+      key: cfToken,
+      model: process.env.CF_WORKER_AI_MODEL?.trim() || '@cf/meta/llama-3.1-8b-instruct'
+    });
+  }
   return chain;
 }
 
@@ -86,7 +99,7 @@ async function callProvider(
     });
     if (!res.ok) return { ok: false, text: '', provider: p.name, model: p.model };
     const data: any = await res.json().catch(() => null);
-    const text = data?.choices?.[0]?.message?.content;
+    const text = data?.choices?.[0]?.message?.content ?? data?.result?.response;
     if (typeof text !== 'string' || !text.trim()) {
       return { ok: false, text: '', provider: p.name, model: p.model };
     }
