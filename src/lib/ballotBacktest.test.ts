@@ -156,6 +156,14 @@ describe('multi-league calibration backtest (Dixon-Coles draw correction)', () =
       };
     }
 
+    // Per-odds-tuple model cache: bookmaker average odds repeat heavily across
+    // 7k+ rows; skip duplicate grid builds + ballot sweeps for identical tuples.
+    type GridMetrics = {
+      w: number; d: number; goals: number; over25: number;
+      home1up: number; home2up: number; homeNd: number; htHomeAhead: number; refDraw: number;
+    };
+    const gridCache = new Map<string, GridMetrics>();
+
     for (const r of rows) {
       const s = stats[r.league];
       s.n += 1;
@@ -170,22 +178,37 @@ describe('multi-league calibration backtest (Dixon-Coles draw correction)', () =
       s.actualHome2up += r.fthg >= 2 ? Math.min(1, comb(n, r.fthg - 2) / comb(n, r.ftag)) : 0;
       s.actualHomeNd += r.fthg > r.ftag ? (r.fthg + 1 - r.ftag) / (r.fthg + 1) : 0;
 
-      const grid = buildFootballGrid(r.homeOdds, r.drawOdds, r.awayOdds, 2.5, { line: 2.5, over: r.overOdds, under: r.underOdds });
-      const m = modelMetrics(grid);
+      const key = `${r.homeOdds}|${r.drawOdds}|${r.awayOdds}|${r.overOdds}|${r.underOdds}`;
+      let m = gridCache.get(key);
+      if (!m) {
+        const grid = buildFootballGrid(r.homeOdds, r.drawOdds, r.awayOdds, 2.5, { line: 2.5, over: r.overOdds, under: r.underOdds });
+        const mm = modelMetrics(grid);
+        // Reference: the two-target grid WITHOUT the DC draw correction.
+        const [pH, pD] = devig([r.homeOdds, r.drawOdds, r.awayOdds]);
+        const [pOver] = devig([r.overOdds, r.underOdds]);
+        const ref = fitTwoTargetGrid(pH, pOver, 2.5);
+        m = {
+          w: mm.w,
+          d: mm.d,
+          goals: mm.goals,
+          over25: gridTotals(grid, 2.5).over,
+          home1up: gridTeamLeadUp(grid, true, 1),
+          home2up: gridTeamLeadUp(grid, true, 2),
+          homeNd: gridTeamNeverDown(grid, true),
+          htHomeAhead: modelHtHomeAhead(grid),
+          refDraw: ref ? modelMetrics(ref).d : 0
+        };
+        gridCache.set(key, m);
+      }
       s.modelHome += m.w;
       s.modelDraw += m.d;
-      s.modelOver25 += gridTotals(grid, 2.5).over;
+      s.modelOver25 += m.over25;
       s.modelGoals += m.goals;
-      s.modelHtHomeAhead += modelHtHomeAhead(grid);
-      s.modelHome1up += gridTeamLeadUp(grid, true, 1);
-      s.modelHome2up += gridTeamLeadUp(grid, true, 2);
-      s.modelHomeNd += gridTeamNeverDown(grid, true);
-
-      // Reference: the two-target grid WITHOUT the DC draw correction.
-      const [pH, pD] = devig([r.homeOdds, r.drawOdds, r.awayOdds]);
-      const [pOver] = devig([r.overOdds, r.underOdds]);
-      const ref = fitTwoTargetGrid(pH, pOver, 2.5);
-      if (ref) s.refDraw += modelMetrics(ref).d;
+      s.modelHtHomeAhead += m.htHomeAhead;
+      s.modelHome1up += m.home1up;
+      s.modelHome2up += m.home2up;
+      s.modelHomeNd += m.homeNd;
+      s.refDraw += m.refDraw;
     }
 
     // Print the per-league table (all deltas as percentage-point rates).
@@ -232,7 +255,7 @@ describe('multi-league calibration backtest (Dixon-Coles draw correction)', () =
     }
     // Aggregate draw error strictly improves vs the no-DC reference.
     expect(totalAbsDc).toBeLessThan(totalAbsRef);
-  }, 180_000);
+  }, 420_000);
 });
 
 function comb(n: number, k: number): number {

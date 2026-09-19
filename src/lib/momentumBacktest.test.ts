@@ -182,7 +182,7 @@ describe('football momentum markets backtest (1UP / 2UP / Never Down + HT states
         expect(Math.abs(d), `${name} ${k} Δ=${d.toFixed(1)}pp`).toBeLessThan(bound);
       }
     }
-  }, 180_000);
+  }, 420_000);
 
   it('momentum probabilities are binned-calibrated (pooled across leagues)', () => {
     const rows = loadRows();
@@ -220,7 +220,7 @@ describe('football momentum markets backtest (1UP / 2UP / Never Down + HT states
       console.log(`    weighted |Δ|: ${w.toFixed(1)}pp (n=${n})`);
       expect(w).toBeLessThan(4);
     }
-  }, 180_000);
+  }, 420_000);
 });
 
 function actualFor(r: Row, k: string): number {

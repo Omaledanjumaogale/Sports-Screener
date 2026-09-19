@@ -229,7 +229,7 @@ OPENROUTER_API_KEY=your_openrouter_key_here
 
 # Flutterwave Payment Integration
 VITE_FLW_PUBLIC_KEY=FLWPUBK_TEST-xxxx
-FLW_SECRET_KEY=FLWSECK_TEST-xxxx
+FLW_SECRET_KEY=[REDACTED]
 FLW_SECRET_HASH=your_webhook_hash_secret
 ```
 

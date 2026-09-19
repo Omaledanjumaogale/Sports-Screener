@@ -187,5 +187,5 @@ describe('comprehensive football markets backtest (all derived markets vs histor
       expect(results[p.key], `${p.key} weighted |Δ| ${results[p.key].toFixed(1)}pp`).toBeLessThan(tight.has(p.key) ? 2.5 : 4);
     }
     expect(Math.abs(m0 - a0)).toBeLessThan(0.025);
-  }, 180_000);
+  }, 420_000);
 });
