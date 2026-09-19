@@ -30,7 +30,7 @@ export async function enablePush(): Promise<{ ok: boolean; message: string }> {
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') return { ok: false, message: 'Notification permission was not granted.' };
 
-    const vapid = (import.meta as any)?.env?.VITE_VAPID_PUBLIC_KEY as string | undefined;
+    const vapid = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
     const reg = await navigator.serviceWorker.ready;
 
     let sub = await reg.pushManager.getSubscription();

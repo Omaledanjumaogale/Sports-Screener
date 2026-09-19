@@ -3,16 +3,8 @@ const AUTH_STORAGE_KEY = 'pulseodds_auth_session_v1';
 // Super admin / tester identities come from env so the client never ships a
 // password or a privileged email in source. Auth itself is enforced server-side
 // (Convex Password provider); these helpers only drive client routing/UI.
-function envEmail(key: string, fallback: string): string {
-  if (typeof import.meta !== 'undefined') {
-    const v = (import.meta as any).env?.[key];
-    if (typeof v === 'string' && v.trim()) return v.trim();
-  }
-  return fallback;
-}
-
-export const SUPER_ADMIN_EMAIL = envEmail('VITE_SUPER_ADMIN_EMAIL', '');
-export const TESTER_EMAIL = envEmail('VITE_TESTER_EMAIL', '');
+export const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || '';
+export const TESTER_EMAIL = import.meta.env.VITE_TESTER_EMAIL || '';
 
 const TESTER_TRIAL_START_KEY = 'pulseodds_tester_trial_start_v1';
 

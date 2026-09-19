@@ -19,11 +19,11 @@ export const PLAN_LABEL: Record<PlanTier, string> = {
 // ₦10,000 Master Pass web-checkout link (a0jwn1nokemx). Overridable via env for
 // local testing; the default is the official link confirmed for the Master tier.
 export const MASTER_PAYMENT_LINK: string =
-  (import.meta as any)?.env?.VITE_FLW_MASTER_PAYMENT_LINK || 'https://flutterwave.com/pay/a0jwn1nokemx';
+  import.meta.env.VITE_FLW_MASTER_PAYMENT_LINK || 'https://flutterwave.com/pay/a0jwn1nokemx';
 
 // ₦5,000 Punter Pass web-checkout link (ndypongylu8q).
 export const PUNTER_PAYMENT_LINK: string =
-  (import.meta as any)?.env?.VITE_FLW_PAYMENT_LINK || 'https://flutterwave.com/pay/ndypongylu8q';
+  import.meta.env.VITE_FLW_PAYMENT_LINK || 'https://flutterwave.com/pay/ndypongylu8q';
 
 export const PAYMENT_LINK: Record<PlanTier, string> = {
   punter: PUNTER_PAYMENT_LINK,
@@ -31,7 +31,7 @@ export const PAYMENT_LINK: Record<PlanTier, string> = {
 };
 
 export const FLW_PUBLIC_KEY: string =
-  (import.meta as any)?.env?.VITE_FLW_PUBLIC_KEY || 'FLWPUBK-3d7724be-0c38-4ba7-bbb0-6bfab94637b1-X';
+  import.meta.env.VITE_FLW_PUBLIC_KEY || 'FLWPUBK-3d7724be-0c38-4ba7-bbb0-6bfab94637b1-X';
 
 export function amountFor(tier: PlanTier): number {
   return PLAN_AMOUNT[tier] ?? PLAN_AMOUNT.punter;
