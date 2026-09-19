@@ -47,7 +47,7 @@ function providerChain(): Provider[] {
       name: 'openrouter',
       url: 'https://openrouter.ai/api/v1/chat/completions',
       key: orKey,
-      model: process.env.OPENROUTER_MODEL?.trim() || 'openai/gpt-oss-20b:free'
+      model: process.env.OPENROUTER_MODEL?.trim() || 'z-ai/glm-5.2:free'
     });
   }
   // Cloudflare Workers AI - native catalog via the OpenAI-compatible endpoint,

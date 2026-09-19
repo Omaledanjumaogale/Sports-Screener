@@ -47,7 +47,9 @@ async function callAgnesAi(messages, max_tokens, temperature, env) {
       'X-Title': 'PulseOdds Screener'
     },
     body: JSON.stringify({
-      model: 'Agnes AI',
+      // Model id must be the API's catalog id. The literal 'Agnes AI' started
+      // returning 503 model_not_found; 'agnes-2.5-flash' is the served id.
+      model: (env && env.AGNES_AI_MODEL) || 'agnes-2.5-flash',
       messages,
       max_tokens,
       temperature
@@ -90,7 +92,9 @@ async function callOpenRouter(messages, max_tokens, temperature, env) {
       'X-Title': 'PulseOdds Screener'
     },
     body: JSON.stringify({
-      model: 'mistralai/mistral-7b-instruct:free',
+      // Free catalog rotates; mistral-7b:free was retired (404). glm-5.2:free
+      // verified live; override with OPENROUTER_MODEL when the catalog shifts.
+      model: (env && env.OPENROUTER_MODEL) || 'z-ai/glm-5.2:free',
       messages,
       max_tokens,
       temperature
@@ -111,7 +115,7 @@ async function callOpenRouter(messages, max_tokens, temperature, env) {
 
   if (!responseText) return null;
 
-  return { responseText, tokensUsed, model: 'Mistral-7B', provider: 'openrouter' };
+  return { responseText, tokensUsed, model: 'GLM-5.2', provider: 'openrouter' };
 }
 
 export async function onRequestPost(context) {
@@ -206,7 +210,10 @@ export async function onRequestPost(context) {
           temperature
         });
 
-        const responseText = safeStringify(result?.response);
+        // Binding returns { response } — tolerate OpenAI-shaped payloads too.
+        const responseText = safeStringify(
+          result?.response ?? result?.choices?.[0]?.message?.content
+        );
         const tokensUsed = Number(result?.usage?.total_tokens) || 0;
 
         if (responseText) {
@@ -248,7 +255,12 @@ export async function onRequestPost(context) {
 
         if (cfRes.ok) {
           const data = await cfRes.json().catch(() => null);
-          const responseText = safeStringify(data?.result?.response);
+          // The REST API now returns OpenAI-compatible shape
+          // (result.choices[0].message.content); legacy result.response kept
+          // as fallback so neither shape is dropped.
+          const responseText = safeStringify(
+            data?.result?.choices?.[0]?.message?.content ?? data?.result?.response
+          );
           const tokensUsed = Number(data?.result?.usage?.total_tokens) || 0;
 
           if (responseText) {
