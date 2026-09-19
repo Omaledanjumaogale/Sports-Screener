@@ -118,6 +118,24 @@ export const GET: RequestHandler = async () => {
       priority: '0.9'
     },
     {
+      url: `${SITE_URL}/instant-football`,
+      lastmod: today,
+      changefreq: 'weekly',
+      priority: '0.7'
+    },
+    {
+      url: `${SITE_URL}/instant-basketball`,
+      lastmod: today,
+      changefreq: 'weekly',
+      priority: '0.7'
+    },
+    {
+      url: `${SITE_URL}/vfootball`,
+      lastmod: today,
+      changefreq: 'weekly',
+      priority: '0.7'
+    },
+    {
       url: `${SITE_URL}/predictor`,
       lastmod: today,
       changefreq: 'daily',
@@ -130,7 +148,7 @@ export const GET: RequestHandler = async () => {
       priority: '0.8'
     },
     {
-      url: `${SITE_URL}/predictor/baseball`,
+      url: `${SITE_URL}/predictor/basketball`,
       lastmod: today,
       changefreq: 'daily',
       priority: '0.8'
