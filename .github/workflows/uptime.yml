@@ -35,7 +35,9 @@ jobs:
           UPTIME_URL: ${{ vars.UPTIME_URL }}
           THRESHOLD: ${{ vars.UPTIME_THRESHOLD }}
         run: |
-          URL="${UPTIME_URL:-https://pulseodds.ewinproject.org/api/health}"
+          # The health endpoint lives on the Convex HTTP backend (*.convex.site).
+          # The custom domain /api/health is POST-only by design (edge AI gate).
+          URL="${UPTIME_URL:-https://gallant-minnow-735.eu-west-1.convex.site/api/health}"
           echo "Probing $URL"
           CODE="$(curl -sS -o /tmp/health.json -w '%{http_code}' --max-time 20 "$URL" || echo 000)"
           STATUS="$(node -e '
