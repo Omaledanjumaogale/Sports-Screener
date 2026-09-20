@@ -98,14 +98,20 @@ export function assessDataQuality(
   // League belongs to THIS sport — hard gate independent of team fingerprint.
   // (Arsenal vs Chelsea in "NBA" still fingerprints football via the teams, so
   // the league gate is checked explicitly, not left to the keyword score.)
+  const kwOwn = SPORT_KEYWORDS[sportId];
+  // A league that POSITIVELY matches this sport's STRONG EXCLUSIVE keywords
+  // (e.g. "World Table Tennis" for rally) is authoritative for this sport:
+  // a generic keyword of another sport contained inside it ("tennis" ⊂
+  // "table tennis") must never reject it.
+  const ownStrongLeague = !!(kwOwn && kwOwn.strongExclusive.some((re) => re.test(v.normalizedLeague || '')));
   const leagueBelongs = v.normalizedLeague
-    ? serverLeagueBelongsToSport(v.normalizedLeague, sportId)
+    ? ownStrongLeague || serverLeagueBelongsToSport(v.normalizedLeague, sportId)
     : false;
   // The server-league pool clash check skips short tokens (e.g. "NBA" is 3
   // chars) so ALSO fingerprint the league text against every other sport's
   // keyword set — a league that positively matches another sport is blocked.
   let leagueFingerprintsElsewhere = false;
-  if (v.normalizedLeague) {
+  if (v.normalizedLeague && !ownStrongLeague) {
     // Derived from the live sport registry so adding/removing a sport can never
     // silently skip the cross-sport check.
     const OTHER_SPORTS = Object.keys(SPORT_KEYWORDS).filter((s) => s !== sportId);

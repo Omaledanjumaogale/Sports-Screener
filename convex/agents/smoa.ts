@@ -13,6 +13,7 @@ import {
   amaraFilter,
   zainabReview
 } from './specialists';
+import { allowSyntheticEnv } from '../scrapers/dataQuality';
 import type { NormalizedMatch } from '../scrapers/normalize';
 import { FILTER_CONFIDENCE_FLOOR } from '../scrapers/normalize';
 import { syntheticFixtures } from '../scrapers/betwatch';
@@ -76,8 +77,11 @@ export async function runSmoaPipeline(
     `${AGENT_DEFS[3].name} — validating sources`, `${researchRes.citations.length} research citations`);
 
   // 5. Chinedu Normalizer — normalization
+  // Synthetic dev fixtures are a DEV-ONLY fallback: they must never enter the
+  // production pipeline (the showcase gate blocks them anyway — running them
+  // through agents just masks the honest "no real fixtures found" outcome).
   let normalizeRes = chineduNormalize(capped, sportId);
-  if (normalizeRes.matches.length === 0) {
+  if (normalizeRes.matches.length === 0 && allowSyntheticEnv()) {
     const syn = syntheticFixtures(sportId);
     normalizeRes = chineduNormalize(syn, sportId);
   }

@@ -25,6 +25,7 @@ import type * as errorLog from "../errorLog.js";
 import type * as featureFlags from "../featureFlags.js";
 import type * as http from "../http.js";
 import type * as hygiene from "../hygiene.js";
+import type * as internal_retentionProbe from "../internal/retentionProbe.js";
 import type * as llm from "../llm.js";
 import type * as predictor from "../predictor.js";
 import type * as predictorOrchestrator from "../predictorOrchestrator.js";
@@ -71,6 +72,7 @@ declare const fullApi: ApiFromModules<{
   featureFlags: typeof featureFlags;
   http: typeof http;
   hygiene: typeof hygiene;
+  "internal/retentionProbe": typeof internal_retentionProbe;
   llm: typeof llm;
   predictor: typeof predictor;
   predictorOrchestrator: typeof predictorOrchestrator;

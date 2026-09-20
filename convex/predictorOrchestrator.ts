@@ -95,12 +95,27 @@ async function executeRefresh(
     // same stable matchId; TBD/promo rows (score < 10) are dropped; matches
     // without real odds (post research-fill) are blocked from showcase entirely.
     const qualityReport = (m: any) => assessDataQuality(m, args.sportId);
+    // Observability: collect the top gate-rejection reasons so "All N rows
+    // blocked" messages say WHY (league mismatch, no fingerprint, etc.).
+    const blockedReasons = new Map<string, number>();
+    const noteBlocked = (issues: string[]) => {
+      for (const iss of issues.slice(0, 2)) {
+        const key = iss.length > 60 ? iss.slice(0, 57) + '…' : iss;
+        blockedReasons.set(key, (blockedReasons.get(key) ?? 0) + 1);
+      }
+    };
     const validated = result.matches
       .map((m) => {
         const v = validateFixture(m, args.sportId);
-        if (!v.valid) return null;
+        if (!v.valid) {
+          noteBlocked(v.issues);
+          return null;
+        }
         const q = qualityReport({ ...m, league: v.normalizedLeague || m.league });
-        if (!q.eligible) return null;
+        if (!q.eligible) {
+          noteBlocked(q.issues);
+          return null;
+        }
         return {
           ...m,
           dataQuality: q.level,
@@ -231,7 +246,7 @@ async function executeRefresh(
         ? qualifyingSet.size > 0
           ? `${cleanMatches.length} verified matches cached, ${qualifyingSet.size} qualifying${blockedCount ? ` (${blockedCount} blocked by quality gate)` : ''}`
           : `${cleanMatches.length} matches cached (none cleared the ${floor}% floor)`
-        : `All ${result.matches.length} parsed rows blocked by the quality gate — no verified fixtures this cycle.`
+        : `All ${result.matches.length} parsed rows blocked by the quality gate — no verified fixtures this cycle.${blockedReasons.size ? ` Top reasons: ${Array.from(blockedReasons.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([r, n]) => `${r} ×${n}`).join('; ')}` : ''}`
     });
 
     await ctx.runMutation(internal.predictor.updateRun, {
