@@ -11,6 +11,7 @@
 import type * as access from "../access.js";
 import type * as actionCache from "../actionCache.js";
 import type * as agents_agentDefinitions from "../agents/agentDefinitions.js";
+import type * as agents_jevEvaluator from "../agents/jevEvaluator.js";
 import type * as agents_smoa from "../agents/smoa.js";
 import type * as agents_specialists from "../agents/specialists.js";
 import type * as apis_sportsApis from "../apis/sportsApis.js";
@@ -26,6 +27,7 @@ import type * as featureFlags from "../featureFlags.js";
 import type * as http from "../http.js";
 import type * as hygiene from "../hygiene.js";
 import type * as internal_retentionProbe from "../internal/retentionProbe.js";
+import type * as jev from "../jev.js";
 import type * as llm from "../llm.js";
 import type * as predictor from "../predictor.js";
 import type * as predictorOrchestrator from "../predictorOrchestrator.js";
@@ -58,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   access: typeof access;
   actionCache: typeof actionCache;
   "agents/agentDefinitions": typeof agents_agentDefinitions;
+  "agents/jevEvaluator": typeof agents_jevEvaluator;
   "agents/smoa": typeof agents_smoa;
   "agents/specialists": typeof agents_specialists;
   "apis/sportsApis": typeof apis_sportsApis;
@@ -73,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   hygiene: typeof hygiene;
   "internal/retentionProbe": typeof internal_retentionProbe;
+  jev: typeof jev;
   llm: typeof llm;
   predictor: typeof predictor;
   predictorOrchestrator: typeof predictorOrchestrator;
