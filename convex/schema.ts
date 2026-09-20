@@ -189,6 +189,9 @@ export default defineSchema({
     sportId: PREDICTOR_SPORT_IDS,
     matchId: v.string(),
     aiReport: v.any(),
+    // Jev (typesafe/jev) structured evaluation for this match — noul/choice/
+    // score answers + engine metadata. Rides the same 12h retention purge.
+    jevEvaluation: v.optional(v.any()),
     greatMindsDebate: v.optional(v.any()),
     dailyPnlSummary: v.optional(v.any()),
     llmUsed: v.optional(v.boolean()),

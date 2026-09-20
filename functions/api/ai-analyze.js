@@ -7,6 +7,183 @@
 //   3. Cloudflare AI binding (tertiary — native CF Workers AI)
 //   4. Cloudflare REST API  (quaternary — token-based CF AI)
 
+// ── Jev structured evaluation (typesafe/jev contract) ──────────────────────────
+// The in-app AI Copilot drafts its answers FROM typed Jev decisions: every
+// request is first evaluated against noul/choice/score questions and the
+// calibrated answers are injected as an anchor for the responding LLM.
+//
+// Engine: native `typesafe/jev` is tried first; if the account doesn't have it
+// provisioned yet, the identical contract is served by an adapter over the
+// account's Workers AI text models (mirror of convex/jev.ts, kept
+// self-contained at the edge). Failure degrades silently to the plain chain.
+const JEV_NATIVE_MODEL = 'typesafe/jev';
+const JEV_ADAPTER_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+let jevNativeUnavailable = false;
+
+function cfCreds(env) {
+  const account = (env && (env.CF_ACCOUNT_ID || env.VITE_CF_ACCOUNT_ID)) || '';
+  const token = (env && (env.CF_WORKER_AI_TOKEN || env.VITE_CF_WORKER_AI_TOKEN)) || '';
+  return account && token ? { account, token } : null;
+}
+
+async function cfRun(model, body, env, timeoutMs = 25000) {
+  const creds = cfCreds(env);
+  if (!creds) return null;
+  try {
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${creds.account}/ai/run/${model}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${creds.token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs)
+      }
+    );
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => null);
+    return json?.success ? json.result : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function clamp01(n) {
+  const v = Number(n);
+  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0;
+}
+
+// Typed questions every Copilot request is evaluated against.
+function jevQuestions() {
+  return {
+    answer_depth: {
+      type: 'choice',
+      instructions: 'What response shape best serves this user request?',
+      criteria: {
+        quick_read: 'Short direct answer — a fact, price check or yes/no',
+        market_analysis: 'Structured analysis of odds/markets with numbers',
+        risk_guidance: 'Risk-focused answer — caution, staking, bankroll safety',
+        explanation: 'Educational explanation of a concept or term'
+      }
+    },
+    is_betting_context: {
+      type: 'noul',
+      instructions: 'Does this request concern betting markets, odds or predictions?',
+      criteria: { true: 'Odds, markets, teams, staking or predictions involved', false: 'General/non-betting request' }
+    },
+    caution_level: {
+      type: 'score',
+      instructions: 'How much responsible-gambling caution should the answer carry?',
+      criteria: ['Standard', 'Add staking caution', 'Strong caution — chase/loss signals']
+    }
+  };
+}
+
+function renderJevPrompt(state, questions) {
+  const q = Object.entries(questions)
+    .map(([key, q]) => {
+      const crit = Object.entries(q.criteria)
+        .map(([k, v]) => `  "${k}": ${v}`)
+        .join('\n');
+      const shape =
+        q.type === 'noul'
+          ? `"${key}": { "noul": <0.00-1.00>, "confidence": <0.00-1.00> }`
+          : q.type === 'choice'
+            ? `"${key}": { "choice": <option key>, "probabilities": { <option>: <0.00-1.00> }, "confidence": <0.00-1.00> }`
+            : `"${key}": { "score": <number>, "confidence": <0.00-1.00> }`;
+      return `Question "${key}" (${q.type}):\n${q.instructions}\nCriteria:\n${crit}\nShape: ${shape}`;
+    })
+    .join('\n\n');
+  return `STATE TO EVALUATE:\n${state}\n\nQUESTIONS:\n${q}\n\nRespond ONLY with a valid JSON object mapping each question key to its answer in the exact shape given. No markdown, no commentary.`;
+}
+
+function parseJevAnswers(questions, raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const answers = {};
+  for (const [key, q] of Object.entries(questions)) {
+    const r = raw[key];
+    if (!r || typeof r !== 'object') continue;
+    if (q.type === 'noul' && r.noul !== undefined) {
+      answers[key] = { type: 'noul', noul: clamp01(r.noul), confidence: clamp01(r.confidence || 0.7) };
+    } else if (q.type === 'choice' && r.choice !== undefined) {
+      const options = Object.keys(q.criteria);
+      const choice = options.includes(r.choice) ? r.choice : options.find((o) => o.toLowerCase() === String(r.choice).toLowerCase());
+      if (choice) answers[key] = { type: 'choice', choice, confidence: clamp01(r.confidence || 0.7) };
+    } else if (q.type === 'score' && r.score !== undefined && Number.isFinite(Number(r.score))) {
+      answers[key] = { type: 'score', score: Number(r.score), confidence: clamp01(r.confidence || 0.7) };
+    }
+  }
+  return Object.keys(answers).length ? answers : null;
+}
+
+// Evaluate the request state through Jev. Returns { engine, model, answers }
+// or null (never throws — the Copilot chain continues without it).
+async function evaluateWithJev(userState, env) {
+  if (!cfCreds(env)) return null;
+  const questions = jevQuestions();
+  try {
+    if (!jevNativeUnavailable) {
+      const native = await cfRun(JEV_NATIVE_MODEL, { state: userState, questions }, env, 20000);
+      if (native?.answers) return { engine: 'native-jev', model: String(native.model || JEV_NATIVE_MODEL), answers: native.answers };
+      if (native === null) jevNativeUnavailable = true; // route/HTTP failure → stop retrying this isolate
+    }
+    const result = await cfRun(
+      JEV_ADAPTER_MODEL,
+      {
+        messages: [
+          {
+            role: 'system',
+            content: 'You are Jev, TypeSafe\'s structured evaluation model. Evaluate the state against the typed questions and return calibrated answers with probabilities and confidence, grounded strictly in the state. Respond ONLY with valid JSON.'
+          },
+          { role: 'user', content: renderJevPrompt(userState, questions) }
+        ],
+        temperature: 0.2,
+        max_tokens: 700
+      },
+      env
+    );
+    const text = safeStringify(result?.choices?.[0]?.message?.content ?? result?.response ?? '');
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1 || end <= start) return null;
+    const parsed = JSON.parse(text.slice(start, end + 1));
+    const answers = parseJevAnswers(questions, parsed);
+    return answers ? { engine: 'adapter', model: JEV_ADAPTER_MODEL, answers } : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Turn Jev answers into the anchor injected ahead of the responding LLM.
+function jevAnchor(jev) {
+  if (!jev || !jev.answers) return '';
+  const lines = [];
+  const d = jev.answers.answer_depth;
+  if (d && d.type === 'choice') {
+    const shapes = {
+      quick_read: 'a short, direct answer',
+      market_analysis: 'a structured market analysis with the real numbers',
+      risk_guidance: 'a risk-focused answer with staking caution',
+      explanation: 'a clear educational explanation'
+    };
+    lines.push(`Response shape: ${shapes[d.choice] || d.choice}.`);
+  }
+  const bet = jev.answers.is_betting_context;
+  if (bet && bet.type === 'noul') {
+    lines.push(bet.noul >= 0.5 ? 'Betting context: YES — ground every claim in the odds/probability data provided.' : 'Betting context: NO — answer the general question without inventing market data.');
+  }
+  const ca = jev.answers.caution_level;
+  if (ca && ca.type === 'score') {
+    const level = Math.max(0, Math.min(2, Math.round(ca.score)));
+    lines.push(['Carry standard responsible-play framing.', 'Include explicit staking/bankroll caution.', 'Lead with strong responsible-gambling caution — the user shows chase/loss signals.'][level]);
+  }
+  if (!lines.length) return '';
+  return `\n\nJEV STRUCTURED EVALUATION (typed decisions from the Jev model — draft your answer FROM these):\n- ${lines.join('\n- ')}\n(Engine: ${jev.engine}, model: ${jev.model})\n`;
+}
+
 function safeStringify(val) {
   if (val === null || val === undefined) return '';
   if (typeof val === 'string') return val;
@@ -181,6 +358,30 @@ export async function onRequestPost(context) {
       );
     }
 
+    // ── 0. Jev structured evaluation (drafts the answer shape for the LLM) ────
+    let jev = null;
+    try {
+      const lastUser = [...messages].reverse().find((m) => m && m.role === 'user' && typeof m.content === 'string');
+      if (lastUser) {
+        jev = await evaluateWithJev(lastUser.content.slice(0, 4000), env);
+        if (jev) {
+          const anchor = jevAnchor(jev);
+          if (anchor) {
+            // Merge into the leading system message (or prepend one) so every
+            // provider in the chain sees the same anchor.
+            if (messages[0] && messages[0].role === 'system' && typeof messages[0].content === 'string') {
+              messages = [{ ...messages[0], content: messages[0].content + anchor }, ...messages.slice(1)];
+            } else {
+              messages = [{ role: 'system', content: 'You are the PulseOdds AI Copilot.' + anchor }, ...messages];
+            }
+          }
+        }
+      }
+    } catch (jevErr) {
+      console.error('[AI Copilot] Jev evaluation skipped:', safeStringify(jevErr?.message || jevErr));
+      jev = null;
+    }
+
     // ── 1. Agnes AI (primary — enterprise-grade) ──────────────────────────────
     try {
       const agnesResult = await callAgnesAi(messages, max_tokens, temperature, env);
@@ -191,7 +392,8 @@ export async function onRequestPost(context) {
             provider: agnesResult.provider,
             model: agnesResult.model,
             response: agnesResult.responseText,
-            tokensUsed: agnesResult.tokensUsed
+            tokensUsed: agnesResult.tokensUsed,
+            ...(jev ? { jev: { engine: jev.engine, model: jev.model } } : {})
           }),
           { headers: corsHeaders }
         );
@@ -210,7 +412,8 @@ export async function onRequestPost(context) {
             provider: orResult.provider,
             model: orResult.model,
             response: orResult.responseText,
-            tokensUsed: orResult.tokensUsed
+            tokensUsed: orResult.tokensUsed,
+            ...(jev ? { jev: { engine: jev.engine, model: jev.model } } : {})
           }),
           { headers: corsHeaders }
         );
@@ -241,7 +444,8 @@ export async function onRequestPost(context) {
               provider: 'cloudflare-ai',
               model: 'Llama-3.1-8B',
               response: responseText,
-              tokensUsed
+              tokensUsed,
+              ...(jev ? { jev: { engine: jev.engine, model: jev.model } } : {})
             }),
             { headers: corsHeaders }
           );
@@ -288,7 +492,8 @@ export async function onRequestPost(context) {
                 provider: 'cloudflare-rest',
                 model: 'Llama-3.1-8B',
                 response: responseText,
-                tokensUsed
+                tokensUsed,
+                ...(jev ? { jev: { engine: jev.engine, model: jev.model } } : {})
               }),
               { headers: corsHeaders }
             );

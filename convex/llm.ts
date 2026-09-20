@@ -466,7 +466,15 @@ function parseVerdictJson(raw: string): PredictorAiReport | null {
 
 export async function generatePredictorVerdict(
   match: VerdictMatchInput,
-  opts: { sportId?: string; fallbackSummary?: string } = {}
+  opts: {
+    sportId?: string;
+    fallbackSummary?: string;
+    // Typed decisions from the Jev structured evaluation (convex/jev.ts via
+    // agents/jevEvaluator.ts). When present they anchor the LLM's analysis:
+    // the verdict drafts FROM Jev's calibrated reads instead of freeform judgement.
+    jevSteering?: { leadMarketHint: string; valueBetHint: string; upsetWatchHint: string; riskHint: string };
+    jevPhrases?: string[];
+  } = {}
 ): Promise<VerdictOutcome> {
   const sport = VALID_SPORTS.includes(opts.sportId ?? '') ? opts.sportId! : 'football';
   const scale = SPORT_SCALE[sport] ?? SPORT_SCALE.football;
@@ -481,6 +489,13 @@ export async function generatePredictorVerdict(
   const linesStr = s.lines.join('\n  ') || 'No handicap or total lines available this cycle.';
   const topStr = s.topValue.length ? '\n  ' + s.topValue.map((t) => `- ${t}`).join('\n  ') : '';
   const noteStr = s.note ? `\n${s.note}` : '';
+
+  // Jev structured-evaluation steering: typed noul/choice/score decisions over
+  // this exact state, quoted verbatim so the verdict is drafted from the
+  // structured model's calibrated reads.
+  const jevBlock = opts.jevPhrases?.length
+    ? `\n\nJEV STRUCTURED EVALUATION (typed decisions from the Jev model over THIS fixture's state — anchor your analysis and recommendations to them; keep all odds numbers from the market data above):\n  - ${opts.jevPhrases.join('\n  - ')}\n`
+    : '';
 
   // Real source URLs the agents actually scraped — so the verdict reasons over
   // (and cites) the live pages, not generic boilerplate.
@@ -505,7 +520,7 @@ ${marketsStr}
 ${linesStr}
 
 TOP VALUE OPPORTUNITIES (highest punter edge first):${topStr}
-
+${jevBlock}
 --- INSTRUCTIONS ---
 You are PulseOdds AI Predictor — an expert sports betting analyst backed by a multi-agent screen (fixture, odds, volume, research, normalization, filter, risk-review). Analyse ONLY the data above and produce a clear, plain-English verdict.
 
@@ -521,6 +536,7 @@ RULES:
 9. Never recommend betting beyond a small stake; always flag risk.
 10. STANDALONE MATCH: Treat this match as a completely independent fixture. Every verdict, recommendation and top-3 selection must be derived from THIS match's own odds and probabilities above. Do NOT copy, replicate or reuse analysis, recommendations or verdicts from any other match — matches with similar-looking lines must still get their own verdict reasoned from their own numbers. No two matches should share identical verdict wording or identical top-3 selections unless the underlying data is genuinely identical.
 11. ODDS ARE INDICATORS, NOT CERTAINTIES: bookmaker odds are market signals, not a true reflection of the match outcome — they become meaningful when computed (de-vigged), compared and cross-referenced across related markets. A very short price (e.g. 1.01 at 90%+) does NOT guarantee a win when staked; value the positive edges that genuinely convert, and never present a near-1.01 side as a sure thing.
+12. JEV ANCHOR: where a JEV STRUCTURED EVALUATION block is present, your verdictSummary must explicitly reflect Jev's lead-market routing, value read, upset caution and risk level (e.g. "Jev routes this read to the totals market…"). Where Jev flags no value or elevated risk, say so plainly instead of manufacturing a pick.
 
 RESPOND ONLY with a valid JSON object, no markdown, no code fences:
 {

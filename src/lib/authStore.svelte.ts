@@ -182,7 +182,18 @@ export async function refreshAccess(): Promise<void> {
       console.error('Failed to persist refreshed auth session:', e);
     }
   } catch (err: any) {
-    console.warn('refreshAccess skipped:', err?.message || err);
+    const msg = String(err?.message || err);
+    // A persisted JWT can become invalid (server key rotation, expiry). The
+    // dead token is auto-attached to EVERY call — including auth:signIn — so
+    // it must be cleared, not skipped, or sign-in itself fails with "Could not
+    // verify OIDC token claim". Self-heal: drop the session so the next
+    // sign-in starts clean.
+    if (/Unauthenticated|Could not verify|invalid token|expired/i.test(msg)) {
+      console.warn('refreshAccess: stored token invalid — clearing session for a clean sign-in.');
+      setUnauthenticated();
+      return;
+    }
+    console.warn('refreshAccess skipped:', msg);
   }
 }
 

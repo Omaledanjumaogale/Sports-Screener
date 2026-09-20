@@ -894,7 +894,8 @@ export const insertVerdicts = internalMutation({
         scopeSummary: v.string(),
         llmUsed: v.optional(v.boolean()),
         llmProvider: v.optional(v.string()),
-        aiReport: v.optional(v.any())
+        aiReport: v.optional(v.any()),
+        jevEvaluation: v.optional(v.any())
       })
     )
   },
@@ -924,6 +925,7 @@ export const insertVerdicts = internalMutation({
         aiReport,
         llmUsed: vv.llmUsed ?? (vv.aiReport ? true : false),
         llmProvider: vv.llmProvider ?? '',
+        ...(vv.jevEvaluation !== undefined ? { jevEvaluation: vv.jevEvaluation } : {}),
         updatedAt: now
       };
       if (existing) {

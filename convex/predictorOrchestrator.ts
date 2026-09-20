@@ -10,6 +10,8 @@ import { amaraFilter, type NormalizeResult } from './agents/specialists';
 import { dailyCap, watTodayKey } from './scrapers/sources';
 import { FILTER_CONFIDENCE_FLOOR } from './scrapers/normalize';
 import { generatePredictorVerdict, type VerdictOutcome } from './llm';
+import { evaluateMatchWithJev } from './agents/jevEvaluator';
+import { evaluateWithJev } from './jev';
 import { isFootballMatch, matchBelongsToSport, validateFixture } from './predictor';
 import { assessDataQuality, hasRealOdds } from './scrapers/dataQuality';
 import { actionCacheKey } from './actionCache';
@@ -166,7 +168,17 @@ async function executeRefresh(
         : `${m.homeTeam} vs ${m.awayTeam} (${m.league}) — cached for review; no selection cleared the ${floor}% confidence floor.`;
 
       let llm: VerdictOutcome;
+      let jev: Awaited<ReturnType<typeof evaluateMatchWithJev>> | null = null;
       if (qualifies) {
+        // Jev structured evaluation FIRST: typed noul/choice/score decisions
+        // over this fixture's de-vigged state. The LLM verdict is then drafted
+        // FROM Jev's reads (lead-market routing, value check, risk level).
+        jev = await evaluateMatchWithJev({
+          homeTeam: m.homeTeam,
+          awayTeam: m.awayTeam,
+          league: m.league,
+          scopes: m.scope
+        });
         // Enterprise: cache the LLM verdict per (day, match) for 15 minutes so
         // repeat refresh cycles serve the cached analysis instead of paying the
         // LLM again for identical inputs (native action-cache equivalent).
@@ -189,7 +201,13 @@ async function executeRefresh(
               sourceUrl: m.sourceUrl,
               citations: result.citations
             },
-            { sportId: m.sportId, fallbackSummary }
+            {
+              sportId: m.sportId,
+              fallbackSummary,
+              ...(jev.ok && jev.steering
+                ? { jevSteering: jev.steering, jevPhrases: jev.phrases }
+                : {})
+            }
           );
           await ctx.runMutation(internal.actionCache.setCachedActionValue, {
             cacheKey,
@@ -225,7 +243,18 @@ async function executeRefresh(
         scopeSummary: llm.summary,
         llmUsed: llm.usedLlm,
         llmProvider: llm.provider,
-        aiReport: llm.verdict
+        aiReport: llm.verdict,
+        ...(jev && jev.ok && jev.evaluation
+          ? {
+              jevEvaluation: {
+                engine: jev.engine,
+                model: jev.model,
+                answers: jev.evaluation.answers,
+                usage: jev.evaluation.usage,
+                phrases: jev.phrases ?? []
+              }
+            }
+          : {})
       };
     });
 
@@ -235,6 +264,40 @@ async function executeRefresh(
       verdicts
     });
 
+    // Cycle-level Jev evaluation: the structured model audits the WHOLE cycle
+    // (web search → scraping → fetch → quality gate → verdicts) and its typed
+    // read of the pipeline's bottleneck lands in the day message.
+    let jevCycleNote = '';
+    try {
+      const cycle = await evaluateWithJev(
+        `Pipeline cycle for sport "${args.sportId}" on day ${dayKey}: sources consulted ${result.sourcesUsed.length} (${result.sourcesUsed.slice(0, 5).join(', ')}); parsed rows ${result.matches.length}; fixtures passing quality gate ${cleanMatches.length}; rows blocked ${blockedCount}; fixtures with real odds ${qualifyingSet.size}; confidence floor ${floor}%; agents run ${result.agentsRun.length}.`,
+        {
+          cache_healthy: {
+            type: 'noul',
+            instructions: 'Is this cycle healthy — did it produce usable cached fixtures for the schedule?',
+            criteria: { true: 'At least one fixture passed the quality gate', false: 'Nothing usable was cached this cycle' }
+          },
+          bottleneck: {
+            type: 'choice',
+            instructions: 'Which stage most limited this cycle?',
+            criteria: {
+              sources: 'Source pages failed or returned nothing parseable',
+              quality_gate: 'Rows were parsed but blocked by fixture validation / quality rules',
+              confidence_floor: 'Fixtures cached but none cleared the confidence floor',
+              odds_availability: 'Fixtures cached but real odds were missing',
+              none: 'No bottleneck — cycle ran cleanly'
+            }
+          }
+        }
+      );
+      if (cycle.ok && cycle.evaluation) {
+        const a = cycle.evaluation.answers ?? {};
+        const healthy = a.cache_healthy && a.cache_healthy.type === 'noul' ? a.cache_healthy.noul >= 0.5 : null;
+        const bottleneck = a.bottleneck && a.bottleneck.type === 'choice' ? a.bottleneck.choice : 'unknown';
+        jevCycleNote = ` Jev cycle audit: ${healthy === null ? 'cache ?' : healthy ? 'cache healthy' : 'cache unhealthy'}, bottleneck=${bottleneck} (engine ${cycle.evaluation.engine}).`;
+      }
+    } catch {}
+
     await ctx.runMutation(internal.predictor.upsertDay, {
       sportId: args.sportId,
       dayKey: dayKey,
@@ -242,11 +305,11 @@ async function executeRefresh(
       runId,
       cap,
       sourcesUsed: result.sourcesUsed,
-      message: cleanMatches.length > 0
+      message: (cleanMatches.length > 0
         ? qualifyingSet.size > 0
           ? `${cleanMatches.length} verified matches cached, ${qualifyingSet.size} qualifying${blockedCount ? ` (${blockedCount} blocked by quality gate)` : ''}`
           : `${cleanMatches.length} matches cached (none cleared the ${floor}% floor)`
-        : `All ${result.matches.length} parsed rows blocked by the quality gate — no verified fixtures this cycle.${blockedReasons.size ? ` Top reasons: ${Array.from(blockedReasons.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([r, n]) => `${r} ×${n}`).join('; ')}` : ''}`
+        : `All ${result.matches.length} parsed rows blocked by the quality gate — no verified fixtures this cycle.${blockedReasons.size ? ` Top reasons: ${Array.from(blockedReasons.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([r, n]) => `${r} ×${n}`).join('; ')}` : ''}`) + jevCycleNote
     });
 
     await ctx.runMutation(internal.predictor.updateRun, {
