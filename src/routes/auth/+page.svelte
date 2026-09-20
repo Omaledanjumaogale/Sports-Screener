@@ -35,6 +35,10 @@
     error = null;
 
     const cleanEmail = email.trim().toLowerCase();
+    // Identity/flag checks stay normalized, but the actual auth call must use
+    // the email as typed: @convex-dev/auth resolves accounts by exact string,
+    // so a lowercased input can miss an account created with different casing.
+    const typedEmail = email.trim();
     const isAdmin = isSuperAdminEmail(cleanEmail);
     const isTester = isTesterEmail(cleanEmail);
 
@@ -51,7 +55,13 @@
       // server-side (seeded) and always log in — never sign up. No local
       // emulation fallback: credentials are validated by the backend.
       const flow = isAdmin || isTester ? 'signIn' : isSignUp ? 'signUp' : 'signIn';
-      const res = await convexSignIn({ email: cleanEmail, password, flow });
+      let res = await convexSignIn({ email: typedEmail, password, flow });
+      // Case-insensitive fallback: if the as-typed email matched no account,
+      // retry lowercased (covers users typing a different casing than the
+      // account was created with).
+      if (!res?.token && typedEmail !== cleanEmail) {
+        res = await convexSignIn({ email: cleanEmail, password, flow });
+      }
       if (!res?.token) {
         throw new Error(isSignUp ? 'Could not create account. Please try again.' : 'Invalid credentials. Access denied.');
       }
@@ -87,25 +97,31 @@
       const isSubscribed = !!(access.isAdmin || access.isTester || access.isSubscribed);
       const testerExpired = access.isTester && !access.isSubscribed;
 
+      // Server truth wins: syncAccess is authoritative for privileged access,
+      // so an env-casing mismatch on the client can never demote a real admin
+      // or tester session.
+      const effectiveIsAdmin = isAdmin || !!access.isAdmin;
+      const effectiveIsTester = isTester || !!access.isTester;
+
       const user = {
         id: userId,
         email: cleanEmail,
-        fullName: isSignUp ? (fullName.trim() || (isAdmin ? 'Super Admin' : isTester ? 'Tester User' : cleanEmail.split('@')[0])) : (isAdmin ? 'Super Admin' : isTester ? 'Tester User' : cleanEmail.split('@')[0]),
+        fullName: isSignUp ? (fullName.trim() || (effectiveIsAdmin ? 'Super Admin' : effectiveIsTester ? 'Tester User' : cleanEmail.split('@')[0])) : (effectiveIsAdmin ? 'Super Admin' : effectiveIsTester ? 'Tester User' : cleanEmail.split('@')[0]),
         mobile: mobile.trim() || undefined,
         dob: dob || undefined,
         stateOfResidence: stateOfResidence || undefined,
         consentAccepted: true,
-        name: isAdmin ? 'Super Admin' : isTester ? 'Tester User' : (fullName.trim() || cleanEmail.split('@')[0]),
-        isSubscribed: isAdmin || isTester || isSubscribed,
-        isAdmin,
-        isTester,
+        name: effectiveIsAdmin ? 'Super Admin' : effectiveIsTester ? 'Tester User' : (fullName.trim() || cleanEmail.split('@')[0]),
+        isSubscribed: effectiveIsAdmin || effectiveIsTester || isSubscribed,
+        isAdmin: effectiveIsAdmin,
+        isTester: effectiveIsTester,
         subscriptionExpiresAt: access.subscriptionExpiresAt ?? access.trialExpiresAt,
         createdAt: Date.now()
       };
 
       setAuthenticated(user, token);
 
-      if (isAdmin) {
+      if (effectiveIsAdmin) {
         notify(
           'Welcome, Super Admin! Full unrestricted access granted. Choose any sport screener from the homepage.',
           'success',
@@ -113,7 +129,7 @@
           6000
         );
         void goto('/');
-      } else if (isTester && !testerExpired) {
+      } else if (effectiveIsTester && !testerExpired) {
         notify(
           'Welcome, Tester! 1-month free trial pass active. Full unrestricted access granted to all screeners.',
           'success',

@@ -12,12 +12,15 @@ import { setConvexAuthToken, clearConvexAuthToken, queryConvex, api } from './co
 
 export function isSuperAdminEmail(email?: string): boolean {
   if (!email) return false;
-  return email.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
+  // Normalize BOTH sides: env values may carry mixed casing while inputs are
+  // user-typed (usually lowercased). A case-sensitive compare silently demotes
+  // the super admin on any casing mismatch.
+  return email.trim().toLowerCase() === SUPER_ADMIN_EMAIL.trim().toLowerCase();
 }
 
 export function isTesterEmail(email?: string): boolean {
   if (!email) return false;
-  return email.trim().toLowerCase() === TESTER_EMAIL;
+  return email.trim().toLowerCase() === TESTER_EMAIL.trim().toLowerCase();
 }
 
 export function getTesterTrialExpiresAt(): number {

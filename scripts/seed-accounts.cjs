@@ -1,3 +1,13 @@
+// Seeds/verifies privileged accounts (super admin + tester) on the target Convex
+// deployment through the real auth action.
+//
+// WHY CASING MATTERS: @convex-dev/auth's password provider resolves accounts by
+// exact email string. An account created as "Omale@..." cannot be signed into
+// with "omale@...". The UI checks identity flags case-insensitively but the
+// auth action uses the typed email, so each privileged identity is ensured
+// under BOTH the configured casing and its lowercase form (idempotent).
+//
+// Usage: node scripts/seed-accounts.cjs   (reads .env.local)
 var fs = require('fs');
 
 var envMap = {};
@@ -8,11 +18,17 @@ fs.readFileSync('.env.local', 'utf8').split(/\r?\n/).forEach(function (l) {
   envMap[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
 });
 
-function mask(v) { return v ? String(v).slice(0, 3) + '…' : 'MISSING'; }
-var accounts = [
-  { label: 'ADMIN', email: envMap.SUPER_ADMIN_EMAIL, password: envMap.SUPER_ADMIN_PASSWORD },
-  { label: 'TESTER', email: envMap.TESTER_EMAIL, password: envMap.TESTER_PASSWORD }
-];
+var accounts = [];
+if (envMap.SUPER_ADMIN_EMAIL && envMap.SUPER_ADMIN_PASSWORD) {
+  var ae = envMap.SUPER_ADMIN_EMAIL;
+  accounts.push({ label: 'ADMIN', email: ae, password: envMap.SUPER_ADMIN_PASSWORD });
+  if (ae !== ae.toLowerCase()) accounts.push({ label: 'ADMIN-lower', email: ae.toLowerCase(), password: envMap.SUPER_ADMIN_PASSWORD });
+}
+if (envMap.TESTER_EMAIL && envMap.TESTER_PASSWORD) {
+  var te = envMap.TESTER_EMAIL;
+  accounts.push({ label: 'TESTER', email: te, password: envMap.TESTER_PASSWORD });
+  if (te !== te.toLowerCase()) accounts.push({ label: 'TESTER-lower', email: te.toLowerCase(), password: envMap.TESTER_PASSWORD });
+}
 
 (async function main() {
   var { ConvexHttpClient } = await import('convex/browser');
@@ -34,11 +50,11 @@ var accounts = [
     } catch (_) {
       // 2. Seed via signUp (creates the account with these credentials)
       try {
-        var created = await client.action(anyApi.auth.signIn, {
+        await client.action(anyApi.auth.signIn, {
           provider: 'password',
           params: { flow: 'signUp', email: a.email, password: a.password }
         });
-        console.log(a.label + ': account CREATED via signUp (' + Object.keys(created || {}).join(',') + ')');
+        console.log(a.label + ': account CREATED via signUp');
         try {
           signedIn = await client.action(anyApi.auth.signIn, {
             provider: 'password',
@@ -75,12 +91,9 @@ var accounts = [
     });
     var tk = created && created.tokens && (created.tokens.token || (Array.isArray(created.tokens) && created.tokens[0] && created.tokens[0].value));
     client.setAuth(tk);
-    var me = await client.query(anyApi.users.me, {});
-    console.log('REGULAR-USER signUp+me: OK (email=' + me.email.slice(0, 3) + '… isSubscribed=' + me.isSubscribed + ')');
-    // clean up the test profile is unnecessary (invalid domain, gated out)
+    await client.query(anyApi.users.me, {});
+    console.log('REGULAR-USER signUp+me: OK (email=' + testEmail + ')');
   } catch (e) {
-    console.log('REGULAR-USER roundtrip FAILED: ' + String(e.message || e).slice(0, 140));
+    console.log('REGULAR-USER roundtrip FAILED: ' + String(e.message || e).slice(0, 120));
   }
-
-  process.exit(0);
 })();
