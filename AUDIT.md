@@ -250,3 +250,34 @@ npm run wrangler:deploy  # deploy the SPA to Cloudflare Pages
 
 **Verification:** Convex tsc 0 errors - svelte-check 0/0 - vitest 19 files / 190 passed -
 production build OK - prod:gallant-minnow-735 /api/health 200.
+
+## 10. Auth restoration, retention proof, AI ops tooling, uptime monitor (Sep 20, 2026)
+
+**Auth root-cause & fix (signup/login not synchronizing with Convex):** the fresh deployment had no
+JWT_PRIVATE_KEY (token signing crashed every auth call server-side) and no JWKS env var (the
+.well-known/jwks.json handler 500ed, breaking provider discovery). Fresh RSA key pair generated and
+installed on the deployment (old sessions did not exist there, so rotation was safe); JWKS derived
+from the public key and set. Admin/tester accounts then seeded via the real signUp path
+(scripts/seed-accounts.cjs). Verified live: admin isAdmin=true + master pass, tester isTester=true,
+anonymous queries rejected, regular-user signUp roundtrip OK.
+
+**12h retention validated end-to-end:** convex/internal/retentionProbe.ts seeds controlled probe rows
+(13h-old finished matches + verdicts, plus recent/upcoming survivors); scripts/validate-retention.cjs
+runs insert -> real purge -> verify. Result: purged=2, verdictsPurged=2, survivors intact, policy=12.0h.
+
+**Ingest pipeline fixes found while populating all 11 predictor sports:**
+- agents/smoa.ts: synthetic dev-fixture fallback is now dev-only (never pollutes a prod betting app
+  and no longer masks real source outages as "no fixtures").
+- scrapers/dataQuality.ts: a league that strongly fingerprints THIS sport ("World Table Tennis" -> rally)
+  is no longer rejected because another sport's generic keyword ("tennis") is a substring of the league name.
+- predictorOrchestrator.ts: top gate-rejection reasons now surface in the day message (observability).
+
+**Ops tooling (scripts/):** seed-accounts.cjs, validate-retention.cjs, populate-sports.cjs,
+diagnose-day.cjs, auth-keygen.cjs, auth-jwks-set.cjs, ops-ai-quality-audit.cjs (auth QA + verdict/
+report QA + production Copilot probe). AI population verified: 33 fixtures across 8 sports with
+verdicts from all 9 SMOA agents and persisted aiReports; 27/33 LLM-debated (the rest correctly fell
+back below the 52% confidence floor); production Copilot 200 with real analysis.
+
+**Uptime alerting:** .github/workflows/uptime.yml probes /api/health every 10 minutes
+(UPTIME_URL/UPTIME_THRESHOLD repo variables optional), opens/refreshes a single `uptime` incident
+issue on degradation and auto-closes it on recovery.

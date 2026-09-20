@@ -118,3 +118,4 @@ lighthouse-pwa-*.json
 _counts/
 backups/
 .dev.vars
+.freebuff/
