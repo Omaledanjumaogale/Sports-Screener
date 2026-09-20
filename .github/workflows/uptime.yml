@@ -1,0 +1,106 @@
+name: Uptime Monitor
+
+# Scheduled production health probe. On a degraded/unreachable backend it opens
+# (or re-opens) a single tracking issue labeled `uptime`; when health recovers,
+# the same issue is closed automatically so the audit trail stays tidy.
+#
+# Required repo secret: none — uses the built-in GITHUB_TOKEN, which needs the
+# workflow permission `issues: write` below.
+#
+# Tunables (repo variables, optional): UPTIME_URL, UPTIME_THRESHOLD (1-100,
+# default 70 — the health endpoint's own "all flags healthy" floor).
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # every 10 minutes
+  workflow_dispatch: {} # manual runs from the Actions tab
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: uptime-monitor
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Probe /api/health
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe health endpoint
+        id: probe
+        env:
+          UPTIME_URL: ${{ vars.UPTIME_URL }}
+          THRESHOLD: ${{ vars.UPTIME_THRESHOLD }}
+        run: |
+          URL="${UPTIME_URL:-https://pulseodds.ewinproject.org/api/health}"
+          echo "Probing $URL"
+          CODE="$(curl -sS -o /tmp/health.json -w '%{http_code}' --max-time 20 "$URL" || echo 000)"
+          STATUS="$(node -e '
+            let s = "unknown";
+            try { s = (JSON.parse(require("fs").readFileSync("/tmp/health.json","utf8")||"{}").status || "unknown").toString(); } catch {}
+            console.log(s);
+          ')"
+          HEALTHY="$(node -e '
+            const j = (() => { try { return JSON.parse(require("fs").readFileSync("/tmp/health.json","utf8") || "{}"); } catch { return {}; } })();
+            const f = j.flags || {};
+            const total = Object.keys(f).length;
+            const okFlags = Object.values(f).filter((v) => v === true).length;
+            const floor = Number(process.env.THRESHOLD || 70);
+            console.log(total > 0 && okFlags / total * 100 >= floor ? "true" : "false");
+          ' 2>/dev/null || echo false)"
+          if [ "$CODE" = "200" ] && [ "$STATUS" = "ok" ] && [ "$HEALTHY" = "true" ]; then
+            VERDICT="healthy"
+          else
+            VERDICT="degraded"
+          fi
+          echo "verdict=$VERDICT code=$CODE status=$STATUS"
+          echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+
+      - name: Open or refresh incident issue
+        if: steps.probe.outputs.verdict == 'degraded'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CODE="${{ steps.probe.outputs.code }}"
+          STATUS="${{ steps.probe.outputs.status }}"
+          gh label create uptime --color D93F0B --description "Production health incidents" 2>/dev/null || true
+          TITLE="🔴 Uptime alert: production health degraded (HTTP $CODE, status=$STATUS)"
+          {
+            echo "**Automated uptime alert** — the \`Uptime Monitor\` workflow probed \`/api/health\` and got a non-healthy result."
+            echo ""
+            echo "- **HTTP:** $CODE"
+            echo "- **status:** \`$STATUS\`"
+            echo "- **When:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            echo "- **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo ""
+            echo "<details><summary>Health response body (first 2KB)</summary>"
+            echo ""
+            echo '```'
+            head -c 2000 /tmp/health.json 2>/dev/null || echo "(no response body)"
+            echo ""
+            echo '```'
+            echo "</details>"
+            echo ""
+            echo "This issue is managed by the uptime workflow: it auto-closes when the probe reports healthy again."
+          } > /tmp/issue-body.md
+          NUM="$(gh issue list --label uptime --state open --limit 1 --json number --jq '.[0].number // ""')"
+          if [ -n "$NUM" ]; then
+            gh issue comment "$NUM" --body-file /tmp/issue-body.md
+          else
+            gh issue create --title "$TITLE" --label uptime --body-file /tmp/issue-body.md
+          fi
+
+      - name: Close incident issue on recovery
+        if: steps.probe.outputs.verdict == 'healthy'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NUM="$(gh issue list --label uptime --state open --limit 1 --json number --jq '.[0].number // ""')"
+          if [ -n "$NUM" ]; then
+            gh issue close "$NUM" --comment "✅ Recovered — $(date -u '+%Y-%m-%d %H:%M:%S UTC'). HTTP 200, status=ok, all flags healthy."
+          fi
