@@ -29,7 +29,13 @@ interface NbaGame {
 }
 
 function loadCsv(dir: string, file: string): string[][] {
-  const raw = fs.readFileSync(path.resolve(process.cwd(), dir, file), 'utf8');
+  let raw: string;
+  try {
+    raw = fs.readFileSync(path.resolve(process.cwd(), dir, file), 'utf8');
+  } catch {
+    // Dataset not present (fresh checkout / CI) — the suites skip gracefully.
+    return [];
+  }
   return raw.split(/\r?\n/).filter((l) => l.trim()).map((l) => l.split(','));
 }
 
@@ -132,10 +138,20 @@ function pct(x: number): string {
 }
 
 describe('basketball model backtest (NBA 2008-2025 + WNBA 2018-2024)', () => {
-  const nba = loadNba();
-  const wnba = loadWnba();
+  // Local-dataset guard: CSVs under tmp/bbt are not committed; skip on fresh checkouts (CI).
+  const hasDataset = (() => {
+    try {
+      fs.accessSync(path.resolve(process.cwd(), 'tmp/bbt', 'nba_games.csv'));
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+  const nba = hasDataset ? loadNba() : [];
+  const wnba = hasDataset ? loadWnba() : [];
 
   it('NBA: empirical SDs vs model constants (14 / 13 / 22)', () => {
+    if (!hasDataset) return; // dataset only exists on local dev machines
     const margins = nba.map((g) => g.homeScore - g.awayScore);
     const totals = nba.map((g) => g.homeScore + g.awayScore);
     const teams: number[] = [];
@@ -154,6 +170,7 @@ describe('basketball model backtest (NBA 2008-2025 + WNBA 2018-2024)', () => {
   });
 
   it('NBA: recent single seasons stay within the model constants', () => {
+    if (!hasDataset) return; // dataset only exists on local dev machines
     // The constants are pooled 2008-2025; make sure the two most recent
     // complete seasons (2023-24 and 2024-25) still sit inside the band.
     for (const season of [2024, 2025]) {
@@ -185,6 +202,7 @@ describe('basketball model backtest (NBA 2008-2025 + WNBA 2018-2024)', () => {
   });
 
   it('NBA: first-half share from quarter scores vs 50.3%', () => {
+    if (!hasDataset) return; // dataset only exists on local dev machines
     const shares: number[] = [];
     for (const g of nba) {
       const first = g.q1a + g.q2a + g.q1h + g.q2h;
@@ -198,6 +216,7 @@ describe('basketball model backtest (NBA 2008-2025 + WNBA 2018-2024)', () => {
   });
 
   it('NBA: moneyline devig → win-rate calibration in bins', () => {
+    if (!hasDataset) return; // dataset only exists on local dev machines
     // Only games with both moneylines
     const rows = nba.filter((g) => g.mlHome !== null && g.mlAway !== null && g.mlHome > 1.01 && g.mlAway > 1.01);
     const bins: Record<string, { model: number; actual: number; n: number }> = {};
@@ -227,6 +246,7 @@ describe('basketball model backtest (NBA 2008-2025 + WNBA 2018-2024)', () => {
   });
 
   it('NBA: spread cover model vs actual ATS results', () => {
+    if (!hasDataset) return; // dataset only exists on local dev machines
     const rows = nba.filter((g) => g.spread !== null && g.total !== null && g.spread > 0 && g.mlHome !== null && g.mlAway !== null);
     // Model: home margin ~ N(margin_model, SD_MARGIN). Home covers line L (home
     // handicap) iff margin > -L. Real data: spread is the favourite's line.
@@ -259,6 +279,7 @@ describe('basketball model backtest (NBA 2008-2025 + WNBA 2018-2024)', () => {
   });
 
   it('NBA: totals over/under model vs actual over rates', () => {
+    if (!hasDataset) return; // dataset only exists on local dev machines
     const rows = nba.filter((g) => g.total !== null && g.mlHome !== null && g.mlAway !== null);
     const bins: Record<string, { model: number; actual: number; n: number }> = {};
     for (const g of rows) {
@@ -288,6 +309,7 @@ describe('basketball model backtest (NBA 2008-2025 + WNBA 2018-2024)', () => {
   });
 
   it('WNBA: league scoring context — SDs scale with the lower scoring level', () => {
+    if (!hasDataset) return; // dataset only exists on local dev machines
     const margins = wnba.map((g) => g.homeScore - g.awayScore);
     const totals = wnba.map((g) => g.homeScore + g.awayScore);
     const teams: number[] = [];
@@ -314,6 +336,7 @@ describe('basketball model backtest (NBA 2008-2025 + WNBA 2018-2024)', () => {
   });
 
   it('multi-league context: country + women\'s leagues score less; model SDs track them', () => {
+    if (!hasDataset) return; // dataset only exists on local dev machines
     const nbl = loadNbl();
     const ncaaM = loadNcaaM();
     const ncaaW = loadNcaaW();
