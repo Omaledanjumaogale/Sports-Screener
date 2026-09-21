@@ -21,7 +21,18 @@
     const publicPaths = ['/', '/auth', '/checkout'];
     if (!publicPaths.includes($page.url.pathname) && !authState.isLoading) {
       if (!authState.isAuthenticated) {
-        goto('/auth?mode=signup&redirect=checkout');
+        // Re-check storage synchronously before bouncing: a just-completed
+        // login (or an in-flight store propagation) can briefly show an empty
+        // reactive user while the persisted session is perfectly valid.
+        let hasStoredSession = false;
+        try {
+          hasStoredSession = !!localStorage.getItem('pulseodds_auth_session_v1');
+        } catch (_) {
+          hasStoredSession = false;
+        }
+        if (!hasStoredSession) {
+          goto('/auth?mode=signup&redirect=checkout');
+        }
       }
     }
   });

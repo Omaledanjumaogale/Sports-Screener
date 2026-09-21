@@ -188,7 +188,12 @@ export async function refreshAccess(): Promise<void> {
     // it must be cleared, not skipped, or sign-in itself fails with "Could not
     // verify OIDC token claim". Self-heal: drop the session so the next
     // sign-in starts clean.
-    if (/Unauthenticated|Could not verify|invalid token|expired/i.test(msg)) {
+    //
+    // Narrowed to the unambiguous invalid-token signatures only: a generic
+    // "Unauthenticated" also occurs transiently while a freshly issued token
+    // is still attaching to the shared client, and clearing the session on
+    // that race would log the user out mid-navigation.
+    if (/Could not verify|invalid token claim|token expired|TokenExpired/i.test(msg)) {
       console.warn('refreshAccess: stored token invalid — clearing session for a clean sign-in.');
       setUnauthenticated();
       return;
