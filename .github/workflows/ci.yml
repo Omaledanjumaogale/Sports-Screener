@@ -25,9 +25,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Convex codegen (default + convex/ tsconfig)
-        run: npx convex codegen
-
+      # NOTE: `npx convex codegen` is deliberately NOT run here — it requires
+      # a live deployment (CONVEX_DEPLOYMENT + key) and would push functions on
+      # every CI run. The committed convex/_generated/ bindings are the source
+      # of truth; if they go stale, the typechecks below fail on the drift.
       - name: Convex typecheck
         run: npx tsc --noEmit -p convex/tsconfig.json
 

@@ -296,6 +296,12 @@ export async function convexSignIn(opts: {
 }): Promise<{ token: string; subject: string | null } | null> {
   try {
     const client = await getConvexClient();
+    // A persisted-but-invalid JWT is auto-attached to EVERY call — including
+    // this one — and the server rejects the whole auth action ("Could not
+    // verify OIDC token claim"). Sign-in must always start clean: drop any
+    // stale token before the action, for both the as-typed and lowercase
+    // attempts.
+    clearConvexAuthToken();
     const res: any = await client.action(api.auth.signIn, {
       provider: 'password',
       params: { flow: opts.flow, email: opts.email, password: opts.password }

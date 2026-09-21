@@ -73,6 +73,13 @@ export const purgeFinishedMatches = internalMutation({
 export const purgeFinishedMatchesAction = internalAction({
   args: {},
   handler: async (ctx): Promise<{ purged: number; verdictsPurged: number; cutoff: number | null; policy: string }> => {
-    return await ctx.runMutation(internal.retention.purgeFinishedMatches, {});
+    const result = await ctx.runMutation(internal.retention.purgeFinishedMatches, {});
+    // Heartbeat for /api/health cron monitoring (async — must not roll back).
+    await ctx.runMutation(internal.cronHealth.stampCron, {
+      job: 'retention',
+      ok: true,
+      note: `purged:${result.purged} v:${result.verdictsPurged}`
+    });
+    return result;
   }
 });

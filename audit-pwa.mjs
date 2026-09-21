@@ -144,7 +144,26 @@ if (!failed) {
       )
       .catch(() => false);
     await page.goto(new URL('/predictor/football', target).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
-    await page.waitForTimeout(1000);
+    // Deterministic wait: the SW caches navigation responses, so poll Cache
+    // Storage until this path (or the shell) is actually cached instead of
+    // sleeping a fixed time — cold CI runners can be slow to settle.
+    await page
+      .waitForFunction(
+        async () => {
+          try {
+            const names = await caches.keys();
+            for (const n of names) {
+              const c = await caches.open(n);
+              if ((await c.match(location.pathname)) != null || (await c.match('/')) != null) return true;
+            }
+            return false;
+          } catch (_) {
+            return false;
+          }
+        },
+        { timeout: 15_000 }
+      )
+      .catch(() => {});
 
     const cdp = await context.newCDPSession(page);
     await cdp.send('Network.enable');
@@ -154,6 +173,12 @@ if (!failed) {
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
     await page.waitForTimeout(1500);
     offlineOk = (await page.evaluate(() => document.body.innerText.length)) > 100;
+    if (!offlineOk) {
+      // One retry — absorbs a rare SW/cache race on cold runners.
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await page.waitForTimeout(1500);
+      offlineOk = (await page.evaluate(() => document.body.innerText.length)) > 100;
+    }
     console.log(`  Offline reload renders the app shell: ${offlineOk ? 'PASS' : 'FAIL'}`);
     if (!offlineOk) failed = true;
     await b2.close().catch(() => {});

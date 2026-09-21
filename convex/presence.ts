@@ -4,6 +4,7 @@
 // live "N analysts online" indicator. Stale rows are swept by the cleanup cron.
 
 import { internalMutation, mutation, query } from './_generated/server';
+import { internal } from './_generated/api';
 import { v } from 'convex/values';
 
 /** A client is "online" if it heartbeated within this window. */
@@ -52,6 +53,11 @@ export const sweepStalePresence = internalMutation({
     const cutoff = Date.now() - PRESENCE_WINDOW_MS;
     const stale = await ctx.db.query('presence').withIndex('by_lastSeen', (q) => q.lt('lastSeen', cutoff)).collect();
     for (const row of stale) await ctx.db.delete(row._id);
+    await ctx.runMutation(internal.cronHealth.stampCron, {
+      job: 'presence',
+      ok: true,
+      note: `swept:${stale.length}`
+    });
     return { swept: stale.length };
   }
 });

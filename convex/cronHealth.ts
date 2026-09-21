@@ -55,7 +55,9 @@ export const getHealth = query({
       // 2h: hourly retention purge (cadence + 1h margin).
       retention: 2 * 3600_000
     };
-    const isStale = (lastRunAt: number, max: number) => lastRunAt > 0 && now - lastRunAt > max;
+    // lastRunAt === 0 means the job has NEVER stamped — that is not healthy.
+    // Report it stale so a silently dead job cannot read as green forever.
+    const isStale = (lastRunAt: number, max: number) => (lastRunAt === 0 ? true : now - lastRunAt > max);
     const flags = {
       orchestratorStale: isStale(byJob.orchestrator.lastRunAt, freshness.daily),
       scoreSyncStale: isStale(byJob.scoreSync.lastRunAt, freshness.frequent),

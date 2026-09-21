@@ -35,19 +35,22 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // CDN/API/Convex → network.
 
+  // Cache a successful response deterministically: waitUntil keeps the SW
+  // alive until the put completes, so an offline reload right after can never
+  // race ahead of the cache write.
+  const cachePut = (res) => {
+    if (res && res.ok) {
+      const clone = res.clone();
+      event.waitUntil(caches.open(CACHE).then((cache) => cache.put(req, clone)));
+    }
+    return res;
+  };
+
   // SvelteKit hashed assets: stale-while-revalidate.
   if (url.pathname.startsWith('/_app/')) {
     event.respondWith(
       caches.match(req).then((cached) => {
-        const network = fetch(req)
-          .then((res) => {
-            if (res && res.ok) {
-              const clone = res.clone();
-              caches.open(CACHE).then((cache) => cache.put(req, clone));
-            }
-            return res;
-          })
-          .catch(() => cached);
+        const network = fetch(req).then(cachePut).catch(() => cached);
         return cached || network;
       })
     );
@@ -58,13 +61,7 @@ self.addEventListener('fetch', (event) => {
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
-        .then((res) => {
-          if (res && res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE).then((cache) => cache.put(req, clone));
-          }
-          return res;
-        })
+        .then(cachePut)
         .catch(() => caches.match(req).then((cached) => cached || caches.match('/')))
     );
     return;
@@ -73,15 +70,7 @@ self.addEventListener('fetch', (event) => {
   // Other same-origin static (robots, llms, icons): cache-first, network refresh.
   event.respondWith(
     caches.match(req).then((cached) => {
-      const network = fetch(req)
-        .then((res) => {
-          if (res && res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE).then((cache) => cache.put(req, clone));
-          }
-          return res;
-        })
-        .catch(() => cached);
+      const network = fetch(req).then(cachePut).catch(() => cached);
       return cached || network;
     })
   );

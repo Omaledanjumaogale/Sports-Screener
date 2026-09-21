@@ -1053,6 +1053,12 @@ export const purgeAndMarkStale = internalAction({
   args: {},
   handler: async (ctx): Promise<{ deleted: number }> => {
     const deleted = await ctx.runMutation(internal.predictor.purgeOld, {});
+    // Heartbeat for /api/health cron monitoring.
+    await ctx.runMutation(internal.cronHealth.stampCron, {
+      job: 'purge',
+      ok: true,
+      note: `deleted:${deleted}`
+    });
     return { deleted };
   }
 });
