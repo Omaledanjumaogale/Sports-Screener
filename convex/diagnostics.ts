@@ -14,6 +14,7 @@
 // row in the report.
 
 import { action } from './_generated/server';
+import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { readAny, type PageReadResult } from './scrapers/pages';
 import { parseFixtures } from './scrapers/fixtures';
@@ -150,5 +151,80 @@ export const diagnoseFixturePages = action({
     }
 
     return { dayKey, generatedAt: Date.now(), summary, overall, pages };
+  }
+});
+
+// ── Admin ops tool: fetch a sports source through the reader chain and return
+// a text sample + parsed-fixture count. Used to write/verify parsers against
+// REAL live markup. Host-allowlisted (no arbitrary SSRF) and admin-gated.
+const SAMPLE_HOST_ALLOWLIST = [
+  'betexplorer.com',
+  'forebet.com',
+  'flashscore.com',
+  'livescore.com',
+  'annabet.com',
+  'tennisbrain.com',
+  'soccer24.com',
+  'soccerway.com',
+  'oddsportal.com',
+  'soccervista.com',
+  'soccer-vista.com'
+];
+
+export const fetchSourceSample = action({
+  args: {
+    url: v.string(),
+    sportId: v.optional(v.string()),
+    maxChars: v.optional(v.number())
+  },
+  handler: async (ctx, args): Promise<{
+    ok: boolean;
+    status: number;
+    engine: PageReadResult['engine'];
+    chars: number;
+    parsed: number;
+    parsedSample?: { homeTeam: string; awayTeam: string; league: string }[];
+    sample: string;
+  }> => {
+    // Admin gate (identity-checked server-side).
+    const access = await ctx.runQuery(internal.access.forCaller, {});
+    if (!access?.isAdmin) {
+      throw new Error('Admin access required.');
+    }
+
+    let host = '';
+    try {
+      host = new URL(args.url).hostname.replace(/^www\./, '');
+    } catch {
+      throw new Error('Invalid URL.');
+    }
+    if (!SAMPLE_HOST_ALLOWLIST.some((h) => host === h || host.endsWith('.' + h))) {
+      throw new Error(`Host "${host}" is not in the source allowlist.`);
+    }
+
+    const page = await readAny(args.url, { timeoutMs: 20_000 });
+    const sportId = args.sportId || 'football';
+    let parsed: ReturnType<typeof parseFixtures> = [];
+    let parseError = '';
+    try {
+      parsed = parseFixtures(page.text || '', sportId, args.url);
+    } catch (err: any) {
+      parseError = String(err?.message || err).slice(0, 200);
+    }
+    const maxChars = Math.min(Math.max(args.maxChars ?? 2600, 200), 8000);
+    return {
+      ok: page.ok,
+      status: page.status,
+      engine: page.engine,
+      chars: (page.text || '').length,
+      parsed: parsed.length,
+      parsedSample: parsed.slice(0, 8).map((m) => ({
+        homeTeam: m.homeTeam,
+        awayTeam: m.awayTeam,
+        league: m.league
+      })),
+      ...(parseError ? { parseError } : {}),
+      sample: (page.text || '').slice(0, maxChars)
+    };
   }
 });
