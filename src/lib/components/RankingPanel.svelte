@@ -4,7 +4,7 @@
   let {
     picks = [] as Pick[],
     limit = 12,
-    accent = '#6366f1'
+    accent = '#22d3ee'
   }: {
     picks?: Pick[];
     limit?: number;

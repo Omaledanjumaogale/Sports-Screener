@@ -15,7 +15,7 @@
     agentsRun = [] as string[],
     citations = [] as string[],
     warnings = [] as string[],
-    accent = '#6366f1',
+    accent = '#22d3ee',
     finalScore = null as string | null
   }: {
     insight?: AiAnalysisResult['insights'] | null;
@@ -214,12 +214,12 @@
     border: 1px solid var(--c-border);
     min-width: 0;
   }
-  .p-metric.st-green { border-color: color-mix(in srgb, #22c55e 30%, var(--c-border-md)); }
+  .p-metric.st-green { border-color: color-mix(in srgb, #34d399 30%, var(--c-border-md)); }
   .p-metric.st-amber { border-color: color-mix(in srgb, #f59e0b 30%, var(--c-border-md)); }
   .p-metric.st-red { border-color: color-mix(in srgb, #ef4444 30%, var(--c-border-md)); }
 
   .pm-label { font-size: 10px; color: var(--c-text-dim, var(--c-text)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-  .p-metric.st-green .pm-value { color: #22c55e; }
+  .p-metric.st-green .pm-value { color: #34d399; }
   .p-metric.st-amber .pm-value { color: #f59e0b; }
   .p-metric.st-red .pm-value { color: #ef4444; }
   .pm-value { font-size: 17px; font-weight: 900; color: var(--c-text); font-family: var(--font-mono, 'JetBrains Mono', monospace); line-height: 1; }
@@ -250,8 +250,8 @@
 
   .top3-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
 
-  .confidence { font-weight: 900; font-size: 14px; color: #22c55e; }
-  .edge { font-size: 10.5px; color: #22c55e; font-weight: 700; }
+  .confidence { font-weight: 900; font-size: 14px; color: #34d399; }
+  .edge { font-size: 10.5px; color: #34d399; font-weight: 700; }
 
   .steps ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
   .steps li { font-size: 12px; color: var(--c-text); line-height: 1.45; }
@@ -266,12 +266,12 @@
     color: var(--c-text);
     padding: 8px 10px;
     border-radius: 10px;
-    background: color-mix(in srgb, #22c55e 8%, transparent);
-    border: 1px solid color-mix(in srgb, #22c55e 25%, transparent);
+    background: color-mix(in srgb, #34d399 8%, transparent);
+    border: 1px solid color-mix(in srgb, #34d399 25%, transparent);
     margin: 0;
   }
 
-  .advice-ic { color: #22c55e; flex-shrink: 0; margin-top: 1px; display: inline-flex; }
+  .advice-ic { color: #34d399; flex-shrink: 0; margin-top: 1px; display: inline-flex; }
 
   .advice-line.warn {
     background: color-mix(in srgb, #f59e0b 8%, transparent);

@@ -42,16 +42,16 @@
     padding: 20px;
     border-radius: 18px;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--accent, #f97316) 40%, var(--c-border-md));
+    border: 1px solid color-mix(in srgb, var(--accent, #fb923c) 40%, var(--c-border-md));
     background:
       linear-gradient(
         145deg,
-        color-mix(in srgb, var(--accent, #f97316) 12%, var(--c-glass-sm)) 0%,
+        color-mix(in srgb, var(--accent, #fb923c) 12%, var(--c-glass-sm)) 0%,
         var(--c-glass-sm) 100%
       );
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
-    box-shadow: 0 0 32px color-mix(in srgb, var(--accent, #f97316) 10%, transparent);
+    box-shadow: 0 0 32px color-mix(in srgb, var(--accent, #fb923c) 10%, transparent);
     animation: slide-up 0.35s ease both;
   }
 
@@ -80,8 +80,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: var(--accent, #6366f1);
-    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent, #6366f1) 70%, transparent));
+    color: var(--accent, #22d3ee);
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent, #22d3ee) 70%, transparent));
   }
 
   .headline {

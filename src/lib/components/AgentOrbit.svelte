@@ -7,7 +7,7 @@
   let {
     core = 'Eze Ugo',
     coreRole = 'Orchestrator',
-    accent = '#6366f1',
+    accent = '#22d3ee',
     height = 360
   }: {
     core?: string;
@@ -126,56 +126,62 @@
       />
     {/each}
 
-    <!-- Orbiting specialist agent nodes -->
+    <!-- Orbiting specialist agent nodes — outer <g> carries the static
+         position, inner <g> carries the float animation. (A CSS transform
+         animation on the positioned element would override the SVG
+         transform attribute and collapse every node to the origin.) -->
     {#each AGENTS as a, i}
-      <g
-        class="agent-node"
-        transform={`translate(${a.x} ${a.y})`}
-        style={`animation-delay: ${a.delay}`}
-      >
-        <circle r="18" fill={accent} fill-opacity="0.07" />
-        <circle r="15" fill="var(--c-surface-3, #0d1117)" stroke={accent} stroke-width="1.7" stroke-opacity="0.68" />
-        <circle r="15" fill={`url(#${uid}-node)`} />
-        <!-- First name (top) -->
-        <text
-          y="-1.5"
-          x="0"
-          text-anchor="middle"
-          dominant-baseline="middle"
-          font-family="var(--font-mono, 'JetBrains Mono', monospace)"
-          font-size="7"
-          font-weight="900"
-          fill={accent}
-          fill-opacity="0.92"
-        >{a.firstName.slice(0, 5)}</text>
-        <!-- Role tag (bottom) -->
-        <text
-          y="8.5"
-          x="0"
-          text-anchor="middle"
-          font-family="var(--font-mono, 'JetBrains Mono', monospace)"
-          font-size="5"
-          font-weight="700"
-          fill="rgba(255,255,255,0.48)"
-        >{roleTag(a.id)}</text>
+      <g transform={`translate(${a.x} ${a.y})`}>
+        <g
+          class="agent-node"
+          style={`animation-delay: ${a.delay}`}
+        >
+          <circle r="18" fill={accent} fill-opacity="0.07" />
+          <circle r="15" fill="var(--c-surface-3, #0d1117)" stroke={accent} stroke-width="1.7" stroke-opacity="0.68" />
+          <circle r="15" fill={`url(#${uid}-node)`} />
+          <!-- First name (top) -->
+          <text
+            y="-1.5"
+            x="0"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            font-family="var(--font-mono, 'JetBrains Mono', monospace)"
+            font-size="7"
+            font-weight="900"
+            fill={accent}
+            fill-opacity="0.92"
+          >{a.firstName.slice(0, 5)}</text>
+          <!-- Role tag (bottom) -->
+          <text
+            y="8.5"
+            x="0"
+            text-anchor="middle"
+            font-family="var(--font-mono, 'JetBrains Mono', monospace)"
+            font-size="5"
+            font-weight="700"
+            fill="rgba(255,255,255,0.48)"
+          >{roleTag(a.id)}</text>
+        </g>
       </g>
     {/each}
 
     <!-- Inner scheduler node (Emeka) -->
-    <g class="emeka-node" transform={`translate(${EMEKA.x} ${EMEKA.y})`}>
-      <circle r="14" fill={accent} fill-opacity="0.1" />
-      <circle r="11.5" fill="var(--c-surface-3, #0d1117)" stroke={accent} stroke-width="1.5" stroke-opacity="0.6" />
-      <text
-        y="0"
-        x="0"
-        text-anchor="middle"
-        dominant-baseline="middle"
-        font-family="var(--font-mono, 'JetBrains Mono', monospace)"
-        font-size="6"
-        font-weight="900"
-        fill={accent}
-        fill-opacity="0.82"
-      >Emeka</text>
+    <g transform={`translate(${EMEKA.x} ${EMEKA.y})`}>
+      <g class="emeka-node">
+        <circle r="14" fill={accent} fill-opacity="0.1" />
+        <circle r="11.5" fill="var(--c-surface-3, #0d1117)" stroke={accent} stroke-width="1.5" stroke-opacity="0.6" />
+        <text
+          y="0"
+          x="0"
+          text-anchor="middle"
+          dominant-baseline="middle"
+          font-family="var(--font-mono, 'JetBrains Mono', monospace)"
+          font-size="6"
+          font-weight="900"
+          fill={accent}
+          fill-opacity="0.82"
+        >Emeka</text>
+      </g>
     </g>
 
     <!-- Orchestrator core — dual pulsing rings -->
@@ -305,7 +311,7 @@
     border-radius: 50%;
     flex-shrink: 0;
   }
-  .leg-core { color: var(--accent, #6366f1); font-weight: 900; }
+  .leg-core { color: var(--accent, #22d3ee); font-weight: 900; }
   .leg-sep  { opacity: 0.45; }
   .leg-text { opacity: 0.7; }
 

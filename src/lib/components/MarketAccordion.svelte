@@ -23,7 +23,7 @@
     title,
     primary = false,
     open = false,
-    accent = '#6366f1',
+    accent = '#22d3ee',
     children
   }: {
     title: string;

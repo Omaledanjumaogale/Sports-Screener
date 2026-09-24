@@ -7,6 +7,6 @@
   sportId="basketball"
   sportShort="Basketball"
   sportTitle="Basketball MET Screener"
-  accent="#f97316"
+  accent="#fb923c"
   factory={createBasketballScopes}
 />

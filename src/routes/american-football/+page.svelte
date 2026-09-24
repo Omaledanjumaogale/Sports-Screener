@@ -7,6 +7,6 @@
   sportId="americanfootball"
   sportShort="Am. Football"
   sportTitle="American Football Screener"
-  accent="#dc2626"
+  accent="#f87171"
   factory={createAmericanFootballScopes}
 />

@@ -59,7 +59,7 @@
 
   let {
     sportId = null as PredictorSportId | null,
-    accent = '#6366f1'
+    accent = '#22d3ee'
   }: {
     sportId?: PredictorSportId | null;
     accent?: string;
@@ -1146,7 +1146,7 @@ $effect(() => {
   .pw-cta { width: 100%; }
   .pw-hint { font-size: 11.5px; color: var(--c-muted, #94a3b8); margin: 12px 0 0; }
   .gate-note { font-size: 12.5px; color: var(--c-muted, #94a3b8); margin: 10px 0 0; text-align: center; }
-  .gate-note a { color: var(--accent, #6366f1); text-decoration: underline; }
+  .gate-note a { color: var(--accent, #22d3ee); text-decoration: underline; }
 
   .predictor-head {
     display: flex;
@@ -1211,22 +1211,22 @@ $effect(() => {
     font-size: 10.5px;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
-    color: #22c55e;
-    border: 1px solid color-mix(in srgb, #22c55e 35%, transparent);
-    background: color-mix(in srgb, #22c55e 10%, transparent);
+    color: #34d399;
+    border: 1px solid color-mix(in srgb, #34d399 35%, transparent);
+    background: color-mix(in srgb, #34d399 10%, transparent);
   }
 
   .presence-dot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #22c55e;
+    background: #34d399;
     animation: presence-pulse 2s ease-in-out infinite;
   }
 
   @keyframes presence-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, #22c55e 60%, transparent); }
-    50% { box-shadow: 0 0 0 5px color-mix(in srgb, #22c55e 0%, transparent); }
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, #34d399 60%, transparent); }
+    50% { box-shadow: 0 0 0 5px color-mix(in srgb, #34d399 0%, transparent); }
   }
 
   .placeholder {
@@ -1282,7 +1282,7 @@ $effect(() => {
     font-weight: 800;
     background: var(--c-glass-sm);
     border: 1px solid var(--c-border);
-    color: #22c55e;
+    color: #34d399;
   }
 
   .summary-chip.muted { color: var(--c-text-dim, var(--c-text)); }
@@ -1517,9 +1517,9 @@ $effect(() => {
     font-variant-numeric: tabular-nums;
     padding: 2px 7px;
     border-radius: 999px;
-    background: color-mix(in srgb, #22c55e 10%, transparent);
-    border: 1px solid color-mix(in srgb, #22c55e 35%, transparent);
-    color: #22c55e;
+    background: color-mix(in srgb, #34d399 10%, transparent);
+    border: 1px solid color-mix(in srgb, #34d399 35%, transparent);
+    color: #34d399;
   }
   .perf-badge.warn {
     background: color-mix(in srgb, #f59e0b 12%, transparent);
@@ -1725,9 +1725,9 @@ $effect(() => {
   }
 
   .scores-sync-btn:hover:not(:disabled) {
-    color: #22c55e;
-    border-color: color-mix(in srgb, #22c55e 45%, transparent);
-    background: color-mix(in srgb, #22c55e 8%, transparent);
+    color: #34d399;
+    border-color: color-mix(in srgb, #34d399 45%, transparent);
+    background: color-mix(in srgb, #34d399 8%, transparent);
   }
 
   .scores-sync-btn:active:not(:disabled) { transform: scale(0.96); }
@@ -1804,12 +1804,12 @@ $effect(() => {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #22c55e;
+    background: #34d399;
     animation: tab-live-pulse 1.2s ease-in-out infinite;
   }
 
   @keyframes tab-live-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 color-mix(in srgb, #22c55e 55%, transparent); }
-    50% { opacity: 0.6; transform: scale(1.3); box-shadow: 0 0 0 5px color-mix(in srgb, #22c55e 0%, transparent); }
+    0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 color-mix(in srgb, #34d399 55%, transparent); }
+    50% { opacity: 0.6; transform: scale(1.3); box-shadow: 0 0 0 5px color-mix(in srgb, #34d399 0%, transparent); }
   }
 </style>

@@ -289,21 +289,21 @@
     min-height: 40px;
     color: var(--c-input-text);
     background: var(--c-input-bg);
-    border: 1px solid color-mix(in srgb, var(--accent, #f97316) 45%, var(--c-input-border));
+    border: 1px solid color-mix(in srgb, var(--accent, #fb923c) 45%, var(--c-input-border));
     border-radius: 10px;
     padding: 0 28px 0 11px;
     font-variant-numeric: tabular-nums;
     font-weight: 700;
     font-size: 13px;
     font-family: var(--font-mono, 'JetBrains Mono', monospace);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #f97316) 8%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #fb923c) 8%, transparent);
     transition: border-color var(--t-base), box-shadow var(--t-base);
   }
 
   .custom-inline input:focus {
     outline: none;
-    border-color: var(--accent, #f97316);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #f97316) 14%, transparent);
+    border-color: var(--accent, #fb923c);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #fb923c) 14%, transparent);
   }
 
   .custom-inline input::placeholder {
@@ -391,10 +391,10 @@
   }
 
   .nudge:hover:not([disabled]) {
-    border-color: color-mix(in srgb, var(--accent, #f97316) 50%, var(--c-border));
+    border-color: color-mix(in srgb, var(--accent, #fb923c) 50%, var(--c-border));
     background: var(--c-glass-hover);
-    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #f97316) 15%, transparent);
-    color: var(--accent, #f97316);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #fb923c) 15%, transparent);
+    color: var(--accent, #fb923c);
   }
 
   .nudge:active:not([disabled]) {
@@ -430,8 +430,8 @@
 
   select:focus {
     outline: none;
-    border-color: color-mix(in srgb, var(--accent, #f97316) 65%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #f97316) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent, #fb923c) 65%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #fb923c) 12%, transparent);
     background-color: var(--c-glass-hover);
   }
 

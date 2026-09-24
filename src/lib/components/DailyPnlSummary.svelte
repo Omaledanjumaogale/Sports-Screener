@@ -255,7 +255,7 @@
     height: 32px;
     border-radius: 8px;
     background: rgba(99, 102, 241, 0.2);
-    color: #818cf8;
+    color: #67e8f9;
   }
 
   .pnl-title-group h2 {
@@ -488,7 +488,7 @@
   }
 
   .sport-tab.active {
-    background: #6366f1;
+    background: #22d3ee;
     color: #fff;
     box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
   }
@@ -594,7 +594,7 @@
   .model-bar {
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #a855f7, #6366f1);
+    background: linear-gradient(90deg, #a855f7, #22d3ee);
     transition: width 0.4s ease;
   }
 

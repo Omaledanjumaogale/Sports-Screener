@@ -46,7 +46,7 @@
     </span>
   </summary>
 
-  <section class="team-inputs" aria-label="Match context" style={`--accent:var(--c-${sportId}, #6366f1)`}>
+  <section class="team-inputs" aria-label="Match context" style={`--accent:var(--c-${sportId}, #22d3ee)`}>
 
     <!-- VS row -->
     <div class="name-fields">
@@ -129,8 +129,8 @@
     transition: border-color var(--t-base, 180ms ease), box-shadow var(--t-base, 180ms ease);
   }
   .team-accordion[open] {
-    border-color: color-mix(in srgb, var(--accent, #f97316) 30%, var(--c-border-md));
-    box-shadow: 0 4px 24px color-mix(in srgb, var(--accent, #f97316) 8%, transparent);
+    border-color: color-mix(in srgb, var(--accent, #fb923c) 30%, var(--c-border-md));
+    box-shadow: 0 4px 24px color-mix(in srgb, var(--accent, #fb923c) 8%, transparent);
   }
 
   /* ── Header / summary row ────────────────────────────────────────────── */
@@ -155,10 +155,10 @@
   .team-accordion-icon {
     display: inline-flex;
     align-items: center;
-    color: var(--accent, #f97316);
+    color: var(--accent, #fb923c);
     flex-shrink: 0;
   }
-  .team-accordion[open] .team-accordion-icon { color: var(--accent, #f97316); }
+  .team-accordion[open] .team-accordion-icon { color: var(--accent, #fb923c); }
 
   .team-accordion-title { flex: 1; }
 
@@ -178,8 +178,8 @@
   }
   .team-accordion[open] .team-accordion-chevron {
     transform: rotate(180deg);
-    color: var(--accent, #f97316);
-    background: color-mix(in srgb, var(--accent, #f97316) 12%, var(--c-glass-sm));
+    color: var(--accent, #fb923c);
+    background: color-mix(in srgb, var(--accent, #fb923c) 12%, var(--c-glass-sm));
   }
 
   /* ── Inner section (no outer border — accordion provides it) ─────────── */
@@ -231,9 +231,9 @@
   }
   .text-input:focus {
     outline: none;
-    border-color: color-mix(in srgb, var(--accent, #f97316) 60%, transparent);
+    border-color: color-mix(in srgb, var(--accent, #fb923c) 60%, transparent);
     background: var(--c-glass-hover);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #f97316) 12%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #fb923c) 12%, transparent);
   }
   .text-input::placeholder { color: var(--c-faint); font-weight: 500; }
 
@@ -248,15 +248,15 @@
     width: 44px;
     height: 46px;
     border-radius: 12px;
-    background: color-mix(in srgb, var(--accent, #f97316) 14%, var(--c-glass-sm));
-    border: 1px solid color-mix(in srgb, var(--accent, #f97316) 28%, var(--c-border-md));
-    color: var(--accent, #f97316);
+    background: color-mix(in srgb, var(--accent, #fb923c) 14%, var(--c-glass-sm));
+    border: 1px solid color-mix(in srgb, var(--accent, #fb923c) 28%, var(--c-border-md));
+    color: var(--accent, #fb923c);
     font-size: 10px;
     font-weight: 900;
     letter-spacing: 0.08em;
     justify-self: center;
     margin-bottom: 0;
-    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #f97316) 10%, transparent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent, #fb923c) 10%, transparent);
   }
   .vs-dot {
     width: 5px; height: 5px;
@@ -298,8 +298,8 @@
   }
   .context-fields select:focus {
     outline: none;
-    border-color: color-mix(in srgb, var(--accent, #f97316) 60%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #f97316) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent, #fb923c) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #fb923c) 12%, transparent);
     background-color: var(--c-glass-hover);
   }
   .context-fields select option { background: var(--c-option-bg); color: var(--c-option-text); }

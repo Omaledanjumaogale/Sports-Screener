@@ -7,6 +7,6 @@
   sportId="mma"
   sportShort="MMA"
   sportTitle="MMA Screener"
-  accent="#1d4ed8"
+  accent="#818cf8"
   factory={createMmaScopes}
 />

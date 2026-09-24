@@ -26,20 +26,20 @@ export interface PickSegmentDef {
 }
 
 export const PREDICTOR_SEGMENTS: PickSegmentDef[] = [
-  { key: 'winner', label: 'Winner / Moneyline', short: '1X2', accent: '#22c55e' },
+  { key: 'winner', label: 'Winner / Moneyline', short: '1X2', accent: '#34d399' },
   { key: 'total', label: 'Match / Main Total', short: 'Total', accent: '#3b82f6' },
   { key: 'teamTotal', label: 'Team / Player Totals', short: 'Team O/U', accent: '#8b5cf6' },
   { key: 'handicap', label: 'Handicap / Spread', short: 'HCP', accent: '#f59e0b' },
   { key: 'correctScore', label: 'Correct Score', short: 'CS', accent: '#ec4899' },
-  { key: 'firsthalf', label: '1st Half Scopes', short: '1H', accent: '#0ea5e9' },
-  { key: 'firstquarter', label: '1st Quarter Scopes', short: '1Q', accent: '#14b8a6' },
-  { key: 'firstperiod', label: '1st Period Scopes', short: '1P', accent: '#6366f1' },
+  { key: 'firsthalf', label: '1st Half Scopes', short: '1H', accent: '#22d3ee' },
+  { key: 'firstquarter', label: '1st Quarter Scopes', short: '1Q', accent: '#2dd4bf' },
+  { key: 'firstperiod', label: '1st Period Scopes', short: '1P', accent: '#22d3ee' },
   { key: 'firstset', label: '1st Set Scopes', short: '1S', accent: '#a3e635' },
-  { key: 'playerProps', label: 'Player Props', short: 'Props', accent: '#f43f5e' },
-  { key: 'innings', label: 'Innings (Cricket)', short: 'Inn', accent: '#d97706' },
+  { key: 'playerProps', label: 'Player Props', short: 'Props', accent: '#f472b6' },
+  { key: 'innings', label: 'Innings (Cricket)', short: 'Inn', accent: '#fbbf24' },
   { key: 'rounds', label: 'Rounds (MMA)', short: 'Rnd', accent: '#64748b' },
-  { key: 'method', label: 'Winning Method', short: 'Mtd', accent: '#7c3aed' },
-  { key: 'corners', label: 'Corners / Cards', short: 'Cor', accent: '#06b6d4' },
+  { key: 'method', label: 'Winning Method', short: 'Mtd', accent: '#a78bfa' },
+  { key: 'corners', label: 'Corners / Cards', short: 'Cor', accent: '#60a5fa' },
   { key: 'cards', label: 'Cards', short: 'Crd', accent: '#facc15' },
   { key: 'props', label: 'Props / Alternates', short: 'Prop', accent: '#94a3b8' }
 ];

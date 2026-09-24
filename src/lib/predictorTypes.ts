@@ -125,7 +125,7 @@ export const GREAT_MINDS_MODELS: GreatMindsModelDef[] = [
     shortName: 'Claude 4.0',
     version: '4.0',
     role: 'The Moderator (Synthesis & Resolution)',
-    iconBg: '#d97706',
+    iconBg: '#fbbf24',
     badgeColor: '#fbbf24',
     description: 'Manages 5-round debate flow, aggregates consensus, and forces final resolution.'
   },

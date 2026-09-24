@@ -3,4 +3,4 @@
   import type { PredictorSportId } from '$lib/predictorTypes';
 </script>
 
-<PredictorPage sportId={null as PredictorSportId | null} accent="#6366f1" />
+<PredictorPage sportId={null as PredictorSportId | null} accent="#22d3ee" />

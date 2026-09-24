@@ -7,6 +7,6 @@
   sportId="rugby"
   sportShort="Rugby"
   sportTitle="Rugby Screener"
-  accent="#7c3aed"
+  accent="#a78bfa"
   factory={createRugbyScopes}
 />

@@ -368,7 +368,7 @@
     border: 1px solid var(--c-border, rgba(255, 255, 255, 0.08));
     transition: all 180ms ease;
   }
-  .back-link:hover { color: var(--c-orange, #f97316); border-color: var(--c-orange, #f97316); }
+  .back-link:hover { color: var(--c-orange, #fb923c); border-color: var(--c-orange, #fb923c); }
 
   .brand {
     display: flex;
@@ -379,7 +379,7 @@
     margin-bottom: 12px;
     color: var(--c-text, #f1f5ff);
   }
-  .pulse-icon { font-size: 24px; filter: drop-shadow(0 0 8px #f97316); }
+  .pulse-icon { font-size: 24px; filter: drop-shadow(0 0 8px #fb923c); }
 
   .checkout-header { text-align: center; margin-bottom: 20px; }
   .checkout-header h2 { margin: 0 0 8px; font-size: 22px; font-weight: 900; color: var(--c-text, #f1f5ff); }
@@ -407,8 +407,8 @@
     cursor: pointer;
     transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
   }
-  .plan-card:hover { border-color: color-mix(in srgb, #f97316 45%, transparent); }
-  .plan-card.is-active { border-color: #f97316; box-shadow: 0 8px 28px color-mix(in srgb, #f97316 22%, transparent); }
+  .plan-card:hover { border-color: color-mix(in srgb, #fb923c 45%, transparent); }
+  .plan-card.is-active { border-color: #fb923c; box-shadow: 0 8px 28px color-mix(in srgb, #fb923c 22%, transparent); }
   .plan-card.is-master.is-active { border-color: #fbbf24; box-shadow: 0 8px 30px color-mix(in srgb, #fbbf24 26%, transparent); }
   .plan-card:active { transform: scale(0.98); }
   .plan-badge {
@@ -424,12 +424,12 @@
     letter-spacing: 0.06em;
   }
   .plan-label { font-size: 14px; font-weight: 900; }
-  .plan-tag { font-size: 10.5px; font-weight: 700; color: var(--c-orange, #f97316); text-transform: uppercase; letter-spacing: 0.05em; }
+  .plan-tag { font-size: 10.5px; font-weight: 700; color: var(--c-orange, #fb923c); text-transform: uppercase; letter-spacing: 0.05em; }
   .is-master .plan-tag { color: #fbbf24; }
   .plan-price { display: inline-flex; align-items: baseline; gap: 2px; margin-top: 4px; }
-  .plan-price .currency { font-size: 15px; font-weight: 800; color: var(--c-orange, #f97316); }
+  .plan-price .currency { font-size: 15px; font-weight: 800; color: var(--c-orange, #fb923c); }
   .is-master .plan-price .currency { color: #fbbf24; }
-  .plan-price .amount { font-size: 22px; font-weight: 900; font-family: var(--font-mono, monospace); color: var(--c-orange, #f97316); }
+  .plan-price .amount { font-size: 22px; font-weight: 900; font-family: var(--font-mono, monospace); color: var(--c-orange, #fb923c); }
   .is-master .plan-price .amount { color: #fbbf24; }
   .plan-price .period { font-size: 11px; color: var(--c-muted, #8899bb); }
   .plan-blurb { font-size: 11px; line-height: 1.45; color: var(--c-muted, #8899bb); margin: 0; }
@@ -452,14 +452,14 @@
   .state-banner p { margin: 0; opacity: 0.9; }
 
   .state-banner.loading {
-    background: color-mix(in srgb, var(--c-orange, #f97316) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--c-orange, #f97316) 30%, transparent);
-    color: var(--c-orange, #f97316);
+    background: color-mix(in srgb, var(--c-orange, #fb923c) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c-orange, #fb923c) 30%, transparent);
+    color: var(--c-orange, #fb923c);
   }
   .state-banner.success {
-    background: color-mix(in srgb, var(--c-green, #22c55e) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--c-green, #22c55e) 30%, transparent);
-    color: var(--c-green, #22c55e);
+    background: color-mix(in srgb, var(--c-green, #34d399) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c-green, #34d399) 30%, transparent);
+    color: var(--c-green, #34d399);
   }
   .state-banner.error {
     background: color-mix(in srgb, var(--c-red, #ef4444) 12%, transparent);
@@ -491,7 +491,7 @@
   }
   .summary-row .label { color: var(--c-muted, #8899bb); font-weight: 600; }
   .summary-row .value { color: var(--c-text, #f1f5ff); font-weight: 700; text-align: right; word-break: break-all; }
-  .summary-row .value.highlight { color: var(--c-orange, #f97316); }
+  .summary-row .value.highlight { color: var(--c-orange, #fb923c); }
 
   .price-row {
     border-top: 1px solid rgba(255,255,255,0.06);
@@ -501,7 +501,7 @@
   .price-row .amount {
     font-size: 22px;
     font-weight: 900;
-    color: var(--c-orange, #f97316);
+    color: var(--c-orange, #fb923c);
     font-family: var(--font-mono, monospace);
   }
   .price-row .period { font-size: 12px; color: var(--c-muted, #8899bb); font-weight: 600; }
@@ -523,7 +523,7 @@
     font-weight: 600;
     color: var(--c-text-2, #cbd5e1);
   }
-  :global(.check-icon) { color: var(--c-orange, #f97316); flex-shrink: 0; }
+  :global(.check-icon) { color: var(--c-orange, #fb923c); flex-shrink: 0; }
 
   /* Buttons */
   .actions-group {
@@ -541,19 +541,19 @@
     width: 100%;
     padding: 14px 20px;
     border-radius: 14px;
-    background: linear-gradient(135deg, #ff7700 0%, #ea580c 45%, #22c55e 100%);
+    background: linear-gradient(135deg, #bef264 0%, #c2410c 45%, #34d399 100%);
     color: #ffffff;
     border: none;
     font-size: 15px;
     font-weight: 800;
     font-family: var(--font-brand, system-ui);
     cursor: pointer;
-    box-shadow: 0 6px 20px color-mix(in srgb, #ff7700 35%, transparent);
+    box-shadow: 0 6px 20px color-mix(in srgb, #bef264 35%, transparent);
     transition: transform 140ms ease, box-shadow 140ms ease;
   }
   .btn-primary-checkout:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 10px 28px color-mix(in srgb, #ff7700 50%, transparent);
+    box-shadow: 0 10px 28px color-mix(in srgb, #bef264 50%, transparent);
   }
   :global(.ext-icon) { margin-left: auto; opacity: 0.8; }
 
@@ -574,9 +574,9 @@
     transition: background 140ms ease, border-color 140ms ease;
   }
   .btn-secondary-checkout:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--c-orange, #f97316) 12%, var(--c-surface-2, #1f2937));
-    border-color: var(--c-orange, #f97316);
-    color: var(--c-orange, #f97316);
+    background: color-mix(in srgb, var(--c-orange, #fb923c) 12%, var(--c-surface-2, #1f2937));
+    border-color: var(--c-orange, #fb923c);
+    color: var(--c-orange, #fb923c);
   }
 
   .btn-primary-checkout:disabled, .btn-secondary-checkout:disabled {

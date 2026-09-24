@@ -86,10 +86,10 @@
   }
 
   .toast-item.success {
-    border-color: color-mix(in srgb, var(--c-green, #22c55e) 40%, transparent);
-    background: color-mix(in srgb, var(--c-green, #22c55e) 12%, var(--c-surface-2, #182030));
+    border-color: color-mix(in srgb, var(--c-green, #34d399) 40%, transparent);
+    background: color-mix(in srgb, var(--c-green, #34d399) 12%, var(--c-surface-2, #182030));
   }
-  .toast-item.success .toast-icon { color: var(--c-green, #22c55e); }
+  .toast-item.success .toast-icon { color: var(--c-green, #34d399); }
 
   .toast-item.error {
     border-color: color-mix(in srgb, var(--c-red, #ef4444) 40%, transparent);
@@ -98,10 +98,10 @@
   .toast-item.error .toast-icon { color: var(--c-red, #ef4444); }
 
   .toast-item.warning {
-    border-color: color-mix(in srgb, var(--c-orange, #f97316) 40%, transparent);
-    background: color-mix(in srgb, var(--c-orange, #f97316) 12%, var(--c-surface-2, #182030));
+    border-color: color-mix(in srgb, var(--c-orange, #fb923c) 40%, transparent);
+    background: color-mix(in srgb, var(--c-orange, #fb923c) 12%, var(--c-surface-2, #182030));
   }
-  .toast-item.warning .toast-icon { color: var(--c-orange, #f97316); }
+  .toast-item.warning .toast-icon { color: var(--c-orange, #fb923c); }
 
   .toast-item.info {
     border-color: color-mix(in srgb, var(--c-rally, #38bdf8) 40%, transparent);

@@ -28,13 +28,13 @@
     {
       icon: Brain,
       title: 'Uninflated Market Probability',
-      color: '#22c55e',
+      color: '#34d399',
       desc: 'Plain de-vigged implied probability directly from bookmaker pricing. Probability is never fake-boosted or artificially inflated.'
     },
     {
       icon: Layers,
       title: 'Multi-Angle Confluence Ledger',
-      color: '#f97316',
+      color: '#fb923c',
       desc: 'Cross-verifies Primary Scopes, Time Segments, Market Inconsistencies, Scoreline Clusters, and Best Line Rankings into a unified ledger.'
     },
     {
@@ -49,7 +49,7 @@
     {
       icon: Zap,
       title: 'Edge-Driven Neural Verdicts',
-      color: '#f97316',
+      color: '#fb923c',
       desc: 'Executes high-speed AI neural model inference at the edge to generate instant second-opinion analysis without slowing down your screening.'
     },
     {
@@ -61,7 +61,7 @@
     {
       icon: TrendingUp,
       title: 'Smart Risk & Value Guidance',
-      color: '#22c55e',
+      color: '#34d399',
       desc: 'Delivers automated risk warnings, stake sizing advice, and market value ratings, highlighting hidden risks or strong statistical alignments.'
     },
     {
@@ -171,9 +171,9 @@
     font-weight: 800;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--c-orange, #f97316);
-    background: color-mix(in srgb, var(--c-orange, #f97316) 12%, var(--c-surface));
-    border: 1px solid color-mix(in srgb, var(--c-orange, #f97316) 30%, transparent);
+    color: var(--c-orange, #fb923c);
+    background: color-mix(in srgb, var(--c-orange, #fb923c) 12%, var(--c-surface));
+    border: 1px solid color-mix(in srgb, var(--c-orange, #fb923c) 30%, transparent);
     margin-bottom: 12px;
   }
 
@@ -200,9 +200,9 @@
   }
 
   .network-status-bar.is-online {
-    background: color-mix(in srgb, var(--c-green, #22c55e) 12%, var(--c-surface-2));
-    border-color: color-mix(in srgb, var(--c-green, #22c55e) 35%, transparent);
-    color: var(--c-green, #22c55e);
+    background: color-mix(in srgb, var(--c-green, #34d399) 12%, var(--c-surface-2));
+    border-color: color-mix(in srgb, var(--c-green, #34d399) 35%, transparent);
+    color: var(--c-green, #34d399);
   }
 
   .status-dot {
@@ -213,8 +213,8 @@
   }
 
   .online-dot {
-    background: var(--c-green, #22c55e);
-    box-shadow: 0 0 10px var(--c-green, #22c55e);
+    background: var(--c-green, #34d399);
+    box-shadow: 0 0 10px var(--c-green, #34d399);
     animation: pulse-dot 1.8s ease-in-out infinite;
   }
 

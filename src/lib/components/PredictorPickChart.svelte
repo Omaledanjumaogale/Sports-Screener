@@ -6,7 +6,7 @@
   let {
     picks = [] as Pick[],
     limit = 0,
-    accent = '#6366f1',
+    accent = '#22d3ee',
     showEdge = true,
     grouped = false,
     perSegment = 5
@@ -176,7 +176,7 @@
   }
 
   .row-foot { display: flex; justify-content: flex-end; }
-  .ev { font-size: 10px; color: #22c55e; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ev { font-size: 10px; color: #34d399; font-weight: 700; font-variant-numeric: tabular-nums; }
 
   /* Grouped / segment layout */
   .pick-chart.grouped { gap: 14px; }

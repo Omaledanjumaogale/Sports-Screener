@@ -92,20 +92,20 @@
   .tab-pill:active { transform: scale(0.96); }
 
   .tab-pill.active {
-    background: color-mix(in srgb, var(--accent, #f97316) 18%, var(--c-glass-sm));
-    border-color: color-mix(in srgb, var(--accent, #f97316) 55%, transparent);
+    background: color-mix(in srgb, var(--accent, #fb923c) 18%, var(--c-glass-sm));
+    border-color: color-mix(in srgb, var(--accent, #fb923c) 55%, transparent);
     color: var(--c-text);
     font-weight: 800;
     box-shadow:
-      0 0 16px color-mix(in srgb, var(--accent, #f97316) 25%, transparent),
-      0 0 0 1px color-mix(in srgb, var(--accent, #f97316) 30%, transparent) inset;
+      0 0 16px color-mix(in srgb, var(--accent, #fb923c) 25%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--accent, #fb923c) 30%, transparent) inset;
   }
 
   .active-dot {
     width: 6px; height: 6px;
     border-radius: 50%;
-    background: var(--accent, #f97316);
-    box-shadow: 0 0 8px var(--accent, #f97316);
+    background: var(--accent, #fb923c);
+    box-shadow: 0 0 8px var(--accent, #fb923c);
     animation: dot-pulse 2s ease-in-out infinite;
     flex-shrink: 0;
   }

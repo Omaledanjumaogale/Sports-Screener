@@ -9,6 +9,9 @@
   import MasterModelShowcase from '$lib/components/MasterModelShowcase.svelte';
   import AiPredictorButton from '$lib/components/AiPredictorButton.svelte';
   import AgentOrbit from '$lib/components/AgentOrbit.svelte';
+  import HeroScene from '$lib/components/hero/HeroScene.svelte';
+  import { reveal } from '$lib/actions/reveal';
+  import { animateValue } from '$lib/motion.svelte';
   import PredictorSportIcon from '$lib/components/PredictorSportIcon.svelte';
   import { AGENT_DEFS } from '$lib/agentUi';
   import { PREDICTOR_SPORTS, type PredictorSportId } from '$lib/predictorTypes';
@@ -67,7 +70,7 @@
       short: 'Football',
       title: 'Football Matchday Screener',
       description: 'Half-time and full-time profile analysis. Correct score clusters, BTTS, 5-lamp scoreboards, and live market ranking.',
-      accent: '#22c55e',
+      accent: '#34d399',
       path: '/football',
       category: 'real'
     },
@@ -76,7 +79,7 @@
       short: 'Basketball',
       title: 'Basketball Matchday Screener',
       description: 'Market Expected Total (MET) analysis. Team totals, quarter pace, spread ranking — all in one view.',
-      accent: '#f97316',
+      accent: '#fb923c',
       path: '/basketball',
       category: 'real'
     },
@@ -103,7 +106,7 @@
       short: 'Ice Hockey',
       title: 'Ice Hockey Matchday Screener',
       description: 'Puck line handicap, 3-period goal pace, Overtime Intelligence, and Correct Score Reconciliation.',
-      accent: '#06b6d4',
+      accent: '#60a5fa',
       path: '/hockey',
       category: 'real'
     },
@@ -121,7 +124,7 @@
       short: 'Am. Football',
       title: 'American Football Screener',
       description: 'Moneyline, point spread, game totals and team totals with MEPT and team sum consistency for NFL markets.',
-      accent: '#dc2626',
+      accent: '#f87171',
       path: '/american-football',
       category: 'real'
     },
@@ -130,7 +133,7 @@
       short: 'Rugby',
       title: 'Rugby Screener',
       description: 'Moneyline, handicap and total points with MET and team sum consistency for union and league markets.',
-      accent: '#7c3aed',
+      accent: '#a78bfa',
       path: '/rugby',
       category: 'real'
     },
@@ -139,7 +142,7 @@
       short: 'Cricket',
       title: 'Cricket Screener',
       description: 'Match winner, run line and total runs with MER and team sum consistency across Test, ODI and T20.',
-      accent: '#d97706',
+      accent: '#fbbf24',
       path: '/cricket',
       category: 'real'
     },
@@ -148,7 +151,7 @@
       short: 'MMA',
       title: 'MMA Screener',
       description: 'Fight winner, total rounds and method-of-victory with MERT across UFC and other promotions.',
-      accent: '#1d4ed8',
+      accent: '#818cf8',
       path: '/mma',
       category: 'real'
     },
@@ -184,7 +187,7 @@
       short: 'Pulse Line',
       title: 'Virtual Football Screener',
       description: 'Fast 3-minute round screening (Over 1.5/2.5, BTTS) with 16-scoreline joint distribution grid.',
-      accent: '#06b6d4',
+      accent: '#60a5fa',
       path: '/vfootball',
       category: 'simulated'
     }
@@ -265,6 +268,39 @@
     { icon: ShieldCheck, title: 'Review the picks', desc: 'Only matches above the 60% Real Win Chance floor — with top selections, punter edge and risk warnings.' },
     { icon: TrendingUp, title: 'Stake responsibly', desc: 'Refresh anytime; the cache rebuilds automatically each night.' }
   ];
+
+  // Animated landing stats — count up when the ribbon enters the viewport.
+  const statDefs = [
+    { end: 9, suffix: '', label: 'Specialist Agents' },
+    { end: 5, suffix: '', label: 'AI Models' },
+    { end: 60, suffix: '%+', label: 'Win Chance Floor' },
+    { end: 3, suffix: '×', label: 'Daily Auto-Sync' },
+    { end: 11, suffix: '', label: 'Sports Covered' }
+  ];
+  let statVals = $state<number[]>(statDefs.map(() => 0));
+  let statsEl: HTMLDivElement | null = $state(null);
+
+  $effect(() => {
+    if (!statsEl || typeof IntersectionObserver === 'undefined') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      statVals = statDefs.map((s) => s.end);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        statDefs.forEach((s, i) => {
+          animateValue(0, s.end, 900, (v) => {
+            statVals[i] = Math.round(v);
+          });
+        });
+        io.disconnect();
+      },
+      { threshold: 0.3 }
+    );
+    io.observe(statsEl);
+    return () => io.disconnect();
+  });
 </script>
 
 <!-- SEO component renders all meta, OG, Twitter, canonical, JSON-LD from server load() data -->
@@ -334,10 +370,13 @@
           </li>
         {/each}
       </ul>
+
+      <!-- 3D odds constellation — lazy Three.js, static fallback built in -->
+      <HeroScene />
     </section>
 
     <!-- ── Real Sports Section ──────────────────────────────── -->
-    <section class="sport-section" aria-label="Real sports matchday screeners">
+    <section class="sport-section" use:reveal={{ stagger: 70 }} aria-label="Real sports matchday screeners">
       <div class="section-head">
         <h2 class="section-title">Real Sports Matchday Screeners</h2>
         <span class="sport-count-badge">{realSports.length} sports</span>
@@ -358,7 +397,7 @@
     </section>
 
     <!-- ── Virtual & Simulated Section ───────────────────────── -->
-    <section class="sport-section" aria-label="Virtual and instant simulated screeners">
+    <section class="sport-section" use:reveal={{ stagger: 70 }} aria-label="Virtual and instant simulated screeners">
       <div class="section-head">
         <h2 class="section-title">Virtual &amp; Instant Simulated Screeners</h2>
         <span class="sport-count-badge">{simulatedSports.length} screeners</span>
@@ -379,7 +418,7 @@
     </section>
 
     <!-- ── AI Predictor & Great AI Minds ──────────────────────── -->
-    <section class="ai-predictor-section" aria-label="AI Predictor and Great AI Minds Consensus Engine" id="ai-predictor">
+    <section class="ai-predictor-section" use:reveal aria-label="AI Predictor and Great AI Minds Consensus Engine" id="ai-predictor">
 
       <!-- Section eyebrow pill -->
       <div class="predictor-eyebrow">
@@ -391,27 +430,13 @@
       <p class="predictor-section-sub">9 specialist agents. 5 AI models. 1 consensus engine — refreshed 3× daily at <strong>1:00 AM, 7:00 AM &amp; 1:00 PM WAT.</strong></p>
 
       <!-- Stats ribbon -->
-      <div class="predictor-stats-row" aria-label="AI Predictor key metrics">
-        <div class="pstat-card">
-          <span class="pstat-val">9</span>
-          <span class="pstat-label">Specialist Agents</span>
-        </div>
-        <div class="pstat-card">
-          <span class="pstat-val">5</span>
-          <span class="pstat-label">AI Models</span>
-        </div>
-        <div class="pstat-card">
-          <span class="pstat-val">60%+</span>
-          <span class="pstat-label">Win Chance Floor</span>
-        </div>
-        <div class="pstat-card">
-          <span class="pstat-val">3×</span>
-          <span class="pstat-label">Daily Auto-Sync</span>
-        </div>
-        <div class="pstat-card">
-          <span class="pstat-val">11</span>
-          <span class="pstat-label">Sports Covered</span>
-        </div>
+      <div class="predictor-stats-row" aria-label="AI Predictor key metrics" bind:this={statsEl}>
+        {#each statDefs as s, i (s.label)}
+          <div class="pstat-card">
+            <span class="pstat-val">{statVals[i]}{s.suffix}</span>
+            <span class="pstat-label">{s.label}</span>
+          </div>
+        {/each}
       </div>
 
       <!-- Main content card — two-column -->
@@ -420,7 +445,7 @@
         <!-- Left column — orbit visualization -->
         <div class="predictor-left">
           <div class="orbit-container">
-            <AgentOrbit accent="#6366f1" height={400} />
+            <AgentOrbit accent="#22d3ee" height={400} />
           </div>
           <!-- Agent pills below orbit -->
           <div class="agent-pills-row" aria-label="The SMOA agent team">
@@ -518,7 +543,7 @@
 
           <!-- CTA -->
           <div class="predictor-cta-wrap">
-            <AiPredictorButton label="Open AI Predictor &amp; Great Minds Engine" accent="#6366f1" />
+            <AiPredictorButton label="Open AI Predictor &amp; Great Minds Engine" accent="#22d3ee" />
           </div>
 
         </div><!-- /predictor-right -->
@@ -926,15 +951,16 @@
 
   .wordmark {
     margin: 0 0 12px;
+    font-family: var(--font-display);
     font-size: clamp(44px, 13vw, 80px);
-    font-weight: 900;
+    font-weight: 700;
     line-height: 0.92;
     letter-spacing: -0.03em;
     color: var(--c-text);
     text-align: center;
   }
   .wordmark-accent {
-    background: var(--c-brand-gradient, linear-gradient(135deg, #ff7700 0%, #ea580c 45%, #22c55e 100%));
+    background: var(--c-brand-gradient);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -946,7 +972,7 @@
     font-weight: 800;
     letter-spacing: -0.01em;
     text-align: center;
-    background: linear-gradient(135deg, var(--c-text) 0%, var(--c-orange) 100%);
+    background: linear-gradient(135deg, var(--c-text) 0%, var(--brand) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -1011,11 +1037,12 @@
     flex-wrap: wrap;
   }
   .section-title {
+    font-family: var(--font-display);
     font-size: 14px;
     color: var(--c-text);
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    font-weight: 900;
+    font-weight: 700;
     margin: 0;
     text-align: center;
   }
@@ -1299,7 +1326,7 @@
     min-height: 52px;
     padding: 12px 24px;
     border-radius: 14px;
-    background: var(--c-brand-gradient, linear-gradient(135deg, #ff7700 0%, #ea580c 45%, #22c55e 100%));
+    background: var(--c-brand-gradient, linear-gradient(135deg, #bef264 0%, #c2410c 45%, #34d399 100%));
     border: 1px solid rgba(255, 255, 255, 0.2);
     color: #ffffff;
     font-size: 15px;
@@ -1344,7 +1371,7 @@
   .cur-gold { color: #fbbf24; }
   .pricing-card-master :global(.check-gold) { color: #fbbf24; }
   .btn-donate-master {
-    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 55%, #f97316 100%);
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 55%, #fb923c 100%);
     box-shadow: 0 8px 24px -4px color-mix(in srgb, #fbbf24 50%, transparent);
   }
   .btn-donate-master:hover { box-shadow: 0 12px 32px -4px color-mix(in srgb, #fbbf24 70%, transparent); }
@@ -1374,7 +1401,7 @@
     z-index: 1;
   }
   .btn-whatsapp:hover {
-    background: #22c55e;
+    background: #34d399;
     transform: translateY(-2px);
     box-shadow: 0 12px 32px -4px rgba(37, 211, 102, 0.6);
     color: #ffffff;
@@ -1399,9 +1426,9 @@
     gap: 8px;
     padding: 6px 16px;
     border-radius: 999px;
-    background: color-mix(in srgb, #6366f1 14%, var(--c-surface));
-    border: 1px solid color-mix(in srgb, #6366f1 40%, transparent);
-    color: #818cf8;
+    background: color-mix(in srgb, #22d3ee 14%, var(--c-surface));
+    border: 1px solid color-mix(in srgb, #22d3ee 40%, transparent);
+    color: #67e8f9;
     font-size: 11.5px;
     font-weight: 900;
     letter-spacing: 0.07em;
@@ -1411,22 +1438,23 @@
   .predictor-eyebrow-dot {
     width: 7px; height: 7px;
     border-radius: 50%;
-    background: #818cf8;
-    box-shadow: 0 0 10px #6366f1;
+    background: #67e8f9;
+    box-shadow: 0 0 10px #22d3ee;
     animation: dot-pulse 2s ease-in-out infinite;
   }
 
   /* Title */
   .predictor-section-title {
     margin: 0 0 12px;
+    font-family: var(--font-display);
     font-size: clamp(26px, 6vw, 42px);
-    font-weight: 900;
+    font-weight: 700;
     line-height: 1.1;
     letter-spacing: -0.025em;
     color: var(--c-text);
   }
   .predictor-title-accent {
-    background: linear-gradient(135deg, #818cf8 0%, #6366f1 50%, #a78bfa 100%);
+    background: linear-gradient(135deg, #67e8f9 0%, #22d3ee 50%, #a78bfa 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -1459,7 +1487,7 @@
     padding: 16px 20px;
     border-radius: 16px;
     background: var(--c-surface-2);
-    border: 1px solid color-mix(in srgb, #6366f1 25%, transparent);
+    border: 1px solid color-mix(in srgb, #22d3ee 25%, transparent);
     backdrop-filter: blur(12px);
     min-width: 100px;
     flex: 1;
@@ -1468,12 +1496,12 @@
   }
   .pstat-card:hover {
     transform: translateY(-3px);
-    border-color: color-mix(in srgb, #6366f1 55%, transparent);
+    border-color: color-mix(in srgb, #22d3ee 55%, transparent);
   }
   .pstat-val {
     font-size: 26px;
     font-weight: 900;
-    color: #818cf8;
+    color: #67e8f9;
     font-family: var(--font-mono, 'JetBrains Mono', monospace);
     letter-spacing: -0.02em;
     line-height: 1;
@@ -1497,12 +1525,12 @@
     padding: 28px;
     border-radius: 24px;
     background:
-      linear-gradient(135deg, color-mix(in srgb, #6366f1 10%, transparent) 0%, transparent 60%),
+      linear-gradient(135deg, color-mix(in srgb, #22d3ee 10%, transparent) 0%, transparent 60%),
       var(--c-surface-2);
-    border: 1px solid color-mix(in srgb, #6366f1 30%, transparent);
+    border: 1px solid color-mix(in srgb, #22d3ee 30%, transparent);
     box-shadow:
-      0 0 0 1px color-mix(in srgb, #6366f1 10%, transparent),
-      0 24px 64px -16px color-mix(in srgb, #6366f1 25%, transparent),
+      0 0 0 1px color-mix(in srgb, #22d3ee 10%, transparent),
+      0 24px 64px -16px color-mix(in srgb, #22d3ee 25%, transparent),
       var(--c-card-shadow);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -1544,8 +1572,8 @@
     gap: 5px;
     padding: 4px 9px;
     border-radius: 999px;
-    background: color-mix(in srgb, #6366f1 10%, var(--c-surface));
-    border: 1px solid color-mix(in srgb, #6366f1 25%, transparent);
+    background: color-mix(in srgb, #22d3ee 10%, var(--c-surface));
+    border: 1px solid color-mix(in srgb, #22d3ee 25%, transparent);
     font-size: 10.5px;
     font-weight: 800;
     color: #a5b4fc;
@@ -1553,15 +1581,15 @@
     cursor: default;
   }
   .apill:hover {
-    background: color-mix(in srgb, #6366f1 22%, var(--c-surface));
-    border-color: color-mix(in srgb, #6366f1 55%, transparent);
+    background: color-mix(in srgb, #22d3ee 22%, var(--c-surface));
+    border-color: color-mix(in srgb, #22d3ee 55%, transparent);
     color: #c7d2fe;
   }
   .apill-dot {
     width: 5px; height: 5px;
     border-radius: 50%;
-    background: #6366f1;
-    box-shadow: 0 0 6px #6366f1;
+    background: #22d3ee;
+    box-shadow: 0 0 6px #22d3ee;
     flex-shrink: 0;
   }
   .apill-name { font-weight: 900; }
@@ -1587,8 +1615,8 @@
   .gm-section {
     padding: 16px;
     border-radius: 16px;
-    background: color-mix(in srgb, #6366f1 9%, var(--c-surface));
-    border: 1px solid color-mix(in srgb, #6366f1 28%, transparent);
+    background: color-mix(in srgb, #22d3ee 9%, var(--c-surface));
+    border: 1px solid color-mix(in srgb, #22d3ee 28%, transparent);
   }
   .gm-section-head {
     display: flex;
@@ -1659,10 +1687,10 @@
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #818cf8;
+    color: #67e8f9;
     margin-bottom: 4px;
   }
-  .pipeline-head :global(svg) { color: #818cf8; }
+  .pipeline-head :global(svg) { color: #67e8f9; }
   .pipeline-step {
     display: flex;
     align-items: flex-start;
@@ -1674,13 +1702,13 @@
     transition: background 140ms ease, border-color 140ms ease;
   }
   .pipeline-step:hover {
-    background: color-mix(in srgb, #6366f1 8%, var(--c-surface));
-    border-color: color-mix(in srgb, #6366f1 30%, transparent);
+    background: color-mix(in srgb, #22d3ee 8%, var(--c-surface));
+    border-color: color-mix(in srgb, #22d3ee 30%, transparent);
   }
   .pipeline-num {
     font-size: 11px;
     font-weight: 900;
-    color: #6366f1;
+    color: #22d3ee;
     font-family: var(--font-mono, 'JetBrains Mono', monospace);
     flex-shrink: 0;
     width: 18px;
@@ -1694,9 +1722,9 @@
     flex-shrink: 0;
     width: 24px; height: 24px;
     border-radius: 8px;
-    background: color-mix(in srgb, #6366f1 15%, transparent);
-    border: 1px solid color-mix(in srgb, #6366f1 28%, transparent);
-    color: #818cf8;
+    background: color-mix(in srgb, #22d3ee 15%, transparent);
+    border: 1px solid color-mix(in srgb, #22d3ee 28%, transparent);
+    color: #67e8f9;
   }
   .pipeline-body {
     display: flex;
@@ -1728,11 +1756,11 @@
     transition: border-color 130ms ease, color 130ms ease, transform 100ms ease;
   }
   .pred-sport-chip:hover {
-    border-color: color-mix(in srgb, #6366f1 45%, transparent);
+    border-color: color-mix(in srgb, #22d3ee 45%, transparent);
     color: #a5b4fc;
     transform: translateY(-1px);
   }
-  .pred-sport-chip :global(svg) { color: #818cf8; }
+  .pred-sport-chip :global(svg) { color: #67e8f9; }
 
   /* CTA wrapper */
   .predictor-cta-wrap {

@@ -7,6 +7,6 @@
   sportId="hockey"
   sportShort="Ice Hockey"
   sportTitle="Ice Hockey Matchday Screener"
-  accent="#06b6d4"
+  accent="#60a5fa"
   factory={createHockeyScopes}
 />

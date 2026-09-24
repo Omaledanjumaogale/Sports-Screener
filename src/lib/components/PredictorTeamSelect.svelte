@@ -19,22 +19,22 @@
   };
 
   const SPORT_COLOR: Record<PredictorSportId, string> = {
-    football: '#22c55e',
-    basketball: '#f97316',
+    football: '#34d399',
+    basketball: '#fb923c',
     tennis: '#a3e635',
     rally: '#38bdf8',
-    hockey: '#6366f1',
+    hockey: '#22d3ee',
     baseball: '#e11d48',
-    americanfootball: '#dc2626',
-    rugby: '#7c3aed',
-    cricket: '#d97706',
-    mma: '#1d4ed8',
+    americanfootball: '#f87171',
+    rugby: '#a78bfa',
+    cricket: '#fbbf24',
+    mma: '#818cf8',
     volleyball: '#0891b2'
   };
 
   let {
     active = null as PredictorSportId | null,
-    accent = '#6366f1'
+    accent = '#22d3ee'
   }: {
     active?: PredictorSportId | null;
     accent?: string;

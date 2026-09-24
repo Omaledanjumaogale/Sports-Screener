@@ -7,6 +7,6 @@
   sportId="vfootball"
   sportShort="Virtual Football"
   sportTitle="Pulse Line — Virtual Football Screener"
-  accent="#06b6d4"
+  accent="#60a5fa"
   factory={createVirtualFootballScopes}
 />

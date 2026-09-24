@@ -537,9 +537,9 @@
   }
 
   .status-chip.done {
-    background: color-mix(in srgb, var(--c-green, #4ade80) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--c-green, #4ade80) 25%, transparent);
-    color: var(--c-green, #4ade80);
+    background: color-mix(in srgb, var(--c-green, #6ee7b7) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c-green, #6ee7b7) 25%, transparent);
+    color: var(--c-green, #6ee7b7);
   }
 
   .status-chip.waiting {
@@ -571,9 +571,9 @@
   }
 
   .network-badge.is-online {
-    background: color-mix(in srgb, var(--c-green, #4ade80) 10%, transparent);
-    border-color: color-mix(in srgb, var(--c-green, #4ade80) 30%, transparent);
-    color: var(--c-green, #4ade80);
+    background: color-mix(in srgb, var(--c-green, #6ee7b7) 10%, transparent);
+    border-color: color-mix(in srgb, var(--c-green, #6ee7b7) 30%, transparent);
+    color: var(--c-green, #6ee7b7);
   }
 
   .network-badge.is-offline {
@@ -585,8 +585,8 @@
   .pulse-dot {
     width: 6px; height: 6px;
     border-radius: 50%;
-    background: var(--c-green, #4ade80);
-    box-shadow: 0 0 6px var(--c-green, #4ade80);
+    background: var(--c-green, #6ee7b7);
+    box-shadow: 0 0 6px var(--c-green, #6ee7b7);
     animation: pulse-glow 2s infinite;
   }
 
@@ -675,7 +675,7 @@
   }
 
   .insight-box.verdict .box-head { color: var(--cf-accent, #38bdf8); }
-  .insight-box.value .box-head { color: var(--c-green, #4ade80); }
+  .insight-box.value .box-head { color: var(--c-green, #6ee7b7); }
   .insight-box.risk .box-head { color: var(--c-orange, #fb923c); }
   .insight-box.action .box-head { color: var(--c-orange); }
 
@@ -701,7 +701,7 @@
     margin-bottom: 8px;
   }
   .section-badge.gold { color: var(--c-amber); }
-  .section-badge.edge { color: var(--c-green, #4ade80); }
+  .section-badge.edge { color: var(--c-green, #6ee7b7); }
   .section-badge.warning-badge { color: var(--c-orange); }
   .section-badge.stake-badge { color: var(--c-purple); }
 
@@ -734,7 +734,7 @@
   .step-bullet {
     font-size: 11px;
     font-weight: 900;
-    color: var(--c-green, #4ade80);
+    color: var(--c-green, #6ee7b7);
     flex-shrink: 0;
     margin-top: 1px;
   }
@@ -789,8 +789,8 @@
   .confidence-tag {
     font-size: 10px;
     font-weight: 800;
-    color: var(--c-green, #4ade80);
-    background: color-mix(in srgb, var(--c-green, #4ade80) 14%, transparent);
+    color: var(--c-green, #6ee7b7);
+    background: color-mix(in srgb, var(--c-green, #6ee7b7) 14%, transparent);
     padding: 2px 7px;
     border-radius: 999px;
     white-space: nowrap;

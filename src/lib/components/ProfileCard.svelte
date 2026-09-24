@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Profile, Status } from '../engine';
 
-  let { profile, accent = '#6366f1' }: { profile: Profile; accent?: string } = $props();
+  let { profile, accent = '#22d3ee' }: { profile: Profile; accent?: string } = $props();
 
   const statusMap: Record<Status, string> = {
     green: 'Strong',
@@ -281,7 +281,7 @@
     transition: background 200ms, box-shadow 200ms;
   }
   .lamp-green {
-    background: radial-gradient(circle at 30% 30%, #86efac, #22c55e 60%, #15803d);
+    background: radial-gradient(circle at 30% 30%, #86efac, #34d399 60%, #15803d);
     box-shadow: 0 0 10px rgba(74,222,128,0.7), 0 0 3px rgba(74,222,128,0.4) inset;
     border-color: rgba(74,222,128,0.3);
   }

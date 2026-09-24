@@ -4,7 +4,7 @@
 
   let {
     scopes = null as any,
-    accent = '#6366f1'
+    accent = '#22d3ee'
   }: {
     scopes?: any;
     accent?: string;
@@ -87,17 +87,17 @@
     transition: width 0.5s ease;
   }
   .split-left.is-dominant {
-    background: linear-gradient(90deg, #10b981, #22c55e);
-    box-shadow: 0 0 8px color-mix(in srgb, #22c55e 50%, transparent);
+    background: linear-gradient(90deg, #10b981, #34d399);
+    box-shadow: 0 0 8px color-mix(in srgb, #34d399 50%, transparent);
   }
 
   .split-right {
-    background: linear-gradient(90deg, #f97316, #fb923c);
+    background: linear-gradient(90deg, #fb923c, #fb923c);
     transition: width 0.5s ease;
   }
   .split-right.is-dominant {
-    background: linear-gradient(90deg, #10b981, #22c55e);
-    box-shadow: 0 0 8px color-mix(in srgb, #22c55e 50%, transparent);
+    background: linear-gradient(90deg, #10b981, #34d399);
+    box-shadow: 0 0 8px color-mix(in srgb, #34d399 50%, transparent);
   }
 
   .stat-values {
@@ -110,8 +110,8 @@
     font-variant-numeric: tabular-nums;
   }
   .side { color: var(--c-text-2); }
-  .side.is-dominant { color: #22c55e; font-weight: 800; }
-  .side.is-dominant strong { color: #22c55e; }
+  .side.is-dominant { color: #34d399; font-weight: 800; }
+  .side.is-dominant strong { color: #34d399; }
   .center { color: var(--c-text-dim, var(--c-text)); font-size: 11px; font-weight: 700; text-align: center; }
 
   .stats-note { font-size: 10.5px; color: var(--c-text-dim, var(--c-text)); line-height: 1.4; margin: 0; }

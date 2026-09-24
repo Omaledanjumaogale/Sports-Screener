@@ -124,7 +124,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--c-orange, #f97316);
+    color: var(--c-orange, #fb923c);
     margin-bottom: 4px;
   }
   .candidate-name {

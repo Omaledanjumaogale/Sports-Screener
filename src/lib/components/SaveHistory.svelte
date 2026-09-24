@@ -586,7 +586,7 @@
     margin-top: 4px;
   }
 
-  .master-tag { color: var(--accent, #6366f1) !important; background: color-mix(in srgb, var(--accent, #6366f1) 16%, transparent) !important; }
+  .master-tag { color: var(--accent, #22d3ee) !important; background: color-mix(in srgb, var(--accent, #22d3ee) 16%, transparent) !important; }
   .ai-tag { color: var(--c-orange) !important; background: color-mix(in srgb, #f38020 16%, transparent) !important; }
 
   .master-summary-row {
@@ -624,7 +624,7 @@
   }
   .top3-saved-pill .rank { color: var(--c-amber); font-weight: 900; }
   .top3-saved-pill .name { color: var(--c-text, #ffffff); font-weight: 700; }
-  .top3-saved-pill .conf { color: var(--c-green, #4ade80); font-weight: 800; font-size: 10px; }
+  .top3-saved-pill .conf { color: var(--c-green, #6ee7b7); font-weight: 800; font-size: 10px; }
 
   .sh-head {
     display: flex;

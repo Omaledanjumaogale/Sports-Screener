@@ -89,7 +89,7 @@
     overflow: hidden;
   }
   .line-row-hdp:focus-within {
-    border-color: color-mix(in srgb, var(--accent, #6366f1) 30%, rgba(255,255,255,0.07));
+    border-color: color-mix(in srgb, var(--accent, #22d3ee) 30%, rgba(255,255,255,0.07));
   }
 
   /* Numbered row header */
@@ -107,9 +107,9 @@
     width: 22px;
     height: 22px;
     border-radius: 6px;
-    background: color-mix(in srgb, var(--accent, #f97316) 18%, transparent);
-    border: 1px solid color-mix(in srgb, var(--accent, #f97316) 35%, transparent);
-    color: var(--accent, #f97316);
+    background: color-mix(in srgb, var(--accent, #fb923c) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent, #fb923c) 35%, transparent);
+    color: var(--accent, #fb923c);
     font-size: 11px;
     font-weight: 900;
     font-family: var(--font-mono, 'JetBrains Mono', monospace);

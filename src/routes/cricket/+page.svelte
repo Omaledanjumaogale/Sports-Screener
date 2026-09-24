@@ -7,6 +7,6 @@
   sportId="cricket"
   sportShort="Cricket"
   sportTitle="Cricket Screener"
-  accent="#d97706"
+  accent="#fbbf24"
   factory={createCricketScopes}
 />

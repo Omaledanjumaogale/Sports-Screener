@@ -7,6 +7,6 @@
   sportId="football"
   sportShort="Football"
   sportTitle="Football Matchday Screener"
-  accent="#22c55e"
+  accent="#34d399"
   factory={createFootballScopes}
 />

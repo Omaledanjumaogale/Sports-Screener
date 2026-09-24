@@ -5,7 +5,7 @@
 
   let {
     debate = null as GreatMindsDebateResult | null,
-    accent = '#6366f1',
+    accent = '#22d3ee',
     finalScore = null as string | null,
     finished = false
   }: {
@@ -97,7 +97,7 @@
               {#each p.modelChoices as choice}
                 {@const mDef = GREAT_MINDS_MODELS.find(m => m.id === choice.modelId)}
                 <div class="model-row" class:is-dissent={!choice.isAgree}>
-                  <span class="model-icon" style={`background:${mDef?.iconBg || '#6366f1'}`}>
+                  <span class="model-icon" style={`background:${mDef?.iconBg || '#22d3ee'}`}>
                     <Bot size={11} />
                   </span>
                   <span class="model-name">{choice.modelName}</span>
@@ -205,7 +205,7 @@
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.12);
   }
-  .rg-win { color: #22c55e; background: rgba(34, 197, 94, 0.12); border-color: rgba(34, 197, 94, 0.4); }
+  .rg-win { color: #34d399; background: rgba(34, 197, 94, 0.12); border-color: rgba(34, 197, 94, 0.4); }
   .rg-loss { color: #ef4444; background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.4); }
   .rg-push { color: #f59e0b; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.4); }
   .rg-void { color: #94a3b8; }
@@ -418,7 +418,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #818cf8;
+    color: #67e8f9;
     margin-bottom: 12px;
 
     h4 {
@@ -445,7 +445,7 @@
   .round-num {
     font-size: 0.65rem;
     font-weight: 800;
-    color: #818cf8;
+    color: #67e8f9;
     letter-spacing: 0.06em;
     margin-bottom: 4px;
   }

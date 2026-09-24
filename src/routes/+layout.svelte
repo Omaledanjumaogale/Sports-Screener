@@ -64,7 +64,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   :global(:focus-visible) {
-    outline: 2px solid var(--c-indigo, #6366f1);
+    outline: 2px solid var(--c-indigo, #22d3ee);
     outline-offset: 2px;
     border-radius: 6px;
   }
@@ -85,8 +85,8 @@
   .spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid color-mix(in srgb, var(--c-orange, #f97316) 20%, transparent);
-    border-top-color: var(--c-orange, #f97316);
+    border: 3px solid color-mix(in srgb, var(--c-orange, #fb923c) 20%, transparent);
+    border-top-color: var(--c-orange, #fb923c);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }

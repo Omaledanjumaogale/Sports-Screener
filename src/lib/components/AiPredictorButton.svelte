@@ -5,7 +5,7 @@
 
   let {
     sportId = null as string | null,
-    accent = '#6366f1',
+    accent = '#22d3ee',
     label = 'AI Predictor'
   }: {
     sportId?: string | null;

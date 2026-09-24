@@ -12,16 +12,16 @@
 
   const sports: SportDef[] = [
     { id: 'predictor', path: '/predictor', label: 'AI Predictor', accent: '#a78bfa' },
-    { id: 'football',   path: '/football',   label: 'Football',   accent: '#22c55e' },
-    { id: 'basketball', path: '/basketball', label: 'Basketball', accent: '#f97316' },
+    { id: 'football',   path: '/football',   label: 'Football',   accent: '#34d399' },
+    { id: 'basketball', path: '/basketball', label: 'Basketball', accent: '#fb923c' },
     { id: 'tennis',     path: '/tennis',     label: 'Tennis',     accent: '#e879f9' },
     { id: 'rally',      path: '/rally',      label: 'Table Tennis', accent: '#38bdf8' },
-    { id: 'hockey',     path: '/hockey',     label: 'Ice Hockey', accent: '#06b6d4' },
-    { id: 'baseball',   path: '/baseball',   label: 'Baseball',  accent: '#f43f5e' },
-    { id: 'american-football', path: '/american-football', label: 'Am. Football', accent: '#dc2626' },
-    { id: 'rugby',      path: '/rugby',      label: 'Rugby',     accent: '#7c3aed' },
-    { id: 'cricket',    path: '/cricket',    label: 'Cricket',   accent: '#d97706' },
-    { id: 'mma',        path: '/mma',        label: 'MMA',       accent: '#1d4ed8' },
+    { id: 'hockey',     path: '/hockey',     label: 'Ice Hockey', accent: '#60a5fa' },
+    { id: 'baseball',   path: '/baseball',   label: 'Baseball',  accent: '#f472b6' },
+    { id: 'american-football', path: '/american-football', label: 'Am. Football', accent: '#f87171' },
+    { id: 'rugby',      path: '/rugby',      label: 'Rugby',     accent: '#a78bfa' },
+    { id: 'cricket',    path: '/cricket',    label: 'Cricket',   accent: '#fbbf24' },
+    { id: 'mma',        path: '/mma',        label: 'MMA',       accent: '#818cf8' },
     { id: 'volleyball', path: '/volleyball', label: 'Volleyball', accent: '#0891b2' }
   ];
 

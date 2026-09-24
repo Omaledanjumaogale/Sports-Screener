@@ -34,7 +34,7 @@
   }
 </script>
 
-<div class="date-filter" style={`--accent:#6366f1`}>
+<div class="date-filter" style={`--accent:#22d3ee`}>
   <div class="panel">
     <div class="panel-head">
       <span class="ph-title"><CalendarRange size={14} stroke-width={2.2} /> Filter by date</span>

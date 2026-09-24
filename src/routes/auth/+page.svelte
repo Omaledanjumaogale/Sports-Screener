@@ -538,7 +538,7 @@
     justify-content: center;
     gap: 8px;
     padding: 14px;
-    background: var(--c-brand-gradient, linear-gradient(135deg, #ff7700 0%, #ea580c 100%));
+    background: var(--c-brand-gradient, linear-gradient(135deg, #bef264 0%, #c2410c 100%));
     color: white;
     border: none;
     border-radius: 12px;

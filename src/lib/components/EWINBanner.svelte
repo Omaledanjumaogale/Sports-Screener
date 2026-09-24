@@ -55,7 +55,7 @@
     background: linear-gradient(
       90deg,
       color-mix(in srgb, var(--c-orange) 10%, transparent) 0%,
-      color-mix(in srgb, var(--c-orange-green, #22c55e) 8%, transparent) 50%,
+      color-mix(in srgb, var(--c-orange-green, #34d399) 8%, transparent) 50%,
       color-mix(in srgb, var(--c-orange) 10%, transparent) 100%
     );
     border-top: 1px solid color-mix(in srgb, var(--c-orange) 25%, transparent);
@@ -133,7 +133,7 @@
     background: linear-gradient(
       90deg,
       color-mix(in srgb, var(--c-orange) 8%, white) 0%,
-      color-mix(in srgb, var(--c-orange-green, #22c55e) 6%, white) 50%,
+      color-mix(in srgb, var(--c-orange-green, #34d399) 6%, white) 50%,
       color-mix(in srgb, var(--c-orange) 8%, white) 100%
     );
   }

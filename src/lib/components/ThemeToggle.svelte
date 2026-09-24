@@ -60,10 +60,10 @@
   }
 
   .theme-toggle-btn:hover {
-    background: color-mix(in srgb, var(--c-orange, #f97316) 14%, var(--c-surface-2));
-    border-color: color-mix(in srgb, var(--c-orange, #f97316) 40%, transparent);
-    color: var(--c-orange, #f97316);
-    box-shadow: 0 0 16px color-mix(in srgb, var(--c-orange, #f97316) 20%, transparent);
+    background: color-mix(in srgb, var(--c-orange, #fb923c) 14%, var(--c-surface-2));
+    border-color: color-mix(in srgb, var(--c-orange, #fb923c) 40%, transparent);
+    color: var(--c-orange, #fb923c);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--c-orange, #fb923c) 20%, transparent);
   }
 
   .theme-toggle-btn:active {

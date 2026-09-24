@@ -81,7 +81,7 @@
     border-radius: 16px;
     padding: 14px 16px;
     background:
-      linear-gradient(135deg, color-mix(in srgb, var(--c-accent, #6366f1) 10%, transparent), transparent 55%),
+      linear-gradient(135deg, color-mix(in srgb, var(--c-accent, #22d3ee) 10%, transparent), transparent 55%),
       var(--c-surface-2);
     margin-bottom: 14px;
   }
@@ -101,7 +101,7 @@
     gap: 7px;
     font-weight: 800;
     font-size: 13.5px;
-    color: var(--c-accent, #6366f1);
+    color: var(--c-accent, #22d3ee);
   }
 
   .status-text {
@@ -127,8 +127,8 @@
   .meter-fill {
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, color-mix(in srgb, var(--c-accent, #6366f1) 60%, #22d3ee), var(--c-accent, #6366f1));
-    box-shadow: 0 0 12px color-mix(in srgb, var(--c-accent, #6366f1) 50%, transparent);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--c-accent, #22d3ee) 60%, #22d3ee), var(--c-accent, #22d3ee));
+    box-shadow: 0 0 12px color-mix(in srgb, var(--c-accent, #22d3ee) 50%, transparent);
     transition: width 300ms ease;
   }
 
@@ -138,7 +138,7 @@
     font-variant-numeric: tabular-nums;
     min-width: 38px;
     text-align: right;
-    color: var(--c-accent, #6366f1);
+    color: var(--c-accent, #22d3ee);
   }
 
   .agent-chip {
@@ -160,8 +160,8 @@
   }
 
   .agent-chip.ok {
-    border-color: color-mix(in srgb, #22c55e 45%, transparent);
-    color: #22c55e;
+    border-color: color-mix(in srgb, #34d399 45%, transparent);
+    color: #34d399;
   }
 
   .spin { display: inline-flex; animation: spn 1s linear infinite; }
