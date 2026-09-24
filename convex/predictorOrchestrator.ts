@@ -141,21 +141,37 @@ async function executeRefresh(
 
 
     // Cache EVERY validated fixture so the schedule always populates.
-    await ctx.runMutation(internal.predictor.replaceMatches, {
-      sportId: args.sportId,
-      dayKey: dayKey,
-      matches: cleanMatches.map((m) => ({
-        matchId: m.matchId,
-        league: m.league,
-        homeTeam: m.homeTeam,
-        awayTeam: m.awayTeam,
-        startTime: m.startTime,
-        source: m.source,
-        marketsAvailable: m.markets,
-        scopes: m.scope,
-        dataQuality: m.dataQuality
-      }))
-    });
+    // PRESERVE GUARD: an empty cycle (sources returned nothing usable — e.g.
+    // the morning's fixtures have kicked off and dropped off the listings)
+    // must NEVER wipe a healthy existing cache. Keep the prior rows in place
+    // (the 15-minute score sync keeps them fresh) and mark the day partial;
+    // only replace when this cycle actually produced fixtures.
+    let preserveCache = false;
+    if (cleanMatches.length === 0) {
+      const existingCache = await ctx.runQuery(internal.predictor.getCachedMatches, {
+        sportId: args.sportId,
+        dayKey
+      });
+      preserveCache = existingCache.length > 0;
+    }
+
+    if (!preserveCache) {
+      await ctx.runMutation(internal.predictor.replaceMatches, {
+        sportId: args.sportId,
+        dayKey: dayKey,
+        matches: cleanMatches.map((m) => ({
+          matchId: m.matchId,
+          league: m.league,
+          homeTeam: m.homeTeam,
+          awayTeam: m.awayTeam,
+          startTime: m.startTime,
+          source: m.source,
+          marketsAvailable: m.markets,
+          scopes: m.scope,
+          dataQuality: m.dataQuality
+        }))
+      });
+    }
 
     const verdicts = await mapLimit(cleanMatches, 4, async (m) => {
       // Generate a full LLM verdict only for matches that cleared the confidence
@@ -309,7 +325,9 @@ async function executeRefresh(
         ? qualifyingSet.size > 0
           ? `${cleanMatches.length} verified matches cached, ${qualifyingSet.size} qualifying${blockedCount ? ` (${blockedCount} blocked by quality gate)` : ''}`
           : `${cleanMatches.length} matches cached (none cleared the ${floor}% floor)`
-        : `All ${result.matches.length} parsed rows blocked by the quality gate — no verified fixtures this cycle.${blockedReasons.size ? ` Top reasons: ${Array.from(blockedReasons.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([r, n]) => `${r} ×${n}`).join('; ')}` : ''}`) + jevCycleNote
+        : preserveCache
+          ? `Sources returned 0 usable fixtures this cycle — existing cache preserved (${(await ctx.runQuery(internal.predictor.getCachedMatches, { sportId: args.sportId, dayKey })).length} matches).${blockedReasons.size ? ` Top reasons: ${Array.from(blockedReasons.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([r, n]) => `${r} ×${n}`).join('; ')}` : ''}`
+          : `All ${result.matches.length} parsed rows blocked by the quality gate — no verified fixtures this cycle.${blockedReasons.size ? ` Top reasons: ${Array.from(blockedReasons.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([r, n]) => `${r} ×${n}`).join('; ')}` : ''}`) + jevCycleNote
     });
 
     await ctx.runMutation(internal.predictor.updateRun, {
