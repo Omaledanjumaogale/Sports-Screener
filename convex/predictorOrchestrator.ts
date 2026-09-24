@@ -7,7 +7,7 @@ import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { runSmoaPipeline } from './agents/smoa';
 import { amaraFilter, type NormalizeResult } from './agents/specialists';
-import { dailyCap, watTodayKey } from './scrapers/sources';
+import { dailyCap, watDayKeyFor, watTodayKey } from './scrapers/sources';
 import { FILTER_CONFIDENCE_FLOOR } from './scrapers/normalize';
 import { generatePredictorVerdict, type VerdictOutcome } from './llm';
 import { evaluateMatchWithJev } from './agents/jevEvaluator';
@@ -385,7 +385,27 @@ export const runRefresh = action({
 // action that starts heavy work.
 export const runRefreshInternal = internalAction({
   args: refreshArgs,
-  handler: async (ctx, args) => executeRefresh(ctx, args)
+  handler: async (ctx, args) => {
+    const result = await executeRefresh(ctx, args);
+    // Cron-driven cycles pass dayKey:'' (today). New fixtures surface on the
+    // sources continuously, so EVERY cron cycle also seeds TOMORROW's slate —
+    // scheduled as a follow-up action so this action stays inside its timeout
+    // and the per-sport cron stagger keeps the source load gentle.
+    if (!args.dayKey) {
+      const tomorrow = watDayKeyFor(1);
+      try {
+        await ctx.scheduler.runAfter(5_000, internal.predictorOrchestrator.runRefreshInternal, {
+          sportId: args.sportId,
+          dayKey: tomorrow,
+          floor: args.floor,
+          cap: args.cap
+        });
+      } catch (e) {
+        console.warn('[predictorOrchestrator] tomorrow refresh not scheduled:', e);
+      }
+    }
+    return result;
+  }
 });
 
 const incrementalArgs = {
