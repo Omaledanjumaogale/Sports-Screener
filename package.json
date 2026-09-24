@@ -17,6 +17,9 @@
     "wrangler:deploy": "wrangler pages deploy dist",
     "audit:pwa": "node audit-pwa.mjs",
     "e2e": "node e2e/smoke.mjs",
+    "icons": "node scripts/build-icons.mjs",
+    "deploy:convex": "convex deploy",
+    "deploy:pages": "npm run build && wrangler pages deploy dist",
     "deploy:pwa": "npm run build && npm run wrangler:deploy && npm run audit:pwa"
   },
   "devDependencies": {

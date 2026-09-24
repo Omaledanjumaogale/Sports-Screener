@@ -7,7 +7,8 @@
   import PredictorMatchCard from '$lib/components/PredictorMatchCard.svelte';
   import PredictorVerdictPanel from '$lib/components/PredictorVerdictPanel.svelte';
   import PredictorSportIcon from '$lib/components/PredictorSportIcon.svelte';
-  import { fetchPredictorMatchesInRange, analyzeCachedMatch, fetchPredictorVerdict, dayKeyFor } from '$lib/predictorClient';
+  import { fetchPredictorMatchesInRange, analyzeCachedMatch, dayKeyFor } from '$lib/predictorClient';
+  import { api, subscribeConvexQuery } from '$lib/convexClient';
   import { DEFAULT_CONFIDENCE_FLOOR, type PredictorMatch, type PredictorSportId } from '$lib/predictorTypes';
   import { buildPredictorInsights } from '$lib/predictorInsights';
   import { generateGreatMindsDebate } from '$lib/greatMindsEngine';
@@ -31,36 +32,60 @@
 
   onMount(() => {
     void loadMatch();
-  });
+    // Live unsubs (populated once the match row is found).
+    const unsubs: Array<() => void> = [];
+    return () => unsubs.forEach((u) => u());
 
-  async function loadMatch() {
-    loading = true;
-    error = '';
-    try {
-      // Search today → +6 window for the matchId (deterministic pick screen never needs more).
-      for (let offset = 0; offset <= 6; offset++) {
-        const dk = dayKeyFor(offset);
-        const list = await fetchPredictorMatchesInRange(sport, dk, dk).catch(() => []);
-        const hit = list.find((m) => m.matchId === matchId);
-        if (hit) {
-          match = hit;
-          break;
+    async function loadMatch() {
+      loading = true;
+      error = '';
+      try {
+        // Search today → +6 window for the matchId (deterministic pick screen never needs more).
+        for (let offset = 0; offset <= 6; offset++) {
+          const dk = dayKeyFor(offset);
+          const list = await fetchPredictorMatchesInRange(sport, dk, dk).catch(() => []);
+          const hit = list.find((m) => m.matchId === matchId);
+          if (hit) {
+            match = hit;
+            // Live: keep the match row (status/final score) in sync — score-sync
+            // crons update it server-side and this subscription re-renders locally.
+            unsubs.push(
+              await subscribeConvexQuery<PredictorMatch[]>(
+                api.predictor.listMatchesInRange,
+                { sportId: sport, fromDay: hit.dayKey, toDay: hit.dayKey },
+                (rows) => {
+                  const fresh = rows?.find((m) => m.matchId === matchId);
+                  if (fresh) match = fresh;
+                }
+              ).catch(() => () => {})
+            );
+            // Live: the AI report streams in when the SMOA pipeline finishes —
+            // no refresh needed.
+            unsubs.push(
+              await subscribeConvexQuery<Record<string, unknown> | null>(
+                api.predictor.getVerdict,
+                { dayKey: hit.dayKey, matchId },
+                (verdict) => {
+                  if (verdict?.aiReport && typeof verdict.aiReport === 'object') {
+                    llmInsight = verdict.aiReport as Record<string, unknown>;
+                  }
+                }
+              ).catch(() => () => {})
+            );
+            break;
+          }
         }
+        if (!match) {
+          error = 'Match not found in the cached window.';
+          return;
+        }
+      } catch (err: any) {
+        error = String(err?.message || err);
+      } finally {
+        loading = false;
       }
-      if (!match) {
-        error = 'Match not found in the cached window.';
-        return;
-      }
-      const verdict = await fetchPredictorVerdict(match.dayKey, match.matchId).catch(() => null);
-      if (verdict?.aiReport && typeof verdict.aiReport === 'object') {
-        llmInsight = verdict.aiReport;
-      }
-    } catch (err: any) {
-      error = String(err?.message || err);
-    } finally {
-      loading = false;
     }
-  }
+  });
 
   const analysis = $derived(match ? analyzeCachedMatch(match, DEFAULT_CONFIDENCE_FLOOR) : null);
   const greatMindsDebate = $derived(match && analysis ? generateGreatMindsDebate(match, analysis.analysis) : null);

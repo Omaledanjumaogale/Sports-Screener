@@ -321,7 +321,7 @@
         </div>
       {:else if qualifying.length > 0}
         <div class="exp-segments">
-          {#each qualifying.slice(0, 20) as p}
+          {#each qualifying as p ((p.marketId || '') + p.label)}
             {@const seg = pickSegment(p.marketId)}
             {@const g = score && isFinished ? gradeOf(p.label, p.marketTitle) : null}
             <div class="exp-seg-row" style={`--seg-accent:${seg.accent}`}>
@@ -348,6 +348,16 @@
             {Number(top.probability) >= DEFAULT_CONFIDENCE_FLOOR ? 'Highest-confidence signal this cycle.' : ''}
           </span>
         </div>
+      {/if}
+      {#if cardSport}
+        <a
+          class="view-full-analysis"
+          href={`/predictor/${cardSport}/${match.matchId}`}
+          aria-label={`View full analysis for ${match.homeTeam} vs ${match.awayTeam}`}
+        >
+          <ExternalLink size={15} stroke-width={2.4} />
+          <span>View Full Analysis</span>
+        </a>
       {/if}
     </div>
   {/if}
@@ -732,6 +742,29 @@
   }
 
   .trophy-ic { color: #f59e0b; flex-shrink: 0; display: inline-flex; }
+
+  /* Prominent CTA at the end of the expanded analysis panel */
+  .view-full-analysis {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 12px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-hover) 100%);
+    color: var(--c-on-accent);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+    box-shadow: var(--glow-brand);
+    transition: filter var(--t-fast, 160ms ease), transform 80ms ease;
+  }
+  .view-full-analysis:hover { filter: brightness(1.06); }
+  .view-full-analysis:active { transform: scale(0.97); }
 
   .muted { color: var(--c-text-dim, var(--c-text)); font-size: 12px; }
 

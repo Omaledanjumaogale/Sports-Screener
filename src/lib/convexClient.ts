@@ -243,8 +243,8 @@ export const api = {
     listMatchesInRange: 'predictor:listMatchesInRange',
     listDaysInRange: 'predictor:listDaysInRange',
     getVerdict: 'predictor:getVerdict',
-    getDailyPnlSummary: 'predictor:getDailyPnlSummary',
-    // saveDailyPnlSummary moved internal (server-only settlement writes).
+    // getDailyPnlSummary: settlement is derived client-side from the live
+    // matches subscription (server rows power post-match grading only).
     getActiveRun: 'predictor:getActiveRun',
     startRefresh: 'predictor:startRefresh',
     updateMatchResult: 'predictor:updateMatchResult',
@@ -254,8 +254,7 @@ export const api = {
     runRefresh: 'predictorOrchestrator:runRefresh'
   },
   scores: {
-    triggerScoreSync: 'scores:triggerScoreSync',
-    getPredictorTotals: 'scores:getPredictorTotals'
+    triggerScoreSync: 'scores:triggerScoreSync'
   },
   presence: {
     update: 'presence:updatePresence',

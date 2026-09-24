@@ -24,8 +24,7 @@
     analyzeCachedMatch,
     bootstrapTodayAllSports,
     triggerScoreSync,
-    heartbeatPresence,
-    fetchPresenceOnline
+    heartbeatPresence
   } from '$lib/predictorClient';
   import {
     DEFAULT_CONFIDENCE_FLOOR,
@@ -561,6 +560,20 @@ $effect(() => {
     disposeSubs();
     void loadRange(sid, fj, tj, epoch);
     subscribe(sid, fj, tj, epoch);
+    // Live online-count — replaces the 60s presence read-poll (the heartbeat
+    // write stays; only the read became a WebSocket subscription).
+    void subscribeConvexQuery<{ online: number }>(
+      api.presence.list,
+      { sportId: sid },
+      (res) => {
+        if (epoch === sportEpoch) onlineCount = res?.online ?? 0;
+      }
+    )
+      .then((u) => {
+        if (epoch === sportEpoch) unsubs.push(u);
+        else u();
+      })
+      .catch(() => {});
   });
 
   let scoreSyncing = $state(false);
@@ -603,12 +616,11 @@ $effect(() => {
     const timer = setInterval(() => {
       now = Date.now();
     }, 60_000);
-    // Realtime presence: heartbeat this session and refresh the online counter.
+    // Realtime presence: heartbeat this session; the online count arrives via
+    // the live presence.list subscription (no read-polling).
     void heartbeatPresence(effectiveSport);
-    void fetchPresenceOnline(effectiveSport).then((n) => (onlineCount = n));
     const presenceTimer = setInterval(() => {
       void heartbeatPresence(effectiveSport);
-      void fetchPresenceOnline(effectiveSport).then((n) => (onlineCount = n));
     }, 60_000); // 60s heartbeat (window is 90s) — halves presence-row writes
     return () => {
       clearInterval(timer);

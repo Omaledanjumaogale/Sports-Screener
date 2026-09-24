@@ -41,6 +41,18 @@ function providerChain(): Provider[] {
       model: process.env.AGNES_AI_MODEL?.trim() || 'agnes-2.5-flash'
     });
   }
+  // Second Agnes key — rotation/failover within the primary provider so an
+  // exhausted or rate-limited key falls through to the twin before leaving
+  // the Agnes stack entirely.
+  const agnesKey2 = process.env.AGENES_API?.trim();
+  if (agnesKey2 && agnesKey2 !== agnesKey) {
+    chain.push({
+      name: 'agnes-2',
+      url: 'https://apihub.agnes-ai.com/v1/chat/completions',
+      key: agnesKey2,
+      model: process.env.AGNES_AI_MODEL?.trim() || 'agnes-2.5-flash'
+    });
+  }
   const orKey = process.env.OPENROUTER_API_KEY?.trim();
   if (orKey) {
     chain.push({

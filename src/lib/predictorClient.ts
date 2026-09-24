@@ -67,10 +67,6 @@ export async function fetchPredictorVerdict(dayKey: string, matchId: string): Pr
   return queryConvex(api.predictor.getVerdict, { dayKey, matchId });
 }
 
-export async function fetchDailyPnlSummary(dayKey: string, filter: 'ALL' | 'MONEYLINE' | 'SPREAD' | 'TOTAL' = 'ALL') {
-  return queryConvex(api.predictor.getDailyPnlSummary, { dayKey, filter });
-}
-
 // saveDailyPnlSummary was moved server-side (internalMutation): the PnL
 // settlement engine in convex/scores.ts is the only writer, so the client
 // wrapper was removed (P0: unauthenticated premium writes are no longer
@@ -155,42 +151,14 @@ export function analyzeCachedMatch(match: PredictorMatch, floor = DEFAULT_CONFID
 }
 
 // ── Realtime presence (native heartbeat) ───────────────────────────────────────
-// Non-throwing helpers: heartbeat the current session on an interval and read
-// the live online count for the predictor header indicator.
+// Non-throwing helper: heartbeat the current session on an interval. The online
+// count is read via the live presence.list WebSocket subscription in the UI
+// (no polling reads).
 
 export async function heartbeatPresence(sportId: string): Promise<void> {
   try {
     await callConvex(api.presence.update, { owner: getSessionId(), sportId });
   } catch (_) {
     /* non-fatal — presence is best-effort */
-  }
-}
-
-export async function fetchPresenceOnline(sportId?: string): Promise<number> {
-  try {
-    const res = await queryConvex<{ online: number }>(api.presence.list, sportId ? { sportId } : {});
-    return res?.online ?? 0;
-  } catch (_) {
-    return 0;
-  }
-}
-
-export interface PredictorTotals {
-  picks: number;
-  wins: number;
-  losses: number;
-  pushes: number;
-  units: number;
-  updatedAt: number;
-}
-
-export async function fetchPredictorTotals(): Promise<PredictorTotals> {
-  try {
-    const res = await queryConvex<PredictorTotals>(api.scores.getPredictorTotals, {});
-    return (
-      res ?? { picks: 0, wins: 0, losses: 0, pushes: 0, units: 0, updatedAt: 0 }
-    );
-  } catch (_) {
-    return { picks: 0, wins: 0, losses: 0, pushes: 0, units: 0, updatedAt: 0 };
   }
 }
