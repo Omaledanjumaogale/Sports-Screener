@@ -291,6 +291,71 @@ function parseClock(raw: string, dayKey?: string): number {
   return baseOfDay(dayKey) + 12 * 60 * 60 * 1000;
 }
 
+// ── BetExplorer /next/<sport>/ pages (the ALL-LEAGUES breadth feeds) ──────────
+// These pages use a LIST structure (not tables): each match is a
+// <ul class="table-main__matchInfo" data-dt="D,M,YYYY,H,MM"> block with
+//   · two <p class="particiantWidthMobile"> cells (home, away)
+//   · a match link whose path carries the league: /football/{country}/{league}/
+//   · 1X2 odds buttons (data-odd) inside the odds cell
+// League attribution comes from the match-URL slug ("nigeria/npfl" →
+// "Nigeria: Npfl", canonicalized to NPFL by the league catalog).
+function slugToLabel(slug: string): string {
+  return String(slug || '')
+    .split('-')
+    .filter(Boolean)
+    .map((w) => (w.length ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
+
+function parseBetexplorerNext(text: string, sportId: string, sourceUrl: string, dayKey?: string): ScrapeMatch[] {
+  const out: ScrapeMatch[] = [];
+  const blocks = (text || '').match(/<ul class="table-main__matchInfo"[^>]*>[\s\S]*?<\/ul>/g) ?? [];
+
+  for (const block of blocks) {
+    const dt = block.match(/data-dt="([^"]+)"/);
+    if (!dt) continue;
+    // The block carries its own WAT date — route it to the right day cache.
+    if (dayKey && dataDtWatDay(dt[1]) && dataDtWatDay(dt[1]) !== dayKey) continue;
+    // Finished rows carry a filled score cell; upcoming rows have empty ones.
+    const scoreCell = block.match(/data-live-cell="score"[\s\S]{0,200}?<\/div>\s*<\/div>\s*<\/div>/);
+    if (scoreCell && /\d/.test(scoreCell[0].replace(/<[^>]+>/g, ''))) continue;
+
+    const teams = [...block.matchAll(/<p class="particiantWidthMobile[^"]*">\s*([^<]+?)\s*<\/p>/g)].map((m) =>
+      clean(m[1])
+    );
+    if (teams.length < 2) continue;
+    const home = teams[0];
+    const away = teams[1];
+    if (!plausiblePair(home, away)) continue;
+
+    // League from the match-URL slug: /{sport}/{country}/{league}/...
+    const href = block.match(/href="\/[a-z-]+\/([a-z0-9-]+)\/([a-z0-9-]+)\//i);
+    let league = '';
+    if (href) league = `${slugToLabel(href[1])}: ${slugToLabel(href[2])}`;
+
+    const time = block.match(/table-main__matchHour[^>]*>\s*(\d{1,2}:\d{2})/)?.[1] ?? '';
+    const odds: number[] = [];
+    let om;
+    const oddRe = /data-odd="(\d+\.\d{1,3})"/g;
+    while ((om = oddRe.exec(block)) && odds.length < 3) {
+      const v = Number(om[1]);
+      if (v >= 1.01 && v <= 15) odds.push(v);
+    }
+
+    out.push({
+      source: 'LiveScrape',
+      sourceUrl,
+      league: league || SPORT_LABELS[sportId] || 'Scheduled Fixture',
+      homeTeam: home,
+      awayTeam: away,
+      startTime: startTimeFromDataDt(dt[1], time),
+      markets: ['mainTotal', 'result'],
+      oddsText: odds.slice(0, 3).map((n) => n.toFixed(2)).join(', ')
+    });
+  }
+  return out;
+}
+
 // BetExplorer raw-HTML feed (free direct fetch path). League headers are
 //   <tr class="js-tournament"><th colspan="2"><a class="table-main__tournament">
 //     <i><img alt="Asia"></i>Asia: AFC Champions League</a>...
@@ -454,6 +519,8 @@ export function parseFixtures(
     out.push(m);
   };
 
+  // 0a. BetExplorer /next/ breadth pages (list structure — all leagues, all days).
+  for (const m of parseBetexplorerNext(text, sportId, sourceUrl, dayKey)) push(m);
   // 0. BetExplorer raw-HTML tables (free direct-fetch path — no reader credits).
   for (const m of parseBetexplorerHtml(text, sportId, sourceUrl, dayKey)) push(m);
   // 1. BetExplorer-style markdown tables.

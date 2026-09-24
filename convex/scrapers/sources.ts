@@ -286,19 +286,46 @@ export function primarySourcesForSport(sportId: string): PrimarySource[] {
 // Verified-to-parse, per-sport live pages used by the fixture/odds agents.
 // BetExplorer /next/ pages carry live decimal odds; Forebet/TennisBrain/AnnaBet
 // give per-sport prediction rows; SoccerVista gives match links with form context.
-// Forebet pages are the CROSS-VERIFICATION alternates — their fixtures must
-// agree with BetExplorer's or stand on their own when BetExplorer is blocked.
+//
+// Breadth order (2026-09-24, re-probed): the /next/<sport>/ pages are the
+// ALL-LEAGUES breadth feeds — they list every upcoming fixture across all
+// competitions for the coming days (soccer 124+ rows, tennis 900+, basketball
+// 200+, each with data-odd prices), server-rendered in the same parseable
+// table structure. They are listed FIRST. Forebet follows as an equal-weight
+// source (currently behind a Cloudflare challenge — engages automatically via
+// the reader chain when reachable or when SCRAPEGRAPH_API_KEY is provisioned).
+// The sport roots stay for their per-league coverage.
+// Real 404s on BetExplorer (re-verified): table-tennis, rugby-*, cricket, mma —
+// those sports remain API-fed.
 export const FIXTURE_PAGES: Record<string, string[]> = {
-  // Verified-parseable BetExplorer sport roots, re-probed live 2026-09-24:
-  //   /football/ /basketball/ /tennis/ /baseball/ /hockey/ /volleyball/  → 200
-  // The following paths are REAL 404s on BetExplorer (verified again) and stay
-  // API-fed: table-tennis (rally), american-football, rugby-*, cricket, mma.
-  football: ['https://www.betexplorer.com/football/', 'https://www.forebet.com/en/football-predictions'],
-  basketball: ['https://www.betexplorer.com/basketball/', 'https://www.forebet.com/en/basketball-predictions'],
-  tennis: ['https://www.betexplorer.com/tennis/', 'https://www.forebet.com/en/tennis-predictions'],
-  hockey: ['https://www.betexplorer.com/hockey/', 'https://www.forebet.com/en/ice-hockey-predictions'],
-  baseball: ['https://www.betexplorer.com/baseball/'],
-  volleyball: ['https://www.betexplorer.com/volleyball/']
+  football: [
+    'https://www.betexplorer.com/next/soccer/',
+    'https://www.betexplorer.com/football/',
+    'https://www.forebet.com/en/football-predictions'
+  ],
+  basketball: [
+    'https://www.betexplorer.com/next/basketball/',
+    'https://www.betexplorer.com/basketball/',
+    'https://www.forebet.com/en/basketball-predictions'
+  ],
+  tennis: [
+    'https://www.betexplorer.com/next/tennis/',
+    'https://www.betexplorer.com/tennis/',
+    'https://www.forebet.com/en/tennis-predictions'
+  ],
+  hockey: [
+    'https://www.betexplorer.com/next/hockey/',
+    'https://www.betexplorer.com/hockey/',
+    'https://www.forebet.com/en/ice-hockey-predictions'
+  ],
+  baseball: [
+    'https://www.betexplorer.com/next/baseball/',
+    'https://www.betexplorer.com/baseball/'
+  ],
+  volleyball: [
+    'https://www.betexplorer.com/next/volleyball/',
+    'https://www.betexplorer.com/volleyball/'
+  ]
 };
 export const MINOR_LEAGUES: { name: string; code: string }[] = [
   // Football — Europe
