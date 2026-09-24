@@ -223,6 +223,66 @@ const SPORT_RULES: Record<string, string> = {
 - Cross-check the markets against each other: the favourite's straight win agrees with its negative handicap cover; Home Team Total + Away Team Total should sum near the game total; a strong 1st-half total supports the Over; a team's Over total agrees with its handicap cover.
 - ODDS ARE INDICATORS, NOT GUARANTEES: a very short price (e.g. 1.01 at 90%+) is NOT a sure win when staked — bookmaker odds are market signals, not a true reflection of the match outcome. They become meaningful only when computed (de-vigged), compared and cross-referenced against related markets (moneyline vs spread vs totals vs team totals). Value and appreciate the positive edges that genuinely convert to winning bets; treat near-1.01 sides as near-certainty noise, never as the recommendation.
 - Pick the market with the strongest probability/edge FOR THIS MATCH — the model must choose the safest, most probable selection per fixture, never the same market for every game.`,
+  tennis: `TENNIS-SPECIFIC MARKET MODEL:
+- Analyse EVERY tennis market shown: the match winner (moneyline), the games total (O/U), player 1 and player 2 game totals, the games handicap, the set handicap (±1.5 sets), the Total Sets market (Over/Under 2.5 sets for best-of-3, 3.5/4.5 for best-of-5), the Set 1 winner and any correct-score/set-betting grid.
+- SET MATH IS THE BACKBONE: the set handicap, total sets and Set 1 winner are derived from the per-set win probability implied by the match moneyline. A heavy favourite (e.g. 1.25) carries a per-set probability around 70-75%, which makes Set Handicap -1.5 materially risky in a best-of-3 (needs a straight-sets win) while Total Sets Under 2.5 becomes the strong side. Always reason through the set-level consequences of the moneyline, never treat the markets as independent.
+- DECIDER LOGIC: Over 2.5 sets in a best-of-3 equals the probability of a deciding set (a competitive, evenly-priced match pushes it up; a lopsided favourite pushes it down). Use Total Sets as the cleanest expression of "competitive match vs blowout".
+- SET 1 ANGLE: the Set 1 winner is priced close to each player's per-set probability — a lower-variance alternative when the match winner price is too tight to bet.
+- Cross-check: a -1.5 set handicap cover agrees with Total Sets Under 2.5 AND with a 2-0 correct score; the games-total Over agrees with close sets (7-5/7-6 shapes); Set 1 winner agrees with the stronger per-set side.
+- STANDALONE MATCH: every fixture is reasoned from ITS OWN odds and per-set probabilities — never replicate a verdict or selection from another match. Project the strongest side across ALL markets for THIS fixture.`,
+  rally: `TABLE TENNIS (RALLY) SPECIFIC MARKET MODEL:
+- Analyse EVERY rally market shown: match winner, points total (O/U), player points totals, points handicap, set handicap (±1.5 sets), Total Sets (Over/Under 3.5/4.5 — matches are best-of-5) and the Set 1 winner.
+- RALLY SET MATH: best-of-5 set identity — the set handicap -1.5 cover requires a 3-0 or 3-1 win, and Over 4.5 sets equals the deciding-set probability. A modest favourite (1.45-1.70) keeps the decider live, so Total Sets Over 4.5 is often the stronger side; a heavy favourite (≤1.30) pushes Under 4.5 and Set Handicap -1.5 up together.
+- Points totals follow the sport's fast scoring: typical match totals run 70-100 points depending on format — read every line against THIS match's anchor, not a fixed expectation.
+- Cross-check: Set Handicap -1.5 agrees with Total Sets Under 4.5; the points-total Over agrees with tight sets and the decider; Set 1 winner follows the per-set strength implied by the moneyline.
+- STANDALONE MATCH: project from THIS fixture's own prices only — never copy a verdict across matches; pick the strongest market per game.`,
+  hockey: `ICE HOCKEY-SPECIFIC MARKET MODEL:
+- Analyse EVERY hockey market shown: the regulation 1X2 (Home/Draw/Away — the draw is regulation and is a REAL outcome), the moneyline including overtime, the Puck Line (±1.5/±2.5 goals), the goals total ladder, Home and Away Team Totals, and the 1st Period Total.
+- PUCK LINE LOGIC: one-goal games are the most common margin in hockey, so Puck Line -1.5 on either team is a genuinely risky cover (typically 35-45% even for good favourites) while +1.5 is a high-probability, low-price cover (often 60-70%). NEVER treat the -1.5 favourite cover as safe — price it from the goal-margin distribution, and prefer +1.5 legs or regulation draws when the moneyline is too tight.
+- REGULATION DRAW: a real, fully-modelled outcome — in tight matchups the Draw's real chance (~22-28%) can exceed either dog's win chance; project it (or the safer X2-style double-cover via +1.5) rather than forcing a winner.
+- 1ST PERIOD: period totals run ~25% of game goals. A 1st Period Under 1.5 is often strong in defensive matchups; use it as the "fast vs slow starter" read.
+- Cross-check: Puck Line +1.5 agrees with a one-goal-loss tolerance and with the favourite's tight moneyline; Team Total Over 2.5 agrees with the game total Over; the regulation Draw agrees with the Under and with tight puck lines.
+- STANDALONE MATCH: every fixture is projected from its own grid-fitted probabilities — never replicate verdicts across matches; always land on the single strongest market for THIS game.`,
+  baseball: `BASEBALL-SPECIFIC MARKET MODEL:
+- Analyse EVERY baseball market shown: the moneyline (incl. extra innings), the 9-inning regulation 1X2, the Run Line (±1.5/±2.5 runs), the total runs ladder, Home and Away Team Runs totals, and the 1st-5-Innings (F5) total.
+- RUN LINE LOGIC: baseball's most common margins are 1-3 runs, so Run Line -1.5 is a materially risky cover (usually 40-50% even for solid favourites) while +1.5 covers often (55-65%). Price both sides from the run-margin distribution and prefer the +1.5 dog cover or team-run overs when the moneyline price is too tight.
+- F5 ANGLE: the F5 total runs at roughly half the game total removes bullpen variance — use it as a cleaner totals read when the full-game total is priced tight.
+- Team Runs: home/away splits are near-symmetric in runs (±0.1-0.2 runs) — a team-total Over is the natural alternative when the moneyline is too short to bet.
+- Cross-check: Run Line -1.5 agrees with a Team Total Over and the game total Over; F5 Under agrees with a defensive pitchers' duel read on the full total; the regulation draw (9-inning tie) is small but real — respect its probability in tight games.
+- STANDALONE MATCH: project from THIS fixture's own run-model probabilities only — never copy selections across matches; always land on the strongest market for the game at hand.`,
+  americanfootball: `AMERICAN FOOTBALL-SPECIFIC MARKET MODEL:
+- Analyse EVERY market shown: the moneyline, the spread (point handicap, both directions), the game points total, Home and Away Team Totals, and the 1st Half Total.
+- SPREAD LOGIC: the NFL spread is the most efficient market in sport — a -7 favourite covers only ~52-55% in the model's eyes. Never blindly take the favourite to cover; compare the de-vigged cover probability of BOTH spread sides and project the stronger one for THIS game, including +X.5 dog covers.
+- KEY NUMBERS: margins cluster on 3, 6/7 and 10/14 (field goal and touchdown increments) — a spread sitting on a key number (e.g. -3.5, -7.5) carries materially different cover probability than one a half-point inside (e.g. -2.5, -6.5). Prefer the side with the key-number cushion.
+- TOTALS: scoring is NOT uniform — weather, defences and pace swing totals from 35 to 60+ points. Read every total line against THIS game's anchor. The 1st Half Total (~44-46% of game points) is the cleaner half-time read.
+- Cross-check: the favourite's moneyline agrees with its negative spread cover; Team Total Over agrees with the game total Over; a dog +X.5 cover agrees with a low-scoring Under keeping the margin tight.
+- STANDALONE MATCH: reason only from THIS fixture's own numbers — never replicate a pick across games; choose the single strongest market per match.`,
+  rugby: `RUGBY-SPECIFIC MARKET MODEL:
+- Analyse EVERY market shown: the match winner, the points handicap/spread, the match points total, Home and Away Team Totals, and the 1st Half Total.
+- SPREAD LOGIC: rugby handicaps are wide (union tests often run -10 to -20) — a double-digit favourite still covers only ~50% by construction. Compare BOTH sides' de-vigged cover probabilities and project the stronger, including the dog +X.5 cover when the favourite's price is unplayable.
+- SCORING DISTRIBUTION: tries/conversions make rugby scores "chunky" — margins cluster in 3-4 and 7-8 point steps. A spread just inside or outside those steps moves the cover probability materially; treat it like football's key numbers.
+- TOTALS: elite tests run 40-60+ points, club/domestic leagues can run lower — read every total against THIS match's anchor. The 1st Half Total is ~45% of match points.
+- Cross-check: the favourite's win agrees with its negative handicap cover; Team Total Over agrees with the match total Over; a tight handicap agrees with a lower total.
+- STANDALONE MATCH: project from THIS fixture's own modelled probabilities — never replicate verdicts across matches; pick the strongest market per game.`,
+  cricket: `CRICKET-SPECIFIC MARKET MODEL:
+- Analyse EVERY market shown: the match winner (moneyline), the runs total (O/U), team run totals, and the run handicap/spread.
+- INNINGS STRUCTURE: cricket is two sequential innings, not simultaneous scoring — the total is the SUM of both innings and variance is much higher than in goal/point sports (T20 totals swing ±40-60 runs). Treat team totals and the match total as high-variance: a "safe" margin read needs a wider buffer than other sports.
+- CHASE DYNAMICS: the side batting second wins by wickets in hand or falls short — the run handicap reflects first-innings cushion. A big favourite at the toss (strong batting side, favourable conditions) makes the run handicap -X.5 and team-total Over the aligned reads; a bowler-friendly deck pushes the Under.
+- Read every line against THIS match's anchor (format: T20 ~140-180 per side, ODI ~250-320, The Hundred lower) — never apply one format's totals to another.
+- Cross-check: the favourite's moneyline agrees with its run-handicap cover; Team Runs Over agrees with the match total Over; the Under agrees with a bowling-friendly read.
+- STANDALONE MATCH: project from THIS fixture's own prices and conditions — never replicate selections across matches; always land on the strongest market for THIS game.`,
+  mma: `MMA-SPECIFIC MARKET MODEL:
+- Analyse EVERY market shown: the fight winner (moneyline, both fighters), and when present the rounds total (Over/Under 1.5/2.5/3.5) and method-of-victory markets.
+- NO HANDICAP IN FIGHTS: MMA has no spread — the moneyline IS the market. A heavy favourite (1.20-1.40) is common but NOT a guarantee: knockouts are inherently high-variance, and a single strike ends any projection. Treat short moneylines as strong-lean, never certainty, and say so in the risk note.
+- ROUNDS READ: Over/Under rounds encode whether the model expects a finish. A finisher-vs-frail-chin matchup pushes Under 2.5 (fight ends early) even when the favourite is obvious; two durable grapplers push Over 2.5. When the rounds total exists, cross-check it against the moneyline: a modest favourite with an Over lean suggests a competitive, distance fight.
+- METHOD: when method-of-victory is shown, align it with the rounds read — KO/TKO/Submission sides agree with Unders on rounds, Decision sides agree with Overs.
+- STANDALONE FIGHT: every fight is projected from ITS OWN odds alone — never replicate a verdict across the card; land on the strongest single read for THIS fight.`,
+  volleyball: `VOLLEYBALL-SPECIFIC MARKET MODEL:
+- Analyse EVERY volleyball market shown: the match winner, the set handicap (±1.5 sets), the Total Sets (Over/Under 3.5/4.5 — matches are best-of-5), the Set 1 winner and any points-total/handicap markets.
+- SET MATH: the best-of-5 identity drives the set markets — Set Handicap -1.5 needs a 3-0 or 3-1 win; Over 4.5 sets is the deciding-set probability. A heavy favourite (≤1.35) stacks Set Handicap -1.5 and Total Sets Under; a modest favourite keeps the decider live and makes Over 4.5 / +1.5 the value side.
+- SET 1 MOMENTUM: volleyball Set 1 is the purest read of per-set strength — use the Set 1 winner as the low-variance alternative when the moneyline is too short.
+- Cross-check: Set Handicap -1.5 agrees with Total Sets Under 4.5 and a 3-0/3-1 score shape; Over 4.5 agrees with evenly-matched sides; Set 1 winner follows the stronger per-set side implied by the moneyline.
+- STANDALONE MATCH: project from THIS fixture's own set-model probabilities — never replicate verdicts across matches; pick the strongest market per game.`,
   generic: `GENERIC MARKET MODEL:
 - Analyse EVERY market shown for this sport and rank selections by Real Win Chance and punter edge.
 - Pick the strongest, most probable selection FOR THIS MATCH — never default to the same market for every game.

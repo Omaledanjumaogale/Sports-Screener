@@ -607,6 +607,19 @@ export function homeCoversProbability(
 // All standard Asian Handicap lines, quarter-goal steps.
 export const FOOTBALL_AH_LINES = [-1.5, -1.25, -1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1, 1.25, 1.5];
 
+// General grid-based home cover probability: P(homeGoals + line > awayGoals).
+// Supports ANY handicap line (e.g. puck line ±2.5) — unlike the football
+// switch above, which is calibrated for the soccer quarter-line ladder.
+export function gridHomeCovers(grid: FootballScoreGrid, line: number): number {
+  let p = 0;
+  for (let i = 0; i <= GRID_MAX_GOALS; i++) {
+    for (let j = 0; j <= GRID_MAX_GOALS; j++) {
+      if (i + line > j) p += grid.p[i][j];
+    }
+  }
+  return Math.min(1, Math.max(0, p));
+}
+
 // Soccer Over/Under goal lines.
 export const FOOTBALL_TOTAL_LINES = [0.5, 1.5, 2.5, 3.5, 4.5];
 
@@ -1074,6 +1087,499 @@ export function deriveBasketballMarkets(
   };
 }
 
+// ───────────────────────── Set sports (tennis / rally / volleyball) ───────────
+// Per-set Bernoulli model: the match moneyline is de-vigged to a match-win
+// probability, the per-set win probability s is solved from the best-of-N
+// identity, and set-derived markets are priced off s at the same bookmaker
+// margin. Best-of-3: P(win) = s²(3-2s). Best-of-5: P(win) = s³(10-15s+6s²).
+
+function solveSetProb(pWin: number, bestOf: 3 | 5): number {
+  const p = Math.min(Math.max(pWin, 0.02), 0.98);
+  const f = (s: number) =>
+    bestOf === 3
+      ? s * s * (3 - 2 * s)
+      : s * s * s * (10 - 15 * s + 6 * s * s);
+  let lo = 0.05;
+  let hi = 0.95;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (f(mid) < p) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+// Test-facing alias — the solver is a pure mathematical identity used by the
+// computation-accuracy validation in src/lib/sportModels.test.ts.
+export const solveSetProbCheck = solveSetProb;
+
+export interface SetSportMarkets {
+  setHandicap: Market;
+  totalSets: Market;
+  s1Winner: Market;
+}
+
+export function deriveSetSportMarkets(
+  homeOdds: number,
+  awayOdds: number,
+  bestOf: 3 | 5,
+  labels: { a: string; b: string; unitLabel: string }
+): SetSportMarkets {
+  const [pH] = devig([homeOdds, awayOdds]);
+  const s = solveSetProb(pH, bestOf);
+
+  // Handicap ±1.5 sets (line convention: HOME/A carries the negative line when favourite).
+  const aCoversMinus =
+    bestOf === 3 ? s * s : s * s * s * (4 - 3 * s); // P(A wins by ≥2 clear sets)
+  const aCoversPlus = 1 - (1 - s) * (1 - s) * (bestOf === 3 ? 1 : (1 - s) * (1 + 3 * s));
+  const setHandicap: Market = {
+    id: 'setHandicap',
+    kind: 'handicap',
+    title: `${labels.unitLabel} Handicap`,
+    derived: true,
+    handicapPairs: [
+      { line: -1.5, sideA: marginedPrice(aCoversMinus, 1.05), sideB: marginedPrice(1 - aCoversMinus, 1.05) },
+      { line: 1.5, sideA: marginedPrice(aCoversPlus, 1.05), sideB: marginedPrice(1 - aCoversPlus, 1.05) }
+    ]
+  };
+
+  // Total sets O/U. Bo3 offers only the 2.5 line (a sweep already plays 2
+  // sets, so "Over 1.5" is vacuous). Bo5 offers 3.5 (non-sweep) and 4.5
+  // (deciding set).
+  const over25 = 2 * s * (1 - s); // Bo3 decider probability
+  const over35 = 1 - (s * s * s + (1 - s) * (1 - s) * (1 - s)); // Bo5 non-sweep
+  const over45 = 6 * s * s * s * (1 - s) * (1 - s); // Bo5 decider
+  const totalSets: Market = {
+    id: 'totalSets',
+    kind: 'ou',
+    title: `Total ${labels.unitLabel}s`,
+    derived: true,
+    pairs:
+      bestOf === 3
+        ? [{ line: 2.5, over: marginedPrice(over25, 1.05), under: marginedPrice(1 - over25, 1.05) }]
+        : [
+            { line: 3.5, over: marginedPrice(over35, 1.05), under: marginedPrice(1 - over35, 1.05) },
+            { line: 4.5, over: marginedPrice(over45, 1.05), under: marginedPrice(1 - over45, 1.05) }
+          ]
+  };
+
+  const s1Winner: Market = {
+    id: 's1winner',
+    kind: 'winner',
+    title: `${labels.unitLabel} 1 Winner`,
+    derived: true,
+    odds: { a: marginedPrice(s, 1.06), b: marginedPrice(1 - s, 1.06) }
+  };
+
+  return { setHandicap, totalSets, s1Winner };
+}
+
+// ───────────────────────── Hockey (Poisson goals grid) ───────────────────────
+// Regulation-time hockey is a low-scoring goals sport with a genuine draw —
+// the football Dixon-Coles-ish grid transfers directly; only the line ladders
+// differ (puck line ±1.5/±2.5, totals 3.5-7.5, P1 ≈ 1st-half share of goals).
+
+export const HOCKEY_TOTAL_LINES = [3.5, 4.5, 5.5, 6.5, 7.5];
+export const HOCKEY_TEAM_TOTAL_LINES = [0.5, 1.5, 2.5, 3.5];
+export const HOCKEY_PUCK_LINES = [-2.5, -1.5, 1.5, 2.5];
+export const HOCKEY_P1_LINES = [0.5, 1.5, 2.5];
+
+// Poisson grid built from the TOTAL ANCHOR + a margin split fitted to the
+// de-vigged home-win share. Independent Poisson underestimates hockey's
+// regulation draw, so fitting the full 1X2 collapses the scoring level (the
+// optimizer trades goals for draw mass); splitting on the 2-way moneyline
+// keeps the totals anchor exact and lets the draw fall out of the grid.
+export function buildPoissonSplitGrid(totalLine: number, homeShare: number): FootballScoreGrid {
+  const target = Math.min(Math.max(homeShare, 0.08), 0.92);
+  let best = { split: 0.5, err: Infinity };
+  for (let split = 0.15; split <= 0.85; split += 0.005) {
+    const g = buildGridFromLambdas(totalLine * split, totalLine * (1 - split));
+    let w = 0;
+    for (let i = 0; i <= GRID_MAX_GOALS; i++) {
+      for (let j = 0; j <= GRID_MAX_GOALS; j++) {
+        if (i > j) w += g.p[i][j];
+      }
+    }
+    const err = Math.abs(w - target);
+    if (err < best.err) best = { split, err };
+  }
+  return buildGridFromLambdas(totalLine * best.split, totalLine * (1 - best.split));
+}
+
+export function deriveHockeyMarkets(
+  homeOdds: number,
+  awayOdds: number,
+  totalAnchorLine = 5.5,
+  realTotals?: { line: number; over: number; under: number }
+): {
+  mainTotal: Market;
+  homeTotal: Market;
+  awayTotal: Market;
+  p1Total: Market;
+  handicap: Market;
+} {
+  const { aPct: pH2, bPct: pA2 } = devigPair(homeOdds, awayOdds);
+  const homeShare = pH2 / Math.max(pH2 + pA2, 1e-9);
+  const grid = buildPoissonSplitGrid(totalAnchorLine, homeShare);
+
+  const totalLadder = HOCKEY_TOTAL_LINES.map((line) => {
+    const { over } = gridTotals(grid, line);
+    return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
+  });
+  if (realTotals && realTotals.line > 0) {
+    const existing = totalLadder.findIndex((p) => Math.abs(p.line - realTotals.line) < 0.01);
+    if (existing >= 0) totalLadder[existing] = { line: realTotals.line, over: realTotals.over, under: realTotals.under };
+    else totalLadder.push({ line: realTotals.line, over: realTotals.over, under: realTotals.under });
+    totalLadder.sort((a, b) => a.line - b.line);
+  }
+
+  const teamTotal = (home: boolean): Market => ({
+    id: home ? 'homeTotal' : 'awayTotal',
+    kind: 'ou',
+    title: home ? 'Home Team Total Goals' : 'Away Team Total Goals',
+    derived: true,
+    pairs: HOCKEY_TEAM_TOTAL_LINES.map((line) => {
+      const over = gridTeamOver(grid, home, line);
+      return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
+    })
+  });
+
+  const p1Total: Market = {
+    id: 'p1Total',
+    kind: 'ou',
+    title: '1st Period Total Goals',
+    derived: true,
+    pairs: HOCKEY_P1_LINES.map((line) => {
+      const over = halfTotalOver(grid, 'first', line);
+      return { line, over: marginedPrice(over, 1.06), under: marginedPrice(1 - over, 1.06) };
+    })
+  };
+
+  const puckLadder = HOCKEY_PUCK_LINES.map((line) => {
+    const covers = gridHomeCovers(grid, line);
+    return {
+      line,
+      sideA: marginedPrice(covers, 1.05),
+      sideB: marginedPrice(1 - Math.min(covers, 0.999), 1.05)
+    };
+  });
+
+  return {
+    mainTotal: { id: 'mainTotal', kind: 'ou', title: 'Match Total Goals', derived: true, pairs: totalLadder },
+    homeTotal: teamTotal(true),
+    awayTotal: teamTotal(false),
+    p1Total,
+    handicap: { id: 'handicap', kind: 'handicap', title: 'Puck Line', derived: true, handicapPairs: puckLadder }
+  };
+}
+
+// ───────────────────────── Baseball (two-way Poisson runs) ───────────────────
+// Runs are modelled as independent Poissons per side. The total anchor sets
+// λH+λA; the moneyline sets the split (searched so P(H > A) matches the
+// de-vigged win probability).
+
+export interface BaseballModel {
+  lambdaH: number;
+  lambdaA: number;
+}
+
+function poissonCdf(lambda: number, k: number): number {
+  let sum = 0;
+  let term = Math.exp(-lambda);
+  for (let i = 0; i <= k; i++) {
+    sum += term;
+    term *= lambda / (i + 1);
+  }
+  return Math.min(1, Math.max(0, sum));
+}
+
+export function buildBaseballModel(homeOdds: number, awayOdds: number, totalAnchorLine: number): BaseballModel {
+  const [pH] = devig([homeOdds, awayOdds]);
+  const total = Math.max(totalAnchorLine, 4);
+  let best = { share: 0.5, err: Infinity };
+  for (let share = 0.30; share <= 0.70; share += 0.002) {
+    const lambdaH = total * share;
+    const lambdaA = total * (1 - share);
+    // P(home scores more runs) — sum the head-to-head grid up to 14 runs.
+    let pHome = 0;
+    for (let i = 1; i <= 14; i++) {
+      const cdfA = poissonCdf(lambdaA, i - 1);
+      const pmfH = poissonCdf(lambdaH, i) - poissonCdf(lambdaH, i - 1);
+      pHome += pmfH * cdfA;
+    }
+    const err = Math.abs(pHome - pH);
+    if (err < best.err) best = { share, err };
+  }
+  return { lambdaH: total * best.share, lambdaA: total * (1 - best.share) };
+}
+
+export function baseballHomeCovers(model: BaseballModel, line: number): number {
+  // Home handicap L: covers iff homeRuns + L > awayRuns.
+  let p = 0;
+  for (let i = 0; i <= 14; i++) {
+    const pmfH = poissonCdf(model.lambdaH, i) - poissonCdf(model.lambdaH, i - 1);
+    for (let j = 0; j <= 14; j++) {
+      if (i + line > j) {
+        p += pmfH * (poissonCdf(model.lambdaA, j) - poissonCdf(model.lambdaA, j - 1));
+      }
+    }
+  }
+  return Math.min(1, Math.max(0, p));
+}
+
+export function baseballTotalOver(model: BaseballModel, line: number): number {
+  // P(i + j > line) with line on a .5 grid.
+  const kMax = Math.floor(line);
+  let pOver = 0;
+  for (let i = 0; i <= 14; i++) {
+    const pmfH = poissonCdf(model.lambdaH, i) - poissonCdf(model.lambdaH, i - 1);
+    const jNeeded = Math.max(0, kMax - i + 1); // smallest j with i+j > kMax
+    if (jNeeded > 14) continue;
+    pOver += pmfH * (1 - poissonCdf(model.lambdaA, Math.min(jNeeded, 14) - 1));
+  }
+  return Math.min(1, Math.max(0, pOver));
+}
+
+export function baseballTeamOver(model: BaseballModel, home: boolean, line: number): number {
+  const lambda = home ? model.lambdaH : model.lambdaA;
+  const k = Math.floor(line);
+  return Math.min(1, Math.max(0, 1 - poissonCdf(lambda, k)));
+}
+
+export const BASEBALL_TOTAL_LINES = [5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5];
+export const BASEBALL_TEAM_LINES = [1.5, 2.5, 3.5, 4.5];
+export const BASEBALL_RUN_LINES = [-2.5, -1.5, 1.5, 2.5];
+
+export function deriveBaseballMarkets(
+  homeOdds: number,
+  awayOdds: number,
+  totalAnchorLine = 8.5,
+  realTotals?: { line: number; over: number; under: number },
+  realSpread?: { point: number; home: number; away: number }
+): {
+  mainTotal: Market;
+  homeTotal: Market;
+  awayTotal: Market;
+  f5Total: Market;
+  handicap: Market;
+} {
+  const model = buildBaseballModel(homeOdds, awayOdds, totalAnchorLine);
+
+  const totalLadder = BASEBALL_TOTAL_LINES.map((line) => {
+    const over = baseballTotalOver(model, line);
+    return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
+  });
+  if (realTotals && realTotals.line > 0) {
+    const existing = totalLadder.findIndex((p) => Math.abs(p.line - realTotals.line) < 0.01);
+    if (existing >= 0) totalLadder[existing] = { line: realTotals.line, over: realTotals.over, under: realTotals.under };
+    else totalLadder.push({ line: realTotals.line, over: realTotals.over, under: realTotals.under });
+    totalLadder.sort((a, b) => a.line - b.line);
+  }
+
+  const teamTotal = (home: boolean): Market => ({
+    id: home ? 'homeTotal' : 'awayTotal',
+    kind: 'ou',
+    title: home ? 'Home Team Total Runs' : 'Away Team Total Runs',
+    derived: true,
+    pairs: BASEBALL_TEAM_LINES.map((line) => {
+      const over = baseballTeamOver(model, home, line);
+      return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
+    })
+  });
+
+  const f5Line = Math.round(totalAnchorLine * 0.5 * 2) / 2 + 0.5;
+  const f5Over = baseballTotalOver({ lambdaH: model.lambdaH * 0.52, lambdaA: model.lambdaA * 0.52 }, f5Line);
+
+  return {
+    mainTotal: { id: 'mainTotal', kind: 'ou', title: 'Match Total Runs', derived: true, pairs: totalLadder },
+    homeTotal: teamTotal(true),
+    awayTotal: teamTotal(false),
+    f5Total: {
+      id: 'f5Total',
+      kind: 'ou',
+      title: '1st 5 Innings Total Runs',
+      derived: true,
+      pairs: [
+        { line: f5Line - 1, over: marginedPrice(baseballTotalOver({ lambdaH: model.lambdaH * 0.52, lambdaA: model.lambdaA * 0.52 }, f5Line - 1), 1.06), under: marginedPrice(1 - baseballTotalOver({ lambdaH: model.lambdaH * 0.52, lambdaA: model.lambdaA * 0.52 }, f5Line - 1), 1.06) },
+        { line: f5Line, over: marginedPrice(f5Over, 1.06), under: marginedPrice(1 - f5Over, 1.06) }
+      ]
+    },
+    handicap: {
+      id: 'handicap',
+      kind: 'handicap',
+      title: 'Run Line',
+      derived: true,
+      handicapPairs: BASEBALL_RUN_LINES.map((line) => {
+        if (realSpread && Math.abs(line - realSpread.point) < 0.01) {
+          return { line: realSpread.point, sideA: realSpread.home, sideB: realSpread.away };
+        }
+        const covers = baseballHomeCovers(model, line);
+        return { line, sideA: marginedPrice(covers, 1.05), sideB: marginedPrice(1 - Math.min(covers, 0.999), 1.05) };
+      })
+    }
+  };
+}
+
+// ─────────── Normal-points sports (am. football / rugby / cricket) ────────────
+// Generalized Normal points model with SPORT-SPECIFIC variances (the
+// basketball model hardcodes basketball SDs and a 100-point total floor,
+// which is wrong for lower-scoring sports). Margin comes from the de-vigged
+// moneyline; the total anchor carries the scoring level.
+
+export interface PointsSportCfg {
+  sdTotal: number;
+  sdMargin: number;
+  sdTeam: number;
+  firstHalfShare: number;
+  totalOffsets: number[];
+  teamOffsets: number[];
+  spreadLines: number[];
+  unitLabel: string;
+}
+
+export const POINTS_SPORT_CFG: Record<string, PointsSportCfg> = {
+  americanfootball: {
+    sdTotal: 13.5, sdMargin: 13.0, sdTeam: 9.4, firstHalfShare: 0.44,
+    totalOffsets: [-10.5, -7, -3.5, 0, 3.5, 7, 10.5],
+    teamOffsets: [-7, -3.5, 0, 3.5, 7],
+    spreadLines: [-14.5, -10.5, -7.5, -4.5, -2.5, -0.5, 1.5, 3.5, 6.5, 9.5, 13.5],
+    unitLabel: 'Points'
+  },
+  rugby: {
+    sdTotal: 16, sdMargin: 15, sdTeam: 11, firstHalfShare: 0.45,
+    totalOffsets: [-12, -8, -4, 0, 4, 8, 12],
+    teamOffsets: [-8, -4, 0, 4, 8],
+    spreadLines: [-16.5, -12.5, -8.5, -5.5, -2.5, -0.5, 1.5, 4.5, 7.5, 11.5, 15.5],
+    unitLabel: 'Points'
+  },
+  cricket: {
+    sdTotal: 55, sdMargin: 32, sdTeam: 30, firstHalfShare: 0.5,
+    totalOffsets: [-45, -25, 0, 25, 45],
+    teamOffsets: [-25, 0, 25],
+    spreadLines: [-30.5, -15.5, 0.5, 15.5, 30.5],
+    unitLabel: 'Runs'
+  }
+};
+
+export interface PointsModel {
+  expTotal: number;
+  expHome: number;
+  expAway: number;
+  margin: number;
+  sdTotal: number;
+  sdMargin: number;
+  sdTeam: number;
+}
+
+export function buildPointsModel(
+  homeOdds: number,
+  awayOdds: number,
+  totalAnchorLine: number,
+  cfg: PointsSportCfg
+): PointsModel {
+  const [pH] = devig([homeOdds, awayOdds]);
+  const margin = normalInv(Math.min(Math.max(pH, 1e-6), 1 - 1e-6)) * cfg.sdMargin;
+  const expTotal = Math.max(totalAnchorLine, cfg.totalOffsets[0] * 2);
+  return {
+    expTotal,
+    expHome: (expTotal + margin) / 2,
+    expAway: (expTotal - margin) / 2,
+    margin,
+    sdTotal: cfg.sdTotal,
+    sdMargin: cfg.sdMargin,
+    sdTeam: cfg.sdTeam
+  };
+}
+
+function pointsTotalOver(model: PointsModel, line: number): number {
+  return Math.max(0, Math.min(1, 1 - normalCdf((line - model.expTotal) / model.sdTotal)));
+}
+
+function pointsTeamOver(model: PointsModel, home: boolean, line: number): number {
+  const mean = home ? model.expHome : model.expAway;
+  return Math.max(0, Math.min(1, 1 - normalCdf((line - mean) / model.sdTeam)));
+}
+
+function pointsHomeCovers(model: PointsModel, line: number): number {
+  return Math.max(0, Math.min(1, 1 - normalCdf((-line - model.margin) / model.sdMargin)));
+}
+
+export function derivePointsSportMarkets(
+  sportId: string,
+  homeOdds: number,
+  awayOdds: number,
+  totalAnchorLine: number,
+  realTotals?: { line: number; over: number; under: number },
+  realSpread?: { point: number; home: number; away: number }
+): {
+  mainTotal: Market;
+  homeTotal: Market;
+  awayTotal: Market;
+  firstHalfTotal: Market;
+  handicap: Market;
+} {
+  const cfg = POINTS_SPORT_CFG[sportId] ?? POINTS_SPORT_CFG.americanfootball;
+  const model = buildPointsModel(homeOdds, awayOdds, totalAnchorLine, cfg);
+
+  const totalLadder = cfg.totalOffsets.map((off) => {
+    const line = roundHalf(model.expTotal + off);
+    const over = pointsTotalOver(model, line);
+    return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
+  });
+  if (realTotals && realTotals.line > 0) {
+    const existing = totalLadder.findIndex((p) => Math.abs(p.line - realTotals.line) < 0.01);
+    if (existing >= 0) totalLadder[existing] = { line: realTotals.line, over: realTotals.over, under: realTotals.under };
+    else totalLadder.push({ line: realTotals.line, over: realTotals.over, under: realTotals.under });
+    totalLadder.sort((a, b) => a.line - b.line);
+  }
+
+  const teamTotal = (home: boolean): Market => ({
+    id: home ? 'homeTotal' : 'awayTotal',
+    kind: 'ou',
+    title: home ? `Home Team Total ${cfg.unitLabel}` : `Away Team Total ${cfg.unitLabel}`,
+    derived: true,
+    pairs: cfg.teamOffsets.map((off) => {
+      const line = roundHalf((home ? model.expHome : model.expAway) + off);
+      const over = pointsTeamOver(model, home, line);
+      return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
+    })
+  });
+
+  const spreadLadder = cfg.spreadLines.map((line) => {
+    if (realSpread && Math.abs(line - realSpread.point) < 0.01) {
+      return { line: realSpread.point, sideA: realSpread.home, sideB: realSpread.away };
+    }
+    const covers = pointsHomeCovers(model, line);
+    return {
+      line,
+      sideA: marginedPrice(covers, 1.05),
+      sideB: marginedPrice(1 - Math.min(covers, 0.999), 1.05)
+    };
+  });
+
+  const halfMean = model.expTotal * cfg.firstHalfShare;
+  const halfSd = cfg.sdTotal * Math.sqrt(cfg.firstHalfShare);
+  const halfOver = (line: number) => Math.max(0, Math.min(1, 1 - normalCdf((line - halfMean) / halfSd)));
+
+  return {
+    mainTotal: { id: 'mainTotal', kind: 'ou', title: `Match Total ${cfg.unitLabel}`, derived: true, pairs: totalLadder },
+    homeTotal: teamTotal(true),
+    awayTotal: teamTotal(false),
+    firstHalfTotal: {
+      id: 'firstHalfTotal',
+      kind: 'ou',
+      title: `1st Half Total ${cfg.unitLabel}`,
+      derived: true,
+      pairs: [-8, 0, 8].map((off) => {
+        const line = roundHalf(halfMean + off);
+        const over = halfOver(line);
+        return { line, over: marginedPrice(over, 1.06), under: marginedPrice(1 - over, 1.06) };
+      })
+    },
+    handicap: { id: 'handicap', kind: 'handicap', title: 'Spread / Handicap', derived: true, handicapPairs: spreadLadder }
+  };
+}
+
 // Balanced, realistic fallback odds derived from the team-name hash. The
 // favourite/dog gap is deliberately modest and the home/away assignment is a
 // single unbiased coin-flip per match - no systematic side bias, so the engine
@@ -1212,8 +1718,82 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
     }
   }
 
+  // ── Derived set-sport markets (tennis Bo3 · rally/volleyball Bo5):
+  //    set handicap ±1.5, total sets O/U and Set-1 winner from the per-set
+  //    Bernoulli model fitted to the de-vigged match moneyline. ──────────────
+  if ((sportId === 'tennis' || sportId === 'rally' || sportId === 'volleyball') && h2h.length >= 2 && h2h[1]) {
+    const bestOf: 3 | 5 = sportId === 'tennis' ? 3 : 5;
+    const derived = deriveSetSportMarkets(h2h[0], h2h[1], bestOf, {
+      a: m.homeTeam,
+      b: m.awayTeam,
+      unitLabel: 'Set'
+    });
+    markets.setHandicap = derived.setHandicap;
+    markets.totalSets = derived.totalSets;
+    markets.s1winner = derived.s1Winner;
+  }
+
+  // ── Derived hockey markets (Puck Line ladder, totals ladder, team totals,
+  //    1st-period total) from a Poisson grid anchored on the real total and
+  //    split by the de-vigged 2-way moneyline (see buildPoissonSplitGrid). ────
+  if (sportId === 'hockey' && h2h.length >= 2 && h2h[1]) {
+    const derived = deriveHockeyMarkets(
+      h2h[0],
+      h2h[1],
+      parsed.total && parsed.total.line > 0 ? parsed.total.line : 5.5,
+      parsed.total && parsed.total.line > 0 ? parsed.total : undefined
+    );
+    markets.mainTotal = derived.mainTotal;
+    markets.gameTotal = { ...derived.mainTotal, id: 'gameTotal', title: 'Game Total' };
+    markets.homeTotal = derived.homeTotal;
+    markets.awayTotal = derived.awayTotal;
+    markets.p1Total = derived.p1Total;
+    markets.handicap = derived.handicap;
+  }
+
+  // ── Derived baseball markets (Run Line ladder, totals ladder, team runs,
+  //    F5 total) from the two-way Poisson runs model. ─────────────────────────
+  if (sportId === 'baseball' && h2h.length >= 2 && h2h[1]) {
+    const derived = deriveBaseballMarkets(
+      h2h[0],
+      h2h[1],
+      parsed.total && parsed.total.line > 0 ? parsed.total.line : 8.5,
+      parsed.total && parsed.total.line > 0 ? parsed.total : undefined,
+      parsed.spread || undefined
+    );
+    markets.mainTotal = derived.mainTotal;
+    markets.gameTotal = { ...derived.mainTotal, id: 'gameTotal', title: 'Game Total' };
+    markets.homeTotal = derived.homeTotal;
+    markets.awayTotal = derived.awayTotal;
+    markets.f5Total = derived.f5Total;
+    markets.handicap = derived.handicap;
+  }
+
+  // ── Derived normal-points markets (am. football / rugby / cricket):
+  //    spread ladder, totals ladder, team totals and 1st-half total from the
+  //    sport-calibrated Normal points model. ─────────────────────────────────
+  if ((sportId === 'americanfootball' || sportId === 'rugby' || sportId === 'cricket') && h2h.length >= 2 && h2h[1]) {
+    const cfg = POINTS_SPORT_CFG[sportId];
+    const derived = derivePointsSportMarkets(
+      sportId,
+      h2h[0],
+      h2h[1],
+      parsed.total && parsed.total.line > 0 ? parsed.total.line : BASE_LINES[sportId]?.[0]?.line ?? 44.5,
+      parsed.total && parsed.total.line > 0 ? parsed.total : undefined,
+      parsed.spread || undefined
+    );
+    markets.mainTotal = derived.mainTotal;
+    markets.homeTotal = derived.homeTotal;
+    markets.awayTotal = derived.awayTotal;
+    markets.firstHalfTotal = derived.firstHalfTotal;
+    markets.handicap = derived.handicap;
+  }
+
   // ── Total (real line; football/basketball already have derived ladders) ──
-  if ((sportId !== 'football' && sportId !== 'basketball') || !markets.mainTotal) {
+  if (
+    !['football', 'basketball', 'hockey', 'baseball', 'americanfootball', 'rugby', 'cricket'].includes(sportId) ||
+    (!markets.mainTotal && sportId !== 'tennis' && sportId !== 'rally' && sportId !== 'volleyball')
+  ) {
     const pair = parsed.total && parsed.total.line > 0
       ? { line: parsed.total.line, over: parsed.total.over, under: parsed.total.under }
       : parsed.total && parsed.total.line === 0

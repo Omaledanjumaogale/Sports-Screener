@@ -136,10 +136,17 @@ describe('consolidateOdds (The Odds API)', () => {
     // Moneyline lives on winner/regResult (2-way, draw null) — no fabricated draw.
     expect(scope.markets.winner!.odds).toEqual({ a: 1.85, b: 2.1 });
     expect(scope.markets.regResult!.odds).toEqual({ home: 1.85, draw: null, away: 2.1 });
-    // Real spread mapped to the handicap market.
-    expect(scope.markets.handicap!.handicapPairs).toEqual([{ line: -1.5, sideA: 1.9, sideB: 1.9 }]);
-    // Real total line.
-    expect(scope.markets.gameTotal!.pairs![0]).toEqual({ line: 8.5, over: 1.9, under: 1.9 });
+    // Run Line is now a full derived ladder; the real -1.5 pair keeps its REAL prices.
+    const runLine = scope.markets.handicap!.handicapPairs!;
+    expect(runLine.map((p) => p.line)).toEqual([-2.5, -1.5, 1.5, 2.5]);
+    expect(runLine.find((p) => p.line === -1.5)).toEqual({ line: -1.5, sideA: 1.9, sideB: 1.9 });
+    // The derived neighbours carry valid two-sided prices.
+    for (const pair of runLine) {
+      expect(pair.sideA).toBeGreaterThan(1);
+      expect(pair.sideB).toBeGreaterThan(1);
+    }
+    // Real total line anchors the derived runs ladder.
+    expect(scope.markets.gameTotal!.pairs!.some((p) => p.line === 8.5 && p.over === 1.9 && p.under === 1.9)).toBe(true);
     expect(scope._meta!.oddsIsReal).toBe(true);
   });
 

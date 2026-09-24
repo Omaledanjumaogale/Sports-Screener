@@ -933,7 +933,8 @@ export function analyzeTennis(scope: ScopeState): Analysis {
   const ouPicks = [
     ...analyzeLines(scope.markets.mainTotal ?? { id: 'mainTotal', kind: 'ou', title: '' }),
     ...analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' }),
-    ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' })
+    ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(scope.markets.totalSets ?? { id: 'totalSets', kind: 'ou', title: '' })
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
   const hdp1 = scope.markets.handicap;
@@ -941,7 +942,8 @@ export function analyzeTennis(scope: ScopeState): Analysis {
   const rankPicks = [
     ...(hdp1 ? analyzeHandicap(hdp1, 'Player 1', 'Player 2') : []),
     ...(hdp2 ? analyzeHandicap(hdp2, 'P1', 'P2') : []),
-    ...analyzeOddsMarket(scope.markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, { a: 'Player 1 Wins', b: 'Player 2 Wins' })
+    ...analyzeOddsMarket(scope.markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, { a: 'Player 1 Wins', b: 'Player 2 Wins' }),
+    ...analyzeOddsMarket(scope.markets.s1winner ?? { id: 's1winner', kind: 'winner', title: '' }, { a: 'Player 1 Wins Set 1', b: 'Player 2 Wins Set 1' })
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
   const combinedDiff = total && p1 && p2 ? round(p1.expected + p2.expected - total.expected, 1) : null;
@@ -974,7 +976,7 @@ export function analyzeTennis(scope: ScopeState): Analysis {
 
   const allTennisPicks = [...ouPicks, ...rankPicks, ...csPicks].sort((a, b) => b.probability - a.probability);
   const primaryPicks = allTennisPicks.filter(
-    (p) => p.marketId === 'mainTotal' || p.marketId === 'winner' || p.marketId === 'homeTotal' || p.marketId === 'awayTotal'
+    (p) => p.marketId === 'mainTotal' || p.marketId === 'winner' || p.marketId === 'homeTotal' || p.marketId === 'awayTotal' || p.marketId === 'totalSets' || p.marketId === 's1winner'
   );
   const safestPick = topBettable(primaryPicks);
   const bestValuePick =
@@ -1172,7 +1174,8 @@ export function analyzeHockey(scope: ScopeState): Analysis {
   const ouPicks = [
     ...analyzeLines(markets.mainTotal ?? { id: 'mainTotal', kind: 'ou', title: '' }),
     ...analyzeLines(markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' }),
-    ...analyzeLines(markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' })
+    ...analyzeLines(markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(markets.p1Total ?? { id: 'p1Total', kind: 'ou', title: '' })
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
   const hdp = markets.handicap;
@@ -1778,7 +1781,10 @@ export function analyzeInstantFootball(scope: ScopeState): Analysis {
 /* ========================= INSTANT BASKETBALL (COURT LINE) ========================= */
 
 export function analyzeInstantBasketball(scope: ScopeState): Analysis {
-  const gameTotalPicks = analyzeLines(scope.markets.gameTotal ?? { id: 'gameTotal', kind: 'ou', title: '' });
+  const gameTotalPicks = [
+    ...analyzeLines(scope.markets.gameTotal ?? { id: 'gameTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(scope.markets.f5Total ?? { id: 'f5Total', kind: 'ou', title: '' })
+  ];
   const handicapPicks = analyzeHandicap(scope.markets.handicap ?? { id: 'handicap', kind: 'handicap', title: '' }, 'Home', 'Away');
   const homeTotalPicks = analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' });
   const awayTotalPicks = analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' });
@@ -1817,7 +1823,7 @@ export function analyzeInstantBasketball(scope: ScopeState): Analysis {
           status: total ? 'green' : 'empty'
         }
       ],
-      top: topPick(gameTotalPicks)
+      top: topBettable(gameTotalPicks)
     },
     {
       key: 'B',
@@ -1971,7 +1977,10 @@ export function analyzeBaseball(scope: ScopeState): Analysis {
   const regPicks = analyzeOddsMarket(markets.regResult ?? { id: 'regResult', kind: 'threeway', title: '' }, { home: 'Home Win (9 Inn)', draw: 'Draw (9 Inn)', away: 'Away Win (9 Inn)' });
   const winnerPicks = analyzeOddsMarket(markets.winner ?? { id: 'winner', kind: 'winner', title: '' }, { a: 'Home Win (incl. Extra Innings)', b: 'Away Win (incl. Extra Innings)' });
 
-  const gameTotalPicks = analyzeLines(markets.gameTotal ?? { id: 'gameTotal', kind: 'ou', title: '' });
+  const gameTotalPicks = [
+    ...analyzeLines(markets.gameTotal ?? { id: 'gameTotal', kind: 'ou', title: '' }),
+    ...analyzeLines(markets.f5Total ?? { id: 'f5Total', kind: 'ou', title: '' })
+  ];
   const homeTotalPicks = analyzeLines(markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' });
   const awayTotalPicks = analyzeLines(markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' });
   const handicapPicks = analyzeHandicap(markets.handicap ?? { id: 'handicap', kind: 'handicap', title: '' }, 'Home', 'Away');
@@ -2035,7 +2044,7 @@ export function analyzeBaseball(scope: ScopeState): Analysis {
           status: combinedDiff !== null ? (Math.abs(combinedDiff) <= 1.0 ? 'green' : 'amber') : 'empty'
         }
       ],
-      top: topPick(gameTotalPicks)
+      top: topBettable(gameTotalPicks)
     },
     {
       key: 'C',

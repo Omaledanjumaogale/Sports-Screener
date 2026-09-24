@@ -110,6 +110,8 @@ const SEGMENT_BY_ID: Record<string, PickSegmentKey> = {
   i1Home: 'innings',
   i1Away: 'innings',
   topTotal: 'innings',
+  // Baseball F5 innings total
+  f5Total: 'innings',
   // MMA rounds
   roundTotal: 'rounds',
   totalRounds: 'rounds',
