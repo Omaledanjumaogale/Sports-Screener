@@ -11,6 +11,7 @@ import { dailyCap, watDayKeyFor, watTodayKey } from './scrapers/sources';
 import { FILTER_CONFIDENCE_FLOOR } from './scrapers/normalize';
 import { generatePredictorVerdict, type VerdictOutcome } from './llm';
 import { evaluateMatchWithJev } from './agents/jevEvaluator';
+import { evaluateJevPolicy, policySteering, type JevPolicyDecision } from './agents/jevPolicy';
 import { evaluateWithJev } from './jev';
 import { isFootballMatch, matchBelongsToSport, validateFixture } from './predictor';
 import { assessDataQuality, hasRealOdds } from './scrapers/dataQuality';
@@ -185,6 +186,7 @@ async function executeRefresh(
 
       let llm: VerdictOutcome;
       let jev: Awaited<ReturnType<typeof evaluateMatchWithJev>> | null = null;
+      let policy: JevPolicyDecision | null = null;
       if (qualifies) {
         // Jev structured evaluation FIRST: typed noul/choice/score decisions
         // over this fixture's de-vigged state. The LLM verdict is then drafted
@@ -195,6 +197,17 @@ async function executeRefresh(
           league: m.league,
           scopes: m.scope
         });
+        // Decision harness: confidence gate + risk policy over the raw Jev
+        // answers. A demotion forces reference-only framing even above the
+        // probability floor — structured-evaluation confidence now GOVERNS,
+        // not just decorates.
+        policy = evaluateJevPolicy(jev);
+        if (policy.demoteToReference && jev.ok) {
+          jev.phrases = [...(jev.phrases ?? []), ...policySteering(policy)];
+          if (jev.steering) {
+            jev.steering.riskHint = `${policy.notes.join(' ')} ${jev.steering.riskHint}`.trim();
+          }
+        }
         // Enterprise: cache the LLM verdict per (day, match) for 15 minutes so
         // repeat refresh cycles serve the cached analysis instead of paying the
         // LLM again for identical inputs (native action-cache equivalent).
@@ -267,7 +280,8 @@ async function executeRefresh(
                 model: jev.model,
                 answers: jev.evaluation.answers,
                 usage: jev.evaluation.usage,
-                phrases: jev.phrases ?? []
+                phrases: jev.phrases ?? [],
+                ...(policy ? { policy } : {})
               }
             }
           : {})

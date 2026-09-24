@@ -32,7 +32,23 @@ export async function jinaRead(url: string, opts: FetchPageOptions = {}): Promis
     if (opts.targetSelector) headers['X-Target-Selector'] = opts.targetSelector;
 
     const res = await fetch(`https://r.jina.ai/${url}`, { headers, signal: controller.signal });
-    const raw = await res.text().catch(() => '');
+    let raw = await res.text().catch(() => '');
+
+    // Key present but OUT OF CREDITS (402) or rate-limited (429)? Retry
+    // KEYLESS — r.jina.ai serves unauthenticated traffic on a free tier, so a
+    // dead billing state no longer takes the whole transport down.
+    let status = res.status;
+    if ((status === 402 || status === 429) && key) {
+      const retry = await fetch(`https://r.jina.ai/${url}`, {
+        headers: { Accept: 'text/plain', 'X-Return-Format': 'text' },
+        signal: controller.signal
+      }).catch(() => null);
+      if (retry && retry.ok) {
+        raw = await retry.text().catch(() => '');
+        status = retry.status;
+      }
+    }
+
     // Jina returns JSON (Accept: application/json) — extract the readable
     // content so downstream parsers (fixture + score line scanners) receive
     // markdown/text instead of a JSON blob with escaped content.
@@ -45,7 +61,7 @@ export async function jinaRead(url: string, opts: FetchPageOptions = {}): Promis
         /* keep raw text */
       }
     }
-    return { ok: res.ok, status: res.status, text };
+    return { ok: status >= 200 && status < 300 && text.length > 0, status, text };
   } catch {
     return { ok: false, status: 0, text: '' };
   } finally {

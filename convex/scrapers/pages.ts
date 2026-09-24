@@ -1,70 +1,77 @@
 // Reader chain — reads a URL through whichever text-extraction transport is
-// available, in priority order: Jina Reader → Firecrawl → Bright Data.
-// Returns the first non-trivial readable text plus the engine that produced it.
-// Never throws: every leg degrades to the next and finally to { ok:false }.
+// available, in cost priority order: self-scrape (free) → keyless relays
+// (free) → keyed premium transports (Jina / ScrapeGraphAI / Firecrawl /
+// Bright Data / OpenCrab). Returns the first non-trivial readable text plus
+// the engine that produced it. Never throws: every leg degrades to the next
+// and finally to { ok:false }.
 
+import { selfScrape } from './selfScrape';
+import { freeRelayRead } from './freeRelay';
 import { jinaRead } from './jinaReader';
+import { scrapegraphRead } from './scrapegraph';
 import { firecrawlRead } from './firecrawl';
 import { brightDataRead } from './brightdata';
+import { opencrabRead } from './opencrab';
 
 export interface PageReadResult {
   ok: boolean;
   status: number;
   text: string;
-  engine: 'direct' | 'jina' | 'firecrawl' | 'brightdata' | 'none';
+  engine:
+    | 'direct'
+    | 'relay'
+    | 'jina'
+    | 'scrapegraph'
+    | 'firecrawl'
+    | 'brightdata'
+    | 'opencrab'
+    | 'none';
 }
 
 const MIN_TEXT = 60;
 
-// Free direct fetch — tried FIRST so we don't burn paid reader credits when the
-// site serves plain HTML to a browser-like request (BetExplorer, SoccerVista,
-// 24live, etc.). Only falls through to the paid readers when it fails, returns
-// too little text, or serves an obvious bot-challenge/JS-gate page.
-const CHALLENGE_PATTERNS =
-  /captcha|cf-challenge|challenge-platform|just a moment|checking your browser|enable javascript|please enable javascript|access denied|request blocked|cloudflare|incapsula|perimeterx/i;
-
 export async function directRead(url: string, opts: { timeoutMs?: number } = {}): Promise<PageReadResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20_000);
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9'
-      },
-      redirect: 'follow',
-      signal: controller.signal
-    });
-    const text = await res.text().catch(() => '');
-    // A 200 challenge/JS-only page must NOT short-circuit the paid readers —
-    // that is exactly the case they exist for. Treat it as a failed leg so
-    // readAny continues to Jina → Firecrawl → Bright Data.
-    if (res.ok && text.length > 0 && CHALLENGE_PATTERNS.test(text.slice(0, 8000))) {
-      return { ok: false, status: res.status, text: '', engine: 'direct' };
-    }
-    return { ok: res.ok && text.length > 0, status: res.status, text, engine: 'direct' };
-  } catch {
-    return { ok: false, status: 0, text: '', engine: 'direct' };
-  } finally {
-    clearTimeout(timeout);
-  }
+  // Self-hosted engine: full browser fingerprint + UA rotation (free). Sites
+  // like BetExplorer 404 bare server fetches but serve a real page to a
+  // Chrome-grade request.
+  const r = await selfScrape(url, { timeoutMs: opts.timeoutMs ?? 20_000 });
+  return { ok: r.ok && r.text.trim().length >= MIN_TEXT, status: r.status, text: r.text, engine: 'direct' };
+}
+
+// Keyless relay tier (AllOrigins → Codetabs → keyless r.jina.ai) — beats
+// datacenter-IP bans without burning any credits.
+export async function relayRead(url: string, opts: { timeoutMs?: number } = {}): Promise<PageReadResult> {
+  const r = await freeRelayRead(url, { timeoutMs: opts.timeoutMs ?? 25_000 });
+  return { ok: r.ok && r.text.trim().length >= MIN_TEXT, status: r.status, text: r.text, engine: 'relay' };
 }
 
 export async function readAny(url: string, opts: { timeoutMs?: number } = {}): Promise<PageReadResult> {
   const timeoutMs = opts.timeoutMs ?? 20_000;
 
+  // 1. FREE — self-hosted browser-grade fetch with UA rotation.
   const direct = await directRead(url, { timeoutMs });
-  if (direct.ok && direct.text && direct.text.trim().length >= MIN_TEXT) {
-    return { ok: true, status: direct.status, text: direct.text, engine: 'direct' };
-  }
+  if (direct.ok) return direct;
 
+  // 2. FREE — keyless public relays (different egress IPs).
+  const relay = await relayRead(url, { timeoutMs });
+  if (relay.ok) return relay;
+
+  // 3. KEYED — Jina Reader (keyless requests already tried above; the keyed
+  //    path unlocks higher RPM + selectors when credits exist).
   const jina = await jinaRead(url, { timeoutMs });
   if (jina.ok && jina.text && jina.text.trim().length >= MIN_TEXT) {
     return { ok: true, status: jina.status, text: jina.text, engine: 'jina' };
   }
 
+  // 4. KEYED — ScrapeGraphAI v2 stealth scrape (residential proxies; the best
+  //    option against hard bot walls when the free tier is provisioned).
+  const sg = await scrapegraphRead(url, { timeoutMs });
+  if (sg.ok && sg.text.trim().length >= MIN_TEXT) {
+    return { ok: true, status: sg.status, text: sg.text, engine: 'scrapegraph' };
+  }
+
+  // 5-6. KEYED — Firecrawl / Bright Data (resume automatically when credits
+  //      return; no code change needed).
   const firecrawl = await firecrawlRead(url, timeoutMs);
   if (firecrawl.ok && firecrawl.text && firecrawl.text.trim().length >= MIN_TEXT) {
     return { ok: true, status: firecrawl.status, text: firecrawl.text, engine: 'firecrawl' };
@@ -73,6 +80,13 @@ export async function readAny(url: string, opts: { timeoutMs?: number } = {}): P
   const bd = await brightDataRead(url, timeoutMs);
   if (bd.ok && bd.text && bd.text.trim().length >= MIN_TEXT) {
     return { ok: true, status: 200, text: bd.text, engine: 'brightdata' };
+  }
+
+  // 7. KEYED — OpenCrab (joins the chain automatically when the platform
+  //    ships and OPENCRAB_API_KEY is provisioned).
+  const oc = await opencrabRead(url, { timeoutMs });
+  if (oc.ok && oc.text.trim().length >= MIN_TEXT) {
+    return { ok: true, status: oc.status, text: oc.text, engine: 'opencrab' };
   }
 
   return { ok: false, status: 0, text: '', engine: 'none' };
