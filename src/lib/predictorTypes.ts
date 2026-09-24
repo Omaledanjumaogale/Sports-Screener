@@ -308,6 +308,66 @@ export interface PredictorVerdict {
   updatedAt: number;
 }
 
+// ── Persisted AI-performance data bank (predictorStats.ts) ────────────────────
+// One accuracy row per grouping (signal band, market family, sport, consensus
+// rank, provider, leaderboard entry). `avgPredictedPct` is the mean probability
+// the verdict PUBLISHED for the group and `calibrationGapPct` the gap to the
+// realised win rate (0 = perfectly calibrated, positive = over-confident).
+export interface StatsAccuracyRow {
+  group: string;
+  picks: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  winRatePct: number;
+  avgPredictedPct: number;
+  calibrationGapPct: number;
+  unitsPnl: number;
+  roiPct: number;
+}
+
+export interface StatsConsensusSummary {
+  filter: 'ALL' | 'MONEYLINE' | 'SPREAD' | 'TOTAL';
+  winRatePct: number;
+  unitsPnl: number;
+  roiPct: number;
+  rows?: Array<Record<string, unknown>>;
+}
+
+export interface StatsSnapshotData {
+  overall: StatsAccuracyRow;
+  byBand: StatsAccuracyRow[];
+  byMarket: StatsAccuracyRow[];
+  bySport: StatsAccuracyRow[];
+  byRank: StatsAccuracyRow[];
+  byProvider: StatsAccuracyRow[];
+  rankings: StatsAccuracyRow[];
+  settledMatches: number;
+  gradedPicks: number;
+  consensus?: StatsConsensusSummary[];
+  daysAggregated?: number;
+  generatedAt: number;
+}
+
+export interface PredictorStatsSnapshot {
+  _id: string;
+  scope: 'day' | 'lifetime';
+  dayKey: string;
+  settledMatches: number;
+  gradedPicks: number;
+  data: StatsSnapshotData;
+  updatedAt: number;
+}
+
+export interface PredictorTotals {
+  picks: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  units: number;
+  updatedAt: number;
+}
+
 export type PredictorDayStatus = 'pending' | 'refreshing' | 'ready' | 'partial' | 'stale' | 'error';
 
 export interface PredictorDay {

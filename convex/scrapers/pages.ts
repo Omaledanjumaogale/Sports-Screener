@@ -26,6 +26,8 @@ export interface PageReadResult {
     | 'brightdata'
     | 'opencrab'
     | 'none';
+  /** 'html' = raw markup (structural parsers) · 'text' = converted markdown (text parsers). */
+  kind: 'html' | 'text';
 }
 
 const MIN_TEXT = 60;
@@ -35,14 +37,13 @@ export async function directRead(url: string, opts: { timeoutMs?: number } = {})
   // like BetExplorer 404 bare server fetches but serve a real page to a
   // Chrome-grade request.
   const r = await selfScrape(url, { timeoutMs: opts.timeoutMs ?? 20_000 });
-  return { ok: r.ok && r.text.trim().length >= MIN_TEXT, status: r.status, text: r.text, engine: 'direct' };
+  return { ok: r.ok && r.text.trim().length >= MIN_TEXT, status: r.status, text: r.text, engine: 'direct', kind: 'html' };
 }
 
-// Keyless relay tier (AllOrigins → Codetabs → keyless r.jina.ai) — beats
-// datacenter-IP bans without burning any credits.
+// Keyless relay tier (AllOrigins → Codetabs) — RAW HTML pass-through only.
 export async function relayRead(url: string, opts: { timeoutMs?: number } = {}): Promise<PageReadResult> {
   const r = await freeRelayRead(url, { timeoutMs: opts.timeoutMs ?? 25_000 });
-  return { ok: r.ok && r.text.trim().length >= MIN_TEXT, status: r.status, text: r.text, engine: 'relay' };
+  return { ok: r.ok && r.text.trim().length >= MIN_TEXT, status: r.status, text: r.text, engine: 'relay', kind: 'html' };
 }
 
 export async function readAny(url: string, opts: { timeoutMs?: number } = {}): Promise<PageReadResult> {
@@ -52,44 +53,45 @@ export async function readAny(url: string, opts: { timeoutMs?: number } = {}): P
   const direct = await directRead(url, { timeoutMs });
   if (direct.ok) return direct;
 
-  // 2. FREE — keyless public relays (different egress IPs).
+  // 2. FREE — keyless public relays (raw HTML, different egress IPs).
   const relay = await relayRead(url, { timeoutMs });
   if (relay.ok) return relay;
 
   // 3. KEYED — Jina Reader (keyless requests already tried above; the keyed
-  //    path unlocks higher RPM + selectors when credits exist).
+  //    path unlocks higher RPM + selectors when credits exist). Output is
+  //    MARKDOWN — routed to text-only parsers downstream.
   const jina = await jinaRead(url, { timeoutMs });
   if (jina.ok && jina.text && jina.text.trim().length >= MIN_TEXT) {
-    return { ok: true, status: jina.status, text: jina.text, engine: 'jina' };
+    return { ok: true, status: jina.status, text: jina.text, engine: 'jina', kind: 'text' };
   }
 
   // 4. KEYED — ScrapeGraphAI v2 stealth scrape (residential proxies; the best
   //    option against hard bot walls when the free tier is provisioned).
   const sg = await scrapegraphRead(url, { timeoutMs });
   if (sg.ok && sg.text.trim().length >= MIN_TEXT) {
-    return { ok: true, status: sg.status, text: sg.text, engine: 'scrapegraph' };
+    return { ok: true, status: sg.status, text: sg.text, engine: 'scrapegraph', kind: 'text' };
   }
 
   // 5-6. KEYED — Firecrawl / Bright Data (resume automatically when credits
-  //      return; no code change needed).
+  //      return; no code change needed). Bright Data serves raw HTML.
   const firecrawl = await firecrawlRead(url, timeoutMs);
   if (firecrawl.ok && firecrawl.text && firecrawl.text.trim().length >= MIN_TEXT) {
-    return { ok: true, status: firecrawl.status, text: firecrawl.text, engine: 'firecrawl' };
+    return { ok: true, status: firecrawl.status, text: firecrawl.text, engine: 'firecrawl', kind: 'text' };
   }
 
   const bd = await brightDataRead(url, timeoutMs);
   if (bd.ok && bd.text && bd.text.trim().length >= MIN_TEXT) {
-    return { ok: true, status: 200, text: bd.text, engine: 'brightdata' };
+    return { ok: true, status: 200, text: bd.text, engine: 'brightdata', kind: 'html' };
   }
 
   // 7. KEYED — OpenCrab (joins the chain automatically when the platform
   //    ships and OPENCRAB_API_KEY is provisioned).
   const oc = await opencrabRead(url, { timeoutMs });
   if (oc.ok && oc.text.trim().length >= MIN_TEXT) {
-    return { ok: true, status: oc.status, text: oc.text, engine: 'opencrab' };
+    return { ok: true, status: oc.status, text: oc.text, engine: 'opencrab', kind: 'text' };
   }
 
-  return { ok: false, status: 0, text: '', engine: 'none' };
+  return { ok: false, status: 0, text: '', engine: 'none', kind: 'html' };
 }
 
 export function squash(text: string, max = 4000): string {

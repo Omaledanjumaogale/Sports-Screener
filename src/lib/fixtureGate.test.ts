@@ -24,6 +24,9 @@ describe('plausibleTeamName — garbage that must NEVER be a fixture side', () =
     '3 - 1',                // scoreline
     '1X2',                  // market label
     'B365',                 // bookmaker code
+    'Estonia: Estonian Cup1X2  15:00Elva', // merged markdown fragment (colon + clock + market)
+    'CZECH REPUBLIC: 2. LIGA', // country: league prefix (colon)
+    'ITF MEN vs SINGLES: M25 PARDUBICE, CLAY 1 2', // merged section header
     'Standings',
     'Live scores'
   ];

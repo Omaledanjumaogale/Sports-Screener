@@ -14,8 +14,10 @@
   let inView = $state(true);
 
   onMount(() => {
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) return; // static fallback stays
+    // The 3D hero is the product centerpiece — it renders on ALL devices
+    // (product-owner requirement), including desktops whose OS reports
+    // reduced motion. Battery/pause guards remain: offscreen IO pause in the
+    // inner scene + rAF self-throttling in hidden tabs.
 
     const load = async () => {
       try {

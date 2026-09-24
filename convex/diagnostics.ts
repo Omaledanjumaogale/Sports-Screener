@@ -18,7 +18,7 @@ import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { readAny, type PageReadResult } from './scrapers/pages';
 import { parseFixtures } from './scrapers/fixtures';
-import { FIXTURE_PAGES, watTodayKey } from './scrapers/sources';
+import { FIXTURE_PAGES, fixturePagesFor, watTodayKey } from './scrapers/sources';
 
 type PageVerdict = 'healthy' | 'unparseable' | 'dead';
 
@@ -82,7 +82,14 @@ export const diagnoseFixturePages = action({
     const sports = args.sportId ? [args.sportId] : validSportIds;
     const jobs: { sportId: string; url: string }[] = [];
     for (const s of sports) {
-      for (const url of FIXTURE_PAGES[s] ?? []) jobs.push({ sportId: s, url });
+      // Same day-scoped page set the live scraper uses, so probing a future
+      // dayKey verifies the FUTURE slate's feed (not just today's).
+      for (const url of fixturePagesFor(s, dayKey)) jobs.push({ sportId: s, url });
+      // The generic fallback sources (Forebet etc.) are day-independent; probe
+      // them once so their health is still reported.
+      for (const url of FIXTURE_PAGES[s] ?? []) {
+        if (!jobs.some((j) => j.sportId === s && j.url === url)) jobs.push({ sportId: s, url });
+      }
     }
 
     const pages: FixturePageHealth[] = [];
@@ -107,7 +114,15 @@ export const diagnoseFixturePages = action({
         health.engine = page.engine;
         health.chars = (page.text || '').trim().length;
         if (page.ok && page.text && page.text.trim().length > 0) {
-          const parsed = parseFixtures(page.text, sportId, url, dayKey);
+          // Same trust policy as the live pipeline (scrapeRealFixtures): the
+          // FIXTURE_PAGES are sport-scoped roots, so a real "Country: League"
+          // header is authoritative. Without this, diagnostics under-reports
+          // sports whose minor-league rows only pass via header trust
+          // (volleyball cups, hockey alt leagues).
+          const parsed = parseFixtures(page.text, sportId, url, dayKey, {
+            sourceKind: page.kind,
+            trustLeagueHeaders: true
+          });
           health.matches = parsed.length;
           if (parsed.length > 0) {
             const first = parsed[0];

@@ -323,6 +323,9 @@
       <div class="header-actions">
         <ThemeToggle />
         {#if authState.isAuthenticated}
+          {#if authState.user?.isAdmin}
+            <a href="/admin" class="auth-btn admin-btn" title="AI performance data bank">Admin</a>
+          {/if}
           <button class="auth-btn logout-btn" onclick={() => {
             void convexSignOut().finally(() => setUnauthenticated());
           }}>
@@ -901,6 +904,14 @@
   .signup-btn:hover {
     background: color-mix(in srgb, var(--c-orange) 80%, white);
     transform: translateY(-1px);
+  }
+  .admin-btn {
+    background: color-mix(in srgb, var(--c-orange) 14%, transparent);
+    color: var(--c-orange);
+    border: 1px solid color-mix(in srgb, var(--c-orange) 38%, transparent);
+  }
+  .admin-btn:hover {
+    background: color-mix(in srgb, var(--c-orange) 26%, transparent);
   }
   .logout-btn {
     display: flex;

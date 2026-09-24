@@ -321,11 +321,8 @@
     .orbit-legend { font-size: 10px; }
   }
 
-  /* Reduce motion */
-  @media (prefers-reduced-motion: reduce) {
-    .ring-outer, .ring-inner, .agent-node, .emeka-node,
-    .pulse-ring-1, .pulse-ring-2 {
-      animation: none;
-    }
-  }
+  /* Motion note (product-owner requirement): the orbit is core landing motion
+     and must animate on EVERY device — desktops whose OS reports
+     prefers-reduced-motion included. No reduced-motion opt-out here; only
+     offscreen/hidden-tab pauses apply. */
 </style>

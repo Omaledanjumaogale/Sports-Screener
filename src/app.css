@@ -490,11 +490,17 @@ body {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 
-/* ── Reduced Motion — global guard ──────────────────────────── */
+/* ── Reduced Motion — content-transition guard ─────────────────
+   Scope note: the previous blanket `*` guard froze EVERYTHING — including the
+   landing hero 3D scene, agent orbit and aurora — on desktops whose OS reports
+   reduced motion (Windows "animation effects" off), which the product owner
+   explicitly wants animating on all devices. Content components (cards,
+   modals, transitions) keep their own per-component reduced-motion handling;
+   decorative landing motion always runs. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  .modal-backdrop, .modal-panel, .card-elevated, .btn, .field,
+  .icon-btn, .game-tab, .sort-btn, .link-btn, .nav-item, .chip {
     animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }

@@ -253,8 +253,19 @@ export const api = {
   predictorOrchestrator: {
     runRefresh: 'predictorOrchestrator:runRefresh'
   },
+  // Persisted AI-performance data bank (admin dashboard).
+  predictorStats: {
+    getSnapshot: 'predictorStats:getSnapshot',
+    getHistory: 'predictorStats:getHistory',
+    requestRecompute: 'predictorStats:requestRecompute'
+  },
+  predictorOps: {
+    purgeMalformedMatches: 'predictor:purgeMalformedMatches',
+    purgeWrongSportMatches: 'predictor:purgeWrongSportMatches'
+  },
   scores: {
-    triggerScoreSync: 'scores:triggerScoreSync'
+    triggerScoreSync: 'scores:triggerScoreSync',
+    getPredictorTotals: 'scores:getPredictorTotals'
   },
   presence: {
     update: 'presence:updatePresence',

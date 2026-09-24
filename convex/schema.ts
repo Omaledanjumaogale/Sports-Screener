@@ -217,6 +217,24 @@ export default defineSchema({
     .index('by_day_filter', ['dayKey', 'filter'])
     .index('by_filter', ['filter']),
 
+  // The AI-performance DATA BANK (predictorStats.ts). One row per (scope,
+  // dayKey): scope 'day' holds that day's accuracy / calibration / Great-Minds /
+  // verdict-ranking snapshot over FINISHED matches; scope 'lifetime' (dayKey '')
+  // holds the rolling aggregate re-derived from the stored day rows. Every
+  // score-sync cycle upserts the day row and rewrites the lifetime row, so the
+  // measured record of how the AI's predictions actually performed keeps growing
+  // instead of living only in the browser.
+  predictorStatsSnapshots: defineTable({
+    scope: v.union(v.literal('day'), v.literal('lifetime')),
+    dayKey: v.string(),
+    settledMatches: v.number(),
+    gradedPicks: v.number(),
+    data: v.any(),
+    updatedAt: v.number()
+  })
+    .index('by_scope_day', ['scope', 'dayKey'])
+    .index('by_day', ['dayKey', 'updatedAt']),
+
   userPreferences: defineTable({
     userId: v.string(),
     theme: v.union(v.literal('dark'), v.literal('light'), v.literal('system')),

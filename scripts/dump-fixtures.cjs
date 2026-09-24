@@ -24,12 +24,12 @@ async function main() {
   client.setAuth(tok);
   var today = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 10);
   var tomorrow = new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  var which = process.argv[2] === 'tomorrow' ? tomorrow : today;
   for (var s of SPORTS) {
     var rows = [];
-    try { rows = await client.query(anyApi.predictor.listMatches, { sportId: s, dayKey: today }); } catch (_) {}
-    if (!rows.length) { try { rows = await client.query(anyApi.predictor.listMatches, { sportId: s, dayKey: tomorrow }); } catch (_) {} }
+    try { rows = await client.query(anyApi.predictor.listMatches, { sportId: s, dayKey: which }); } catch (_) {}
     if (!rows.length) { console.log('== ' + s + ': EMPTY'); continue; }
-    console.log('== ' + s.toUpperCase() + ' (' + rows.length + ') ==');
+    console.log('== ' + s.toUpperCase() + ' (' + rows.length + ') [' + which + '] ==');
     rows.slice(0, 14).forEach(function (m) {
       console.log('  [' + m.source + '] ' + m.homeTeam + '  vs  ' + m.awayTeam + '  | league: ' + m.league);
     });

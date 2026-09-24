@@ -14,6 +14,7 @@ import { evaluateMatchWithJev } from './agents/jevEvaluator';
 import { evaluateJevPolicy, policySteering, type JevPolicyDecision } from './agents/jevPolicy';
 import { evaluateWithJev } from './jev';
 import { isFootballMatch, matchBelongsToSport, validateFixture } from './predictor';
+import { plausiblePair } from './scrapers/fixtures';
 import { assessDataQuality, hasRealOdds } from './scrapers/dataQuality';
 import { actionCacheKey } from './actionCache';
 import { requireMasterPassInAction } from './access';
@@ -82,10 +83,23 @@ async function executeRefresh(
       cap
     });
 
-    // Purge any misassigned/wrong sport matches stored under this sport tab
+    // Purge any misassigned/wrong sport matches stored under this sport tab,
+    // plus any malformed fixture row (merged markdown / league-standings text /
+    // odds labels) that predates the parser gates. The malformed sweep runs on
+    // EVERY cycle and across every dayKey — a poisoned future-day cache is
+    // sticky otherwise (an empty refresh cycle preserves the existing rows).
     try {
       await ctx.runMutation(internal.predictor.purgeWrongSportMatchesInternal, { sportId: args.sportId as any });
       await ctx.runMutation(internal.predictor.migrateNonFootballMatchesInternal, {});
+      const swept = await ctx.runMutation(internal.predictor.purgeMalformedMatchesInternal, {
+        sportId: args.sportId
+      });
+      if (swept.deleted > 0) {
+        console.log(
+          `[predictorOrchestrator] purged ${swept.deleted}/${swept.examined} malformed cached fixtures for ${args.sportId}`,
+          swept.samples
+        );
+      }
     } catch (e) {
       console.warn('[predictorOrchestrator] cleanup warning:', e);
     }
@@ -112,6 +126,13 @@ async function executeRefresh(
         const v = validateFixture(m, args.sportId);
         if (!v.valid) {
           noteBlocked(v.issues);
+          return null;
+        }
+        // Pair gate: both sides plausible AND genuinely distinct (a "fixture"
+        // whose sides equal each other, or where one contains the other, is
+        // navigation/standings text — never a match).
+        if (!plausiblePair(m.homeTeam, m.awayTeam)) {
+          noteBlocked([`malformed fixture pair "${m.homeTeam}" vs "${m.awayTeam}"`]);
           return null;
         }
         const q = qualityReport({ ...m, league: v.normalizedLeague || m.league });

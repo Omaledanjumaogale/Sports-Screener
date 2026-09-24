@@ -70,6 +70,13 @@ crons.interval('predictor-sync-live-scores', { minutes: 15 }, internal.scores.sy
 // statuses to 'finished', and settles PnL historical summaries.
 crons.interval('predictor-sync-past-history', { minutes: 720 }, internal.scores.syncPastHistoryAction, {});
 
+// ── AI performance data bank — hourly recompute ───────────────────────────────
+// Re-derives today's accuracy / calibration / Great-Minds / verdict-ranking
+// snapshot and the lifetime aggregate from stored results, so the measurement
+// record stays current even on days when no match finishes during a score-sync
+// window. Idempotent: day rows are upserted, the lifetime row is recomputed.
+crons.interval('predictor-stats-snapshot', { minutes: 60 }, internal.predictorStats.recomputeStatsSnapshot, {});
+
 // ── Realtime presence sweep — every 10 minutes ───────────────────────────────
 // Removes heartbeat rows older than the presence window so the online counter
 // stays accurate and the table never accumulates stale sessions.

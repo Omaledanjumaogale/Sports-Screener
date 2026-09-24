@@ -5,7 +5,7 @@
 // module never fabricates matches.
 
 import { readAny } from './pages';
-import { FIXTURE_PAGES, PRIMARY_SOURCE_URLS } from './sources';
+import { PRIMARY_SOURCE_URLS, fixturePagesFor } from './sources';
 import { type ScrapeMatch } from './betwatch';
 import { matchBelongsToSport, serverLeagueBelongsToSport, serverCanonicalizeLeague } from '../predictor';
 
@@ -96,6 +96,10 @@ function looksLikeTeam(name: string): boolean {
   // Relay transports return alternate page variants whose navigation bars,
   // standings tables and competition menus were previously read as "teams"
   // ("Prva Liga  vs  RS 0", "Hockey  vs  Next 10 matches").
+  // Merged markdown fragments carry these fingerprints:
+  //   · a colon (country/league prefix merged in: "Estonia: Estonian Cup…")
+  //   · a kickoff clock ("15:00Elva") or market labels ("1X2", "1 2")
+  if (/:\S/.test(n) || /\d{1,2}:\d{2}/.test(n) || /\b1x2\b/i.test(n)) return false;
   if (!plausibleTeamName(n)) return false;
   return true;
 }
@@ -103,7 +107,7 @@ function looksLikeTeam(name: string): boolean {
 // Competition / navigation vocabulary. A label built from these tokens is a
 // league, table group, or UI link — NEVER a team or player.
 const COMPETITION_OR_NAV_TOKENS =
-  /^(?:liga|ligue|serie|serias?|divisions?|div|groups?|grupa|leagues?|premiership|premier|championships?|championnat|cups?|superliga|superlig|superleague|superligue|prva|druga|treca|cetvrta|petnaest|regional|regionalliga|oberliga|landesliga|bezirksliga|klass|klassa|divisio|divisao|poule|pools?|section|segments?|conference|reserves?|youth|u\d{2}|women|men|femenino|feminino|next|previous|yesterday|todays?|tomorrow|results?|fixtures?|matches?|schedule|calendar|more|view|all|news|tips?|predictions?|odds|live|scores?|standings?|tables?|hockey|football|soccer|volleyball|basketball|tennis|baseball|cricket|rugby|mma|ufc|basket|futbal|fussball|fotbal|fodbold|fotball|jalkapallo|fotboll|futbolo|futbols|playoffs?|play.?out|relegation|promotion|qualifications?|friendly|friendlies|shield|trophy|bundesliga|eredivisie|handball|futsal|waterpolo|snooker|darts|esports|a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|ii|iii|iv|vi|vii|viii|ix|xi|xii)$/i;
+  /^(?:liga|ligue|serie|serias?|divisions?|div|groups?|grupa|leagues?|premiership|premier|championships?|championnat|cups?|superliga|superlig|superleague|superligue|prva|druga|treca|cetvrta|petnaest|regional|regionalliga|oberliga|landesliga|bezirksliga|klass|klassa|divisio|divisao|poule|pools?|section|segments?|conference|reserves?|youth|u\d{2}|women|men|femenino|feminino|next|previous|yesterday|todays?|tomorrow|results?|fixtures?|matches?|schedule|calendar|more|view|all|news|tips?|predictions?|odds|live|scores?|standings?|tables?|hockey|football|soccer|volleyball|basketball|tennis|baseball|cricket|rugby|mma|ufc|basket|futbal|fussball|fotbal|fodbold|fotball|jalkapallo|fotboll|futbolo|futbols|playoffs?|play.?out|relegation|promotion|qualifications?|friendly|friendlies|shield|trophy|bundesliga|eredivisie|handball|futsal|waterpolo|snooker|darts|esports|national|first|second|third|fourth|amateur|elite|honou?r|district|county|state|inter|reserve|a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|ii|iii|iv|vi|vii|viii|ix|xi|xii)$/i;
 
 /**
  * Is this a plausible TEAM/PLAYER name?
@@ -118,6 +122,12 @@ export function plausibleTeamName(name: string): boolean {
   const n = name.trim();
   if (!n) return false;
   if (/\bvs\b|\bv\b\s|—|–/i.test(n)) return false; // merged fixture line, not a team
+  // Merged markdown fingerprints: a colon (country/league prefix merged in —
+  // real team/player names never contain colons), a kickoff clock
+  // ("15:00Elva"), or market labels ("1X2").
+  if (/:/.test(n)) return false;
+  if (/\d{1,2}:\d{2}/.test(n)) return false;
+  if (/\b1x2\b/i.test(n)) return false;
 
   const rawWords = n.split(/\s+/);
   const words = rawWords
@@ -441,6 +451,116 @@ function parseBetexplorerHtml(text: string, sportId: string, sourceUrl: string, 
   return out;
 }
 
+// ── BetExplorer "msv2" / next-page TABLE rows ────────────────────────────────
+// Basketball, tennis, hockey, baseball and volleyball render their /next/ pages
+// as <tr> tables (soccer uses the <ul> list structure handled above), with a
+// different row shape from the legacy football root tables:
+//
+//   <tr data-fro="0" data-dt="25,9,2026,0,00" data-def="1" data-dt-now="…">
+//     <td class="table-main__tt">
+//       <span class="table-main__time">00:00</span>
+//       <a href="/basketball/chile/lnb/ancud-puerto-montt/6qy8POOs/"
+//          class="table-main__teamsLink table-main__teamsLink--msv2">
+//         <span class="table-main__teamLine table-main__teamLine--home">Ancud</span>
+//         <span class="table-main__teamLine table-main__teamLine--away">Puerto Montt</span>
+//       </a></td>
+//     <td class="table-main__result"><a href="…"><strong>65:83</strong></a></td>  ← finished
+//     <td class="table-main__odds " data-oid="…"><button data-odd="1.56"></button></td>
+//
+// Some sports (volleyball) instead put the sides inside the link as
+// <span>Home</span> - <span>Away</span>. Both shapes are handled here. Rows are
+// only fixtures when the <tr> itself carries data-dt AND a real league header
+// (js-tournament) or match link provides the sport context; finished rows
+// (table-main__result / --fin) are skipped so results never enter a fixture
+// cache, and the row's own date must equal the target dayKey.
+const TEAM_HOME_RE = /<span class="table-main__teamLine[^"]*--home[^"]*">([\s\S]*?)<\/span>/;
+const TEAM_AWAY_RE = /<span class="table-main__teamLine[^"]*--away[^"]*">([\s\S]*?)<\/span>/;
+const TT_CELL_RE = /<td class="table-main__tt"[\s\S]*?<\/td>/;
+const TEAMS_LINK_RE = /<a[^>]*class="table-main__teamsLink[^"]*"[^>]*>([\s\S]*?)<\/a>/;
+// Some sports (volleyball) render the sides inside a PLAIN anchor —
+// <a href="..."><span>Home</span> - <span>Away</span></a> — with no teamsLink class.
+const ANY_LINK_RE = /<a[^>]*>([\s\S]*?)<\/a>/;
+
+function stripTags(html: string): string {
+  return String(html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function teamsFromCell(cell: string): { home: string; away: string } {
+  const h = cell.match(TEAM_HOME_RE);
+  const a = cell.match(TEAM_AWAY_RE);
+  if (h && a) return { home: clean(stripTags(h[1])), away: clean(stripTags(a[1])) };
+  const link = cell.match(TEAMS_LINK_RE) ?? cell.match(ANY_LINK_RE);
+  if (link) {
+    const text = stripTags(link[1]);
+    const parts = text.split(/\s+-\s+/);
+    if (parts.length >= 2) {
+      return { home: clean(parts[0]), away: clean(parts.slice(1).join(' - ')) };
+    }
+  }
+  return { home: '', away: '' };
+}
+
+export function parseBetexplorerNextTable(
+  text: string,
+  sportId: string,
+  sourceUrl: string,
+  dayKey?: string
+): ScrapeMatch[] {
+  const out: ScrapeMatch[] = [];
+  let currentLeague = '';
+  const rows = (text || '').match(/<tr[^>]*>[\s\S]*?<\/tr>/g) ?? [];
+
+  const tourneyRe = /class="table-main__tournament"[^>]*>([\s\S]*?)<\/a>/;
+  const oddRe = /data-odd="(\d+\.\d{1,3})"/g;
+
+  for (const row of rows) {
+    // League / tournament header row resets the current league context.
+    const tm = row.match(tourneyRe);
+    if (tm) {
+      const label = clean(stripTags(tm[1]));
+      if (label && label.length >= 3 && label.length <= 80) currentLeague = label;
+      continue;
+    }
+
+    const openTag = row.slice(0, row.indexOf('>') + 1);
+    const dt = openTag.match(/data-dt="([^"]+)"/);
+    if (!dt) continue;
+    // Finished rows carry a score cell — never cache a result as a fixture.
+    if (/table-main__result|table-main__time--fin/.test(row)) continue;
+    // The row's own WAT date is authoritative.
+    const rowDay = dataDtWatDay(dt[1]);
+    if (dayKey && rowDay && rowDay !== dayKey) continue;
+
+    const cell = row.match(TT_CELL_RE)?.[0] ?? '';
+    if (!cell) continue;
+    const { home, away } = teamsFromCell(cell);
+    if (!home || !away) continue;
+    if (!plausiblePair(home, away)) continue;
+
+    const lg = currentLeague.toLowerCase();
+    if (lg && (home.toLowerCase() === lg || away.toLowerCase() === lg)) continue;
+
+    const odds: number[] = [];
+    let om;
+    while ((om = oddRe.exec(row)) && odds.length < 6) {
+      const v = Number(om[1]);
+      if (v >= 1.01 && v <= 15) odds.push(v);
+    }
+
+    out.push({
+      source: 'LiveScrape',
+      sourceUrl,
+      league: currentLeague || SPORT_LABELS[sportId] || 'Scheduled Fixture',
+      homeTeam: home,
+      awayTeam: away,
+      startTime: startTimeFromDataDt(dt[1], row.match(/table-main__time">\s*(\d{1,2}:\d{2})/)?.[1] ?? ''),
+      markets: ['mainTotal', 'result'],
+      oddsText: odds.slice(0, 3).map((n) => n.toFixed(2)).join(', ')
+    });
+  }
+  return out;
+}
+
 // BetExplorer data-dt "D,M,YYYY,H,MM" → WAT-anchored epoch. BetExplorer renders
 // its server-side clock in West Africa Time by default (its own JS falls back to
 // timezone_key "+1" = WAT), so the scraped wall-clock is treated as WAT (UTC+1)
@@ -485,10 +605,19 @@ export function parseFixtures(
   sportId: string,
   sourceUrl: string,
   dayKey?: string,
-  opts?: { trustLeagueHeaders?: boolean }
+  opts?: { trustLeagueHeaders?: boolean; sourceKind?: 'html' | 'text' }
 ): ScrapeMatch[] {
   const seen = new Set<string>();
   const out: ScrapeMatch[] = [];
+  // Parser routing by content kind: raw HTML feeds the STRUCTURAL parsers
+  // (real row markup required); converted markdown/text feeds the TEXT
+  // parsers only. Mixing them is what produced merged-line garbage
+  // ("Estonia: Estonian Cup1X2 15:00Elva") from markdown-converted pages.
+  // Default (tests/back-compat): run all parsers.
+  const kind = opts?.sourceKind ?? 'all';
+  const runHtml = kind === 'all' || kind === 'html';
+  const runText = kind === 'all' || kind === 'text';
+
   const push = (m: ScrapeMatch) => {
     // Defense in depth: EVERY fixture from EVERY parser must be a plausible
     // real-team pair before it can enter the cache.
@@ -496,7 +625,21 @@ export function parseFixtures(
     const canonLeague = serverCanonicalizeLeague(m.league || '', sportId) || (m.league || '');
     const key = `${sportId}|${canonLeague}|${m.homeTeam}|${m.awayTeam}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
     if (seen.has(key)) return;
-    if (!serverLeagueBelongsToSport(canonLeague || m.league || '', sportId)) return;
+    const rawLeagueLabel = String(m.league || '').trim();
+    const headerTrusted =
+      opts?.trustLeagueHeaders &&
+      !!canonLeague &&
+      /^[^:]{2,60}:\s*\S/.test(rawLeagueLabel) &&
+      rawLeagueLabel !== (SPORT_LABELS[sportId] || '') &&
+      !UNKNOWN_LABELS.test(rawLeagueLabel);
+    // A real "Country: League" header on a sport-scoped page pins BOTH the
+    // league identity and the sport — re-running the keyword gates here would
+    // only re-drop minor-league teams the famous-name fingerprints don't know
+    // ("World: Pan-American Cup Final Six Women" volleyball rows). Headerless
+    // or generic-label rows still pass through BOTH strict gates.
+    if (!headerTrusted) {
+      if (!serverLeagueBelongsToSport(canonLeague || m.league || '', sportId)) return;
+    }
     // When the page is a sport-scoped directory (e.g. betexplorer.com/football/)
     // and the row carries a REAL tournament header, the league gate above is the
     // authority — the header text itself pins the sport, so unknown minor-league
@@ -508,27 +651,30 @@ export function parseFixtures(
     // its js-tournament rows emit, e.g. "Asia: AFC Champions League") are trusted
     // — a bare league label with no country prefix still needs the keyword gate,
     // so a generic "World: Club Friendly"-style row can never bypass it.
-    const hasRealLeagueHeader =
-      opts?.trustLeagueHeaders &&
-      !!canonLeague &&
-      canonLeague.includes(':') &&
-      canonLeague !== (SPORT_LABELS[sportId] || '') &&
-      !UNKNOWN_LABELS.test(canonLeague);
-    if (!hasRealLeagueHeader && !matchBelongsToSport({ league: canonLeague || m.league, homeTeam: m.homeTeam, awayTeam: m.awayTeam, source: m.source }, sportId)) return;
+    // The header test runs on the RAW page label ("Chile: LNB"), not on the
+    // canonicalized one: canonicalization collapses "Chile: LNB" to the league
+    // code "LNB", which has no colon — testing the canonical form silently
+    // disabled this trust path for every non-football sport, so basketball,
+    // hockey, tennis, baseball and volleyball rows from their own sport-scoped
+    // pages were dropped for lacking a famous-name fingerprint.
+    if (!headerTrusted && !matchBelongsToSport({ league: canonLeague || m.league, homeTeam: m.homeTeam, awayTeam: m.awayTeam, source: m.source }, sportId)) return;
     seen.add(key);
     out.push(m);
   };
 
-  // 0a. BetExplorer /next/ breadth pages (list structure — all leagues, all days).
-  for (const m of parseBetexplorerNext(text, sportId, sourceUrl, dayKey)) push(m);
-  // 0. BetExplorer raw-HTML tables (free direct-fetch path — no reader credits).
-  for (const m of parseBetexplorerHtml(text, sportId, sourceUrl, dayKey)) push(m);
-  // 1. BetExplorer-style markdown tables.
-  for (const m of parseBetexplorer(text, sportId, sourceUrl, dayKey)) push(m);
-  // 2. SoccerVista-style markdown-link rows.
-  for (const m of parseSoccervista(text, sportId, sourceUrl, dayKey)) push(m);
-  // 3. Generic "TeamA vs TeamB" lines.
-  for (const m of parseVsLines(text, sportId, sourceUrl, dayKey)) push(m);
+  // 0a. BetExplorer /next/ breadth pages (list structure — all leagues, all days). HTML only.
+  if (runHtml) for (const m of parseBetexplorerNext(text, sportId, sourceUrl, dayKey)) push(m);
+  // 0. BetExplorer raw-HTML tables (free direct-fetch path — no reader credits). HTML only.
+  if (runHtml) for (const m of parseBetexplorerHtml(text, sportId, sourceUrl, dayKey)) push(m);
+  // 0b. BetExplorer next-page TABLE rows (msv2 markup: basketball, tennis,
+  //     hockey, baseball, volleyball). HTML only.
+  if (runHtml) for (const m of parseBetexplorerNextTable(text, sportId, sourceUrl, dayKey)) push(m);
+  // 1. BetExplorer-style markdown tables. Text only.
+  if (runText) for (const m of parseBetexplorer(text, sportId, sourceUrl, dayKey)) push(m);
+  // 2. SoccerVista-style markdown-link rows. Text only.
+  if (runText) for (const m of parseSoccervista(text, sportId, sourceUrl, dayKey)) push(m);
+  // 3. Generic "TeamA vs TeamB" lines. Text only.
+  if (runText) for (const m of parseVsLines(text, sportId, sourceUrl, dayKey)) push(m);
 
   return out;
 }
@@ -572,6 +718,12 @@ function parseVsLines(text: string, sportId: string, sourceUrl: string, dayKey?:
         if (pi === 2) {
           if (/^\d/.test(h) || /^\d/.test(a)) continue;
           if (/[—\-|#*]/.test(h) || /[—\-|#*]/.test(a)) continue;
+          // A bare "A - B" line is only a FIXTURE when it also carries bookmaker
+          // odds or a kickoff clock. Converted markdown turns competition menus
+          // and league indexes into exactly this shape ("National Division 1 -
+          // ACFF 2", "Belgium 8") — no odds, no clock — and those were reaching
+          // the cache as fixtures with a league name on one side.
+          if (!oddsFrom(line).length && !/^\d{1,2}:\d{2}/.test(line)) continue;
         }
         if (looksLikeTeam(h) && looksLikeTeam(a) && !['0', '1', '2', '3'].includes(h) && !['0', '1', '2', '3'].includes(a)) {
           home = h;
@@ -602,15 +754,24 @@ function parseVsLines(text: string, sportId: string, sourceUrl: string, dayKey?:
   return out;
 }
 
-function dedupe(matches: ScrapeMatch[], sportId: string): ScrapeMatch[] {
+function dedupe(matches: ScrapeMatch[], sportId: string, opts?: { trustLeagueHeaders?: boolean }): ScrapeMatch[] {
   const seen = new Set<string>();
   const out: ScrapeMatch[] = [];
   for (const m of matches) {
     const canonLeague = serverCanonicalizeLeague(m.league || '', sportId) || (m.league || '');
     const key = `${sportId}|${canonLeague}|${m.homeTeam}|${m.awayTeam}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
     if (seen.has(key)) continue;
-    if (!serverLeagueBelongsToSport(canonLeague || m.league || '', sportId)) continue;
-    if (!matchBelongsToSport({ league: canonLeague || m.league, homeTeam: m.homeTeam, awayTeam: m.awayTeam, source: m.source }, sportId)) continue;
+    const rawLeagueLabel = String(m.league || '').trim();
+    const headerTrusted =
+      opts?.trustLeagueHeaders &&
+      !!canonLeague &&
+      /^[^:]{2,60}:\s*\S/.test(rawLeagueLabel) &&
+      rawLeagueLabel !== (SPORT_LABELS[sportId] || '') &&
+      !UNKNOWN_LABELS.test(rawLeagueLabel);
+    if (!headerTrusted) {
+      if (!serverLeagueBelongsToSport(canonLeague || m.league || '', sportId)) continue;
+      if (!matchBelongsToSport({ league: canonLeague || m.league, homeTeam: m.homeTeam, awayTeam: m.awayTeam, source: m.source }, sportId)) continue;
+    }
     seen.add(key);
     out.push(m);
   }
@@ -643,7 +804,12 @@ export async function scrapeRealFixtures(sportId: string, dayKey?: string): Prom
   // directory sources (news, operators, blogs, registry homepages) stay
   // available for research/citations but are never fed to the row parsers —
   // generic pages are the #1 source of cross-sport mislabelled fixtures.
-  const urls = FIXTURE_PAGES[sportId] ?? [];
+  //
+  // fixturePagesFor() prepends the DAY-SCOPED breadth feed for non-today
+  // dayKeys (/next/<sport>/?day=&month=&year=), which is what makes tomorrow's
+  // (and every later day's) cache fill from the same structural pages with the
+  // same gates as today — instead of being empty or fed by generic text pages.
+  const urls = fixturePagesFor(sportId, dayKey);
   const pagesFetched: RealFixturesResult['pagesFetched'] = [];
   const collected: ScrapeMatch[] = [];
 
@@ -654,11 +820,19 @@ export async function scrapeRealFixtures(sportId: string, dayKey?: string): Prom
     // trustLeagueHeaders: FIXTURE_PAGES are sport-scoped roots (betexplorer.com/football/),
     // so rows under a real tournament header are authoritative for this sport even
     // when their minor-league team names aren't in the famous-name keyword lists.
-    const parsed = parseFixtures(page.text, sportId, url, dayKey, { trustLeagueHeaders: true });
+    // sourceKind routes raw HTML to the structural parsers and converted
+    // markdown/text to the text parsers — never mixed.
+    const parsed = parseFixtures(page.text, sportId, url, dayKey, {
+      trustLeagueHeaders: true,
+      sourceKind: page.kind
+    });
     if (parsed.length > 0) collected.push(...parsed);
   });
 
-  const matches = dedupe(collected, sportId);
+  // Same header-trust policy as the parsers: scrapeRealFixtures only ever
+  // reads the sport-scoped FIXTURE_PAGES, so a real colon-format league header
+  // is authoritative in the dedupe pass too.
+  const matches = dedupe(collected, sportId, { trustLeagueHeaders: true });
   const citations = matches.map((m) => m.sourceUrl).filter((u) => u && !PRIMARY_SOURCE_URLS.includes(u));
   return {
     matches,

@@ -6,7 +6,7 @@ import { query, mutation, action, internalMutation, internalAction, internalQuer
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { watTodayKey } from './scrapers/sources';
-import { plausibleTeamName } from './scrapers/fixtures';
+import { plausiblePair, plausibleTeamName } from './scrapers/fixtures';
 import { enforceRateLimit } from './rateLimit';
 import { requireMasterPass, requireAdmin } from './access';
 import { logAuditEvent } from './auditLog';
@@ -40,6 +40,21 @@ const runStatus = v.union(
   v.literal('complete'),
   v.literal('error')
 );
+
+// Every supported predictor sport, as a plain list for sweeps/loops.
+export const PREDICTOR_SPORT_ID_LIST = [
+  'football',
+  'basketball',
+  'tennis',
+  'rally',
+  'hockey',
+  'baseball',
+  'americanfootball',
+  'rugby',
+  'cricket',
+  'mma',
+  'volleyball'
+] as const;
 
 // ── Per-sport keyword fingerprints ────────────────────────────────────────────
 // Each entry is a list of WORD-BOUNDARY phrases that POSITIVELY identify a
@@ -554,6 +569,32 @@ export const getVerdictInternal = internalQuery({
       .query('predictorVerdicts')
       .withIndex('by_day_match', (q) => q.eq('dayKey', args.dayKey).eq('matchId', args.matchId))
       .first();
+  }
+});
+
+// Every stored verdict for one (sport, day) — powers the persisted accuracy /
+// calibration snapshot (predictorStats.ts). Read-only, no auth context: it is
+// only ever called from the internal recompute action.
+export const getVerdictsForDay = internalQuery({
+  args: { sportId, dayKey: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('predictorVerdicts')
+      .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey))
+      .take(400);
+  }
+});
+
+// The persisted per-day P&L rows (ALL / MONEYLINE / SPREAD / TOTAL) written by
+// the settlement engine — embedded in each day's accuracy snapshot so the
+// "Daily Performance & Consensus Summary" is stored in one place.
+export const getDailyPnlRows = internalQuery({
+  args: { dayKey: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('aiPredictorStats')
+      .withIndex('by_day', (q) => q.eq('dayKey', args.dayKey))
+      .take(24);
   }
 });
 
@@ -1326,6 +1367,77 @@ export const purgeWrongSportMatches = mutation({
       }
     }
     return { sportId: args.sportId, examined: all.length, deleted, kept };
+  }
+});
+
+// ── Malformed-fixture purge ───────────────────────────────────────────────────
+// Scans the cached matches for a sport (every day, including FUTURE days) and
+// deletes any row whose two sides are not a plausible, genuinely distinct
+// team/player pair — the fingerprints of merged markdown lines, league/standings
+// rows and odds labels ("Estonia: Estonian Cup1X2 15:00Elva", "Prva Liga" vs
+// "RS 0", "Hockey" vs "Next 10 matches").
+//
+// Why this matters: a poisoned cache is sticky. refresh preserves an existing
+// day's rows whenever a cycle returns nothing usable (so a kicked-off slate is
+// never wiped), which means garbage written BEFORE the parser gates existed
+// would otherwise live on under a future dayKey forever. This sweep evicts it on
+// every cycle, so tomorrow's slate can only ever hold validated fixtures.
+async function purgeMalformedForSport(ctx: any, sportId: string) {
+  const all = await ctx.db
+    .query('predictorMatches')
+    .withIndex('by_sport_day', (q: any) => q.eq('sportId', sportId as any))
+    .collect();
+  let deleted = 0;
+  const samples: string[] = [];
+  for (const m of all) {
+    if (plausiblePair(m.homeTeam, m.awayTeam)) continue;
+    if (samples.length < 5) samples.push(`${m.dayKey}: "${m.homeTeam}" vs "${m.awayTeam}"`);
+    const verdict = await ctx.db
+      .query('predictorVerdicts')
+      .withIndex('by_day_match', (q: any) => q.eq('dayKey', m.dayKey).eq('matchId', m.matchId))
+      .first();
+    if (verdict) await ctx.db.delete(verdict._id);
+    await ctx.db.delete(m._id);
+    deleted++;
+  }
+  return { sportId, examined: all.length, deleted, samples };
+}
+
+export const purgeMalformedMatchesInternal = internalMutation({
+  args: { sportId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const sports = args.sportId ? [args.sportId] : [...PREDICTOR_SPORT_ID_LIST];
+    const results = [];
+    for (const s of sports) results.push(await purgeMalformedForSport(ctx, s));
+    return {
+      examined: results.reduce((n, r) => n + r.examined, 0),
+      deleted: results.reduce((n, r) => n + r.deleted, 0),
+      samples: results.flatMap((r) => r.samples).slice(0, 10)
+    };
+  }
+});
+
+// Admin/ops entry point (super admin only) for the same sweep.
+export const purgeMalformedMatches = mutation({
+  args: { sportId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const access = await requireAdmin(ctx);
+    const sports = args.sportId ? [args.sportId] : [...PREDICTOR_SPORT_ID_LIST];
+    const results = [];
+    for (const s of sports) results.push(await purgeMalformedForSport(ctx, s));
+    const deleted = results.reduce((n, r) => n + r.deleted, 0);
+    await logAuditEvent(
+      ctx,
+      access.email,
+      'predictor.purgeMalformedMatches',
+      args.sportId ?? 'all',
+      { deleted }
+    );
+    return {
+      examined: results.reduce((n, r) => n + r.examined, 0),
+      deleted,
+      samples: results.flatMap((r) => r.samples).slice(0, 10)
+    };
   }
 });
 

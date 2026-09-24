@@ -327,6 +327,59 @@ export const FIXTURE_PAGES: Record<string, string[]> = {
     'https://www.betexplorer.com/volleyball/'
   ]
 };
+// ── Day-scoped breadth feeds (the FUTURE-SLATE source) ───────────────────────
+// The static /next/<sport>/ pages above are TODAY's board: BetExplorer renders
+// them with data-dt stamps for the current day only (verified 2026-09-24 — the
+// soccer /next/ page carried 125/125 rows dated today). That is exactly why a
+// tomorrow (or +N day) cache came back empty, and why whatever leaked through
+// from generic/markdown pages looked like nonsense.
+//
+// /next/<sport>/ accepts a day-scoped view — /next/soccer/?day=25&month=9&
+// &year=2026 returns that day's board (131/131 rows dated 25 Sep) and the
+// multi-day sports (basketball, hockey, baseball, volleyball) return a window
+// containing the requested day, which the parsers' own data-dt day filter then
+// narrows to exactly the target day. So every cache day — today, tomorrow and
+// beyond — is filled from the SAME structural feed with the SAME quality gates,
+// instead of today's rows being dropped or re-stamped onto another day.
+const BETEXPLORER_NEXT_SLUG: Record<string, string> = {
+  football: 'soccer',
+  basketball: 'basketball',
+  tennis: 'tennis',
+  hockey: 'hockey',
+  baseball: 'baseball',
+  volleyball: 'volleyball'
+};
+
+/**
+ * BetExplorer day-scoped fixtures URL for a WAT dayKey ('YYYY-MM-DD').
+ * Returns '' for sports BetExplorer has no breadth page for (rally, rugby,
+ * cricket, mma, americanfootball — those stay API-fed) and for malformed keys.
+ */
+export function betexplorerDayUrl(sportId: string, dayKey: string): string {
+  const slug = BETEXPLORER_NEXT_SLUG[sportId];
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dayKey || ''));
+  if (!slug || !m) return '';
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (year < 2000 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return '';
+  return `https://www.betexplorer.com/next/${slug}/?day=${day}&month=${month}&year=${year}`;
+}
+
+/**
+ * Fixture pages to parse for one cache day. The day-scoped breadth feed is
+ * listed FIRST for any day other than today (today's static /next/ page IS
+ * today's board, so no extra fetch is spent); the static sport roots follow so
+ * day-overlapping rows are still picked up from them.
+ */
+export function fixturePagesFor(sportId: string, dayKey?: string): string[] {
+  const base = FIXTURE_PAGES[sportId] ?? [];
+  if (!dayKey || dayKey === watTodayKey()) return base;
+  const dayUrl = betexplorerDayUrl(sportId, dayKey);
+  if (!dayUrl || base.includes(dayUrl)) return base;
+  return [dayUrl, ...base];
+}
+
 export const MINOR_LEAGUES: { name: string; code: string }[] = [
   // Football — Europe
   { name: 'Eredivisie (Netherlands)', code: 'NED-1' },

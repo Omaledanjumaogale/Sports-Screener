@@ -50,30 +50,15 @@ async function viaCodetabs(url: string, timeoutMs: number): Promise<RelayResult>
   }
 }
 
-// r.jina.ai KEYLESS — Jina Reader allows unauthenticated requests (~20 RPM).
-// The keyed jinaRead transport stays the premium path; this is the free leg.
-async function viaJinaKeyless(url: string, timeoutMs: number): Promise<RelayResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(`https://r.jina.ai/${url}`, {
-      headers: { Accept: 'text/plain', 'X-Return-Format': 'text' },
-      signal: controller.signal
-    });
-    const text = clean(await res.text().catch(() => ''));
-    // 429/451 on the keyless tier — the caller falls through to the next relay.
-    return { ok: res.ok && text.length > 0, status: res.status, text, relay: 'jina-keyless' };
-  } catch {
-    return { ok: false, status: 0, text: '', relay: 'jina-keyless' };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+// r.jina.ai KEYLESS removed from this tier INTENTIONALLY: it returns
+// MARKDOWN/text, and converted text fed the fixture parsers merged-line
+// garbage ("Estonia: Estonian Cup1X2 15:00Elva - Tallinna Kalev"). The relay
+// tier serves RAW HTML only. (Keyed Jina remains available as a later leg for
+// challenge-walled sites; its output is routed to text-only parsers.)
 
 const RELAYS: Array<(url: string, timeoutMs: number) => Promise<RelayResult>> = [
   viaAllOrigins,
-  viaCodetabs,
-  viaJinaKeyless
+  viaCodetabs
 ];
 
 /** Try every keyless relay in order. Never throws. */

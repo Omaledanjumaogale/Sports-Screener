@@ -7,6 +7,13 @@ import { internal, api } from './_generated/api';
 import { v } from 'convex/values';
 import { fetchScoresForDate, fetchHtmlResultScores, scoreIsPlausible } from './apis/sportsApis';
 import { watTodayKey, watDayKeyFor } from './scrapers/sources';
+import {
+  SETTLE_FILTERS,
+  gradeSelection,
+  marketFilterOf,
+  parseScore,
+  type SelectionGrade as Grade
+} from './predictorGrading';
 import { enforceRateLimit } from './rateLimit';
 import { requireMasterPass } from './access';
 import { logAuditEvent } from './auditLog';
@@ -262,98 +269,10 @@ export const sanitizeImplausibleScores = internalMutation({
 // top-3 selection against the real final score and persists per-day summary
 // stats into aiPredictorStats so the Daily PnL summary renders even before the
 // browser recomputes it client-side.
-
-type Grade = 'win' | 'loss' | 'push' | null;
-
-function parseScore(score?: string | null): { home: number; away: number } | null {
-  if (!score) return null;
-  const m = String(score).trim().match(/^(\d+)\s*[-:]\s*(\d+)$/);
-  if (!m) return null;
-  return { home: Number(m[1]), away: Number(m[2]) };
-}
-
-function isWinnerMarket(market: string): boolean {
-  return /winner|moneyline|result|matchwinner|regresult|1x2|match.?.?.?.?winner/i.test(market);
-}
-function isSpreadMarket(market: string): boolean {
-  return /handicap|spread|line|puck|runline|sell/i.test(market);
-}
-function isTotalMarket(market: string): boolean {
-  return /total|over.?under|main|homeAway|game|set.?total|points|goals|runs/i.test(market) && !isSpreadMarket(market);
-}
-function extractThreshold(text: string): number | null {
-  const m = String(text).match(/(-?\d+(?:\.\d+)?)/);
-  return m ? Number(m[1]) : null;
-}
-
-function gradeSelection(
-  selection: string,
-  market: string,
-  finalScore?: string | null,
-  opts?: { homeTeam?: string; awayTeam?: string }
-): Grade {
-  const score = parseScore(finalScore);
-  if (!score) return null;
-
-  const lower = String(market || '').toLowerCase();
-  const sel = String(selection || '');
-
-  if (isTotalMarket(lower)) {
-    const side = /home/.test(lower) ? score.home : /away/.test(lower) ? score.away : score.home + score.away;
-    const threshold = extractThreshold(sel);
-    if (threshold == null) return null;
-    if (/(^|\s)over[\s\S]*/i.test(sel)) {
-      if (side > threshold) return 'win';
-      if (side === threshold) return 'push';
-      return 'loss';
-    }
-    if (side < threshold) return 'win';
-    if (side === threshold) return 'push';
-    return 'loss';
-  }
-
-  if (isWinnerMarket(lower)) {
-    const lowerSel = sel.toLowerCase();
-    const home = opts?.homeTeam?.toLowerCase();
-    const away = opts?.awayTeam?.toLowerCase();
-    if (/(^|\s)draw/i.test(lowerSel)) {
-      return score.home === score.away ? 'win' : 'loss';
-    }
-    const isHome = home ? lowerSel.includes(home) : /home|^\d\s|\bteam\s*a\b|^1\b/i.test(lowerSel);
-    const isAway = isHome ? false : away ? lowerSel.includes(away) : /away|team\s*b|^2\b/i.test(lowerSel);
-    if (isHome) return score.home > score.away ? 'win' : 'loss';
-    if (isAway) return score.away > score.home ? 'win' : 'loss';
-    return null;
-  }
-
-  if (isSpreadMarket(lower)) {
-    const threshold = extractThreshold(sel);
-    if (threshold == null) return null;
-    const lowerSel = sel.toLowerCase();
-    const home = opts?.homeTeam?.toLowerCase();
-    const away = opts?.awayTeam?.toLowerCase();
-    const isHome = home ? lowerSel.includes(home) : /home|^1\b/.test(lowerSel);
-    const isAway = home ? lowerSel.includes(away ?? '') : /away|^2\b/.test(lowerSel);
-    const base = isAway ? score.away : score.home;
-    const other = isAway ? score.home : score.away;
-    const adjusted = base + threshold;
-    if (adjusted > other) return 'win';
-    if (adjusted === other) return 'push';
-    return 'loss';
-  }
-
-  return null;
-}
-
-const SETTLE_FILTERS = ['ALL', 'MONEYLINE', 'SPREAD', 'TOTAL'] as const;
-
-function marketFilterOf(market: string): 'ALL' | 'MONEYLINE' | 'SPREAD' | 'TOTAL' {
-  const lower = String(market || '').toLowerCase();
-  if (isWinnerMarket(lower)) return 'MONEYLINE';
-  if (isSpreadMarket(lower)) return 'SPREAD';
-  if (isTotalMarket(lower)) return 'TOTAL';
-  return 'ALL';
-}
+//
+// The market classifier + grader live in predictorGrading.ts and are shared with
+// the persisted accuracy/calibration snapshot (predictorStats.ts) so both
+// engines grade every pick identically.
 
 // Internal action: settle every finished match for a day. Reads cached matches +
 // verdicts, grades top3 selections into W/L/P and units PnL, and persists per
@@ -455,6 +374,17 @@ export const settleDayPnl = internalAction({
       } catch (err: any) {
         console.error(`[SettlePnl] persist ${dayKey}/${filter}:`, err?.message || err);
       }
+    }
+
+    // Persist the monitoring snapshot for this day (accuracy by signal band,
+    // calibration gap, Great-Minds rank/provider performance, verdict rankings)
+    // AND re-derive the lifetime aggregate. This is the AI data bank: it runs on
+    // every score-sync cycle, so the stored record of how the predictions
+    // performed grows continuously with the finished results.
+    try {
+      await ctx.scheduler.runAfter(0, internal.predictorStats.recomputeStatsSnapshot, { dayKey });
+    } catch (err: any) {
+      console.error(`[SettlePnl] stats snapshot schedule ${dayKey}:`, err?.message || err);
     }
 
     return { picks, wins, losses, dayKey };
