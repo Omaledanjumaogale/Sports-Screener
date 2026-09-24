@@ -1,6 +1,7 @@
 <script lang="ts">
   // Premium animated SVG agent orbit — fully self-contained, no external assets.
-  // All agent nodes are guaranteed visible within the viewBox with generous padding.
+  // All agent nodes are guaranteed visible within the viewBox and the whole
+  // scene is clipped to its container so nothing paints outside the card.
   import { AGENT_DEFS } from '$lib/agentUi';
 
   let {
@@ -15,13 +16,13 @@
     height?: number;
   } = $props();
 
-  // Safe viewBox size — 440×440 so orbit nodes (r=20) at R=152 never clip.
+  // Safe viewBox size — 440×440 so orbit nodes (r=18) at R=132 never clip.
   const VW = 440;
   const VH = 440;
   const CX = VW / 2;   // 220
   const CY = VH / 2;   // 220
-  const R_OUTER = 152;  // outer orbit radius for agent nodes
-  const R_INNER = 76;   // inner orbit radius for scheduler node
+  const R_OUTER = 132; // outer orbit radius for agent nodes
+  const R_INNER = 70;  // inner orbit radius for scheduler node
 
   // All agents except Emeka orbit the outer ring
   const ORBIT_AGENTS = AGENT_DEFS.filter((a) => a.id !== 'emeka');
@@ -61,7 +62,7 @@
 
 <div
   class="orbit-wrap"
-  style={`--accent:${accent}`}
+  style={`--accent:${accent}; --orbit-h:${height}px`}
   role="img"
   aria-label={`${core} ${coreRole} leading the PulseOdds SMOA agent team: ${AGENTS.map((a) => a.firstName).join(', ')} and Emeka.`}
 >
@@ -69,7 +70,6 @@
     class="agent-orbit-svg"
     viewBox="0 0 440 440"
     width="100%"
-    height={height}
     aria-hidden="true"
     focusable="false"
   >
@@ -80,17 +80,17 @@
         <stop offset="100%" stop-color={accent} stop-opacity="0.35" />
       </radialGradient>
       <radialGradient id={`${uid}-glow`} cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stop-color={accent} stop-opacity="0.18" />
+        <stop offset="0%" stop-color={accent} stop-opacity="0.16" />
         <stop offset="100%" stop-color={accent} stop-opacity="0" />
       </radialGradient>
       <radialGradient id={`${uid}-node`} cx="35%" cy="30%" r="70%">
-        <stop offset="0%" stop-color={accent} stop-opacity="0.28" />
+        <stop offset="0%" stop-color={accent} stop-opacity="0.26" />
         <stop offset="100%" stop-color={accent} stop-opacity="0.05" />
       </radialGradient>
     </defs>
 
-    <!-- Ambient glow -->
-    <circle cx={CX} cy={CY} r="200" fill={`url(#${uid}-glow)`} />
+    <!-- Ambient glow — contained inside the viewBox -->
+    <circle cx={CX} cy={CY} r="184" fill={`url(#${uid}-glow)`} />
 
     <!-- Outer orbit ring (slow clockwise) -->
     <circle
@@ -133,9 +133,9 @@
         transform={`translate(${a.x} ${a.y})`}
         style={`animation-delay: ${a.delay}`}
       >
-        <circle r="21" fill={accent} fill-opacity="0.07" />
-        <circle r="17" fill="var(--c-surface-3, #0d1117)" stroke={accent} stroke-width="1.7" stroke-opacity="0.68" />
-        <circle r="17" fill={`url(#${uid}-node)`} />
+        <circle r="18" fill={accent} fill-opacity="0.07" />
+        <circle r="15" fill="var(--c-surface-3, #0d1117)" stroke={accent} stroke-width="1.7" stroke-opacity="0.68" />
+        <circle r="15" fill={`url(#${uid}-node)`} />
         <!-- First name (top) -->
         <text
           y="-1.5"
@@ -143,18 +143,18 @@
           text-anchor="middle"
           dominant-baseline="middle"
           font-family="var(--font-mono, 'JetBrains Mono', monospace)"
-          font-size="7.5"
+          font-size="7"
           font-weight="900"
           fill={accent}
           fill-opacity="0.92"
         >{a.firstName.slice(0, 5)}</text>
         <!-- Role tag (bottom) -->
         <text
-          y="9"
+          y="8.5"
           x="0"
           text-anchor="middle"
           font-family="var(--font-mono, 'JetBrains Mono', monospace)"
-          font-size="5.5"
+          font-size="5"
           font-weight="700"
           fill="rgba(255,255,255,0.48)"
         >{roleTag(a.id)}</text>
@@ -163,15 +163,15 @@
 
     <!-- Inner scheduler node (Emeka) -->
     <g class="emeka-node" transform={`translate(${EMEKA.x} ${EMEKA.y})`}>
-      <circle r="15" fill={accent} fill-opacity="0.1" />
-      <circle r="12" fill="var(--c-surface-3, #0d1117)" stroke={accent} stroke-width="1.5" stroke-opacity="0.6" />
+      <circle r="14" fill={accent} fill-opacity="0.1" />
+      <circle r="11.5" fill="var(--c-surface-3, #0d1117)" stroke={accent} stroke-width="1.5" stroke-opacity="0.6" />
       <text
         y="0"
         x="0"
         text-anchor="middle"
         dominant-baseline="middle"
         font-family="var(--font-mono, 'JetBrains Mono', monospace)"
-        font-size="6.5"
+        font-size="6"
         font-weight="900"
         fill={accent}
         fill-opacity="0.82"
@@ -179,28 +179,28 @@
     </g>
 
     <!-- Orchestrator core — dual pulsing rings -->
-    <circle class="pulse-ring-1" cx={CX} cy={CY} r="42" fill="none" stroke={accent} stroke-width="1.5" stroke-opacity="0.6" />
-    <circle class="pulse-ring-2" cx={CX} cy={CY} r="42" fill="none" stroke={accent} stroke-width="1.5" stroke-opacity="0.35" />
+    <circle class="pulse-ring-1" cx={CX} cy={CY} r="38" fill="none" stroke={accent} stroke-width="1.5" stroke-opacity="0.6" />
+    <circle class="pulse-ring-2" cx={CX} cy={CY} r="38" fill="none" stroke={accent} stroke-width="1.5" stroke-opacity="0.35" />
     <!-- Core disc -->
-    <circle cx={CX} cy={CY} r="35" fill={`url(#${uid}-core)`} />
-    <circle cx={CX} cy={CY} r="35" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="1" />
+    <circle cx={CX} cy={CY} r="32" fill={`url(#${uid}-core)`} />
+    <circle cx={CX} cy={CY} r="32" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="1" />
     <!-- Core name -->
     <text
       x={CX} y={CY - 5}
       text-anchor="middle"
       dominant-baseline="middle"
       font-family="var(--font-brand, 'Outfit', system-ui)"
-      font-size="10.5"
+      font-size="10"
       font-weight="900"
       fill="#ffffff"
       letter-spacing="-0.02em"
     >{core.split(' ')[0]}</text>
     <!-- Core role -->
     <text
-      x={CX} y={CY + 9}
+      x={CX} y={CY + 8}
       text-anchor="middle"
       font-family="var(--font-mono, 'JetBrains Mono', monospace)"
-      font-size="6"
+      font-size="5.5"
       font-weight="700"
       fill="rgba(255,255,255,0.75)"
       letter-spacing="0.06em"
@@ -223,14 +223,20 @@
     align-items: center;
     gap: 8px;
     width: 100%;
-    overflow: visible;
+    /* Contained: nothing paints outside the card on any viewport */
+    overflow: hidden;
+    border-radius: var(--r-lg, 16px);
+    max-width: min(88vw, 420px);
+    margin-inline: auto;
   }
 
   .agent-orbit-svg {
     display: block;
     width: 100%;
-    max-width: 440px;
-    overflow: visible;
+    height: auto;
+    max-width: 420px;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
   }
 
   /* Outer ring — slow clockwise spin (transform-origin matches viewBox center 220 220) */
@@ -274,7 +280,7 @@
   @keyframes core-pulse {
     0%   { transform: scale(0.65); opacity: 0.9; }
     60%  { opacity: 0.35; }
-    100% { transform: scale(1.5); opacity: 0; }
+    100% { transform: scale(1.45); opacity: 0; }
   }
   @keyframes node-float {
     0%, 100% { transform: translateY(0px); }
@@ -290,6 +296,7 @@
     font-weight: 800;
     color: var(--c-muted, #64748b);
     letter-spacing: 0.025em;
+    padding-bottom: 4px;
   }
   .leg-dot {
     display: inline-block;
@@ -301,6 +308,12 @@
   .leg-core { color: var(--accent, #6366f1); font-weight: 900; }
   .leg-sep  { opacity: 0.45; }
   .leg-text { opacity: 0.7; }
+
+  /* Compact on small screens — the whole orbit stays visible inside its card */
+  @media (max-width: 640px) {
+    .orbit-wrap { max-width: min(92vw, 340px); }
+    .orbit-legend { font-size: 10px; }
+  }
 
   /* Reduce motion */
   @media (prefers-reduced-motion: reduce) {

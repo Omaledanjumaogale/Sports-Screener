@@ -1,4 +1,9 @@
 <script lang="ts">
+  import '@fontsource-variable/outfit';
+  import '@fontsource/space-grotesk/500.css';
+  import '@fontsource/space-grotesk/700.css';
+  import '@fontsource/jetbrains-mono/400.css';
+  import '@fontsource/jetbrains-mono/700.css';
   import '../app.css';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
