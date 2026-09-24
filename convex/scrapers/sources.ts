@@ -286,17 +286,17 @@ export function primarySourcesForSport(sportId: string): PrimarySource[] {
 // Verified-to-parse, per-sport live pages used by the fixture/odds agents.
 // BetExplorer /next/ pages carry live decimal odds; Forebet/TennisBrain/AnnaBet
 // give per-sport prediction rows; SoccerVista gives match links with form context.
+// Forebet pages are the CROSS-VERIFICATION alternates — their fixtures must
+// agree with BetExplorer's or stand on their own when BetExplorer is blocked.
 export const FIXTURE_PAGES: Record<string, string[]> = {
-  // Verified-parseable BetExplorer sport roots, probed live 2026-08-11:
-  //   /football/ /basketball/ /tennis/ /baseball/ /hockey/ /volleyball/  → 200 + js-tournament tables
-  // The following paths return 404 and are intentionally NOT listed (the API
-  // layer — OddsPapi/SharpAPI/TheOddsAPI/TheSportsDB — carries those sports):
-  //   table-tennis (rally), american-football, rugby-union, cricket, mma
-  // Re-run diagnostics:diagnoseFixturePages after any reader-key changes.
-  football: ['https://www.betexplorer.com/football/'],
-  basketball: ['https://www.betexplorer.com/basketball/'],
-  tennis: ['https://www.betexplorer.com/tennis/'],
-  hockey: ['https://www.betexplorer.com/hockey/'],
+  // Verified-parseable BetExplorer sport roots, re-probed live 2026-09-24:
+  //   /football/ /basketball/ /tennis/ /baseball/ /hockey/ /volleyball/  → 200
+  // The following paths are REAL 404s on BetExplorer (verified again) and stay
+  // API-fed: table-tennis (rally), american-football, rugby-*, cricket, mma.
+  football: ['https://www.betexplorer.com/football/', 'https://www.forebet.com/en/football-predictions'],
+  basketball: ['https://www.betexplorer.com/basketball/', 'https://www.forebet.com/en/basketball-predictions'],
+  tennis: ['https://www.betexplorer.com/tennis/', 'https://www.forebet.com/en/tennis-predictions'],
+  hockey: ['https://www.betexplorer.com/hockey/', 'https://www.forebet.com/en/ice-hockey-predictions'],
   baseball: ['https://www.betexplorer.com/baseball/'],
   volleyball: ['https://www.betexplorer.com/volleyball/']
 };

@@ -91,6 +91,64 @@ function looksLikeTeam(name: string): boolean {
   if (/^[\d.,\s-]+$/.test(n)) return false;
   if (/^\d{1,3}\s+on\s+\S+/i.test(n)) return false;
   if (/\b\d{1,2}\.\d{2,3}\b/.test(n) && !/[a-z]{3,}/i.test(n)) return false;
+
+  // ── v2 hardening: league-shaped, standings-shaped and nav-shaped text ──────
+  // Relay transports return alternate page variants whose navigation bars,
+  // standings tables and competition menus were previously read as "teams"
+  // ("Prva Liga  vs  RS 0", "Hockey  vs  Next 10 matches").
+  if (!plausibleTeamName(n)) return false;
+  return true;
+}
+
+// Competition / navigation vocabulary. A label built from these tokens is a
+// league, table group, or UI link — NEVER a team or player.
+const COMPETITION_OR_NAV_TOKENS =
+  /^(?:liga|ligue|serie|serias?|divisions?|div|groups?|grupa|leagues?|premiership|premier|championships?|championnat|cups?|superliga|superlig|superleague|superligue|prva|druga|treca|cetvrta|petnaest|regional|regionalliga|oberliga|landesliga|bezirksliga|klass|klassa|divisio|divisao|poule|pools?|section|segments?|conference|reserves?|youth|u\d{2}|women|men|femenino|feminino|next|previous|yesterday|todays?|tomorrow|results?|fixtures?|matches?|schedule|calendar|more|view|all|news|tips?|predictions?|odds|live|scores?|standings?|tables?|hockey|football|soccer|volleyball|basketball|tennis|baseball|cricket|rugby|mma|ufc|basket|futbal|fussball|fotbal|fodbold|fotball|jalkapallo|fotboll|futbolo|futbols|playoffs?|play.?out|relegation|promotion|qualifications?|friendly|friendlies|shield|trophy|bundesliga|eredivisie|handball|futsal|waterpolo|snooker|darts|esports|a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|ii|iii|iv|vi|vii|viii|ix|xi|xii)$/i;
+
+/**
+ * Is this a plausible TEAM/PLAYER name?
+ *  - strips standalone numbers/scores ("RS 0" → "RS", "Group A 10" → "Group A")
+ *  - rejects strings whose remaining words are all competition/nav vocabulary
+ *    ("Prva Liga", "Serie C", "III Liga", "Hockey", "Next matches")
+ *  - requires ≥3 alphabetic characters and at least one ≥3-letter word
+ *    (kills "RS 0"-style abbreviations with score suffixes)
+ *  - rejects merged multi-fixture fragments ("Team A vs Team B")
+ */
+export function plausibleTeamName(name: string): boolean {
+  const n = name.trim();
+  if (!n) return false;
+  if (/\bvs\b|\bv\b\s|—|–/i.test(n)) return false; // merged fixture line, not a team
+
+  const rawWords = n.split(/\s+/);
+  const words = rawWords
+    .map((w) => w.replace(/['’]s$/i, ''))
+    .filter((w) => w.length > 0 && !/^\d+[\d.,:%-]*$/.test(w)); // drop scores/numbers
+  if (words.length === 0) return false; // pure numbers — standings row
+
+  const allCompOrNav = words.every((w) => COMPETITION_OR_NAV_TOKENS.test(w.replace(/[^a-z]/gi, '')));
+  if (allCompOrNav && words.length >= 1) return false;
+
+  const alpha = n.replace(/[^a-zA-Z]/g, '');
+  if (alpha.length < 3) return false; // "RS 0", "B", "FC 1"
+
+  const hasRealWord = words.some((w) => w.replace(/[^a-zA-Z]/g, '').length >= 3 && !COMPETITION_OR_NAV_TOKENS.test(w.replace(/[^a-z]/gi, '')));
+  if (!hasRealWord) return false; // every surviving word is competition/nav vocabulary
+
+  return true;
+}
+
+/**
+ * Pair-level check: both sides must be plausible teams AND genuinely distinct.
+ * A "fixture" whose sides equal each other, or where one side is contained in
+ * the other ("League  vs  League ..."), is navigation text — not a match.
+ */
+export function plausiblePair(home: string, away: string): boolean {
+  if (!looksLikeTeam(home) || !looksLikeTeam(away)) return false;
+  const h = home.trim().toLowerCase();
+  const a = away.trim().toLowerCase();
+  if (h === a) return false;
+  if (h.length >= 4 && a.includes(h)) return false;
+  if (a.length >= 4 && h.includes(a)) return false;
   return true;
 }
 
@@ -196,7 +254,7 @@ function parseSoccervista(text: string, sportId: string, sourceUrl: string, dayK
     const labels = links.map((l) => l.match(/^\[([^\]]*)\]/)?.[1] ?? '');
     const teamA = stripForm(labels[1] ?? '');
     const teamB = stripForm(labels[2] ?? '');
-    if (!looksLikeTeam(teamA) || !looksLikeTeam(teamB)) continue;
+    if (!plausiblePair(teamA, teamB)) continue;
     out.push({
       source: 'LiveScrape',
       sourceUrl,
@@ -273,6 +331,11 @@ function parseBetexplorerHtml(text: string, sportId: string, sourceUrl: string, 
 
     const dt = row.match(dtRe);
     if (!dt) continue;
+    // STRUCTURAL AUTHENTICITY: a real BetExplorer fixture row carries 1X2
+    // odds buttons (data-odd). Standings rows, navigation bars and competition
+    // menus never do — requiring data-odd here is what keeps "Prva Liga vs
+    // RS 0"-style table/menu rows out of the fixture cache.
+    if (!/data-odd="/.test(row)) continue;
     // Skip finished rows (results section) so yesterday's matches never leak
     // into today's fixture cache with a re-stamped date.
     if (resultCellRe.test(row)) continue;
@@ -286,7 +349,10 @@ function parseBetexplorerHtml(text: string, sportId: string, sourceUrl: string, 
     if (!teams) continue;
     const home = clean(teams[1]);
     const away = clean(teams[2]);
-    if (!looksLikeTeam(home) || !looksLikeTeam(away)) continue;
+    if (!plausiblePair(home, away)) continue;
+    // A side equal to its own competition header is navigation text, not a club.
+    const lg = currentLeague.toLowerCase();
+    if (lg && (home.toLowerCase() === lg || away.toLowerCase() === lg)) continue;
 
     const odds: number[] = [];
     let om;
@@ -359,6 +425,9 @@ export function parseFixtures(
   const seen = new Set<string>();
   const out: ScrapeMatch[] = [];
   const push = (m: ScrapeMatch) => {
+    // Defense in depth: EVERY fixture from EVERY parser must be a plausible
+    // real-team pair before it can enter the cache.
+    if (!plausiblePair(m.homeTeam, m.awayTeam)) return;
     const canonLeague = serverCanonicalizeLeague(m.league || '', sportId) || (m.league || '');
     const key = `${sportId}|${canonLeague}|${m.homeTeam}|${m.awayTeam}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
     if (seen.has(key)) return;

@@ -6,6 +6,7 @@ import { query, mutation, action, internalMutation, internalAction, internalQuer
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { watTodayKey } from './scrapers/sources';
+import { plausibleTeamName } from './scrapers/fixtures';
 import { enforceRateLimit } from './rateLimit';
 import { requireMasterPass, requireAdmin } from './access';
 import { logAuditEvent } from './auditLog';
@@ -373,6 +374,24 @@ export function validateFixture(
   if (homeLooksOdd) issues.push('homeTeam looks like an odds value, not a name');
   if (awayLooksOdd) issues.push('awayTeam looks like an odds value, not a name');
   if (homeLooksOdd || awayLooksOdd) score = Math.max(0, score - 6);
+
+  // ── QUALITY CHECK: real-team plausibility (second line of defense) ─────────
+  // Even when a parser regresses, a fixture whose sides are competition names,
+  // navigation links, standings fragments or sport words must never reach the
+  // showcase. plausibleTeamName rejects "Serie C", "Group A 10", "Hockey",
+  // "Next 10 matches", "yesterday's results" and every other league/nav shape.
+  const homePlausible = homeRaw ? plausibleTeamName(homeRaw) : false;
+  const awayPlausible = awayRaw ? plausibleTeamName(awayRaw) : false;
+  if (homeRaw && !homePlausible) issues.push(`homeTeam "${homeRaw.slice(0, 40)}" is not a plausible team/player name (league-shaped, numeric or navigation text)`);
+  if (awayRaw && !awayPlausible) issues.push(`awayTeam "${awayRaw.slice(0, 40)}" is not a plausible team/player name (league-shaped, numeric or navigation text)`);
+  if ((homeRaw && !homePlausible) || (awayRaw && !awayPlausible)) score = Math.max(0, score - 12);
+  if (homePlausible && awayPlausible) score += 4;
+  // A side identical to its own competition label is navigation text.
+  const leagueLower = leagueRaw.toLowerCase();
+  if (leagueLower && (homeRaw.toLowerCase() === leagueLower || awayRaw.toLowerCase() === leagueLower)) {
+    issues.push('team name equals its competition label (navigation row, not a fixture)');
+    score = Math.max(0, score - 12);
+  }
 
   if (normalizedHome) score += 5;
   if (normalizedAway) score += 5;
