@@ -11,18 +11,16 @@ import { enforceRateLimit } from './rateLimit';
 import { requireMasterPass, requireAdmin } from './access';
 import { logAuditEvent } from './auditLog';
 
+// The AI Predictor covers the sports whose sources deliver fixtures DAILY.
+// Rally (table tennis), rugby, cricket, mma and volleyball were removed —
+// no registered source provides consistent daily fixtures for them.
 const sportId = v.union(
   v.literal('football'),
   v.literal('basketball'),
   v.literal('tennis'),
-  v.literal('rally'),
   v.literal('hockey'),
   v.literal('baseball'),
-  v.literal('americanfootball'),
-  v.literal('rugby'),
-  v.literal('cricket'),
-  v.literal('mma'),
-  v.literal('volleyball')
+  v.literal('americanfootball')
 );
 
 const dayStatus = v.union(
@@ -46,14 +44,9 @@ export const PREDICTOR_SPORT_ID_LIST = [
   'football',
   'basketball',
   'tennis',
-  'rally',
   'hockey',
   'baseball',
-  'americanfootball',
-  'rugby',
-  'cricket',
-  'mma',
-  'volleyball'
+  'americanfootball'
 ] as const;
 
 // ── Per-sport keyword fingerprints ────────────────────────────────────────────
@@ -158,21 +151,35 @@ export function serverLeagueBelongsToSport(league: string, sportId: string): boo
   if (!normalized) return true;
   const pool = SERVER_SPORT_LEAGUES[sportId] || [];
   if (pool.length === 0) return true;
-  const match = pool.some((canon) => {
-    const cl = canon.toLowerCase();
-    return normalized.includes(cl) || cl.includes(normalized);
-  });
-  if (match) return true;
+
+  // NEGATIVE gate FIRST: if the league name contains ANOTHER sport's exclusive
+  // keyword ("Basketball Champions League" contains football's "Champions
+  // League" substring), reject before the positive pool match can fire.
   const others = Object.keys(SERVER_SPORT_LEAGUES).filter((s) => s !== sportId);
   for (const other of others) {
     const otherPool = SERVER_SPORT_LEAGUES[other] || [];
     const clash = otherPool.some((canon) => {
       const cl = canon.toLowerCase();
       if (cl.length < 4) return false;
-      return normalized.includes(cl);
+      // The other sport's canon must appear, AND this sport's canon must not
+      // be the longer/more specific one (e.g. football pool's 'Champions
+      // League' is a SUBSTRING of basketball's 'Basketball Champions League' —
+      // the longer, more specific name wins and belongs to basketball).
+      if (!normalized.includes(cl)) return false;
+      const mine = pool.some((myCanon) => {
+        const mc = myCanon.toLowerCase();
+        return mc.length > cl.length && mc.includes(cl) && normalized.includes(mc);
+      });
+      return !mine;
     });
     if (clash) return false;
   }
+
+  const match = pool.some((canon) => {
+    const cl = canon.toLowerCase();
+    return normalized.includes(cl) || cl.includes(normalized);
+  });
+  if (match) return true;
   return true;
 }
 
@@ -339,10 +346,9 @@ const CANONICAL_TEAM_MAP: Record<string, string> = {
   'commanders': 'Washington Commanders', 'giants nfl': 'New York Giants'
 };
 
-const INDIVIDUAL_SPORTS = new Set(['tennis', 'mma', 'rally']);
+const INDIVIDUAL_SPORTS = new Set(['tennis']);
 const TEAM_SPORTS = new Set([
-  'football', 'basketball', 'hockey', 'baseball', 'americanfootball',
-  'rugby', 'cricket', 'volleyball'
+  'football', 'basketball', 'hockey', 'baseball', 'americanfootball'
 ]);
 
 export function normalizeName(raw: string): string {
@@ -1125,16 +1131,14 @@ export const purgeAndMarkStale = internalAction({
 
 // ── Bootstrap actions: seed today's cache for all sports when DB is empty ─────
 
-const ALL_SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball', 'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'] as const;
+const ALL_SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball', 'americanfootball'] as const;
 type AnySSport = typeof ALL_SPORTS[number];
 
 // Internal: seed a specific sport for today. Called by seedAllSports.
 export const seedSportForToday = internalAction({
   args: { sportId: v.union(
     v.literal('football'), v.literal('basketball'), v.literal('tennis'),
-    v.literal('rally'), v.literal('hockey'), v.literal('baseball'),
-    v.literal('americanfootball'), v.literal('rugby'), v.literal('cricket'),
-    v.literal('mma'), v.literal('volleyball')
+    v.literal('hockey'), v.literal('baseball'), v.literal('americanfootball')
   )},
   handler: async (ctx, args): Promise<{ ok: boolean; kept: number }> => {
     const dayKey = watTodayKey();
@@ -1161,9 +1165,7 @@ export const seedSportForToday = internalAction({
 export const getDayInternal = internalQuery({
   args: { sportId: v.union(
     v.literal('football'), v.literal('basketball'), v.literal('tennis'),
-    v.literal('rally'), v.literal('hockey'), v.literal('baseball'),
-    v.literal('americanfootball'), v.literal('rugby'), v.literal('cricket'),
-    v.literal('mma'), v.literal('volleyball')
+    v.literal('hockey'), v.literal('baseball'), v.literal('americanfootball')
   ), dayKey: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
@@ -1227,7 +1229,7 @@ export const bootstrapToday = action({
   }
 });
 
-const NON_FOOTBALL_SPORTS = ['basketball', 'tennis', 'rally', 'hockey', 'baseball', 'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'] as const;
+const NON_FOOTBALL_SPORTS = ['basketball', 'tennis', 'hockey', 'baseball', 'americanfootball'] as const;
 
 // Mutation to move all football matches stored under any non-football sport into Football ('football').
 // Merges non-duplicates into football and deletes duplicates from the non-football sports.
@@ -1338,9 +1340,7 @@ export const purgeWrongSportMatches = mutation({
   args: {
     sportId: v.union(
       v.literal('football'), v.literal('basketball'), v.literal('tennis'),
-      v.literal('rally'), v.literal('hockey'), v.literal('baseball'),
-      v.literal('americanfootball'), v.literal('rugby'), v.literal('cricket'),
-      v.literal('mma'), v.literal('volleyball')
+      v.literal('hockey'), v.literal('baseball'), v.literal('americanfootball')
     )
   },
   handler: async (ctx, args) => {
@@ -1445,9 +1445,7 @@ export const purgeWrongSportMatchesInternal = internalMutation({
   args: {
     sportId: v.union(
       v.literal('football'), v.literal('basketball'), v.literal('tennis'),
-      v.literal('rally'), v.literal('hockey'), v.literal('baseball'),
-      v.literal('americanfootball'), v.literal('rugby'), v.literal('cricket'),
-      v.literal('mma'), v.literal('volleyball')
+      v.literal('hockey'), v.literal('baseball'), v.literal('americanfootball')
     )
   },
   handler: async (ctx, args) => {

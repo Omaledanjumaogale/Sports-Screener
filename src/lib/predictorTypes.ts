@@ -1,19 +1,17 @@
 import type { AiAnalysisResult } from './cloudflareAi';
 
+// The AI Predictor covers the sports whose sources deliver fixtures DAILY.
+// Rally (table tennis), rugby, cricket, mma and volleyball were removed —
+// no registered source provides consistent daily fixtures for them.
 export type PredictorSportId =
   | 'football'
   | 'basketball'
   | 'tennis'
-  | 'rally'
   | 'hockey'
   | 'baseball'
-  | 'americanfootball'
-  | 'rugby'
-  | 'cricket'
-  | 'mma'
-  | 'volleyball';
+  | 'americanfootball';
 
-export const PREDICTOR_SPORTS: PredictorSportId[] = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball', 'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'];
+export const PREDICTOR_SPORTS: PredictorSportId[] = ['football', 'basketball', 'tennis', 'hockey', 'baseball', 'americanfootball'];
 
 export function isPredictorSport(id: string | undefined | null): id is PredictorSportId {
   return !!id && (PREDICTOR_SPORTS as string[]).includes(id);
@@ -23,14 +21,9 @@ export const CANONICAL_SPORT_LEAGUES: Record<PredictorSportId, string[]> = {
   football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Champions League', 'Eredivisie', 'FA Cup', 'Europa League', 'Europa', 'Conference League', 'Championship', 'League One', 'League Two', 'EFL Cup', 'Serie B', 'Segunda Division', 'Segunda', 'Bundesliga 2', 'Ligue 2', 'Primeira Liga', 'Super Lig', 'Liga MX', 'MLS', 'Scottish Premiership', 'Copa Libertadores', 'Copa America', 'World Cup', 'Nations League', 'NPFL'],
   basketball: ['NBA', 'EuroLeague', 'ACB', 'Liga ACB', 'LNB Pro A', 'LNB', 'WNBA', 'NCAAB', 'CBA', 'PBA', 'FIBA', 'Basketball Champions League'],
   tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000', 'ATP Tour', 'WTA Tour', 'Wimbledon', 'Australian Open', 'French Open', 'Roland Garros', 'US Open'],
-  rally: ['ITTF', 'WTT', 'World Table Tennis', 'Table Tennis', 'TT Cup', 'WTT Series', 'WTT Champions', 'WTT Contender'],
   hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL', 'Extraliga', 'Swiss National League'],
   baseball: ['MLB', 'NPB', 'KBO', 'MiLB', 'World Baseball Classic'],
-  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'Super Bowl'],
-  rugby: ['Six Nations', 'Rugby Championship', 'Premiership Rugby', 'Top 14', 'Super Rugby', 'Super Rugby Pacific', 'World Cup Rugby', 'URC', 'Pro14', 'Rugby World Cup'],
-  cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash League', 'Big Bash', 'The Hundred', 'World Cup Cricket', 'Cricket World Cup', 'Super League', 'PSL', 'BBL', 'BCCI', 'ICC', 'T20 World Cup'],
-  mma: ['UFC', 'Bellator', 'PFL', 'ONE Championship', 'ONE', 'MMA'],
-  volleyball: ['FIVB', 'VNL', 'CEV', 'CEV Champions League', 'SuperLega', 'Superleague', 'Volleyball Nations League', 'Volleyball World Championship']
+  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'Super Bowl']
 };
 
 const LEAGUE_NORMALIZE_MAP: Record<string, string> = {

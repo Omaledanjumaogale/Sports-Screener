@@ -41,14 +41,9 @@ const SPORTS = [
   'football',
   'basketball',
   'tennis',
-  'rally',
   'hockey',
   'baseball',
-  'americanfootball',
-  'rugby',
-  'cricket',
-  'mma',
-  'volleyball'
+  'americanfootball'
 ] as const;
 
 const LIFETIME_WINDOW_DAYS = 45;

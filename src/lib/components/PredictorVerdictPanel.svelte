@@ -28,6 +28,18 @@
     accent?: string;
     finalScore?: string | null;
   } = $props();
+
+  // Top selections ranked from the highest confidence/percentage downward,
+  // re-ranked at render time so the AI verdict order is always best-first.
+  const rankedTop3 = $derived(
+    [...(insight?.top3Selections ?? [])]
+      .sort((a, b) => {
+        const pa = parseFloat(String(a.confidence).replace(/[^\d.]/g, '')) || 0;
+        const pb = parseFloat(String(b.confidence).replace(/[^\d.]/g, '')) || 0;
+        return pb - pa;
+      })
+      .slice(0, 3)
+  );
 </script>
 
 {#if insight}
@@ -71,7 +83,7 @@
     {#if insight.top3Selections && insight.top3Selections.length > 0}
       <div class="top3">
         <div class="top3-title">Top selections</div>
-        {#each insight.top3Selections.slice(0, 3) as t, i (i)}
+        {#each rankedTop3 as t, i (i)}
           <div class="top3-row">
             <span class="rank">#{i + 1}</span>
             <div class="top3-main">

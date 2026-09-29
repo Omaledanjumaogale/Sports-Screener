@@ -17,7 +17,7 @@ export const load: PageLoad = () => {
     },
     {
       question: 'How can I get the Master Pass?',
-      answer: 'Choose the Master Pass tier at checkout (₦10,000/month) to unlock the AI Predictor across all 11 sports and all segmented high-confidence picks.'
+      answer: 'Choose the Master Pass tier at checkout (₦10,000/month) to unlock the AI Predictor across all predictor sports and all segmented high-confidence picks.'
     },
     {
       question: 'Who are the agents behind the AI Predictor?',
@@ -30,7 +30,7 @@ export const load: PageLoad = () => {
     buildWebPageSchema(
       canonical,
       'AI Predictor — PulseOdds',
-      'Multi-agent AI Predictor showing only matches whose Real Win Chance exceeds 60%, refreshed nightly from betwatch.fr and cross-reference sources across all 11 sports.',
+      'Multi-agent AI Predictor showing only matches whose Real Win Chance exceeds 60%, refreshed nightly from betwatch.fr and cross-reference sources across all predictor sports.',
       '2025-01-01',
       new Date().toISOString().split('T')[0]
     ),
@@ -42,10 +42,10 @@ export const load: PageLoad = () => {
   ]);
 
   const seo = buildMeta({
-    title: 'AI Predictor — Master Pass, 11 Sports | PulseOdds',
-    description: 'PulseOdds AI Predictor: a Master Pass feature showing only matches whose Real Win Chance exceeds 60%, across all 11 sports. Refreshed nightly by a multi-agent team.',
+    title: 'AI Predictor — Master Pass | PulseOdds',
+    description: 'PulseOdds AI Predictor: a Master Pass feature showing only matches whose Real Win Chance exceeds 60%, across all predictor sports. Refreshed nightly by a multi-agent team.',
     canonical,
-    og: { type: 'website', title: 'AI Predictor — PulseOdds', description: 'High-confidence picks across 11 sports, refreshed nightly.', image: 'https://pulseodds.ewinproject.org/og-image.png', url: canonical, locale: 'en_NG', siteName: 'PulseOdds' },
+    og: { type: 'website', title: 'AI Predictor — PulseOdds', description: 'High-confidence picks across all predictor sports, refreshed nightly.', image: 'https://pulseodds.ewinproject.org/og-image.png', url: canonical, locale: 'en_NG', siteName: 'PulseOdds' },
     twitter: { card: 'summary_large_image', title: 'AI Predictor — PulseOdds', description: 'Only 60%+ confidence matches, refreshed nightly.' },
     jsonLd
   });

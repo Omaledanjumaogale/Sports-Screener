@@ -77,6 +77,41 @@
   const maxOf = (rows: StatsAccuracyRow[] | undefined, key: 'winRatePct' | 'avgPredictedPct' | 'picks') =>
     Math.max(1, ...(rows ?? []).map((r) => Number(r?.[key] ?? 0)));
 
+  // ── Winning-day streaks ───────────────────────────────────────────────────────
+  // Walk the stored day snapshots oldest → newest and count CONSECUTIVE WAT days
+  // where a market/sport finished with a winning record (wins > losses). The
+  // current streak is the run ending today; the max is the best run in the
+  // retained window. This is the "highest winning streak" read the control room
+  // exists to surface.
+  function computeStreaks(key: 'byMarket' | 'bySport'): Map<string, { cur: number; max: number; days: number }> {
+    const streaks = new Map<string, { cur: number; max: number; days: number }>();
+    const sorted = [...history].sort((a, b) => a.dayKey.localeCompare(b.dayKey));
+    for (const snap of sorted) {
+      for (const r of ((snap.data?.[key] ?? []) as StatsAccuracyRow[])) {
+        if (!r || r.picks === 0) continue;
+        const s = streaks.get(r.group) ?? { cur: 0, max: 0, days: 0 };
+        s.days += 1;
+        if (r.wins > r.losses) {
+          s.cur += 1;
+          s.max = Math.max(s.max, s.cur);
+        } else if (r.wins < r.losses) {
+          s.cur = 0;
+        }
+        streaks.set(r.group, s);
+      }
+    }
+    return streaks;
+  }
+
+  const marketStreaks = $derived(computeStreaks('byMarket'));
+  const sportStreaks = $derived(computeStreaks('bySport'));
+  const hottestStreaks = $derived(
+    [...marketStreaks.entries()]
+      .map(([group, s]) => ({ group, ...s }))
+      .sort((a, b) => b.cur - a.cur || b.max - a.max)
+      .slice(0, 5)
+  );
+
   async function loadAll() {
     loading = true;
     error = '';
@@ -297,6 +332,24 @@
         finish (the 15-minute score sync grades every stored selection).
       </p>
     {:else}
+      <!-- ── Hottest winning streaks ───────────────────────────────── -->
+      {#if hottestStreaks.length > 0 && hottestStreaks.some((s) => s.cur > 0)}
+        <section class="panel">
+          <h2>Hottest winning-day streaks <span class="tag">consecutive WAT days with a winning record</span></h2>
+          <div class="streak-strip">
+            {#each hottestStreaks as s (s.group)}
+              {#if s.cur > 0}
+                <div class="streak-card">
+                  <span class="streak-group">{s.group}</span>
+                  <span class="streak-val">{s.cur}d</span>
+                  <span class="streak-meta">best {s.max}d · {s.days}d tracked</span>
+                </div>
+              {/if}
+            {/each}
+          </div>
+        </section>
+      {/if}
+
       <!-- ── Daily performance & consensus summary ───────────────── -->
       <section class="panel">
         <h2>Daily Performance &amp; Consensus Summary <span class="tag">{scopeLabel}</span></h2>
@@ -415,15 +468,19 @@
         <section class="panel">
           <h2>Accuracy by Market</h2>
           <table class="tbl">
-            <thead><tr><th>Market</th><th>Picks</th><th>Win rate</th><th>Gap</th><th>ROI</th></tr></thead>
+            <thead><tr><th>Market</th><th>Picks</th><th>Win rate</th><th>Day streak</th><th>Gap</th><th>ROI</th></tr></thead>
             <tbody>
               {#each scopeData.byMarket as r (r.group)}
+                {@const st = marketStreaks.get(r.group)}
                 <tr>
                   <td>{r.group}</td>
                   <td>{r.picks}</td>
                   <td>
                     <span class="mini-bar"><span style={`width:${barWidth(r.winRatePct, 100)}%`}></span></span>
                     {r.winRatePct}%
+                  </td>
+                  <td>
+                    {#if st && st.cur > 0}<span class="streak hot">{st.cur}d hot</span>{:else if st && st.max > 0}<span class="streak">best {st.max}d</span>{:else}<span class="streak cold">—</span>{/if}
                   </td>
                   <td class:pos={r.calibrationGapPct > 0} class:neg={r.calibrationGapPct < 0}>{signed(r.calibrationGapPct)}</td>
                   <td class:pos={r.roiPct > 0} class:neg={r.roiPct < 0}>{signed(r.roiPct)}%</td>
@@ -436,15 +493,19 @@
         <section class="panel">
           <h2>Accuracy by Sport</h2>
           <table class="tbl">
-            <thead><tr><th>Sport</th><th>Picks</th><th>Win rate</th><th>Units</th><th>Gap</th></tr></thead>
+            <thead><tr><th>Sport</th><th>Picks</th><th>Win rate</th><th>Day streak</th><th>Units</th><th>Gap</th></tr></thead>
             <tbody>
               {#each scopeData.bySport as r (r.group)}
+                {@const st = sportStreaks.get(r.group)}
                 <tr>
                   <td>{r.group}</td>
                   <td>{r.picks}</td>
                   <td>
                     <span class="mini-bar"><span style={`width:${barWidth(r.winRatePct, 100)}%`}></span></span>
                     {r.winRatePct}%
+                  </td>
+                  <td>
+                    {#if st && st.cur > 0}<span class="streak hot">{st.cur}d hot</span>{:else if st && st.max > 0}<span class="streak">best {st.max}d</span>{:else}<span class="streak cold">—</span>{/if}
                   </td>
                   <td class:pos={r.unitsPnl > 0} class:neg={r.unitsPnl < 0}>{signed(r.unitsPnl)}u</td>
                   <td class:pos={r.calibrationGapPct > 0} class:neg={r.calibrationGapPct < 0}>{signed(r.calibrationGapPct)}</td>
@@ -526,6 +587,20 @@
 </div>
 
 <style>
+  /* ── Winning-day streaks ─────────────────────────────────── */
+  .streak-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+  .streak-card {
+    display: flex; flex-direction: column; gap: 3px; padding: 12px 14px;
+    border-radius: 12px; border: 1px solid color-mix(in srgb, var(--c-success) 40%, transparent);
+    background: color-mix(in srgb, var(--c-success) 8%, transparent);
+  }
+  .streak-group { font-size: 12px; font-weight: 800; color: var(--c-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .streak-val { font-family: var(--font-mono); font-size: 22px; font-weight: 900; color: var(--c-success); }
+  .streak-meta { font-size: 10.5px; color: var(--c-muted); }
+  .streak { font-family: var(--font-mono); font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .streak.hot { color: var(--c-success); }
+  .streak.cold { color: var(--c-faint); }
+
   .admin-root {
     max-width: 1180px;
     margin: 0 auto;

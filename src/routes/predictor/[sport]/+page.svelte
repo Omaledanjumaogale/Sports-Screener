@@ -12,14 +12,9 @@
     football: '#34d399',
     basketball: '#fb923c',
     tennis: '#a3e635',
-    rally: '#38bdf8',
     hockey: '#22d3ee',
     baseball: '#e11d48',
-    americanfootball: '#f87171',
-    rugby: '#a78bfa',
-    cricket: '#fbbf24',
-    mma: '#818cf8',
-    volleyball: '#0891b2'
+    americanfootball: '#f87171'
   };
 </script>
 

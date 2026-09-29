@@ -87,9 +87,8 @@
   // Human-readable display name for each sport used in messages and toasts.
   const SPORT_DISPLAY_NAME: Record<PredictorSportId, string> = {
     football: 'Football', basketball: 'Basketball', tennis: 'Tennis',
-    rally: 'Table Tennis', hockey: 'Ice Hockey', baseball: 'Baseball',
-    americanfootball: 'American Football', rugby: 'Rugby', cricket: 'Cricket',
-    mma: 'MMA', volleyball: 'Volleyball'
+    hockey: 'Ice Hockey', baseball: 'Baseball',
+    americanfootball: 'American Football'
   };
   const sportDisplayName = $derived(SPORT_DISPLAY_NAME[effectiveSport] ?? effectiveSport);
 
@@ -731,7 +730,7 @@ $effect(() => {
             </span>
             {#if matches.length > 0}
               <span class="summary-chip muted">
-                {matches.length} scheduled {effectiveSport === 'mma' ? 'bouts' : 'matches'}
+                {matches.length} scheduled matches
               </span>
             {/if}
             <span class="sel-actions">
@@ -874,7 +873,7 @@ $effect(() => {
             <p class="hint">
               The agent team (Eze Ugo &amp; 9 specialists) runs automatically on every
               scheduled cycle — morning, midday and midnight (WAT) — caching fixtures,
-              odds and verdicts for all 11 sports. Check back shortly; new fixtures
+              odds and verdicts across all predictor sports. Check back shortly; new fixtures
               appear here the moment a cycle completes.
             </p>
           </div>

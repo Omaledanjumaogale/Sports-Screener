@@ -8,28 +8,18 @@
     football: 'Football',
     basketball: 'Basketball',
     tennis: 'Tennis',
-    rally: 'Table Tennis',
     hockey: 'Hockey',
     baseball: 'Baseball',
-    americanfootball: 'Am. Football',
-    rugby: 'Rugby',
-    cricket: 'Cricket',
-    mma: 'MMA',
-    volleyball: 'Volleyball'
+    americanfootball: 'Am. Football'
   };
 
   const SPORT_COLOR: Record<PredictorSportId, string> = {
     football: '#34d399',
     basketball: '#fb923c',
     tennis: '#a3e635',
-    rally: '#38bdf8',
     hockey: '#22d3ee',
     baseball: '#e11d48',
-    americanfootball: '#f87171',
-    rugby: '#a78bfa',
-    cricket: '#fbbf24',
-    mma: '#818cf8',
-    volleyball: '#0891b2'
+    americanfootball: '#f87171'
   };
 
   let {

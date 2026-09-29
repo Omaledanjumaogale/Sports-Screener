@@ -202,14 +202,9 @@
     football: 'Football',
     basketball: 'Basketball',
     tennis: 'Tennis',
-    rally: 'Table Tennis',
     hockey: 'Ice Hockey',
     baseball: 'Baseball',
-    americanfootball: 'Am. Football',
-    rugby: 'Rugby',
-    cricket: 'Cricket',
-    mma: 'MMA',
-    volleyball: 'Volleyball'
+    americanfootball: 'Am. Football'
   };
 
   function nav(p: string) {
@@ -263,7 +258,7 @@
   ];
 
   const predictorSteps = [
-    { icon: Target, title: 'Pick a sport', desc: 'Football, Basketball, Tennis, Table Tennis, Ice Hockey or Baseball.' },
+    { icon: Target, title: 'Pick a sport', desc: 'Football, Basketball, Tennis, Ice Hockey, Baseball or American Football.' },
     { icon: Clock3, title: 'Watch the meter', desc: 'The agent team shows live 0% → 100% progress while they work.' },
     { icon: ShieldCheck, title: 'Review the picks', desc: 'Only matches above the 60% Real Win Chance floor — with top selections, punter edge and risk warnings.' },
     { icon: TrendingUp, title: 'Stake responsibly', desc: 'Refresh anytime; the cache rebuilds automatically each night.' }
@@ -275,7 +270,7 @@
     { end: 5, suffix: '', label: 'AI Models' },
     { end: 60, suffix: '%+', label: 'Win Chance Floor' },
     { end: 3, suffix: '×', label: 'Daily Auto-Sync' },
-    { end: 11, suffix: '', label: 'Sports Covered' }
+    { end: 6, suffix: '', label: 'Sports Covered' }
   ];
   let statVals = $state<number[]>(statDefs.map(() => 0));
   let statsEl: HTMLDivElement | null = $state(null);
@@ -321,6 +316,7 @@
         <strong>PulseOdds</strong>
       </div>
       <div class="header-actions">
+        <AiPredictorButton label="AI Predictor" accent="#a3e635" />
         <ThemeToggle />
         {#if authState.isAuthenticated}
           {#if authState.user?.isAdmin}

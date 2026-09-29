@@ -57,7 +57,11 @@
   const isFinished = $derived(finished || !!score || match.status === 'finished');
   const top = $derived(qualifying[0] ?? null);
   const bestPct = $derived(top ? Number(top.probability).toFixed(1) : null);
-  const bottomPicks = $derived(qualifying);
+  // Market options ranked from the highest percentage downward — always, in
+  // every surface (chart, expanded panel, full analysis).
+  const bottomPicks = $derived(
+    [...qualifying].sort((a, b) => Number(b.probability) - Number(a.probability))
+  );
   const metrics = $derived((analysis?.metrics ?? []).slice(0, 4));
 
   const greatMindsData = $derived(generateGreatMindsDebate(match, analysis));

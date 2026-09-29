@@ -184,7 +184,7 @@ interface VerdictMatchInput {
   citations?: string[];
 }
 
-const VALID_SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball', 'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'];
+const VALID_SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball', 'americanfootball'];
 
 const SPORT_SCALE: Record<string, string> = {
   football: 'Goals (0-6 typical), total goals market expected 1.5-3.5',

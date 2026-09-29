@@ -1,15 +1,16 @@
 <script lang="ts">
   // Self-contained inline SVG sport glyphs for the AI Predictor. No external
   // assets, no emoji — crisp at any size and themeable via the `color` prop.
-  import type { PredictorSportId } from '$lib/predictorTypes';
+  // Typed as string so legacy branches for removed predictor sports stay
+  // harmless (they simply never match).
 
   let {
-    sport = 'football' as PredictorSportId,
+    sport = 'football',
     size = 22,
     color = 'currentColor',
     strokeWidth = 2
   }: {
-    sport?: PredictorSportId;
+    sport?: string;
     size?: number;
     color?: string;
     strokeWidth?: number;

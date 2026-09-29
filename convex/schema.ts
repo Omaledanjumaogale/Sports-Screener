@@ -23,14 +23,9 @@ export const PREDICTOR_SPORT_IDS = v.union(
   v.literal('football'),
   v.literal('basketball'),
   v.literal('tennis'),
-  v.literal('rally'),
   v.literal('hockey'),
   v.literal('baseball'),
-  v.literal('americanfootball'),
-  v.literal('rugby'),
-  v.literal('cricket'),
-  v.literal('mma'),
-  v.literal('volleyball')
+  v.literal('americanfootball')
 );
 
 export default defineSchema({

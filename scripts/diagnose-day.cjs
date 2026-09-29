@@ -11,8 +11,7 @@ fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8').split(/\r?\n/)
   var eq = t.indexOf('='); if (eq > 0) envMap[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
 });
 
-var SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball',
-  'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'];
+var SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball', 'americanfootball'];
 
 async function main() {
   var client = new ConvexHttpClient(envMap.PUBLIC_CONVEX_URL);

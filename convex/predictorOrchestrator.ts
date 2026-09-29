@@ -23,14 +23,9 @@ const sportId = v.union(
   v.literal('football'),
   v.literal('basketball'),
   v.literal('tennis'),
-  v.literal('rally'),
   v.literal('hockey'),
   v.literal('baseball'),
-  v.literal('americanfootball'),
-  v.literal('rugby'),
-  v.literal('cricket'),
-  v.literal('mma'),
-  v.literal('volleyball')
+  v.literal('americanfootball')
 );
 
 const refreshArgs = {
@@ -38,7 +33,13 @@ const refreshArgs = {
   dayKey: v.string(),
   runId: v.optional(v.string()),
   floor: v.optional(v.number()),
-  cap: v.optional(v.number())
+  cap: v.optional(v.number()),
+  // Tomorrow-seeded runs pass seedOnly: they cache fixtures + reference
+  // verdicts but SKIP the LLM pipeline, so a scheduled tomorrow refresh can
+  // never collide with the today refresh and blow the action timeout (which
+  // made Convex retry it in a loop). The midnight cron re-runs tomorrow's day
+  // with full verdicts when it becomes today.
+  seedOnly: v.optional(v.boolean())
 };
 
 // Runs `fn` over `arr` with at most `limit` promises in flight. Kept matches
@@ -58,7 +59,7 @@ async function mapLimit<T, R>(arr: T[], limit: number, fn: (t: T) => Promise<R>)
 
 async function executeRefresh(
   ctx: any,
-  args: { sportId: string; dayKey: string; runId?: string; floor?: number; cap?: number }
+  args: { sportId: string; dayKey: string; runId?: string; floor?: number; cap?: number; seedOnly?: boolean }
 ): Promise<{ ok: boolean; kept: number; runId: string; message: string }> {
   const dayKey = args.dayKey || watTodayKey();
   const runId = args.runId ?? `run_${args.sportId}_${dayKey}_${Date.now()}`;
@@ -163,11 +164,12 @@ async function executeRefresh(
 
 
     // Cache EVERY validated fixture so the schedule always populates.
-    // PRESERVE GUARD: an empty cycle (sources returned nothing usable — e.g.
-    // the morning's fixtures have kicked off and dropped off the listings)
-    // must NEVER wipe a healthy existing cache. Keep the prior rows in place
-    // (the 15-minute score sync keeps them fresh) and mark the day partial;
-    // only replace when this cycle actually produced fixtures.
+    // PRESERVE GUARD (two tiers): relay transports serve different content per
+    // exit IP — a bad cycle (age-gate, throttle) can return almost nothing.
+    //   Tier 1: empty cycle → keep the existing cache entirely.
+    //   Tier 2: weak cycle (< 5 fixtures) vs a stronger existing cache → keep
+    //           the existing cache too, so a bad exit IP can never downgrade a
+    //           good one. Cycles with 5+ fixtures always replace (real updates).
     let preserveCache = false;
     if (cleanMatches.length === 0) {
       const existingCache = await ctx.runQuery(internal.predictor.getCachedMatches, {
@@ -175,6 +177,12 @@ async function executeRefresh(
         dayKey
       });
       preserveCache = existingCache.length > 0;
+    } else if (cleanMatches.length < 5) {
+      const existingCache = await ctx.runQuery(internal.predictor.getCachedMatches, {
+        sportId: args.sportId,
+        dayKey
+      });
+      preserveCache = existingCache.length > cleanMatches.length;
     }
 
     if (!preserveCache) {
@@ -208,7 +216,9 @@ async function executeRefresh(
       let llm: VerdictOutcome;
       let jev: Awaited<ReturnType<typeof evaluateMatchWithJev>> | null = null;
       let policy: JevPolicyDecision | null = null;
-      if (qualifies) {
+      // seedOnly (tomorrow-seeded runs): deterministic reference verdicts for
+      // every cached match — no Jev, no LLM. Fast enough to never time out.
+      if (qualifies && !args.seedOnly) {
         // Jev structured evaluation FIRST: typed noul/choice/score decisions
         // over this fixture's de-vigged state. The LLM verdict is then drafted
         // FROM Jev's reads (lead-market routing, value check, risk level).
@@ -421,25 +431,7 @@ export const runRefresh = action({
 export const runRefreshInternal = internalAction({
   args: refreshArgs,
   handler: async (ctx, args) => {
-    const result = await executeRefresh(ctx, args);
-    // Cron-driven cycles pass dayKey:'' (today). New fixtures surface on the
-    // sources continuously, so EVERY cron cycle also seeds TOMORROW's slate —
-    // scheduled as a follow-up action so this action stays inside its timeout
-    // and the per-sport cron stagger keeps the source load gentle.
-    if (!args.dayKey) {
-      const tomorrow = watDayKeyFor(1);
-      try {
-        await ctx.scheduler.runAfter(5_000, internal.predictorOrchestrator.runRefreshInternal, {
-          sportId: args.sportId,
-          dayKey: tomorrow,
-          floor: args.floor,
-          cap: args.cap
-        });
-      } catch (e) {
-        console.warn('[predictorOrchestrator] tomorrow refresh not scheduled:', e);
-      }
-    }
-    return result;
+    return executeRefresh(ctx, args);
   }
 });
 

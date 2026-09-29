@@ -1,31 +1,44 @@
-var cp = require('child_process');
+// Populate the AI Predictor for every sport by scheduling the orchestrator
+// through the fast startRefresh mutation (authenticated super-admin client).
+// Never invokes the long-running action directly — the CLI retry-while-waiting
+// on a slow action was multiplying full pipeline runs (10-16x per sport).
+"use strict";
+var fs = require('fs');
+var path = require('path');
+var { ConvexHttpClient } = require('convex/browser');
+var anyApi = require('convex/server').anyApi;
 
-var DEPLOY_KEY = process.env.CONVEX_DEPLOY_KEY || '';
-if (!DEPLOY_KEY) { console.log('ABORT: no CONVEX_DEPLOY_KEY'); process.exit(1); }
+var envMap = {};
+fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8').split(/\r?\n/).forEach(function (l) {
+  var t = l.trim(); if (!t || t[0] === '#') return;
+  var eq = t.indexOf('='); if (eq > 0) envMap[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
+});
 
-var pkgPath = require.resolve('convex/package.json');
-var pkg = JSON.parse(require('fs').readFileSync(pkgPath, 'utf8'));
-var bin = require('path').join(require('path').dirname(pkgPath), pkg.bin.convex || pkg.bin);
-var env = Object.assign({}, process.env, { CONVEX_DEPLOY_KEY: DEPLOY_KEY });
-
+var SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball', 'americanfootball'];
 var sports = process.argv.slice(2);
-if (!sports.length) { console.log('usage: node tmp-populate-sports.cjs <sport…>'); process.exit(1); }
+if (sports.length) SPORTS = sports;
 
-(function next(i) {
-  if (i >= sports.length) { console.log('BATCH_DONE'); process.exit(0); }
-  var s = sports[i];
-  var args = [bin, 'run', 'predictorOrchestrator:runRefreshInternal',
-    JSON.stringify({ sportId: s, dayKey: '', floor: 52, cap: 1200 })];
-  var r = cp.spawnSync(process.execPath, args, { env: env, encoding: 'utf8', timeout: 330000, windowsHide: true });
-  var out = ((r.stdout || '') + '\n' + (r.stderr || '')).trim();
-  // The orchestrator may print warnings around the JSON — take the LAST {...} block.
-  var jsons = out.match(/\{[\s\S]*?\}/g) || [];
-  var parsed = null;
-  for (var i = jsons.length - 1; i >= 0; i--) {
-    try { var p = JSON.parse(jsons[i]); if (p && (p.ok !== undefined || p.kept !== undefined)) { parsed = p; break; } } catch (_) {}
+async function main() {
+  var client = new ConvexHttpClient(envMap.PUBLIC_CONVEX_URL);
+  var si = await client.action(anyApi.auth.signIn, {
+    provider: 'password',
+    params: { flow: 'signIn', email: envMap.SUPER_ADMIN_EMAIL, password: envMap.SUPER_ADMIN_PASSWORD }
+  });
+  var tok = si && si.tokens && (si.tokens.token || (Array.isArray(si.tokens) && si.tokens[0] && (si.tokens[0].token || si.tokens[0])));
+  client.setAuth(tok);
+
+  var scheduled = 0;
+  for (var s of SPORTS) {
+    try {
+      var res = await client.mutation(anyApi.predictor.startRefresh, { sportId: s, dayKey: '', incremental: false });
+      var state = res && res.alreadyRunning ? 'already-running' : 'scheduled';
+      console.log(s + ': ' + state + (res && res.runId ? ' runId=' + String(res.runId).slice(0, 34) : ''));
+      scheduled++;
+    } catch (err) {
+      console.log(s + ': FAILED ' + String(err && err.message || err).slice(0, 120));
+    }
   }
-  if (parsed && parsed.ok) console.log(s + ': ok, kept=' + parsed.kept + ' runId=' + (parsed.runId || '').slice(0, 30));
-  else if (parsed) console.log(s + ': ok=' + parsed.ok + ' msg=' + (parsed.message || '').slice(0, 80));
-  else console.log(s + ': check day row (no JSON in output): ' + out.split(/\r?\n/).slice(-2).join(' ').slice(0, 150));
-  next(i + 1);
-})(0);
+  console.log('SCHEDULED ' + scheduled + '/' + SPORTS.length + ' sports — the orchestrator + cron stagger complete the pipelines.');
+  process.exit(0);
+}
+main().catch(function (e) { console.log('FATAL: ' + (e && e.message || e)); process.exit(1); });
