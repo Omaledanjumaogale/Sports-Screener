@@ -28,6 +28,8 @@ import { GREAT_MINDS_MODELS, gradeSelection } from './predictorTypes';
 import type { Analysis, Pick as EnginePick } from './engine';
 import { analyzeCachedMatch } from './predictorClient';
 
+import { basketballLeagueProfile } from '../../convex/scrapers/normalize';
+
 // Helper to format EV percentage
 function calcEv(probPct: number, odds: number): number {
   if (!odds || odds <= 1) return 0;
@@ -36,8 +38,13 @@ function calcEv(probPct: number, odds: number): number {
   return Number((ev * 100).toFixed(1));
 }
 
-// Sport-specific market defaults when specific picks are omitted
-function sportDefaults(sportId?: string, home = 'Home', away = 'Away'): {
+// Sport-specific market defaults when specific picks are omitted.
+//
+// The total line is LEAGUE-AWARE: a basketball fixture with no qualifying total
+// pick must still quote its OWN competition's scoring level (NBA ~220.5, WNBA
+// ~162.5, a country women's league ~141.5) — never a blanket NBA 214.5 line,
+// which would invite a false "Under" read on a women's/country fixture.
+function sportDefaults(sportId?: string, home = 'Home', away = 'Away', league?: string): {
   spreadLabel: string;
   spreadAlt: string;
   totalLabel: string;
@@ -45,7 +52,17 @@ function sportDefaults(sportId?: string, home = 'Home', away = 'Away'): {
 } {
   const sid = (sportId || 'football').toLowerCase();
   if (sid === 'basketball') {
-    return { spreadLabel: `${home} -4.5`, spreadAlt: `${away} +4.5`, totalLabel: 'Over 214.5 Total Points', totalAlt: 'Under 214.5 Total Points' };
+    const total = basketballLeagueProfile(league).avgTotal;
+    const line = (Math.round(total) - 0.5).toFixed(1);
+    // Handicap fallback scales with the scoring level: a low-scoring league's
+    // typical spread is smaller than the NBA's.
+    const spread = total >= 200 ? 4.5 : total >= 165 ? 3.5 : 2.5;
+    return {
+      spreadLabel: `${home} -${spread.toFixed(1)}`,
+      spreadAlt: `${away} +${spread.toFixed(1)}`,
+      totalLabel: `Over ${line} Total Points`,
+      totalAlt: `Under ${line} Total Points`
+    };
   } else if (sid === 'tennis') {
     return { spreadLabel: `${home} -1.5 Sets`, spreadAlt: `${away} +1.5 Sets`, totalLabel: 'Over 21.5 Games', totalAlt: 'Under 21.5 Games' };
   } else if (sid === 'hockey') {
@@ -182,7 +199,7 @@ export function generateGreatMindsDebate(
   const home = match.homeTeam || 'Home Team';
   const away = match.awayTeam || 'Away Team';
   const picks: EnginePick[] = analysis?.picks ?? [];
-  const defaults = sportDefaults(match.sportId, home, away);
+  const defaults = sportDefaults(match.sportId, home, away, match.league);
 
   // Hash match seed for unique model dynamics
   const seed = `${match.matchId}|${home}|${away}`;

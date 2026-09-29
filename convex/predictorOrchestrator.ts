@@ -203,6 +203,28 @@ async function executeRefresh(
       });
     }
 
+    // ── Performance intel: proven strike rates from the data bank ────────────
+    // Fetched ONCE per cycle and injected into every LLM verdict, so the model
+    // WEIGHTS its recommendations by historical evidence of what wins.
+    let performanceIntel = '';
+    if (!args.seedOnly) {
+      try {
+        const snapshot = await ctx.runQuery(internal.predictorStats.getSnapshotLifetimeInternal, {});
+        if (snapshot?.data?.byMarket?.length) {
+          const topMarkets = (snapshot.data.byMarket as any[])
+            .filter((r) => r.picks >= 10)
+            .sort((a: any, b: any) => b.winRatePct - a.winRatePct)
+            .slice(0, 5)
+            .map((r) => `${r.group}: ${r.winRatePct}% strike rate over ${r.picks} graded picks (calibration ${r.calibrationGapPct > 0 ? '+' : ''}${r.calibrationGapPct}pp)`);
+          if (topMarkets.length > 0) {
+            performanceIntel = `Overall: ${snapshot.data.overall?.winRatePct ?? 0}% strike rate over ${snapshot.data.overall?.picks ?? 0} graded picks.\nBest-performing market families:\n  ${topMarkets.join('\n  ')}`;
+          }
+        }
+      } catch (e) {
+        console.warn('[predictorOrchestrator] performance intel unavailable:', e);
+      }
+    }
+
     const verdicts = await mapLimit(cleanMatches, 4, async (m) => {
       // Generate a full LLM verdict only for matches that cleared the confidence
       // floor (Amara's gate). Everything else gets a deterministic engine-built
@@ -266,7 +288,8 @@ async function executeRefresh(
               fallbackSummary,
               ...(jev.ok && jev.steering
                 ? { jevSteering: jev.steering, jevPhrases: jev.phrases }
-                : {})
+                : {}),
+              ...(performanceIntel ? { performanceIntel } : {})
             }
           );
           await ctx.runMutation(internal.actionCache.setCachedActionValue, {

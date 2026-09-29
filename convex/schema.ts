@@ -348,5 +348,38 @@ export default defineSchema({
     createdAt: v.number()
   })
     .index('by_email', ['email'])
-    .index('by_expiry', ['expiresAt'])
+    .index('by_expiry', ['expiresAt']),
+
+  betSlips: defineTable({
+    owner: v.string(), // userId or sessionId
+    sessionId: v.string(),
+    userId: v.optional(v.string()),
+    items: v.array(v.object({
+      sportId: v.string(),
+      dayKey: v.string(),
+      matchId: v.string(),
+      homeTeam: v.string(),
+      awayTeam: v.string(),
+      league: v.string(),
+      marketTitle: v.string(),
+      selection: v.string(),
+      odds: v.number(),
+      publishedPct: v.number(),
+      kickoff: v.number(),
+      // Post-match grading (filled by the score sync when the match finishes)
+      finalScore: v.optional(v.string()),
+      grade: v.optional(v.union(v.literal('win'), v.literal('loss'), v.literal('push'), v.literal('void')))
+    })),
+    // 'open' = the slip the user is currently building; 'archived' = sealed
+    // history row kept for post-match review. Rows without a status are legacy
+    // open slips.
+    status: v.optional(v.union(v.literal('open'), v.literal('archived'))),
+    label: v.optional(v.string()),
+    sealedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index('by_owner', ['owner'])
+    .index('by_owner_status', ['owner', 'status'])
+    .index('by_owner_updated', ['owner', 'updatedAt'])
 });

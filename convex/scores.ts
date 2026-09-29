@@ -382,6 +382,15 @@ export const settleDayPnl = internalAction({
       console.error(`[SettlePnl] stats snapshot schedule ${dayKey}:`, err?.message || err);
     }
 
+    // Grade the users' accumulative bet slips against the same finished results
+    // (same grader as the verdict P&L), so finished slips show final scorelines
+    // and which legs won or failed without any manual action.
+    try {
+      await ctx.scheduler.runAfter(0, internal.betSlips.gradeSlipItems, {});
+    } catch (err: any) {
+      console.error(`[SettlePnl] bet slip grading schedule ${dayKey}:`, err?.message || err);
+    }
+
     return { picks, wins, losses, dayKey };
   }
 });

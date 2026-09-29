@@ -259,6 +259,11 @@ export const api = {
     getHistory: 'predictorStats:getHistory',
     requestRecompute: 'predictorStats:requestRecompute'
   },
+  betSlips: {
+    saveSlip: 'betSlips:saveSlip',
+    getSlip: 'betSlips:getSlip',
+    deleteSlip: 'betSlips:deleteSlip'
+  },
   predictorOps: {
     purgeMalformedMatches: 'predictor:purgeMalformedMatches',
     purgeWrongSportMatches: 'predictor:purgeWrongSportMatches'

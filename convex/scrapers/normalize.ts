@@ -58,8 +58,11 @@ const BASE_LINES: Record<string, { line: number; over: number; under: number }[]
     { line: 1.5, over: 1.4, under: 2.8 }
   ],
   basketball: [
-    { line: 220.5, over: 1.9, under: 1.9 },
-    { line: 214.5, over: 1.85, under: 1.95 }
+    // Mid-level fallback (between NCAA-W 134 and NBA 210) — the league prior
+    // in buildBasketballModel refines this by league name when no real total
+    // is scraped. NEVER default to NBA 220+ for country/women's leagues.
+    { line: 158.5, over: 1.9, under: 1.9 },
+    { line: 154.5, over: 1.85, under: 1.95 }
   ],
   tennis: [
     { line: 23.5, over: 1.87, under: 1.93 },
@@ -916,6 +919,8 @@ export interface BasketballModel {
   expAway: number;
   margin: number; // expected home - away margin
   sdTotal: number; // league-scaled game-total SD
+  sdTeam: number; // league-scaled team-total SD
+  sdMargin: number; // margin SD (constant ~14 across leagues)
 }
 
 // Damped scoring-level scaling for the game-total SD. Country leagues and
@@ -931,24 +936,172 @@ export function basketballTotalSdScale(expTotal: number): number {
   return Math.max(0.75, Math.min(1, 0.5 + (0.5 * expTotal) / BASKETBALL_TOTAL_SD_ANCHOR));
 }
 
+// ── League-aware scoring priors (CRITICAL: never generalize NBA to other leagues) ──
+// The backtest dataset measured these averages. When a fixture carries NO real
+// total anchor (BetExplorer /next/ rows carry 1X2 odds only), the fallback
+// anchor comes from THIS table matched on the league/tournament name — so a
+// Finnish women's game never inherits NBA's 210-point baseline.
+// Order matters: most-specific pattern first. `band` is the ± half-width of the
+// plausible full-game total for that competition, used to reject implausible
+// scraped totals (a 250 total simply cannot belong to a women's league game).
+export interface TotalPrior {
+  pattern: RegExp;
+  avgTotal: number;
+  label: string;
+  band?: number;
+}
+
+export const BASKETBALL_LEAGUE_PRIORS: TotalPrior[] = [
+  { pattern: /\bnba\b/i, avgTotal: 221, label: 'NBA', band: 42 },
+  { pattern: /\bwnba\b/i, avgTotal: 163, label: 'WNBA', band: 33 },
+  // Women's competitions must be split out BEFORE the generic men's patterns:
+  // a women's NCAA/college game (~134) and a lower country women's league
+  // (~140) score far less than any men's pro league, and women's games
+  // essentially never reach a 200+ full-game total.
+  { pattern: /((ncaa|college)[^,|]*(women|wmn|girls|female|femin|femen|damen|mujer|\bw-?league\b))|((women|wmn|girls|female|femin|femen|damen|mujer)[^,|]*(ncaa|college))/i, avgTotal: 134, label: 'NCAA Women', band: 30 },
+  { pattern: /(women|wmn|girls|female|femin|femen|damen|mujer|\bw-?league\b|\bdames\b)/i, avgTotal: 142, label: "Women's basketball (non-WNBA)", band: 32 },
+  { pattern: /\bncaa\b|\bcollege\b|\bncaab\b/i, avgTotal: 145, label: 'NCAA Men', band: 30 },
+  { pattern: /\bu1[0-9]\b|\bu2[0-9]\b|youth|junior|next gen/i, avgTotal: 138, label: 'Youth basketball', band: 30 },
+  { pattern: /euroleague|eurocup|basketball champions|europe/i, avgTotal: 168, label: 'European club', band: 32 },
+  { pattern: /\bacb\b|liga endesa|\bspain\b|spanish/i, avgTotal: 172, label: 'Spain ACB', band: 32 },
+  { pattern: /\blega\b|\blba\b|italy|italian|serie\s*a/i, avgTotal: 165, label: 'Italy LBA', band: 32 },
+  { pattern: /\bbbl\b|german|easycredit|germany/i, avgTotal: 171, label: 'Germany BBL', band: 32 },
+  { pattern: /\blnb\b|\bpro\s*a\b|france|french/i, avgTotal: 165, label: 'France LNB', band: 32 },
+  { pattern: /\bbsl\b|turkey|turkish/i, avgTotal: 165, label: 'Turkey BSL', band: 32 },
+  { pattern: /\bgbl\b|greece|greek/i, avgTotal: 160, label: 'Greece GBL', band: 32 },
+  { pattern: /\bplk\b|poland|polish/i, avgTotal: 165, label: 'Poland PLK', band: 32 },
+  { pattern: /\bnpfl\b|\bisrael/i, avgTotal: 172, label: 'Israel league', band: 32 },
+  { pattern: /korisliiga|finland|finnish/i, avgTotal: 178, label: 'Finland Korisliiga', band: 34 },
+  { pattern: /basketligan|sweden|swedish/i, avgTotal: 176, label: 'Sweden Basketligan', band: 34 },
+  { pattern: /\bnbl\b|australia|australian/i, avgTotal: 181, label: 'Australia NBL', band: 34 },
+  { pattern: /\bkbl\b|korea|korean/i, avgTotal: 155, label: 'Korea KBL', band: 30 },
+  { pattern: /b\.?league|japan|japanese/i, avgTotal: 160, label: 'Japan B.League', band: 30 },
+  { pattern: /\bcba\b|china|chinese/i, avgTotal: 190, label: 'China CBA', band: 36 },
+  { pattern: /\bpba\b|philippin/i, avgTotal: 190, label: 'Philippines PBA', band: 36 },
+  { pattern: /british|united kingdom/i, avgTotal: 168, label: 'Britain BBL', band: 32 },
+  { pattern: /\bvba\b|vietnam/i, avgTotal: 158, label: 'Vietnam VBA', band: 30 },
+  { pattern: /\bfiba\b|world cup|olympic|eurobasket|afrobasket/i, avgTotal: 158, label: 'FIBA international', band: 32 }
+];
+
+// ── Per-sport league / format total priors ────────────────────────────────────
+// Same principle as basketball: the fallback anchor must come from the fixture's
+// OWN competition, never from the sport's flagship league. Used ONLY when a real
+// scraped total is missing (or implausible for the league). Most-specific first.
+export const SPORT_TOTAL_PRIORS: Record<string, TotalPrior[]> = {
+  basketball: BASKETBALL_LEAGUE_PRIORS,
+  football: [
+    { pattern: /bundesliga|eredivisie|austria|switzerland|norway|eliteserien|sweden|allsvenskan|denmark|iceland/i, avgTotal: 3.1, label: 'High-scoring league', band: 1.1 },
+    { pattern: /premier league|\bepl\b|championship|serie a|la liga|ligue 1|primeira|eredivisie|spain|italy|france|england|portugal|netherlands|germany/i, avgTotal: 2.7, label: 'Top-5 league', band: 1.0 },
+    { pattern: /\bmls\b|japan|j-?league|korea|\bk league\b|china|australia|a-?league|brazil|brasileir|argentina|mexico|liga mx/i, avgTotal: 2.6, label: 'Non-European league', band: 1.0 },
+    { pattern: /women|wmn|fem|\bw-?league\b/i, avgTotal: 2.9, label: "Women's football", band: 1.1 },
+    { pattern: /u1[0-9]|u2[0-9]|youth|junior/i, avgTotal: 3.1, label: 'Youth football', band: 1.2 }
+  ],
+  hockey: [
+    { pattern: /\bnhl\b/i, avgTotal: 5.9, label: 'NHL', band: 1.4 },
+    { pattern: /\bkhl\b|russia|\bkhl\b/i, avgTotal: 5.1, label: 'KHL', band: 1.3 },
+    { pattern: /shl|sweden|liiga|finland|del\b|german|national league|switzerland|ice hockey league|austria|czech|extraliga|slovakia/i, avgTotal: 5.1, label: 'European league', band: 1.3 },
+    { pattern: /\bahl\b|\bechl\b|minor|prospect/i, avgTotal: 6.0, label: 'Minor league', band: 1.4 },
+    { pattern: /women|wmn|\bwhl\b|\bphf\b/i, avgTotal: 4.9, label: "Women's hockey", band: 1.3 }
+  ],
+  baseball: [
+    { pattern: /\bmlb\b|major league/i, avgTotal: 8.5, label: 'MLB', band: 1.8 },
+    { pattern: /\bnpb\b|japan|japanese/i, avgTotal: 7.5, label: 'NPB', band: 1.7 },
+    { pattern: /\bkbo\b|korea|korean|\bcpbl\b|taiwan|chinese professional/i, avgTotal: 9.5, label: 'KBO / CPBL', band: 2.0 },
+    { pattern: /\bwnba\b|women|softball/i, avgTotal: 8.0, label: "Women's baseball", band: 1.8 },
+    { pattern: /college|ncaa|minor|\bmilb\b/i, avgTotal: 9.5, label: 'College / minor league', band: 2.2 }
+  ],
+  americanfootball: [
+    { pattern: /\bnfl\b|national football league/i, avgTotal: 44.5, label: 'NFL', band: 8 },
+    { pattern: /\bcfl\b|canadian/i, avgTotal: 51, label: 'CFL', band: 9 },
+    { pattern: /ncaa|college|\bcfb\b/i, avgTotal: 55, label: 'NCAA football', band: 12 },
+    { pattern: /\bxfl\b|\busfl\b|spring league|arena|indoor/i, avgTotal: 45, label: 'Spring / indoor', band: 12 },
+    { pattern: /women|wmn/i, avgTotal: 50, label: "Women's football", band: 12 }
+  ]
+};
+
+// Measured SD ratios from the backtest: sdTotal/avg ≈ 0.108, sdMargin/avg ≈
+// 0.0665, sdTeam/avg ≈ 0.065 (NBA ratios; WNBA/NCAA hold them within ±15%).
+export function basketballLeagueProfile(league: string | undefined): { avgTotal: number; label: string; band: number } {
+  const raw = String(league || '');
+  for (const p of BASKETBALL_LEAGUE_PRIORS) {
+    if (p.pattern.test(raw)) return { avgTotal: p.avgTotal, label: p.label, band: p.band ?? 34 };
+  }
+  // Unknown league + no real total: a mid-level pro league — never the NBA
+  // number, and never so high that a women's/lower league inherits 200+ lines.
+  return { avgTotal: 162, label: 'Generic league (mid-level)', band: 38 };
+}
+
+// The league/format prior for any sport, or null when the league is unknown.
+export function leagueTotalPrior(sportId: string, league?: string): TotalPrior | null {
+  const raw = String(league || '');
+  const table = SPORT_TOTAL_PRIORS[sportId];
+  if (!table || !raw) return null;
+  for (const p of table) if (p.pattern.test(raw)) return p;
+  return null;
+}
+
+// Fallback anchor for a fixture with no real total: the league's own scoring
+// level when recognised, else the sport's generic mid-level line.
+export function defaultTotalAnchor(sportId: string, league: string | undefined, baseLine: number): number {
+  return leagueTotalPrior(sportId, league)?.avgTotal ?? baseLine;
+}
+
+// A real scraped total is only trusted when it is plausible for the fixture's
+// competition. This is the guard that stops an NBA-sized number leaking onto a
+// women's / lower-country league (and vice-versa for a mislabeled feed).
+export function clampTotalToLeague(sportId: string, league: string | undefined, line: number): number {
+  const prior = leagueTotalPrior(sportId, league);
+  if (!prior || !(line > 0)) return line;
+  const band = prior.band ?? Math.max(2, prior.avgTotal * 0.25);
+  if (line < prior.avgTotal - band || line > prior.avgTotal + band) return prior.avgTotal;
+  return line;
+}
+
 // Calibrate the Normal points model to the real 2-way moneyline + total anchor.
-export function buildBasketballModel(homeOdds: number, awayOdds: number, totalAnchorLine: number): BasketballModel {
+// The anchor is LEAGUE-AWARE: when the fixture carries no real total line, the
+// fallback comes from the league scoring prior, NOT a fixed NBA number. So a
+// Finnish women's game (~120-140 total) never inherits NBA's 220 baseline.
+// SDs: total-SD uses the damped scale (measured: absolute variance stays
+// ~18-20 even in low-scoring leagues); team-SD scales with the same damping
+// (measured WNBA 11.2 vs NBA 13.7); margin-SD stays ~14 across leagues.
+// BASE_LINES sentinels emitted when a basketball fixture carries no real total.
+// They are placeholders, never a real book line, so they never win the anchor.
+export const BASKETBALL_FALLBACK_LINES = [158.5, 154.5];
+
+function isBasketballFallbackLine(line: number): boolean {
+  return BASKETBALL_FALLBACK_LINES.some((f) => Math.abs(line - f) < 0.01);
+}
+
+// Resolve the full-game total anchor for a basketball fixture WITHOUT building
+// the model. Exported so the LLM prompt can quote the league's own scoring band.
+//  • a real, league-plausible scraped total wins;
+//  • the BASE_LINES sentinel or an implausible total falls back to the league
+//    prior (NBA 221, WNBA 163, country women's ~142, generic ~162).
+export function resolveBasketballAnchor(league: string | undefined, totalAnchorLine: number): number {
+  const profile = basketballLeagueProfile(league);
+  if (!(totalAnchorLine > 0) || isBasketballFallbackLine(totalAnchorLine)) return profile.avgTotal;
+  return clampTotalToLeague('basketball', league, totalAnchorLine);
+}
+
+export function buildBasketballModel(homeOdds: number, awayOdds: number, totalAnchorLine: number, league?: string): BasketballModel {
   const [pH] = devig([homeOdds, awayOdds]);
+  const expTotal = resolveBasketballAnchor(league, totalAnchorLine);
   const margin = normalInv(Math.min(Math.max(pH, 1e-6), 1 - 1e-6)) * BASKETBALL_SD_MARGIN;
-  const expTotal = Math.max(totalAnchorLine, 100);
   return {
     expTotal,
     expHome: (expTotal + margin) / 2,
     expAway: (expTotal - margin) / 2,
     margin,
-    sdTotal: BASKETBALL_SD_TOTAL * basketballTotalSdScale(expTotal)
+    sdTotal: BASKETBALL_SD_TOTAL * basketballTotalSdScale(expTotal),
+    sdTeam: BASKETBALL_SD_TEAM * basketballTotalSdScale(expTotal),
+    sdMargin: BASKETBALL_SD_MARGIN
   };
 }
 
-// P(a team scores MORE than `line` points).
+// P(a team scores MORE than `line` points). SD scales with the league level.
 export function basketballTeamOver(model: BasketballModel, home: boolean, line: number): number {
   const mean = home ? model.expHome : model.expAway;
-  return Math.max(0, Math.min(1, 1 - normalCdf((line - mean) / BASKETBALL_SD_TEAM)));
+  return Math.max(0, Math.min(1, 1 - normalCdf((line - mean) / model.sdTeam)));
 }
 
 // P(game total > line).
@@ -965,11 +1118,11 @@ export function basketballHalfTotalOver(model: BasketballModel, half: 'first' | 
   return Math.max(0, Math.min(1, 1 - normalCdf((line - mean) / sd)));
 }
 
-// P(a team scores more than `line` points in one half).
+// P(a team scores more than `line` points in one half). SD scales with league.
 export function basketballHalfTeamOver(model: BasketballModel, half: 'first' | 'second', home: boolean, line: number): number {
   const share = half === 'first' ? BASKETBALL_FIRST_HALF_SHARE : 1 - BASKETBALL_FIRST_HALF_SHARE;
   const mean = (home ? model.expHome : model.expAway) * share;
-  const sd = BASKETBALL_SD_TEAM * Math.sqrt(share);
+  const sd = model.sdTeam * Math.sqrt(share);
   return Math.max(0, Math.min(1, 1 - normalCdf((line - mean) / sd)));
 }
 
@@ -1000,9 +1153,10 @@ export const BASKETBALL_SPREAD_LINES = [-12.5, -10.5, -8.5, -6.5, -4.5, -2.5, -0
 export function deriveBasketballMarkets(
   homeOdds: number,
   awayOdds: number,
-  totalAnchorLine = 214.5,
+  totalAnchorLine = 0, // 0 ⇒ resolve from the league prior, never a fixed NBA line
   realTotals?: { line: number; over: number; under: number },
-  realSpread?: { point: number; home: number; away: number }
+  realSpread?: { point: number; home: number; away: number },
+  league?: string
 ): {
   mainTotal: Market;
   homeTotal: Market;
@@ -1013,14 +1167,22 @@ export function deriveBasketballMarkets(
   firstHalfAwayTotal: Market;
   handicap: Market;
 } {
-  const model = buildBasketballModel(homeOdds, awayOdds, totalAnchorLine);
+  const model = buildBasketballModel(homeOdds, awayOdds, totalAnchorLine, league);
+
+  // A real total pair is only anchored when it is PLAUSIBLE for this league —
+  // an NBA-sized line on a women's / lower-country fixture is dropped instead
+  // of being surfaced as a fake high-confidence side.
+  const realTotalsUsable =
+    !!realTotals &&
+    realTotals.line > 0 &&
+    Math.abs(clampTotalToLeague('basketball', league, realTotals.line) - realTotals.line) < 0.01;
 
   const totalLadder = BASKETBALL_TOTAL_OFFSETS.map((off) => {
     const line = roundHalf(model.expTotal + off);
     const over = basketballTotalOver(model, line);
     return { line, over: marginedPrice(over, 1.05), under: marginedPrice(1 - over, 1.05) };
   });
-  if (realTotals && realTotals.line > 0) {
+  if (realTotalsUsable && realTotals) {
     const existing = totalLadder.findIndex((p) => Math.abs(p.line - realTotals.line) < 0.01);
     if (existing >= 0) totalLadder[existing] = { line: realTotals.line, over: realTotals.over, under: realTotals.under };
     else totalLadder.push({ line: realTotals.line, over: realTotals.over, under: realTotals.under });
@@ -1063,17 +1225,30 @@ export function deriveBasketballMarkets(
     })
   });
 
-  const spreadLadder = BASKETBALL_SPREAD_LINES.map((line) => {
+  // Adaptive spread ladder: centered on the model margin, spanning ±3 SD of
+  // margin. For a low-scoring league the same ±3 SD span naturally produces
+  // smaller absolute lines, matching what bookies offer in that league.
+  const spreadCenter = roundHalf(model.margin);
+  const spreadStep = 2;
+  const spreadHalf = Math.max(6, Math.min(14, Math.ceil(model.sdMargin * 2)));
+  const spreadLadder: { line: number; sideA: number; sideB: number }[] = [];
+  for (let off = -spreadHalf; off <= spreadHalf; off += spreadStep) {
+    const line = roundHalf(spreadCenter + off);
     if (realSpread && Math.abs(line - realSpread.point) < 0.01) {
-      return { line: realSpread.point, sideA: realSpread.home, sideB: realSpread.away };
+      spreadLadder.push({ line: realSpread.point, sideA: realSpread.home, sideB: realSpread.away });
+      continue;
     }
     const covers = basketballHomeCovers(model, line);
-    return {
+    spreadLadder.push({
       line,
       sideA: marginedPrice(covers, 1.05),
       sideB: marginedPrice(1 - Math.min(covers, 0.999), 1.05)
-    };
-  });
+    });
+  }
+  // The ladder is always an ODD, sorted, margin-centred set: the model's own
+  // handicap line sits in the middle, so the market reads like a book's board
+  // instead of drifting to one side of a fixed ±12.5 span.
+  spreadLadder.sort((a, b) => a.line - b.line);
 
   return {
     mainTotal: { id: 'mainTotal', kind: 'ou', title: 'Match Total Points', derived: true, pairs: totalLadder },
@@ -1652,7 +1827,9 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
       h2h[0],
       h2h[1],
       h2h[2],
-      parsed.total && parsed.total.line > 0 ? parsed.total.line : 2.5,
+      parsed.total && parsed.total.line > 0
+        ? parsed.total.line
+        : defaultTotalAnchor('football', m.league, 2.5),
       parsed.total && parsed.total.line > 0 ? parsed.total : undefined
     );
     markets.doubleChance = doubleChance;
@@ -1687,7 +1864,8 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
       h2h[1],
       parsed.total && parsed.total.line > 0 ? parsed.total.line : lines[0].line,
       parsed.total && parsed.total.line > 0 ? parsed.total : undefined,
-      parsed.spread || undefined
+      parsed.spread || undefined,
+      m.league
     );
     markets.mainTotal = derived.mainTotal;
     markets.homeTotal = derived.homeTotal;
@@ -1740,7 +1918,9 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
     const derived = deriveHockeyMarkets(
       h2h[0],
       h2h[1],
-      parsed.total && parsed.total.line > 0 ? parsed.total.line : 5.5,
+      parsed.total && parsed.total.line > 0
+        ? parsed.total.line
+        : defaultTotalAnchor('hockey', m.league, 5.5),
       parsed.total && parsed.total.line > 0 ? parsed.total : undefined
     );
     markets.mainTotal = derived.mainTotal;
@@ -1757,7 +1937,9 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
     const derived = deriveBaseballMarkets(
       h2h[0],
       h2h[1],
-      parsed.total && parsed.total.line > 0 ? parsed.total.line : 8.5,
+      parsed.total && parsed.total.line > 0
+        ? parsed.total.line
+        : defaultTotalAnchor('baseball', m.league, 8.5),
       parsed.total && parsed.total.line > 0 ? parsed.total : undefined,
       parsed.spread || undefined
     );
@@ -1778,7 +1960,9 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
       sportId,
       h2h[0],
       h2h[1],
-      parsed.total && parsed.total.line > 0 ? parsed.total.line : BASE_LINES[sportId]?.[0]?.line ?? 44.5,
+      parsed.total && parsed.total.line > 0
+        ? parsed.total.line
+        : defaultTotalAnchor(sportId, m.league, BASE_LINES[sportId]?.[0]?.line ?? 44.5),
       parsed.total && parsed.total.line > 0 ? parsed.total : undefined,
       parsed.spread || undefined
     );

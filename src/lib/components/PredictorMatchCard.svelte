@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge, X, Sparkles, ExternalLink, CheckCircle2, XCircle, MinusCircle } from '@lucide/svelte';
+  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge, X, Sparkles, ExternalLink, CheckCircle2, XCircle, MinusCircle, Plus } from '@lucide/svelte';
+  import { isInSlip, addToSlip, removeFromSlip } from '$lib/betSlipStore.svelte';
   import { gradeSelection, type PredictorSportId, type SelectionGrade } from '$lib/predictorTypes';
   import type { PredictorMatch } from '$lib/predictorTypes';
   import { DEFAULT_CONFIDENCE_FLOOR } from '$lib/predictorTypes';
   import type { Analysis, Pick } from '$lib/engine';
   import { formatWAT } from '$lib/watTime';
   import { displayLeague } from '$lib/leagueCountries';
-  import PredictorPickChart from './PredictorPickChart.svelte';
   import PredictorMatchStats from './PredictorMatchStats.svelte';
   import { generateGreatMindsDebate } from '$lib/greatMindsEngine';
   import { pickSegment } from '$lib/predictorSegments';
@@ -273,16 +273,6 @@
     <div class="no-pick">No selection cleared the confidence floor this cycle.</div>
   {/if}
 
-  {#if bottomPicks.length > 0}
-    <div class="mini-section">
-      <div class="mini-title badge-row">
-        <span><BarChart3 size={13} stroke-width={2.2} /></span> All qualifying picks by market
-        <span class="count-badge">{bottomPicks.length}</span>
-      </div>
-      <PredictorPickChart picks={bottomPicks} grouped perSegment={5} {accent} />
-    </div>
-  {/if}
-
   {#if metrics.length > 0}
     <div class="mini-metrics">
       <div class="mini-title"><span><Gauge size={13} stroke-width={2.2} /></span> Key metrics</div>
@@ -303,32 +293,17 @@
   {#if open}
     <div class="expanded">
       <PredictorMatchStats scopes={match.scopes} {accent} />
-      <div class="exp-title">Research &amp; analysis summary</div>
+      <div class="exp-title">Research &amp; analysis summary — ranked by confidence</div>
       {#if insight?.verdictSummary}
         <p class="verdict-summary">{insight.verdictSummary}</p>
       {/if}
-      {#if insight?.top3Selections && insight.top3Selections.length > 0}
-        <div class="insight-top3">
-          {#each insight.top3Selections.slice(0, 3) as t, i (i)}
-            <div class="insight-row">
-              <span class="rank">#{i + 1}</span>
-              <div class="insight-main">
-                <span class="selection">{t.selection}</span>
-                <span class="market">{t.marketTitle}</span>
-              </div>
-              <div class="insight-right">
-                <span class="confidence">{t.confidence}</span>
-                <span class="edge">{t.punterEdge}</span>
-              </div>
-            </div>
-          {/each}
-        </div>
-      {:else if qualifying.length > 0}
+      {#if bottomPicks.length > 0}
         <div class="exp-segments">
-          {#each qualifying as p ((p.marketId || '') + p.label)}
+          {#each bottomPicks as p, i ((p.marketId || '') + p.label)}
             {@const seg = pickSegment(p.marketId)}
             {@const g = score && isFinished ? gradeOf(p.label, p.marketTitle) : null}
             <div class="exp-seg-row" style={`--seg-accent:${seg.accent}`}>
+              <span class="seg-rank">#{i + 1}</span>
               <span class="seg-tag">{seg.short}</span>
               <span class="pick-name">{p.label}</span>
               <span class="pick-market">{p.marketTitle}</span>
@@ -338,6 +313,35 @@
                 </span>
               {/if}
               <span class="pick-pct">{Number(p.probability).toFixed(1)}%</span>
+              <button
+                class="slip-add-btn"
+                class:in-slip={isInSlip(match.matchId, p.label)}
+                type="button"
+                aria-label={isInSlip(match.matchId, p.label) ? 'Remove from bet slip' : 'Add to bet slip'}
+                title={isInSlip(match.matchId, p.label) ? 'Remove from bet slip' : 'Add to bet slip'}
+                onclick={(e) => {
+                  e.stopPropagation();
+                  if (isInSlip(match.matchId, p.label)) {
+                    void removeFromSlip(match.matchId, p.label);
+                  } else {
+                    void addToSlip({
+                      sportId: cardSport ?? '',
+                      dayKey: match.dayKey || '',
+                      matchId: match.matchId,
+                      homeTeam: match.homeTeam,
+                      awayTeam: match.awayTeam,
+                      league: match.league,
+                      marketTitle: p.marketTitle,
+                      selection: p.label,
+                      odds: Number(p.odds) || 1.01,
+                      publishedPct: Number(p.probability),
+                      kickoff: match.startTime
+                    });
+                  }
+                }}
+              >
+                {#if isInSlip(match.matchId, p.label)}<Check size={12} stroke-width={3} />{:else}<Plus size={12} stroke-width={3} />{/if}
+              </button>
             </div>
           {/each}
         </div>
@@ -682,29 +686,19 @@
 
   .verdict-summary { font-size: 13px; line-height: 1.55; color: var(--c-text); margin: 0 0 8px; }
 
-  .insight-top3 { display: flex; flex-direction: column; gap: 6px; }
-
-  .insight-row {
-    display: flex;
-    gap: 10px;
-    padding: 9px 11px;
-    border-radius: 12px;
-    background: var(--c-glass-sm);
-    border: 1px solid var(--c-border);
-    align-items: flex-start;
-  }
-
-  .insight-row .rank { font-weight: 900; color: var(--accent); font-size: 13px; }
-  .insight-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .insight-main .selection { font-weight: 800; font-size: 12.5px; color: var(--c-text); }
-  .insight-main .market { font-size: 10.5px; color: var(--c-text-dim, var(--c-text)); }
-  .insight-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
-  .insight-right .confidence { font-weight: 900; font-size: 12.5px; color: #34d399; }
-  .insight-right .edge { font-size: 10px; color: #34d399; font-weight: 700; max-width: none; }
+  .seg-rank { font-weight: 900; color: var(--accent); font-size: 11.5px; font-variant-numeric: tabular-nums; min-width: 22px; }
 
   .pick-name { font-weight: 800; color: var(--c-text); flex: 1; }
   .pick-market { color: var(--c-text-dim, var(--c-text)); font-size: 11px; }
   .pick-pct { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
+
+  .slip-add-btn {
+    flex-shrink: 0; width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--c-border-2);
+    background: var(--c-glass-sm); color: var(--c-muted); display: inline-flex; align-items: center;
+    justify-content: center; cursor: pointer; transition: all 160ms ease;
+  }
+  .slip-add-btn:hover { border-color: color-mix(in srgb, var(--brand) 50%, transparent); color: var(--brand); }
+  .slip-add-btn.in-slip { border-color: var(--c-success); color: var(--c-success); background: color-mix(in srgb, var(--c-success) 12%, transparent); }
 
   .exp-segments { display: flex; flex-direction: column; gap: 6px; }
 

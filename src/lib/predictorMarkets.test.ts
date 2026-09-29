@@ -464,7 +464,17 @@ describe('predictor markets (basketball Normal points model)', () => {
     expect(mk.secondHalfTotal.pairs?.length).toBe(5);
     expect(mk.firstHalfHomeTotal.pairs?.length).toBe(5);
     expect(mk.firstHalfAwayTotal.pairs?.length).toBe(5);
-    expect(mk.handicap.handicapPairs?.length).toBe(BASKETBALL_SPREAD_LINES.length);
+    // The spread ladder is an odd, sorted, margin-centred board (the model's own
+    // handicap line sits in the middle) rather than a fixed ±12.5 span.
+    const spread = mk.handicap.handicapPairs ?? [];
+    expect(spread.length).toBeGreaterThanOrEqual(11);
+    expect(spread.length % 2).toBe(1);
+    const sorted = [...spread].sort((a, b) => a.line - b.line);
+    expect(spread.map((p) => p.line)).toEqual(sorted.map((p) => p.line));
+    const centre = spread[Math.floor(spread.length / 2)].line;
+    const model = buildBasketballModel(HOME, AWAY, TOTAL);
+    expect(Math.abs(centre - model.margin)).toBeLessThan(1.5);
+    expect(spread.some((p) => Math.abs(p.line - -4.5) < 0.01)).toBe(true);
     // The real anchor total pair keeps its real prices.
     const anchor = mk.mainTotal.pairs?.find((p) => Math.abs(p.line - 220.5) < 0.01);
     expect(anchor?.over).toBe(1.9);

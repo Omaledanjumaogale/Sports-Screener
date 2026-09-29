@@ -18,6 +18,7 @@ import type * as agents_specialists from "../agents/specialists.js";
 import type * as apis_sportsApis from "../apis/sportsApis.js";
 import type * as auditLog from "../auditLog.js";
 import type * as auth from "../auth.js";
+import type * as betSlips from "../betSlips.js";
 import type * as cronHealth from "../cronHealth.js";
 import type * as crons from "../crons.js";
 import type * as diagnostics from "../diagnostics.js";
@@ -74,6 +75,7 @@ declare const fullApi: ApiFromModules<{
   "apis/sportsApis": typeof apis_sportsApis;
   auditLog: typeof auditLog;
   auth: typeof auth;
+  betSlips: typeof betSlips;
   cronHealth: typeof cronHealth;
   crons: typeof crons;
   diagnostics: typeof diagnostics;

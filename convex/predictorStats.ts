@@ -412,6 +412,17 @@ export const recomputeStatsSnapshot = internalAction({
   }
 });
 
+// Internal read for the orchestrator — lifetime snapshot without admin gate.
+export const getSnapshotLifetimeInternal = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db
+      .query('predictorStatsSnapshots')
+      .withIndex('by_scope_day', (q) => q.eq('scope', 'lifetime').eq('dayKey', ''))
+      .first();
+  }
+});
+
 // Admin ops entry point: recompute the data bank on demand (the same work the
 // score-sync cycle and the hourly cron perform).
 export const requestRecompute = mutation({

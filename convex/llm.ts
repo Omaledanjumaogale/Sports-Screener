@@ -9,6 +9,8 @@
 // degrades gracefully to the next provider (or a deterministic fallback
 // verdict), so the SMOA pipeline never fails on a missing/flaky LLM.
 
+import { leagueTotalPrior } from './scrapers/normalize';
+
 declare const process: { env: Record<string, string | undefined> };
 
 export type LlmRole = 'system' | 'user' | 'assistant';
@@ -188,7 +190,8 @@ const VALID_SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball', 
 
 const SPORT_SCALE: Record<string, string> = {
   football: 'Goals (0-6 typical), total goals market expected 1.5-3.5',
-  basketball: 'Points (120-240 typical), market expected total 150-220',
+  basketball:
+    'Points — LEAGUE-RELATIVE, never one blanket range: NBA ~205-240, EuroLeague/ACB/BBL ~160-185, NBL ~170-195, WNBA ~145-185, NCAA-W and country women leagues ~115-165. The LEAGUE SCORING CONTEXT line below pins the anchor for THIS fixture.',
   tennis: 'Games (15-45 typical), market expected games 20-38',
   rally: 'Sets (3-6 typical), market expected sets 3-5',
   hockey: 'Goals (2-8 typical), total goals market expected 3-7',
@@ -199,6 +202,17 @@ const SPORT_SCALE: Record<string, string> = {
   mma: 'Rounds (1-5 typical), market expected total 2.5-4.5',
   volleyball: 'Sets (3-5 typical), market expected sets 3-5'
 };
+
+// League-aware scoring band for THIS fixture. SCORING SCALE is a sport-wide
+// range; this pins it to the fixture's own competition so the verdict never
+// applies the flagship league's expectations to a lower-scoring one (NBA →
+// women's/country basketball, NFL → NCAA/CFL, MLB → NPB/KBO, NHL → KHL).
+function leagueScaleNote(sportId: string, league: string | undefined): string {
+  const prior = leagueTotalPrior(sportId, league);
+  if (!prior) return '';
+  const band = prior.band ? ` ± ${prior.band}` : '';
+  return `\nLEAGUE SCORING CONTEXT for this fixture: "${league}" reads as ${prior.label} — its typical FULL-GAME total is about ${prior.avgTotal}${band} points. Reason every match total, team total and half total RELATIVE to that anchor, and flag as mispriced/defaulted any line far away from it.`;
+}
 
 // Sport-specific analysis model. Football gets its own market model (double
 // chance, team totals, half totals, BTTS evaluated on BOTH sides); every other
@@ -546,10 +560,14 @@ export async function generatePredictorVerdict(
     // the verdict drafts FROM Jev's calibrated reads instead of freeform judgement.
     jevSteering?: { leadMarketHint: string; valueBetHint: string; upsetWatchHint: string; riskHint: string };
     jevPhrases?: string[];
+    // Proven performance digest from the data bank — historical strike rates
+    // per market family and calibration gaps, injected so the LLM weights its
+    // confidence by EVIDENCE of what actually wins for this sport.
+    performanceIntel?: string;
   } = {}
 ): Promise<VerdictOutcome> {
   const sport = VALID_SPORTS.includes(opts.sportId ?? '') ? opts.sportId! : 'football';
-  const scale = SPORT_SCALE[sport] ?? SPORT_SCALE.football;
+  const scale = (SPORT_SCALE[sport] ?? SPORT_SCALE.football) + leagueScaleNote(sport, match.league);
   const sportRules = SPORT_RULES[sport] ?? SPORT_RULES.generic;
   const fallback = fallbackVerdict(
     match,
@@ -569,6 +587,13 @@ export async function generatePredictorVerdict(
     ? `\n\nJEV STRUCTURED EVALUATION (typed decisions from the Jev model over THIS fixture's state — anchor your analysis and recommendations to them; keep all odds numbers from the market data above):\n  - ${opts.jevPhrases.join('\n  - ')}\n`
     : '';
 
+  // Proven performance intel — the data bank's historical strike rates per
+  // market family + calibration gaps, so the LLM WEIGHTS its recommendations
+  // by what has actually been winning for this sport.
+  const perfBlock = opts.performanceIntel
+    ? `\n\nPROVEN PERFORMANCE CONTEXT (historical strike rates from the data bank — use these to WEIGHT your confidence and market selection):\n${opts.performanceIntel}\n`
+    : '';
+
   // Real source URLs the agents actually scraped — so the verdict reasons over
   // (and cites) the live pages, not generic boilerplate.
   const citations = match.citations ?? [];
@@ -586,7 +611,7 @@ STATUS:${noteStr}
 
 MATCH: ${match.homeTeam} vs ${match.awayTeam} (${match.league})
 SOURCE URLS (scraped this cycle, verify here):${sourceList}
-
+${perfBlock}
 MARKET / ODDS DATA (Real Win Chance = de-vigged fair probability; implied = 1/odds; edge = Real Win Chance − implied; Bookies Profit Cut = overround):
 ${marketsStr}
 ${linesStr}
