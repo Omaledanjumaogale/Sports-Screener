@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { ArrowLeft, ArrowDown, ArrowUp, Inbox, Clock3, Check, ChevronLeft, Ticket, Wand2, Activity, Search, X } from '@lucide/svelte';
-  import { betSlipCount } from '$lib/betSlipStore.svelte';
+  import { builderItemCount } from '$lib/betSlipStore.svelte';
   import PredictorTeamSelect from './PredictorTeamSelect.svelte';
   import PredictorStatusBanner from './PredictorStatusBanner.svelte';
   import PredictorMatchCard from './PredictorMatchCard.svelte';
@@ -608,9 +608,9 @@ $effect(() => {
           {onlineCount}
         </span>
       {/if}
-      <button class="icon-btn slip-btn" aria-label="Open bet slip ({betSlipCount()} items)" title="Bet slip" onclick={() => void goto('/betslip')} type="button">
+      <button class="icon-btn slip-btn" aria-label="Open bet slip ({builderItemCount()} items)" title="Bet slip" onclick={() => void goto('/betslip')} type="button">
         <Ticket size={17} stroke-width={2.2} />
-        {#if betSlipCount() > 0}<span class="slip-badge">{betSlipCount()}</span>{/if}
+        {#if builderItemCount() > 0}<span class="slip-badge">{builderItemCount()}</span>{/if}
       </button>
     </header>
 

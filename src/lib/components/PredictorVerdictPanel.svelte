@@ -8,7 +8,7 @@
   import type { PredictorMatch, SelectionGrade } from '$lib/predictorTypes';
   import { gradeSelection } from '$lib/predictorTypes';
   import { pickSegment } from '$lib/predictorSegments';
-  import { isInSlip, addToSlip, removeFromSlip } from '$lib/betSlipStore.svelte';
+  import { isInBuilder, addToBuilder, removeFromBuilder } from '$lib/betSlipStore.svelte';
 
   import type { GreatMindsDebateResult } from '$lib/predictorTypes';
   import GreatMindsDebatePanel from './GreatMindsDebatePanel.svelte';
@@ -156,15 +156,15 @@
   };
 
   const inSlip = (row: RankedRow): boolean =>
-    !!match && isInSlip(match.matchId, row.selection);
+    !!match && isInBuilder(match.matchId, row.selection);
 
   function toggleSlip(row: RankedRow): void {
     if (!match) return;
     if (inSlip(row)) {
-      void removeFromSlip(match.matchId, row.selection);
+      void removeFromBuilder(match.matchId, row.selection);
       return;
     }
-    void addToSlip({
+    void addToBuilder({
       sportId: match.sportId ?? '',
       dayKey: match.dayKey || '',
       matchId: match.matchId,

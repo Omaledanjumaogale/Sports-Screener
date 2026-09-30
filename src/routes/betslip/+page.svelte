@@ -3,34 +3,37 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import {
-    ArrowLeft, Trash2, Printer, Share2, ChevronDown, History,
-    Target, Check, X, MinusCircle, Ticket, Archive, ExternalLink
+    ArrowLeft, Trash2, Printer, Share2, ChevronDown, Trophy,
+    Target, Check, X, MinusCircle, Ticket, Plus, Save, Pencil
   } from '@lucide/svelte';
   import SEO from '$lib/components/SEO.svelte';
   import {
-    betSlipItems, betSlipCount, totalOdds, settledCount, wonCount, loseCount,
-    openCount, finishedCount, archivedSlips, removeFromSlip, clearSlip,
-    archiveCurrentSlip, deleteArchivedSlip, loadSlip, whatsappShareUrl,
-    whatsAppShareUrlFor, type BetSlipItem
+    savedSlips, builderItemCount, builderTotalOdds, builderPotentialWin,
+    builderGetTitle, builderGetStake, builderGetItems, builderGetId,
+    isInBuilder, startNewBuilder, loadIntoBuilder, setBuilderTitle,
+    setBuilderStake, addToBuilder, removeFromBuilder, saveBuilderSlip,
+    loadSlips, deleteSavedSlip, slipWhatsAppUrl, type SavedSlip, type BetSlipItem
   } from '$lib/betSlipStore.svelte';
+  import { authState } from '$lib/authStore.svelte';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
 
-  let collapsedFinished = $state(true);
-  let collapsedHistory = $state<Record<string, boolean>>({});
   let loaded = $state(false);
+  let saving = $state(false);
+  let saveMsg = $state('');
+  let editingTitle = $state(true);
 
   onMount(() => {
-    void loadSlip().then(() => (loaded = true));
+    void loadSlips().then(() => (loaded = true));
   });
 
-  // A leg is finished as soon as its final scoreline is known; the win/loss
-  // grade may still be missing for markets a plain scoreline cannot settle.
-  const open = $derived(betSlipItems().filter((i) => !i.finalScore));
-  const finished = $derived(betSlipItems().filter((i) => !!i.finalScore));
-  const history = $derived(archivedSlips());
-  const combined = $derived(totalOdds());
+  const slips = $derived(savedSlips());
+  const items = $derived(builderGetItems());
+  const totalOdds = $derived(builderTotalOdds());
+  const potential = $derived(builderPotentialWin());
+  const slipId = $derived(builderGetId());
+  const userName = $derived(authState.user?.fullName ?? '');
 
   function kickoffLabel(kickoff: number): string {
     return new Date(kickoff).toLocaleString('en-GB', {
@@ -38,44 +41,56 @@
     });
   }
 
-  function resultSummary(items: BetSlipItem[]): string {
-    const won = items.filter((i) => i.grade === 'win').length;
-    const lost = items.filter((i) => i.grade === 'loss').length;
-    const pending = items.filter((i) => !i.finalScore).length;
-    const parts = [`${won}W`, `${lost}L`];
-    if (pending) parts.push(`${pending} pending`);
-    return parts.join(' · ');
+  async function handleSave() {
+    if (items.length === 0) return;
+    saving = true;
+    saveMsg = '';
+    const id = await saveBuilderSlip();
+    saving = false;
+    if (id) {
+      saveMsg = 'Slip saved!';
+      await loadSlips();
+      setTimeout(() => (saveMsg = ''), 2500);
+    } else {
+      saveMsg = 'Save failed — try again.';
+    }
   }
 
-  function slipPdf(list: BetSlipItem[], title = 'PulseOdds Bet Slip') {
-    // Print-to-PDF — the browser print dialog writes a clean, shareable slip.
-    const w = window.open('', '_blank', 'width=420,height=640');
+  function slipPdf(slip: { title: string; stake: number; items: BetSlipItem[]; userName?: string }) {
+    const total = slip.items.reduce((acc, i) => acc * i.odds, 1);
+    const potential = total * slip.stake;
+    const w = window.open('', '_blank', 'width=440,height=640');
     if (!w) return;
-    const rows = list
-      .map(
-        (i, idx) =>
-          `<tr><td>${idx + 1}</td><td>${i.homeTeam} vs ${i.awayTeam}</td><td>${i.league}</td><td>${i.selection}</td><td>${i.odds.toFixed(2)}</td><td>${i.finalScore ?? '—'}</td><td class="${i.grade ?? ''}">${(i.grade ?? '').toUpperCase() || '—'}</td></tr>`
-      )
-      .join('');
-    const combinedOdds = list.reduce((acc, i) => acc * i.odds, 1);
+    const rows = slip.items.map((i, idx) =>
+      `<tr><td>${idx + 1}</td><td>${i.homeTeam} vs ${i.awayTeam}</td><td>${i.league}</td><td>${i.selection}</td><td>${i.odds.toFixed(2)}</td>${i.grade ? `<td class="${i.grade}">${i.grade.toUpperCase()}</td>` : '<td>—</td>'}</tr>`
+    ).join('');
     w.document.write(`
-      <html><head><title>${title}</title>
+      <html><head><title>${slip.title} | PulseOdds Bet Slip</title>
       <style>
-        body { font-family: system-ui, sans-serif; padding: 16px; color: #111; }
-        h1 { font-size: 18px; border-bottom: 2px solid #a3e635; padding-bottom: 8px; }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; }
-        th { text-align: left; padding: 5px; background: #f4f4f4; border-bottom: 1px solid #ddd; }
-        td { padding: 5px; border-bottom: 1px solid #eee; }
+        body { font-family: system-ui, sans-serif; padding: 20px; color: #111; max-width: 520px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 16px; }
+        .site { font-size: 10px; color: #888; letter-spacing: 0.1em; text-transform: uppercase; }
+        h1 { font-size: 20px; border-bottom: 2px solid #a3e635; padding-bottom: 8px; margin: 4px 0 4px; }
+        .user { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th { text-align: left; padding: 6px; background: #f4f4f4; border-bottom: 1px solid #ddd; font-size: 10px; text-transform: uppercase; }
+        td { padding: 6px; border-bottom: 1px solid #eee; }
         .win { color: #16a34a; font-weight: bold; }
-        .loss { color: #dc2626; font-weight: bold; }
+        .loss { color: #dc2626; }
         .push { color: #6b7280; }
-        .total { font-weight: bold; font-size: 14px; margin-top: 12px; }
+        .totals { margin-top: 14px; font-size: 14px; }
+        .totals div { display: flex; justify-content: space-between; padding: 4px 0; }
+        .totals .big { font-size: 18px; font-weight: bold; }
       </style></head><body>
-      <h1>⚡ ${title}</h1>
-      <table><thead><tr><th>#</th><th>Fixture</th><th>League</th><th>Selection</th><th>Odds</th><th>FT</th><th>Result</th></tr></thead>
+      <div class="header"><div class="site">pulseodds.ewinproject.org</div><h1>⚡ ${slip.title}</h1>${slip.userName ? `<div class="user">${slip.userName}</div>` : ''}</div>
+      <table><thead><tr><th>#</th><th>Fixture</th><th>League</th><th>Selection</th><th>Odds</th><th>Result</th></tr></thead>
       <tbody>${rows}</tbody></table>
-      <p class="total">Total odds: ${combinedOdds.toFixed(2)} · ${list.length} pick${list.length === 1 ? '' : 's'}</p>
-      <p style="font-size:10px;color:#888;">Generated by PulseOdds — Read the odds. Own the edge. Beat the Bookies.</p>
+      <div class="totals">
+        <div><span>Total odds:</span><span class="big">${total.toFixed(2)}</span></div>
+        <div><span>Stake:</span><span>₦${slip.stake.toLocaleString()}</span></div>
+        <div><span>Potential win:</span><span class="big">₦${potential.toLocaleString()}</span></div>
+      </div>
+      <p style="font-size:10px;color:#888;text-align:center;margin-top:20px;">Generated by PulseOdds — Read the odds. Own the edge. Beat the Bookies.<br>pulseodds.ewinproject.org</p>
       </body></html>
     `);
     w.document.close();
@@ -87,219 +102,138 @@
 
 <div class="slip-root">
   <header class="slip-head">
-    <button class="icon-btn" aria-label="Back" onclick={() => void goto('/predictor')} type="button">
+    <button class="icon-btn" aria-label="Back to predictor" onclick={() => void goto('/predictor')} type="button">
       <ArrowLeft size={20} stroke-width={2.4} />
     </button>
     <div class="head-title">
-      <span class="eyebrow">Accumulative Bet Slip</span>
-      <h1>Bet Slip</h1>
+      <span class="eyebrow">Bet Slips</span>
+      <h1>My Bet Slips</h1>
     </div>
-    <span class="slip-count-badge" aria-label="{betSlipCount()} items">
-      <Ticket size={16} stroke-width={2} /> {betSlipCount()}
-    </span>
+    <button class="new-slip-btn" onclick={() => { startNewBuilder(); editingTitle = true; }} type="button" aria-label="Create new bet slip">
+      <Plus size={16} stroke-width={2.6} /> New
+    </button>
   </header>
 
-  {#if !loaded}
-    <p class="loading">Loading bet slip…</p>
-  {:else if betSlipCount() === 0 && history.length === 0}
-    <div class="empty-slip">
-      <Ticket size={32} stroke-width={1.6} />
-      <p>Your bet slip is empty.</p>
-      <p class="hint">
-        Add market options from the AI Predictor's <strong>research &amp; analysis summary</strong>
-        by tapping <strong>Slip</strong> on any ranked pick — across as many fixtures and sports as you like.
-      </p>
-      <button class="browse-btn" type="button" onclick={() => void goto('/predictor')}>
-        <Target size={14} /> Browse fixtures
-      </button>
-    </div>
-  {:else}
-    {#if betSlipCount() === 0}
-      <div class="empty-slip small">
-        <p>No open picks — seal a slip below or add more from the predictor.</p>
-        <button class="browse-btn" type="button" onclick={() => void goto('/predictor')}>
-          <Target size={14} /> Browse fixtures
+  <!-- ── Builder (new / editing slip) ── -->
+  <section class="builder" aria-label="Bet slip builder">
+    <div class="builder-head">
+      {#if editingTitle}
+        <input
+          class="title-input"
+          placeholder="Slip title (e.g. Sat ACCA, EuroLeague doubles…)"
+          value={builderGetTitle()}
+          oninput={(e) => setBuilderTitle((e.currentTarget as HTMLInputElement).value)}
+          maxlength="60"
+        />
+      {:else}
+        <button class="title-display" type="button" onclick={() => (editingTitle = true)}>
+          {builderGetTitle() || 'Untitled slip'} <Pencil size={12} />
         </button>
+      {/if}
+      <div class="stake-row">
+        <label class="stake-label">Stake ₦</label>
+        <input
+          class="stake-input"
+          type="number"
+          min="0"
+          placeholder="0"
+          value={builderGetStake() || ''}
+          oninput={(e) => setBuilderStake(Number((e.currentTarget as HTMLInputElement).value) || 0)}
+        />
       </div>
-    {:else}
-      <!-- ── Combined odds ── -->
-      <div class="odds-strip">
-        <div class="odds-box">
-          <span class="odds-label">{betSlipCount()} pick{betSlipCount() === 1 ? '' : 's'}</span>
-          <span class="odds-val">{combined.toFixed(2)}</span>
-          <span class="odds-cap">combined odds</span>
-        </div>
-        <div class="odds-box">
-          <span class="odds-label">Open</span>
-          <span class="odds-val">{openCount()}</span>
-          <span class="odds-cap">awaiting kick-off</span>
-        </div>
-        {#if settledCount() > 0}
-          <div class="odds-box settled">
-            <span class="odds-label">Settled</span>
-            <span class="odds-val">{wonCount()}/{wonCount() + loseCount()}</span>
-            <span class="odds-cap">won</span>
-          </div>
-        {/if}
-      </div>
+    </div>
 
-      <!-- ── Open picks ── -->
-      {#if open.length > 0}
-        <section class="slip-section" aria-label="Open selections">
-          <h2>Open picks <span class="tag">{open.length}</span></h2>
-          {#each open as item (item.matchId + item.selection)}
-            <div class="slip-item">
-              <div class="si-main">
-                <span class="si-teams">{item.homeTeam} vs {item.awayTeam}</span>
+    {#if items.length === 0}
+      <p class="builder-empty">
+        <Target size={16} stroke-width={1.6} />
+        Add market options from the AI Predictor's research summary by tapping the <strong>+</strong> button.
+      </p>
+    {:else}
+      <div class="builder-items">
+        {#each items as item, idx (item.matchId + item.selection)}
+          <div class="b-item">
+            <span class="bi-n">{idx + 1}</span>
+            <div class="bi-main">
+              <span class="bi-teams">{item.homeTeam} vs {item.awayTeam}</span>
+              <span class="si-league">{item.league} · {kickoffLabel(item.kickoff)}</span>
+              <span class="si-selection">{item.selection} <em>@ {item.odds.toFixed(2)}</em></span>
+            </div>
+            <button class="bi-remove" aria-label="Remove" onclick={() => removeFromBuilder(item.matchId, item.selection)} type="button">
+              <X size={13} />
+            </button>
+          </div>
+        {/each}
+      </div>
+      <div class="builder-totals">
+        <div><span>Picks:</span><strong>{items.length}</strong></div>
+        <div><span>Total odds:</span><strong>{totalOdds.toFixed(2)}</strong></div>
+        <div><span>Potential win:</span><strong class="pot">₦{potential.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></div>
+      </div>
+    {/if}
+
+    <button class="save-btn" type="button" onclick={handleSave} disabled={saving || items.length === 0}>
+      <Save size={14} stroke-width={2.4} /> {saving ? 'Saving…' : slipId ? 'Update slip' : 'Save slip'}
+    </button>
+    {#if saveMsg}<p class="save-msg">{saveMsg}</p>{/if}
+  </section>
+
+  <!-- ── Saved slips ── -->
+  {#if loaded && slips.length > 0}
+    <h2 class="saved-title">Saved slips <span class="tag">{slips.length}</span></h2>
+    {#each slips as slip (slip._id)}
+      {@const total = slip.items.reduce((acc: number, i: BetSlipItem) => acc * i.odds, 1)}
+      {@const potential = total * (slip.stake ?? 0)}
+      {@const settled = slip.items.filter((i: BetSlipItem) => i.grade).length}
+      {@const won = slip.items.filter((i: BetSlipItem) => i.grade === 'win').length}
+      <details class="saved-slip">
+        <summary>
+          <div class="ss-summary">
+            <span class="ss-title">{slip.title}</span>
+            <span class="ss-meta">{slip.items.length} picks · odds {total.toFixed(2)}{slip.stake ? ` · ₦${(slip.stake ?? 0).toLocaleString()} stake` : ''}</span>
+            {#if settled > 0}<span class="ss-grade">{won}/{settled} won</span>{/if}
+          </div>
+        </summary>
+        <div class="ss-body">
+          {#each slip.items as item (item.matchId + item.selection)}
+            <div class="b-item">
+              <div class="bi-main">
+                <span class="bi-teams">{item.homeTeam} vs {item.awayTeam}</span>
                 <span class="si-league">{item.league} · {kickoffLabel(item.kickoff)}</span>
                 <span class="si-selection">
-                  {item.selection} <em>@ {item.odds.toFixed(2)}</em> <em>{item.publishedPct}%</em>
+                  {item.selection} <em>@ {item.odds.toFixed(2)}</em>
+                  {#if item.grade === 'win'}<span class="grade-badge win"><Check size={10} /> WON</span>{:else if item.grade === 'loss'}<span class="grade-badge loss"><X size={10} /> LOST</span>{:else if item.grade === 'push'}<span class="grade-badge push"><MinusCircle size={10} /> PUSH</span>{/if}
+                  {#if item.finalScore}<span class="ft-score">FT {item.finalScore}</span>{/if}
                 </span>
               </div>
-              <button
-                class="si-remove"
-                aria-label="Remove {item.selection}"
-                onclick={() => void removeFromSlip(item.matchId, item.selection)}
-                type="button"
-              >
-                <Trash2 size={14} />
+              <button class="si-analysis" type="button" onclick={() => void goto(`/predictor/${item.sportId}/${item.matchId}`)}>
+                View analysis
               </button>
             </div>
           {/each}
-        </section>
-      {/if}
-
-      <!-- ── Finished picks (collapsible, shows final scorelines) ── -->
-      {#if finished.length > 0}
-        <section class="slip-section" aria-label="Finished selections">
-          <button
-            class="section-toggle"
-            type="button"
-            onclick={() => (collapsedFinished = !collapsedFinished)}
-            aria-expanded={!collapsedFinished}
-          >
-            <h2>Finished <span class="tag">{finished.length}</span></h2>
-            <ChevronDown size={16} class={`caret ${collapsedFinished ? '' : 'open'}`} />
-          </button>
-          {#if !collapsedFinished}
-            {#each finished as item (item.matchId + item.selection)}
-              <div class="slip-item finished">
-                <div class="si-main">
-                  <span class="si-teams">{item.homeTeam} vs {item.awayTeam}</span>
-                  <span class="si-league">{item.league} · FT {item.finalScore ?? '—'}</span>
-                  <span class="si-selection">
-                    {item.selection}
-                    {#if item.grade === 'win'}<span class="grade-badge win"><Check size={11} /> WON</span>
-                    {:else if item.grade === 'loss'}<span class="grade-badge loss"><X size={11} /> LOST</span>
-                    {:else if item.grade === 'push'}<span class="grade-badge push"><MinusCircle size={11} /> PUSH</span>
-                    {:else}<span class="grade-badge pending">not settleable</span>{/if}
-                  </span>
-                </div>
-                <button
-                  class="si-analysis"
-                  aria-label="View analysis"
-                  title="View the pre-match research & analysis for this fixture"
-                  type="button"
-                  onclick={() => void goto(`/predictor/${item.sportId}/${item.matchId}`)}
-                >
-                  <ExternalLink size={11} /> Analysis
-                </button>
-                <button
-                  class="si-remove"
-                  aria-label="Delete"
-                  onclick={() => void removeFromSlip(item.matchId, item.selection)}
-                  type="button"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            {/each}
-          {/if}
-        </section>
-      {/if}
-
-      <!-- ── Actions ── -->
-      <div class="slip-actions">
-        <button class="action-btn share" type="button" onclick={() => window.open(whatsappShareUrl(), '_blank')} aria-label="Share on WhatsApp">
-          <Share2 size={15} stroke-width={2.2} /> Share on WhatsApp
-        </button>
-        <button class="action-btn pdf" type="button" onclick={() => slipPdf(betSlipItems())} aria-label="Download PDF">
-          <Printer size={15} stroke-width={2.2} /> Download PDF
-        </button>
-        <button class="action-btn seal" type="button" onclick={() => void archiveCurrentSlip()} aria-label="Seal slip into history">
-          <Archive size={15} stroke-width={2.2} /> Seal to history
-        </button>
-        <button class="action-btn clear" type="button" onclick={() => void clearSlip()} aria-label="Clear bet slip">
-          <Trash2 size={15} stroke-width={2.2} /> Clear all
-        </button>
-      </div>
-    {/if}
-
-    <!-- ── Slip history ── -->
-    {#if history.length > 0}
-      <section class="slip-section history" aria-label="Bet slip history">
-        <h2><History size={13} /> Slip history <span class="tag">{history.length}</span></h2>
-        {#each history as slip (slip.id)}
-          <div class="history-card">
-            <button
-              class="history-head"
-              type="button"
-              aria-expanded={!collapsedHistory[slip.id]}
-              onclick={() =>
-                (collapsedHistory = { ...collapsedHistory, [slip.id]: !collapsedHistory[slip.id] })}
-            >
-              <span class="history-main">
-                <span class="history-label">{slip.label}</span>
-                <span class="history-meta">{slip.items.length} legs · {resultSummary(slip.items)}</span>
-              </span>
-              <ChevronDown size={15} class={`caret ${collapsedHistory[slip.id] ? '' : 'open'}`} />
-            </button>
-            {#if !collapsedHistory[slip.id]}
-              <div class="history-body">
-                {#each slip.items as item (item.matchId + item.selection)}
-                  <div class="slip-item finished compact">
-                    <div class="si-main">
-                      <span class="si-teams">{item.homeTeam} vs {item.awayTeam}</span>
-                      <span class="si-league">{item.league} · FT {item.finalScore ?? '—'}</span>
-                      <span class="si-selection">
-                        {item.selection}
-                        {#if item.grade === 'win'}<span class="grade-badge win"><Check size={11} /> WON</span>
-                        {:else if item.grade === 'loss'}<span class="grade-badge loss"><X size={11} /> LOST</span>
-                        {:else if item.grade === 'push'}<span class="grade-badge push"><MinusCircle size={11} /> PUSH</span>
-                        {:else}<span class="grade-badge pending">not settleable</span>{/if}
-                      </span>
-                    </div>
-                    <button
-                      class="si-analysis"
-                      type="button"
-                      title="View the pre-match research & analysis"
-                      onclick={() => void goto(`/predictor/${item.sportId}/${item.matchId}`)}
-                    >
-                      <ExternalLink size={11} /> Analysis
-                    </button>
-                  </div>
-                {/each}
-                <div class="history-actions">
-                  <button class="mini-btn" type="button" onclick={() => slipPdf(slip.items, `${slip.label} — slip`)}>
-                    <Printer size={12} /> PDF
-                  </button>
-                  <button
-                    class="mini-btn"
-                    type="button"
-                    onclick={() => window.open(whatsAppShareUrlFor(slip.items, `${slip.label} — PulseOdds slip`), '_blank')}
-                  >
-                    <Share2 size={12} /> WhatsApp
-                  </button>
-                  <button class="mini-btn danger" type="button" onclick={() => void deleteArchivedSlip(slip.id)}>
-                    <Trash2 size={12} /> Delete
-                  </button>
-                </div>
-              </div>
-            {/if}
+          <div class="ss-totals">
+            <div><span>Total odds:</span><strong>{total.toFixed(2)}</strong></div>
+            <div><span>Stake:</span><strong>₦{(slip.stake ?? 0).toLocaleString()}</strong></div>
+            <div><span>Potential:</span><strong class="pot">₦{potential.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></div>
           </div>
-        {/each}
-      </section>
-    {/if}
+          <div class="ss-actions">
+            <button class="ss-btn" type="button" onclick={() => { loadIntoBuilder(slip); editingTitle = true; }}>
+              <Pencil size={12} /> Edit
+            </button>
+            <button class="ss-btn" type="button" onclick={() => window.open(slipWhatsAppUrl(slip), '_blank')}>
+              <Share2 size={12} /> WhatsApp
+            </button>
+            <button class="ss-btn" type="button" onclick={() => slipPdf(slip)}>
+              <Printer size={12} /> PDF
+            </button>
+            <button class="ss-btn danger" type="button" onclick={() => void deleteSavedSlip(slip._id)}>
+              <Trash2 size={12} /> Delete
+            </button>
+          </div>
+        </div>
+      </details>
+    {/each}
+  {:else if loaded}
+    <p class="no-saved">No saved slips yet — build one above and hit "Save slip".</p>
   {/if}
 </div>
 
@@ -319,102 +253,96 @@
   .head-title { text-align: center; flex: 1; }
   .eyebrow { display: block; color: var(--brand); text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; font-weight: 800; }
   .head-title h1 { font-family: var(--font-display); font-size: clamp(18px, 4vw, 24px); margin: 2px 0; }
-  .slip-count-badge {
-    display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px;
-    background: color-mix(in srgb, var(--brand) 12%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
-    color: var(--brand); font-weight: 800; font-size: 14px; font-family: var(--font-mono);
+  .new-slip-btn {
+    display: inline-flex; align-items: center; gap: 5px; padding: 8px 14px; border-radius: 10px;
+    border: none; background: linear-gradient(135deg, var(--brand), var(--brand-hover));
+    color: var(--c-on-accent); font-weight: 800; font-size: 13px; cursor: pointer; box-shadow: var(--glow-brand);
   }
 
-  .loading { text-align: center; padding: 40px; color: var(--c-muted); }
-  .empty-slip {
-    display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
-    padding: 60px 20px; border: 1px dashed var(--c-border-2); border-radius: 16px; color: var(--c-muted);
+  .builder { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 14px; padding: 14px; margin-bottom: 20px; }
+  .builder-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+  .title-input, .stake-input {
+    width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--c-input-border); background: var(--c-input-bg); color: var(--c-input-text);
+    font-size: 14px; font-weight: 700;
   }
-  .empty-slip.small { padding: 24px 16px; margin-bottom: 16px; }
-  .empty-slip .hint { font-size: 12px; max-width: 44ch; }
-  .browse-btn {
-    display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 10px 18px;
-    border-radius: 10px; border: none; background: linear-gradient(135deg, var(--brand), var(--brand-hover));
-    color: var(--c-on-accent); font-weight: 800; cursor: pointer; margin-top: 8px;
+  .title-input:focus, .stake-input:focus { outline: none; border-color: color-mix(in srgb, var(--brand) 60%, transparent); }
+  .title-display {
+    display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 0; border: none;
+    background: transparent; color: var(--c-text); font-size: 15px; font-weight: 800; cursor: pointer; text-align: left;
   }
+  .stake-row { display: flex; align-items: center; gap: 8px; }
+  .stake-label { font-size: 12px; font-weight: 800; color: var(--c-muted); flex-shrink: 0; }
+  .stake-input { flex: 1; }
+  .builder-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 12px; color: var(--c-muted); font-size: 13px; text-align: center; }
 
-  .odds-strip { display: flex; gap: 8px; margin-bottom: 16px; }
-  .odds-box {
-    flex: 1; padding: 12px 8px; border-radius: 14px; background: var(--c-surface); border: 1px solid var(--c-border);
-    display: flex; flex-direction: column; gap: 2px; text-align: center; min-width: 0;
+  .builder-items { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .b-item {
+    display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px;
+    border-radius: 10px; border: 1px solid var(--c-border); background: var(--c-glass-sm);
   }
-  .odds-box .odds-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--c-muted); font-weight: 700; }
-  .odds-box .odds-val { font-family: var(--font-mono); font-size: 24px; font-weight: 900; color: var(--brand); }
-  .odds-box .odds-cap { font-size: 10px; color: var(--c-faint); }
-  .odds-box.settled .odds-val { color: var(--c-success); }
-
-  .slip-section { margin-bottom: 16px; }
-  .slip-section h2 { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--c-text-2); margin: 0 0 8px; }
-  .tag { font-size: 10px; padding: 2px 7px; border-radius: 999px; background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
-
-  .section-toggle {
-    width: 100%; display: flex; align-items: center; justify-content: space-between;
-    background: transparent; border: none; color: inherit; cursor: pointer; padding: 0;
-  }
-  .caret { transition: transform 200ms ease; color: var(--c-muted); }
-  .caret.open { transform: rotate(180deg); }
-
-  .slip-item {
-    display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px;
-    border-radius: 12px; border: 1px solid var(--c-border); background: var(--c-surface);
-    margin-bottom: 6px;
-  }
-  .slip-item.finished { opacity: 0.85; }
-  .slip-item.compact { padding: 8px 10px; }
-  .si-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .si-teams { font-weight: 800; font-size: 13px; }
+  .bi-n { font-family: var(--font-mono); font-size: 11px; color: var(--c-faint); flex-shrink: 0; margin-top: 2px; }
+  .bi-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .bi-teams { font-weight: 800; font-size: 13px; }
   .si-league { font-size: 11px; color: var(--c-muted); }
   .si-selection { font-size: 12px; color: var(--brand); font-weight: 700; }
   .si-selection em { color: var(--c-muted); font-style: normal; font-family: var(--font-mono); font-size: 11px; }
+  .bi-remove {
+    flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--c-border-md);
+    background: var(--c-glass-sm); color: var(--c-muted); display: inline-flex; align-items: center;
+    justify-content: center; cursor: pointer;
+  }
+  .bi-remove:hover { border-color: color-mix(in srgb, var(--c-error) 45%, transparent); color: var(--c-error); }
+
+  .builder-totals { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 0; font-size: 12px; color: var(--c-text-2); }
+  .builder-totals strong { font-family: var(--font-mono); font-size: 14px; color: var(--c-text); }
+  .builder-totals .pot { color: var(--c-success); }
+
+  .save-btn {
+    width: 100%; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border-radius: 10px; border: none; background: linear-gradient(135deg, var(--brand), var(--brand-hover));
+    color: var(--c-on-accent); font-weight: 800; font-size: 14px; cursor: pointer; box-shadow: var(--glow-brand);
+  }
+  .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .save-msg { text-align: center; font-size: 12px; color: var(--c-success); font-weight: 700; margin: 8px 0 0; }
+
+  .saved-title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--c-text-2); margin: 0 0 12px; }
+  .tag { font-size: 10px; padding: 2px 7px; border-radius: 999px; background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
+
+  .saved-slip { margin-bottom: 12px; border: 1px solid var(--c-border); border-radius: 14px; background: var(--c-surface); overflow: hidden; }
+  .saved-slip summary {
+    display: flex; align-items: center; padding: 12px 14px; cursor: pointer;
+    list-style: none; font-weight: 800; font-size: 14px;
+  }
+  .saved-slip summary::-webkit-details-marker { display: none; }
+  .ss-summary { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .ss-title { font-weight: 800; font-size: 14px; }
+  .ss-meta { font-size: 11px; color: var(--c-muted); }
+  .ss-grade { font-size: 11px; font-weight: 800; color: var(--c-success); font-family: var(--font-mono); }
+  .ss-body { padding: 0 14px 14px; }
+  .ss-totals { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 0; font-size: 12px; color: var(--c-text-2); border-top: 1px solid var(--c-border-sm); margin-top: 8px; }
+  .ss-totals strong { font-family: var(--font-mono); font-size: 14px; color: var(--c-text); }
+  .ss-totals .pot { color: var(--c-success); }
+  .ss-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .ss-btn {
+    display: inline-flex; align-items: center; gap: 4px; padding: 7px 12px; border-radius: 8px;
+    border: 1px solid var(--c-border-md); background: var(--c-glass-sm); color: var(--c-text-2);
+    font-size: 11px; font-weight: 700; cursor: pointer;
+  }
+  .ss-btn:hover { border-color: color-mix(in srgb, var(--brand) 40%, transparent); color: var(--brand); }
+  .ss-btn.danger:hover { border-color: color-mix(in srgb, var(--c-error) 45%, transparent); color: var(--c-error); }
+  .si-analysis {
+    flex-shrink: 0; padding: 4px 10px; border-radius: 8px; font-size: 10.5px; font-weight: 700;
+    color: var(--accent2); border-color: color-mix(in srgb, var(--accent2) 35%, transparent);
+    border: 1px solid; background: transparent; cursor: pointer;
+  }
+  .ft-score { font-family: var(--font-mono); font-size: 11px; color: var(--c-muted); margin-left: 4px; }
   .grade-badge {
     display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 6px;
     font-size: 10px; font-weight: 900; letter-spacing: 0.04em; margin-left: 4px;
   }
   .grade-badge.win { background: color-mix(in srgb, var(--c-success) 15%, transparent); color: var(--c-success); }
   .grade-badge.loss { background: color-mix(in srgb, var(--c-error) 15%, transparent); color: var(--c-error); }
-  .grade-badge.push, .grade-badge.pending { background: var(--c-glass-md); color: var(--c-muted); }
-  .si-remove, .si-analysis {
-    flex-shrink: 0; min-height: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--c-border-md);
-    background: var(--c-glass-sm); color: var(--c-muted); display: inline-flex; align-items: center;
-    justify-content: center; cursor: pointer;
-  }
-  .si-remove { width: 32px; }
-  .si-remove:hover { border-color: color-mix(in srgb, var(--c-error) 45%, transparent); color: var(--c-error); }
-  .si-analysis {
-    gap: 4px; padding: 0 9px; font-size: 10.5px; font-weight: 700; color: var(--accent2);
-    border-color: color-mix(in srgb, var(--accent2) 35%, transparent);
-  }
-  .si-analysis:hover { border-color: var(--accent2); }
-
-  .slip-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
-  .action-btn {
-    flex: 1; min-width: 120px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
-    gap: 6px; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer;
-  }
-  .action-btn.share { background: #25D366; color: white; border: none; }
-  .action-btn.pdf { background: var(--c-glass-md); border: 1px solid var(--c-border-2); color: var(--c-text); }
-  .action-btn.seal { background: color-mix(in srgb, var(--brand) 14%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent); color: var(--brand); }
-  .action-btn.clear { background: transparent; border: 1px solid color-mix(in srgb, var(--c-error) 35%, transparent); color: var(--c-error); }
-  .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .history-card { border: 1px solid var(--c-border); border-radius: 12px; background: var(--c-surface); margin-bottom: 8px; overflow: hidden; }
-  .history-head {
-    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    background: transparent; border: none; color: inherit; cursor: pointer; padding: 10px 12px; text-align: left;
-  }
-  .history-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .history-label { font-weight: 800; font-size: 13px; }
-  .history-meta { font-size: 11px; color: var(--c-muted); font-variant-numeric: tabular-nums; }
-  .history-body { padding: 0 10px 10px; }
-  .history-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-  .mini-btn {
-    display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 8px; cursor: pointer;
-    font-size: 11px; font-weight: 700; background: var(--c-glass-sm); border: 1px solid var(--c-border-2); color: var(--c-text);
-  }
-  .mini-btn.danger { color: var(--c-error); border-color: color-mix(in srgb, var(--c-error) 35%, transparent); }
+  .grade-badge.push { background: var(--c-glass-md); color: var(--c-muted); }
+  .no-saved { text-align: center; padding: 24px; color: var(--c-muted); font-size: 13px; }
 </style>

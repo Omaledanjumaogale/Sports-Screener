@@ -354,6 +354,14 @@ export default defineSchema({
     owner: v.string(), // userId or sessionId
     sessionId: v.string(),
     userId: v.optional(v.string()),
+    userName: v.optional(v.string()), // registered full name for the slip header
+    title: v.optional(v.string()), // unique per slip
+    stake: v.optional(v.number()), // stake amount
+    // Legacy fields from the single-slip model — kept optional so old rows
+    // pass schema validation. New slips never write these.
+    status: v.optional(v.string()),
+    label: v.optional(v.string()),
+    sealedAt: v.optional(v.number()),
     items: v.array(v.object({
       sportId: v.string(),
       dayKey: v.string(),
@@ -366,20 +374,12 @@ export default defineSchema({
       odds: v.number(),
       publishedPct: v.number(),
       kickoff: v.number(),
-      // Post-match grading (filled by the score sync when the match finishes)
       finalScore: v.optional(v.string()),
       grade: v.optional(v.union(v.literal('win'), v.literal('loss'), v.literal('push'), v.literal('void')))
     })),
-    // 'open' = the slip the user is currently building; 'archived' = sealed
-    // history row kept for post-match review. Rows without a status are legacy
-    // open slips.
-    status: v.optional(v.union(v.literal('open'), v.literal('archived'))),
-    label: v.optional(v.string()),
-    sealedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number()
   })
     .index('by_owner', ['owner'])
-    .index('by_owner_status', ['owner', 'status'])
     .index('by_owner_updated', ['owner', 'updatedAt'])
 });

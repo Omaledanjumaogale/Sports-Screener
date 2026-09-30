@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge, X, Sparkles, ExternalLink, CheckCircle2, XCircle, MinusCircle, Plus } from '@lucide/svelte';
-  import { isInSlip, addToSlip, removeFromSlip } from '$lib/betSlipStore.svelte';
+  import { isInBuilder, addToBuilder, removeFromBuilder } from '$lib/betSlipStore.svelte';
   import { gradeSelection, type PredictorSportId, type SelectionGrade } from '$lib/predictorTypes';
   import type { PredictorMatch } from '$lib/predictorTypes';
   import { DEFAULT_CONFIDENCE_FLOOR } from '$lib/predictorTypes';
@@ -315,16 +315,16 @@
               <span class="pick-pct">{Number(p.probability).toFixed(1)}%</span>
               <button
                 class="slip-add-btn"
-                class:in-slip={isInSlip(match.matchId, p.label)}
+                class:in-slip={isInBuilder(match.matchId, p.label)}
                 type="button"
-                aria-label={isInSlip(match.matchId, p.label) ? 'Remove from bet slip' : 'Add to bet slip'}
-                title={isInSlip(match.matchId, p.label) ? 'Remove from bet slip' : 'Add to bet slip'}
+                aria-label={isInBuilder(match.matchId, p.label) ? 'Remove from bet slip' : 'Add to bet slip'}
+                title={isInBuilder(match.matchId, p.label) ? 'Remove from bet slip' : 'Add to bet slip'}
                 onclick={(e) => {
                   e.stopPropagation();
-                  if (isInSlip(match.matchId, p.label)) {
-                    void removeFromSlip(match.matchId, p.label);
+                  if (isInBuilder(match.matchId, p.label)) {
+                    void removeFromBuilder(match.matchId, p.label);
                   } else {
-                    void addToSlip({
+                    void addToBuilder({
                       sportId: cardSport ?? '',
                       dayKey: match.dayKey || '',
                       matchId: match.matchId,
@@ -340,7 +340,7 @@
                   }
                 }}
               >
-                {#if isInSlip(match.matchId, p.label)}<Check size={12} stroke-width={3} />{:else}<Plus size={12} stroke-width={3} />{/if}
+                {#if isInBuilder(match.matchId, p.label)}<Check size={12} stroke-width={3} />{:else}<Plus size={12} stroke-width={3} />{/if}
               </button>
             </div>
           {/each}
