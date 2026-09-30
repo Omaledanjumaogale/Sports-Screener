@@ -17,6 +17,9 @@ export interface ScrapeMatch {
   startTime: number;
   markets: string[];
   oddsText?: string;
+  /** Parsed from this sport's OWN scoped page under a real "Country: League"
+   *  header — establishes sport identity without a famous-name fingerprint. */
+  sportPinned?: boolean;
 }
 
 const SPORT_LEAGUES: Record<string, string[]> = {

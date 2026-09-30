@@ -32,11 +32,15 @@ export interface PageReadResult {
 
 const MIN_TEXT = 60;
 
-export async function directRead(url: string, opts: { timeoutMs?: number } = {}): Promise<PageReadResult> {
+export async function directRead(
+  url: string,
+  opts: { timeoutMs?: number; attempts?: number } = {}
+): Promise<PageReadResult> {
   // Self-hosted engine: full browser fingerprint + UA rotation (free). Sites
   // like BetExplorer 404 bare server fetches but serve a real page to a
-  // Chrome-grade request.
-  const r = await selfScrape(url, { timeoutMs: opts.timeoutMs ?? 20_000 });
+  // Chrome-grade request. Fixture boards are per-IP rate limited, so callers
+  // that need raw markup ask for extra attempts.
+  const r = await selfScrape(url, { timeoutMs: opts.timeoutMs ?? 20_000, attempts: opts.attempts });
   return { ok: r.ok && r.text.trim().length >= MIN_TEXT, status: r.status, text: r.text, engine: 'direct', kind: 'html' };
 }
 
@@ -46,37 +50,55 @@ export async function relayRead(url: string, opts: { timeoutMs?: number } = {}):
   return { ok: r.ok && r.text.trim().length >= MIN_TEXT, status: r.status, text: r.text, engine: 'relay', kind: 'html' };
 }
 
-export async function readAny(url: string, opts: { timeoutMs?: number } = {}): Promise<PageReadResult> {
+export async function readAny(
+  url: string,
+  opts: { timeoutMs?: number; preferHtml?: boolean } = {}
+): Promise<PageReadResult> {
   const timeoutMs = opts.timeoutMs ?? 20_000;
 
+  // STRUCTURAL PAGES (fixture boards) can only be parsed from raw markup — a
+  // markdown conversion loses the row/attribute structure the parsers key on.
+  // So when the caller needs HTML, the HTML-capable legs are retried harder and
+  // a text-kind result is held back as a last resort instead of being returned
+  // the moment it succeeds.
+  const attempts = opts.preferHtml ? 4 : 2;
+  let textFallback: PageReadResult | null = null;
+
   // 1. FREE — self-hosted browser-grade fetch with UA rotation.
-  const direct = await directRead(url, { timeoutMs });
+  const direct = await directRead(url, { timeoutMs, attempts });
   if (direct.ok) return direct;
 
   // 2. FREE — keyless public relays (raw HTML, different egress IPs).
   const relay = await relayRead(url, { timeoutMs });
-  if (relay.ok) return relay;
+  if (relay.ok && (!opts.preferHtml || relay.kind === 'html')) return relay;
+  if (relay.ok) textFallback = relay;
 
   // 3. KEYED — Jina Reader (keyless requests already tried above; the keyed
   //    path unlocks higher RPM + selectors when credits exist). Output is
   //    MARKDOWN — routed to text-only parsers downstream.
   const jina = await jinaRead(url, { timeoutMs });
   if (jina.ok && jina.text && jina.text.trim().length >= MIN_TEXT) {
-    return { ok: true, status: jina.status, text: jina.text, engine: 'jina', kind: 'text' };
+    const res: PageReadResult = { ok: true, status: jina.status, text: jina.text, engine: 'jina', kind: 'text' };
+    if (!opts.preferHtml) return res;
+    textFallback ??= res;
   }
 
   // 4. KEYED — ScrapeGraphAI v2 stealth scrape (residential proxies; the best
   //    option against hard bot walls when the free tier is provisioned).
   const sg = await scrapegraphRead(url, { timeoutMs });
   if (sg.ok && sg.text.trim().length >= MIN_TEXT) {
-    return { ok: true, status: sg.status, text: sg.text, engine: 'scrapegraph', kind: 'text' };
+    const res: PageReadResult = { ok: true, status: sg.status, text: sg.text, engine: 'scrapegraph', kind: 'text' };
+    if (!opts.preferHtml) return res;
+    textFallback ??= res;
   }
 
   // 5-6. KEYED — Firecrawl / Bright Data (resume automatically when credits
   //      return; no code change needed). Bright Data serves raw HTML.
   const firecrawl = await firecrawlRead(url, timeoutMs);
   if (firecrawl.ok && firecrawl.text && firecrawl.text.trim().length >= MIN_TEXT) {
-    return { ok: true, status: firecrawl.status, text: firecrawl.text, engine: 'firecrawl', kind: 'text' };
+    const res: PageReadResult = { ok: true, status: firecrawl.status, text: firecrawl.text, engine: 'firecrawl', kind: 'text' };
+    if (!opts.preferHtml) return res;
+    textFallback ??= res;
   }
 
   const bd = await brightDataRead(url, timeoutMs);
@@ -88,8 +110,14 @@ export async function readAny(url: string, opts: { timeoutMs?: number } = {}): P
   //    ships and OPENCRAB_API_KEY is provisioned).
   const oc = await opencrabRead(url, { timeoutMs });
   if (oc.ok && oc.text.trim().length >= MIN_TEXT) {
-    return { ok: true, status: oc.status, text: oc.text, engine: 'opencrab', kind: 'text' };
+    const res: PageReadResult = { ok: true, status: oc.status, text: oc.text, engine: 'opencrab', kind: 'text' };
+    if (!opts.preferHtml) return res;
+    textFallback ??= res;
   }
+
+  // Structural callers have exhausted every HTML leg — hand back the best text
+  // result (the text parsers still get a chance) rather than nothing.
+  if (textFallback) return textFallback;
 
   return { ok: false, status: 0, text: '', engine: 'none', kind: 'html' };
 }

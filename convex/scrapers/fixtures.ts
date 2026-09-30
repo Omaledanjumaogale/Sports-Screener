@@ -315,6 +315,14 @@ function slugToLabel(slug: string): string {
     .join(' ');
 }
 
+// Site-navigation slugs that appear in hrefs but are never a competition —
+// used to reject the league-from-URL fallback on rows whose own link is absent.
+const NAV_SLUGS = new Set([
+  'next', 'results', 'odds-filter', 'streaks', 'popular-bets', 'dropping-odds',
+  'standings', 'table', 'live', 'today', 'tomorrow', 'yesterday', 'home', 'away',
+  'user', 'settings', 'my-leagues', 'sports', 'countries', 'search'
+]);
+
 function parseBetexplorerNext(text: string, sportId: string, sourceUrl: string, dayKey?: string): ScrapeMatch[] {
   const out: ScrapeMatch[] = [];
   const blocks = (text || '').match(/<ul class="table-main__matchInfo"[^>]*>[\s\S]*?<\/ul>/g) ?? [];
@@ -538,6 +546,20 @@ export function parseBetexplorerNextTable(
     const lg = currentLeague.toLowerCase();
     if (lg && (home.toLowerCase() === lg || away.toLowerCase() === lg)) continue;
 
+    // League fallback: the sports whose pages carry NO tournament header rows
+    // (tennis above all) put the competition in the match URL itself —
+    //   /tennis/<tournament>/<location>/<match>/<id>/
+    //   → "Challenger Men Singles: Curitiba" / "Wta Singles: Wuhan"
+    // Without this every tennis row collapses to the bare sport label, which is
+    // exactly why the games total could never be tournament-aware.
+    let rowLeague = currentLeague;
+    if (!rowLeague) {
+      const href = row.match(/href="\/([a-z-]+)\/([a-z0-9-]+)\/([a-z0-9-]+)\//i);
+      if (href && !NAV_SLUGS.has(href[2])) {
+        rowLeague = `${slugToLabel(href[2])}: ${slugToLabel(href[3])}`;
+      }
+    }
+
     const odds: number[] = [];
     let om;
     while ((om = oddRe.exec(row)) && odds.length < 6) {
@@ -548,7 +570,7 @@ export function parseBetexplorerNextTable(
     out.push({
       source: 'LiveScrape',
       sourceUrl,
-      league: currentLeague || SPORT_LABELS[sportId] || 'Scheduled Fixture',
+      league: rowLeague || SPORT_LABELS[sportId] || 'Scheduled Fixture',
       homeTeam: home,
       awayTeam: away,
       startTime: startTimeFromDataDt(dt[1], row.match(/table-main__time">\s*(\d{1,2}:\d{2})/)?.[1] ?? ''),
@@ -656,6 +678,14 @@ export function parseFixtures(
     // hockey, tennis, baseball and volleyball rows from their own sport-scoped
     // pages were dropped for lacking a famous-name fingerprint.
     if (!headerTrusted && !matchBelongsToSport({ league: canonLeague || m.league, homeTeam: m.homeTeam, awayTeam: m.awayTeam, source: m.source }, sportId)) return;
+    // Pin the sport onto the row: a sport-scoped page + a real "Country:
+    // League" header + a league that does not clash with another sport's
+    // exclusive pool is a stronger identity proof than the famous-team-name
+    // fingerprint, which by construction only knows major clubs. Downstream
+    // gates (validateFixture/assessDataQuality/matchBelongsToSport) honour it.
+    if (headerTrusted && serverLeagueBelongsToSport(canonLeague, sportId)) {
+      m = { ...m, sportPinned: true };
+    }
     seen.add(key);
     out.push(m);
   };
@@ -812,7 +842,10 @@ export async function scrapeRealFixtures(sportId: string, dayKey?: string): Prom
   const collected: ScrapeMatch[] = [];
 
   await mapLimit(urls, 4, async (url) => {
-    const page = await readAny(url, { timeoutMs: 18_000 });
+    // preferHtml: a fixture board is only parseable from raw markup — a
+    // markdown conversion (Jina) drops the row structure and yields ZERO
+    // fixtures, which is what silently shrank the daily slate.
+    const page = await readAny(url, { timeoutMs: 18_000, preferHtml: true });
     pagesFetched.push({ url, ok: page.ok, engine: page.engine });
     if (!page.ok) return;
     // trustLeagueHeaders: FIXTURE_PAGES are sport-scoped roots (betexplorer.com/football/),

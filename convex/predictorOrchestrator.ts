@@ -163,24 +163,22 @@ async function executeRefresh(
 
 
     // Cache EVERY validated fixture so the schedule always populates.
-    // PRESERVE GUARD (two tiers): relay transports serve different content per
-    // exit IP — a bad cycle (age-gate, throttle) can return almost nothing.
-    //   Tier 1: empty cycle → keep the existing cache entirely.
-    //   Tier 2: weak cycle (< 5 fixtures) vs a stronger existing cache → keep
-    //           the existing cache too, so a bad exit IP can never downgrade a
-    //           good one. Cycles with 5+ fixtures always replace (real updates).
+    // PRESERVE GUARD: a thin cycle must never wipe a rich slate. Two ways a
+    // cycle comes back short — a throttled/rotated exit IP (the fetch succeeds
+    // but the site serves a stub) or the natural end-of-day shrink as fixtures
+    // finish. Keeping the richer cache covers both, and it also keeps finished
+    // matches with their scorelines on screen until retention wipes them.
+    const existingCache = await ctx.runQuery(internal.predictor.getCachedMatches, {
+      sportId: args.sportId,
+      dayKey
+    });
     let preserveCache = false;
     if (cleanMatches.length === 0) {
-      const existingCache = await ctx.runQuery(internal.predictor.getCachedMatches, {
-        sportId: args.sportId,
-        dayKey
-      });
       preserveCache = existingCache.length > 0;
+    } else if (existingCache.length >= 10) {
+      // Relative guard: a new cycle below 60% of the existing count is thin.
+      preserveCache = cleanMatches.length * 5 < existingCache.length * 3;
     } else if (cleanMatches.length < 5) {
-      const existingCache = await ctx.runQuery(internal.predictor.getCachedMatches, {
-        sportId: args.sportId,
-        dayKey
-      });
       preserveCache = existingCache.length > cleanMatches.length;
     }
 
@@ -197,7 +195,11 @@ async function executeRefresh(
           source: m.source,
           marketsAvailable: m.markets,
           scopes: m.scope,
-          dataQuality: m.dataQuality
+          dataQuality: m.dataQuality,
+          // Persist the source-proven sport identity so the read path
+          // (listMatches) does not re-run the famous-name fingerprint and hide
+          // the minor-league majority of the slate.
+          ...(m.sportPinned ? { sportPinned: true } : {})
         }))
       });
     }
@@ -224,7 +226,19 @@ async function executeRefresh(
       }
     }
 
-    const verdicts = await mapLimit(cleanMatches, 4, async (m) => {
+    // Per-cycle LLM budget. A full slate is now hundreds of fixtures (the
+    // breadth feeds return 100+ per sport), and a full LLM verdict per
+    // qualifying match would push the action past its wall-clock limit and burn
+    // the provider quota. Fixtures are processed floor-qualifying first, so the
+    // budget is always spent on the strongest signals; the remainder still get
+    // a deterministic engine verdict and are analysed on the next cycle.
+    const LLM_VERDICT_BUDGET = 60;
+    let llmVerdictsUsed = 0;
+    const rankedMatches = [
+      ...cleanMatches.filter((m) => qualifyingSet.has(m.matchId)),
+      ...cleanMatches.filter((m) => !qualifyingSet.has(m.matchId))
+    ];
+    const verdicts = await mapLimit(rankedMatches, 4, async (m) => {
       // Generate a full LLM verdict only for matches that cleared the confidence
       // floor (Amara's gate). Everything else gets a deterministic engine-built
       // verdict so the schedule still populates with analysis without exhausting
@@ -239,7 +253,10 @@ async function executeRefresh(
       let policy: JevPolicyDecision | null = null;
       // seedOnly (tomorrow-seeded runs): deterministic reference verdicts for
       // every cached match — no Jev, no LLM. Fast enough to never time out.
-      if (qualifies && !args.seedOnly) {
+      if (qualifies && !args.seedOnly && llmVerdictsUsed < LLM_VERDICT_BUDGET) {
+        // Reserve the slot synchronously (before the first await) so concurrent
+        // workers can never exceed the budget.
+        llmVerdictsUsed += 1;
         // Jev structured evaluation FIRST: typed noul/choice/score decisions
         // over this fixture's de-vigged state. The LLM verdict is then drafted
         // FROM Jev's reads (lead-market routing, value check, risk level).
@@ -298,21 +315,32 @@ async function executeRefresh(
           });
         }
       } else {
+        // Two distinct reasons land here: the fixture never cleared the floor,
+        // or it did and this cycle's LLM budget was already spent. Saying "below
+        // the floor" for a qualifying fixture would be wrong, so the copy
+        // branches on which.
+        const budgetSkipped = qualifies && !args.seedOnly;
         llm = {
           usedLlm: false,
           provider: 'none',
           model: 'deterministic',
           verdict: {
-            verdictSummary: fallbackSummary,
-            valueAssessment: 'Below the confidence floor this cycle — treat as reference data, not a recommendation.',
-            riskWarning: 'No qualifying selection. Re-verify live odds before considering any bet.',
-            tacticalRecommendation: 'Skip or wait for stronger signals from the next refresh cycle.',
-            crossCheckAnalysis: 'Match cached from the agent screen but did not clear the probability floor.',
-            crossCheckSteps: ['Step 1: Markets scanned across the odds registries.', 'Step 2: De-vigged probabilities computed.', 'Step 3: Confidence floor applied.', 'Step 4: Below floor this cycle.'],
+            verdictSummary: budgetSkipped
+              ? `${m.homeTeam} vs ${m.awayTeam} (${m.league}) — several selections cleared the ${floor}% floor; the ranked picks below are engine-derived and the full AI write-up lands on the next refresh cycle.`
+              : fallbackSummary,
+            valueAssessment: budgetSkipped
+              ? 'Ranked engine probabilities this cycle — full AI assessment queued for the next refresh.'
+              : 'Below the confidence floor this cycle — treat as reference data, not a recommendation.',
+            riskWarning: 'Re-verify live odds before considering any bet.',
+            tacticalRecommendation: 'Use the ranked research & analysis selections on this fixture.',
+            crossCheckAnalysis: budgetSkipped
+              ? 'Markets scanned and de-vigged; the ranked selections are live on this fixture.'
+              : 'Match cached from the agent screen but did not clear the probability floor.',
+            crossCheckSteps: ['Step 1: Markets scanned across the odds registries.', 'Step 2: De-vigged probabilities computed.', 'Step 3: Confidence floor applied.', budgetSkipped ? 'Step 4: Queued for the next AI analysis cycle.' : 'Step 4: Below floor this cycle.'],
             top3Selections: [],
-            punterEdge: 'No edge surfaced above the floor.',
+            punterEdge: budgetSkipped ? 'See the ranked selections below.' : 'No edge surfaced above the floor.',
             bookmakerBiasNote: 'Reference data only.',
-            stakeAdvice: 'No bet recommended below the confidence floor.'
+            stakeAdvice: 'Stake only on selections you have verified.'
           },
           summary: fallbackSummary
         };
@@ -381,6 +409,15 @@ async function executeRefresh(
       }
     } catch {}
 
+    // Always carry the top gate-rejection reasons: on a big slate the useful
+    // question is never "did it work" but "which rows did the gate drop, and
+    // why" — without this the answer only existed when EVERY row was blocked.
+    const topReasons = Array.from(blockedReasons.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([r, n]) => `${r} ×${n}`)
+      .join('; ');
+
     await ctx.runMutation(internal.predictor.upsertDay, {
       sportId: args.sportId,
       dayKey: dayKey,
@@ -388,13 +425,14 @@ async function executeRefresh(
       runId,
       cap,
       sourcesUsed: result.sourcesUsed,
-      message: (cleanMatches.length > 0
+      message: ((cleanMatches.length > 0
         ? qualifyingSet.size > 0
           ? `${cleanMatches.length} verified matches cached, ${qualifyingSet.size} qualifying${blockedCount ? ` (${blockedCount} blocked by quality gate)` : ''}`
           : `${cleanMatches.length} matches cached (none cleared the ${floor}% floor)`
         : preserveCache
-          ? `Sources returned 0 usable fixtures this cycle — existing cache preserved (${(await ctx.runQuery(internal.predictor.getCachedMatches, { sportId: args.sportId, dayKey })).length} matches).${blockedReasons.size ? ` Top reasons: ${Array.from(blockedReasons.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([r, n]) => `${r} ×${n}`).join('; ')}` : ''}`
-          : `All ${result.matches.length} parsed rows blocked by the quality gate — no verified fixtures this cycle.${blockedReasons.size ? ` Top reasons: ${Array.from(blockedReasons.entries()).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([r, n]) => `${r} ×${n}`).join('; ')}` : ''}`) + jevCycleNote
+          ? `Sources returned a thinner slate this cycle — existing cache preserved (${existingCache.length} matches).`
+          : `All ${result.matches.length} parsed rows blocked by the quality gate — no verified fixtures this cycle.`)
+        + (topReasons ? ` Top reasons: ${topReasons}` : '')) + jevCycleNote
     });
 
     await ctx.runMutation(internal.predictor.updateRun, {

@@ -87,7 +87,7 @@ export function hasRealOdds(m: { oddsText?: string; source?: string; scope?: { _
  * pipeline then runs the serper fallback and re-gates.
  */
 export function assessDataQuality(
-  m: { league?: string; homeTeam?: string; awayTeam?: string; source?: string; oddsText?: string },
+  m: { league?: string; homeTeam?: string; awayTeam?: string; source?: string; oddsText?: string; sportPinned?: boolean },
   sportId: string
 ): DataQualityReport {
   const issues: string[] = [];

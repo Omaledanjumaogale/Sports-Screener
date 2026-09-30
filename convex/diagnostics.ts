@@ -17,8 +17,10 @@ import { action } from './_generated/server';
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { readAny, type PageReadResult } from './scrapers/pages';
-import { parseFixtures } from './scrapers/fixtures';
+import { parseFixtures, plausiblePair } from './scrapers/fixtures';
 import { FIXTURE_PAGES, fixturePagesFor, watTodayKey } from './scrapers/sources';
+import { validateFixture, matchBelongsToSport } from './predictor';
+import { assessDataQuality } from './scrapers/dataQuality';
 
 type PageVerdict = 'healthy' | 'unparseable' | 'dead';
 
@@ -199,6 +201,10 @@ export const fetchSourceSample = action({
     chars: number;
     parsed: number;
     parsedSample?: { homeTeam: string; awayTeam: string; league: string }[];
+    passed?: number;
+    kind?: string;
+    markers?: Record<string, number>;
+    gateSample?: { homeTeam: string; awayTeam: string; league: string; verdict: string; issues: string[] }[];
     sample: string;
   }> => {
     // Admin gate (identity-checked server-side).
@@ -217,22 +223,60 @@ export const fetchSourceSample = action({
       throw new Error(`Host "${host}" is not in the source allowlist.`);
     }
 
-    const page = await readAny(args.url, { timeoutMs: 20_000 });
+    const page = await readAny(args.url, { timeoutMs: 20_000, preferHtml: true });
     const sportId = args.sportId || 'football';
     let parsed: ReturnType<typeof parseFixtures> = [];
     let parseError = '';
     try {
-      parsed = parseFixtures(page.text || '', sportId, args.url);
+      parsed = parseFixtures(page.text || '', sportId, args.url, undefined, {
+        trustLeagueHeaders: true,
+        sourceKind: page.kind
+      });
     } catch (err: any) {
       parseError = String(err?.message || err).slice(0, 200);
     }
     const maxChars = Math.min(Math.max(args.maxChars ?? 2600, 200), 8000);
+    // Run the SAME gate the orchestrator runs, so "N parsed / M cached" gaps are
+    // explainable: each row reports its verdict + the issues that blocked it.
+    const verdicts = parsed.map((m: any) => {
+      const v = validateFixture(m, sportId);
+      if (!v.valid) {
+        return { ...m, verdict: 'blocked', issues: v.issues.slice(0, 3) };
+      }
+      if (!plausiblePair(m.homeTeam, m.awayTeam)) {
+        return { ...m, verdict: 'blocked', issues: ['malformed fixture pair'] };
+      }
+      const q = assessDataQuality({ ...m, league: v.normalizedLeague || m.league }, sportId);
+      if (!q.eligible) return { ...m, verdict: 'blocked', issues: q.issues.slice(0, 3) };
+      if (!matchBelongsToSport({ ...m, league: v.normalizedLeague || m.league }, sportId)) {
+        return { ...m, verdict: 'blocked', issues: ['sport identity mismatch'] };
+      }
+      return { ...m, verdict: 'passed', issues: [] as string[] };
+    });
+    const passed = verdicts.filter((r) => r.verdict === 'passed').length;
+    const gateSample = verdicts.slice(0, 40);
+    const body = page.text || '';
+    const count = (needle: string) => body.split(needle).length - 1;
+    const markers: Record<string, number> = {
+      'table-main__matchInfo': count('table-main__matchInfo'),
+      'data-dt=': count('data-dt='),
+      'data-odd=': count('data-odd='),
+      '<tr': count('<tr'),
+      '<ul': count('<ul'),
+      '<li': count('<li'),
+      '<table': count('<table'),
+      'js-tournament': count('js-tournament')
+    };
     return {
       ok: page.ok,
+      kind: page.kind,
+      markers,
       status: page.status,
       engine: page.engine,
       chars: (page.text || '').length,
       parsed: parsed.length,
+      passed,
+      gateSample,
       parsedSample: parsed.slice(0, 8).map((m) => ({
         homeTeam: m.homeTeam,
         awayTeam: m.awayTeam,

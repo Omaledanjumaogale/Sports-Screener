@@ -50,9 +50,9 @@ describe('league-aware scoring priors', () => {
       expect(prior?.avgTotal).toBe(21.5);
     });
 
-    it('doubles uses ~28 games', () => {
+    it('doubles is its own tier (Bo3 with a match tiebreak)', () => {
       const prior = leagueTotalPrior('tennis', 'atp-miami-doubles');
-      expect(prior?.avgTotal).toBe(28.0);
+      expect(prior?.avgTotal).toBe(23.0);
     });
 
     it('unknown league falls back to the Bo3 mid-level 22.0', () => {

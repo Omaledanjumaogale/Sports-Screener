@@ -926,6 +926,7 @@ export function analyzeTennis(scope: ScopeState): Analysis {
   const teamSumTight = 1.5;
 
   const total = bestExpectedLine(scope.markets.mainTotal?.pairs ?? [], zone);
+  const set1 = bestExpectedLine(scope.markets.s1Total?.pairs ?? [], 1.5);
   const p1 = bestExpectedLine(scope.markets.homeTotal?.pairs ?? [], zone);
   const p2 = bestExpectedLine(scope.markets.awayTotal?.pairs ?? [], zone);
 
@@ -933,6 +934,9 @@ export function analyzeTennis(scope: ScopeState): Analysis {
     ...analyzeLines(scope.markets.mainTotal ?? { id: 'mainTotal', kind: 'ou', title: '' }),
     ...analyzeLines(scope.markets.homeTotal ?? { id: 'homeTotal', kind: 'ou', title: '' }),
     ...analyzeLines(scope.markets.awayTotal ?? { id: 'awayTotal', kind: 'ou', title: '' }),
+    // 1st-set games total — the shorter-horizon over/under read. Emitted by the
+    // server set-sport model alongside the match total.
+    ...analyzeLines(scope.markets.s1Total ?? { id: 's1Total', kind: 'ou', title: '' }),
     ...analyzeLines(scope.markets.totalSets ?? { id: 'totalSets', kind: 'ou', title: '' })
   ].map(withEv).sort((a, b) => b.probability - a.probability);
 
@@ -1060,7 +1064,8 @@ export function analyzeTennis(scope: ScopeState): Analysis {
   return {
     ...finishAnalysis(scope, profiles, allTennisPicks, 76, 62),
     metrics: [
-      { label: 'MEG', value: total ? `${total.expected}${total.approx ? ' approx' : ''}` : '-', note: 'Market Expected Games', status: total ? ('green' as Status) : ('empty' as Status) },
+      { label: 'MEG', value: total ? `${total.expected}${total.approx ? ' approx' : ''}` : '-', note: 'Market Expected Games — competition + matchup model', status: total ? ('green' as Status) : ('empty' as Status) },
+      { label: '1st-set MEG', value: set1 ? `${set1.expected}${set1.approx ? ' approx' : ''}` : '-', note: 'Expected games in set 1', status: set1 ? ('green' as Status) : ('empty' as Status) },
       { label: 'P1+P2 diff (PGD)', value: combinedDiff === null ? '-' : `${combinedDiff > 0 ? '+' : ''}${combinedDiff}`, note: 'P1 MEG + P2 MEG vs Match MEG', status: combinedDiff === null ? ('empty' as Status) : Math.abs(combinedDiff) <= teamSumTight ? ('green' as Status) : ('amber' as Status) },
       ...extraMetrics
     ]

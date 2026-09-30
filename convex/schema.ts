@@ -164,6 +164,11 @@ export default defineSchema({
     marketsAvailable: v.array(v.string()),
     scopes: v.any(),
     dataQuality: v.optional(v.string()),
+    // Sport identity was proven by the source itself (the sport's own scoped
+    // page + a real "Country: League" header). Persisted so the READ path can
+    // honour it too — otherwise listMatches re-applied the famous-name
+    // fingerprint and hid the minor-league majority of the slate.
+    sportPinned: v.optional(v.boolean()),
     oddsSnapshot: v.optional(v.any()),
     finalScore: v.optional(v.string()),
     status: v.optional(

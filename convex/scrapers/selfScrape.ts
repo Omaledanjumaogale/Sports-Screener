@@ -64,6 +64,11 @@ export async function selfScrape(
 
   let last: SelfReadResult = { ok: false, status: 0, text: '', ua: '' };
   for (let i = 0; i < attempts; i++) {
+    if (i > 0) {
+      // Back-off between attempts: a per-IP rate limiter rejects an immediate
+      // retry, so rotate the fingerprint AND wait a jittered beat.
+      await new Promise((r) => setTimeout(r, 350 + Math.floor(Math.random() * 550)));
+    }
     const ua = USER_AGENTS[(i + Math.floor(Math.random() * USER_AGENTS.length)) % USER_AGENTS.length];
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);

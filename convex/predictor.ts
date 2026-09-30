@@ -192,10 +192,19 @@ export function serverLeagueBelongsToSport(league: string, sportId: string): boo
  *     compared instead of blindly rejecting on the first foreign hit.
  */
 export function matchBelongsToSport(
-  m: { league?: string; homeTeam?: string; awayTeam?: string; source?: string },
+  m: { league?: string; homeTeam?: string; awayTeam?: string; source?: string; sportPinned?: boolean },
   sportId: string,
-  opts?: { trustTypedApi?: boolean }
+  opts?: { trustTypedApi?: boolean; trustSourceSport?: boolean }
 ): boolean {
+  // SOURCE-PINNED BYPASS: the row was parsed from that sport's OWN scoped page
+  // (betexplorer.com/next/soccer/, /football/) under a real "Country: League"
+  // tournament header, and that league does not clash with another sport's
+  // exclusive pool. The page + header establish the sport identity far more
+  // reliably than a famous-team-name keyword list can — without this, every
+  // minor-league club (Enyimba, Korisut, Uralmash…) fails the fingerprint and
+  // the day's slate collapses to a handful of famous clubs.
+  if (m.sportPinned && opts?.trustSourceSport !== false) return true;
+
   const text = `${m.league || ''} ${m.homeTeam || ''} ${m.awayTeam || ''}`.toLowerCase();
   const kw = SPORT_KEYWORDS[sportId];
   if (!kw) return false;
@@ -896,7 +905,8 @@ export const replaceMatches = internalMutation({
         source: v.string(),
         marketsAvailable: v.array(v.string()),
         scopes: v.any(),
-        dataQuality: v.optional(v.string())
+        dataQuality: v.optional(v.string()),
+        sportPinned: v.optional(v.boolean())
       })
     )
   },
@@ -932,6 +942,7 @@ export const replaceMatches = internalMutation({
         marketsAvailable: m.marketsAvailable,
         scopes: m.scopes,
         dataQuality: m.dataQuality ?? 'verified',
+        sportPinned: m.sportPinned ?? old?.sportPinned,
         status: old?.status ?? 'upcoming',
         finalScore: old?.finalScore,
         oddsSnapshot: old?.oddsSnapshot,

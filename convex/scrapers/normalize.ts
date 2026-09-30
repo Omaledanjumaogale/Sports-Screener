@@ -23,6 +23,9 @@ export interface NormalizedMatch {
   source: string;
   sourceUrl: string;
   markets: string[];
+  /** Parsed from this sport's OWN scoped page under a real "Country: League"
+   *  header — proves sport identity without a famous-name fingerprint. */
+  sportPinned?: boolean;
   scope: {
     id: string;
     title: string;
@@ -1008,9 +1011,11 @@ export const SPORT_TOTAL_PRIORS: Record<string, TotalPrior[]> = {
   ],
   tennis: [
     // ORDER MATTERS: doubles and WTA must be checked BEFORE the Grand Slam and
-    // ATP patterns — "atp-miami-doubles" is a doubles match (~28 games) and
-    // "wta-wimbledon" is a Bo3 match (~21 games), NOT the men's Bo5 (33).
-    { pattern: /doubles/i, avgTotal: 28.0, label: 'Doubles', band: 7 },
+    // ATP patterns — "atp-doubles" is a doubles match and "wta-wimbledon" is a
+    // Bo3 match (~21 games), NOT the men's Bo5 (33). The slugs come straight
+    // from the BetExplorer match URL ("itf-men-singles", "challenger-women-
+    // doubles", "wta-singles", "atp-singles").
+    { pattern: /doubles/i, avgTotal: 23.0, label: 'Doubles (Bo3 + match tiebreak)', band: 6 },
     { pattern: /\bwta\b|wta tour|wta 250|wta 500|wta 125|wta finals|billie jean/i, avgTotal: 21.0, label: 'WTA (Bo3)', band: 5 },
     // Men's Grand Slam singles are Bo5 (~33-36 games); the /next/ slugs are
     // "atp-wimbledon", "atp-us-open" etc., so the atp- prefix is already on
@@ -1342,13 +1347,109 @@ export interface SetSportMarkets {
   setHandicap: Market;
   totalSets: Market;
   s1Winner: Market;
+  /** Games/points total ladder + per-side totals + 1st-set total (set sports). */
+  mainTotal?: Market;
+  homeTotal?: Market;
+  awayTotal?: Market;
+  s1Total?: Market;
+}
+
+// ── Games/points totals for set sports ──────────────────────────────────────
+// The total is NOT a format constant: it is a function of BOTH the competition
+// (ATP ≈ 22.5 games, WTA ≈ 21, ITF ≈ 21.5, Grand Slam Bo5 ≈ 33, doubles ≈ 28)
+// AND how competitive THIS matchup is. A 50/50 match runs long sets (7-5, 7-6)
+// and more often reaches a decider; a heavy mismatch produces 6-2/6-3 sets and
+// straight-set finishes. Both effects are modelled explicitly:
+//   • expectedGamesPerSet = 6.4 + 3.4·c   (c = 4s(1−s), the competitiveness index)
+//   • expectedSets        = the exact Bernoulli set-count expectation
+// and the result is blended with the competition anchor so the tournament level
+// still calibrates the level while the matchup sets the shape.
+
+/** Round to one decimal place (games totals are quoted at .0/.5 precision). */
+function round1(v: number): number {
+  return Math.round(v * 10) / 10;
+}
+
+/** Expected number of sets played, exactly, from the per-set win probability. */
+export function expectedSetsPlayed(s: number, bestOf: 3 | 5): number {
+  const q = 1 - s;
+  if (bestOf === 3) return 2 + 2 * s * q; // P(3 sets) = 2s(1−s)
+  const p4 = 3 * (s * s * s * q + q * q * q * s); // win 3-1 or lose 1-3
+  const p5 = 6 * s * s * q * q; // deciding set
+  return 3 + p4 + 2 * p5;
+}
+
+/** Expected games in a single set: longer the closer the set is. */
+export function expectedGamesPerSet(s: number): number {
+  const c = 4 * s * (1 - s); // 1 at parity, → 0 for a mismatch
+  return 6.2 + 3.3 * c;
+}
+
+export interface SetGamesModel {
+  expGames: number;
+  sdGames: number;
+  expSets: number;
+  gamesPerSet: number;
+  expGamesA: number;
+  expGamesB: number;
+}
+
+/**
+ * Matchup-aware expected games for a set sport, calibrated by the competition's
+ * own anchor (so a WTA match and a men's Grand Slam never share a total).
+ */
+export function setGamesModel(s: number, bestOf: 3 | 5, anchor: number): SetGamesModel {
+  const expSets = expectedSetsPlayed(s, bestOf);
+  const gamesPerSet = expectedGamesPerSet(s);
+  const modelGames = expSets * gamesPerSet;
+  // 50% matchup model + 50% competition anchor. The matchup sets the shape (a
+  // rout is short, a coin-flip runs long); the tournament pins the level, so
+  // WTA, ITF, Challenger, ATP, doubles and a men's Bo5 Grand Slam each resolve
+  // their OWN total. Real per-tier averages: WTA ≈ 21, ITF ≈ 21.5, Challenger
+  // ≈ 22, ATP ≈ 22.5, doubles ≈ 23, Bo5 Slam ≈ 35 (an even split keeps both
+  // signals visible — a heavier model weight made every tier converge).
+  const expGames = round1(0.5 * modelGames + 0.5 * Math.min(Math.max(anchor, 12), 45));
+  const sdGames = Math.min(Math.max(0.19 * expGames, 3.0), 7.5);
+  // A's share of the games tilts with the per-set edge: a 70% set-winner takes
+  // roughly 61% of the games, never a clean 50/50 split.
+  const share = 0.5 + 0.28 * (2 * s - 1);
+  return {
+    expGames,
+    sdGames,
+    expSets: round1(expSets),
+    gamesPerSet: round1(gamesPerSet),
+    expGamesA: round1(expGames * share),
+    expGamesB: round1(expGames * (1 - share))
+  };
+}
+
+/** Over/Under ladder around a Normal(mean, sd) total, priced at the book margin. */
+function normalTotalLadder(mean: number, sd: number, spread: number, step: number): { line: number; over: number; under: number }[] {
+  const out: { line: number; over: number; under: number }[] = [];
+  // Tennis/volleyball totals are quoted on half-lines (22.5, 23.5 …), so the
+  // ladder is anchored to .5 regardless of where the mean falls.
+  const lo = Math.max(0.5, Math.floor(mean - spread * sd) + 0.5);
+  const hi = Math.ceil(mean + spread * sd) + 0.5;
+  for (let line = lo; line <= hi + 1e-9; line += step) {
+    const over = 1 - normalCdf((line - mean) / sd);
+    const p = {
+      line: Math.round(line * 2) / 2,
+      over: marginedPrice(over, 1.05),
+      under: marginedPrice(1 - over, 1.05)
+    };
+    // Bookmakers never quote the far tail of a totals ladder; a 40.0+ price is
+    // noise, not a selection. Keep only realistically quotable lines.
+    if (p.over <= 15 && p.under <= 15) out.push(p);
+  }
+  return out;
 }
 
 export function deriveSetSportMarkets(
   homeOdds: number,
   awayOdds: number,
   bestOf: 3 | 5,
-  labels: { a: string; b: string; unitLabel: string }
+  labels: { a: string; b: string; unitLabel: string },
+  games?: { anchor: number; label: string; unit: string }
 ): SetSportMarkets {
   const [pH] = devig([homeOdds, awayOdds]);
   const s = solveSetProb(pH, bestOf);
@@ -1396,7 +1497,48 @@ export function deriveSetSportMarkets(
     odds: { a: marginedPrice(s, 1.06), b: marginedPrice(1 - s, 1.06) }
   };
 
-  return { setHandicap, totalSets, s1Winner };
+  const out: SetSportMarkets = { setHandicap, totalSets, s1Winner };
+
+  // ── Games/points totals (the over/under the user actually bets) ────────────
+  // Emitted as a full ladder around the matchup+competition expected total, so
+  // the research summary always carries real over/under options with their own
+  // probabilities instead of a single borrowed line.
+  if (games) {
+    const model = setGamesModel(s, bestOf, games.anchor);
+    const unit = games.unit;
+    out.mainTotal = {
+      id: 'mainTotal',
+      kind: 'ou',
+      title: `Total ${unit}`,
+      derived: true,
+      pairs: normalTotalLadder(model.expGames, model.sdGames, 2, 1)
+    };
+    out.homeTotal = {
+      id: 'homeTotal',
+      kind: 'ou',
+      title: `${labels.a} Total ${unit}`,
+      derived: true,
+      pairs: normalTotalLadder(model.expGamesA, model.sdGames * 0.62, 1.5, 1)
+    };
+    out.awayTotal = {
+      id: 'awayTotal',
+      kind: 'ou',
+      title: `${labels.b} Total ${unit}`,
+      derived: true,
+      pairs: normalTotalLadder(model.expGamesB, model.sdGames * 0.62, 1.5, 1)
+    };
+    // 1st set: the same per-set expectation, its own (tighter) distribution.
+    const s1Sd = Math.min(Math.max(0.19 * model.gamesPerSet, 1.25), 2.6);
+    out.s1Total = {
+      id: 's1Total',
+      kind: 'ou',
+      title: `1st Set Total ${unit}`,
+      derived: true,
+      pairs: normalTotalLadder(model.gamesPerSet, s1Sd, 1.5, 1)
+    };
+  }
+
+  return out;
 }
 
 // ───────────────────────── Hockey (Poisson goals grid) ───────────────────────
@@ -1990,7 +2132,8 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
   }
 
   // ── Derived set-sport markets (tennis Bo3 · rally/volleyball Bo5):
-  //    set handicap ±1.5, total sets O/U and Set-1 winner from the per-set
+  //    set handicap ±1.5, total sets O/U, Set-1 winner AND the games/points
+  //    totals (match total, per-side totals, 1st-set total) from the per-set
   //    Bernoulli model fitted to the de-vigged match moneyline. ──────────────
   if ((sportId === 'tennis' || sportId === 'rally' || sportId === 'volleyball') && h2h.length >= 2 && h2h[1]) {
     const bestOf: 3 | 5 = sportId === 'tennis' ? 3 : 5;
@@ -1998,10 +2141,23 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
       a: m.homeTeam,
       b: m.awayTeam,
       unitLabel: 'Set'
+    }, {
+      // Competition anchor: the tournament's own typical total (ATP ≈ 22.5,
+      // WTA ≈ 21, Grand Slam Bo5 ≈ 33, ITF ≈ 21.5, doubles ≈ 28). NEVER a
+      // sport-wide constant. A real scraped line, when present, wins outright.
+      anchor: parsed.total && parsed.total.line > 0
+        ? clampTotalToLeague(sportId, m.league, parsed.total.line)
+        : (leagueTotalPrior(sportId, m.league)?.avgTotal ?? defaultTotalAnchor(sportId, m.league, 22.0)),
+      label: tennisLeagueProfile(m.league).label,
+      unit: sportId === 'tennis' ? 'Games' : 'Points'
     });
     markets.setHandicap = derived.setHandicap;
     markets.totalSets = derived.totalSets;
     markets.s1winner = derived.s1Winner;
+    if (derived.mainTotal) markets.mainTotal = derived.mainTotal;
+    if (derived.homeTotal) markets.homeTotal = derived.homeTotal;
+    if (derived.awayTotal) markets.awayTotal = derived.awayTotal;
+    if (derived.s1Total) markets.s1Total = derived.s1Total;
   }
 
   // ── Derived hockey markets (Puck Line ladder, totals ladder, team totals,
@@ -2068,10 +2224,10 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
   }
 
   // ── Total (real line; football/basketball already have derived ladders) ──
-  if (
-    !['football', 'basketball', 'hockey', 'baseball', 'rugby', 'cricket'].includes(sportId) ||
-    (!markets.mainTotal && sportId !== 'tennis' && sportId !== 'rally' && sportId !== 'volleyball')
-  ) {
+  // Only runs when NO derived total exists: the sport-specific models above are
+  // authoritative, and this generic path used to OVERWRITE the tennis games
+  // ladder with a single static 23.5 pair (the "MEG 23.5 approx" bug).
+  if (!markets.mainTotal) {
     // League-aware fallback: when the fixture carries no real total, the anchor
     // comes from the sport's league prior table (tennis ATP 22.5 / WTA 21.0 /
     // Challenger 22.0 / ITF 21.5 / Grand Slam Bo5 33.0; volleyball FIVB 3.5 …).
@@ -2120,6 +2276,11 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
     source: m.source,
     sourceUrl: m.sourceUrl,
     markets: Object.keys(markets),
+    // Carry the source-sport pin through normalization — the orchestrator's
+    // gates run on THIS object, and dropping the flag here sent every
+    // minor-league fixture back to the famous-name fingerprint (the reason a
+    // 100-fixture slate shrank to a few dozen).
+    ...(m.sportPinned ? { sportPinned: true } : {}),
     scope
   };
 }
