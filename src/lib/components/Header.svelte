@@ -80,6 +80,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    /* Never let the title squeeze the controls below a tappable size */
+    flex-shrink: 0;
   }
 
   .title-block {
@@ -125,6 +127,7 @@
   .icon-btn {
     width: 46px;
     height: 46px;
+    flex-shrink: 0;
     border: 1px solid var(--c-border-md);
     border-radius: 14px;
     background: var(--c-glass-sm);
@@ -161,5 +164,15 @@
   .predictor-btn:hover {
     border-color: color-mix(in srgb, #a3e635 70%, transparent);
     box-shadow: 0 0 14px color-mix(in srgb, #a3e635 26%, transparent);
+  }
+
+  /* Compact the four-up control row so it cannot crowd out the sport title on
+     small handsets, and let the title ellipsis take the remaining space. */
+  @media (max-width: 420px) {
+    .topbar { gap: 8px; }
+    .icon-btn { width: 40px; height: 40px; border-radius: 12px; }
+    .header-right-actions { gap: 6px; }
+    .title-block h1 { font-size: 15px; }
+    .eyebrow { font-size: 9.5px; letter-spacing: 0.08em; }
   }
 </style>

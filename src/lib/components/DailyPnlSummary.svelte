@@ -269,6 +269,7 @@
   .pnl-filters {
     display: flex;
     gap: 6px;
+    flex-wrap: wrap;
     background: rgba(0, 0, 0, 0.3);
     padding: 4px;
     border-radius: 8px;
@@ -276,6 +277,10 @@
   }
 
   .filter-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
     background: transparent;
     border: none;
     color: #94a3b8;
@@ -285,6 +290,7 @@
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
+    white-space: nowrap;
   }
 
   .filter-tab:hover {
@@ -456,6 +462,25 @@
     .stat-cards-grid {
       grid-template-columns: 1fr 1fr;
     }
+
+    /* Comfortable tap targets for the filter tabs on phones */
+    .filter-tab,
+    .sport-tab {
+      flex: 1 1 auto;
+      padding: 8px 10px;
+    }
+    .stat-cards-grid {
+      gap: 10px;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .stat-cards-grid {
+      grid-template-columns: 1fr;
+    }
+    .main-winrate {
+      font-size: 1.9rem;
+    }
   }
 
   /* Sport selector */
@@ -471,6 +496,10 @@
   }
 
   .sport-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
     background: transparent;
     border: none;
     color: #94a3b8;

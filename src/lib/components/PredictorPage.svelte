@@ -1031,6 +1031,7 @@ $effect(() => {
   .icon-btn {
     width: 46px;
     height: 46px;
+    flex-shrink: 0;
     border: 1px solid var(--c-border-md);
     border-radius: 14px;
     background: var(--c-glass-sm);
@@ -1053,7 +1054,13 @@ $effect(() => {
     display: inline-flex; align-items: center; justify-content: center;
   }
 
-  .title-block { text-align: center; }
+  /* The title takes the middle of the row and is allowed to shrink, so the
+     back / presence / slip controls keep their tap size on narrow screens. */
+  .title-block {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+  }
 
   .eyebrow {
     display: block;
@@ -1062,9 +1069,20 @@ $effect(() => {
     letter-spacing: 0.1em;
     font-size: 10px;
     font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .title-block h1 { font-size: 21px; margin: 2px 0 0; letter-spacing: -0.02em; font-weight: 900; }
+  .title-block h1 {
+    font-size: 21px;
+    margin: 2px 0 0;
+    letter-spacing: -0.02em;
+    font-weight: 900;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   .title-sport-ic {
     display: inline-flex;
@@ -1161,6 +1179,10 @@ $effect(() => {
   .sel-actions { margin-left: auto; display: inline-flex; gap: 4px; }
 
   .link-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
     border: none;
     background: transparent;
     color: var(--accent);
@@ -1506,6 +1528,24 @@ $effect(() => {
     .tabs-row {
       gap: 6px;
     }
+  }
+
+  /* Narrow-handset header: shrink the controls and drop the agent-team eyebrow
+     so the title row never overlaps the back / bet-slip buttons. */
+  @media (max-width: 420px) {
+    .predictor-head { gap: 8px; padding: 8px 0 12px; }
+    .icon-btn { width: 40px; height: 40px; border-radius: 12px; }
+    .title-block h1 { font-size: 17px; }
+    .eyebrow {
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      max-width: 100%;
+    }
+    .presence-chip { padding: 3px 7px; font-size: 10px; }
+  }
+
+  @media (max-width: 340px) {
+    .eyebrow { display: none; }
   }
 
   .game-tabs {

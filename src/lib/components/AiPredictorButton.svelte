@@ -58,6 +58,8 @@
       background var(--t-base, 180ms ease);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    max-width: 100%;
+    min-width: 0;
   }
 
   .ai-predictor-btn:hover {
@@ -83,4 +85,20 @@
   }
 
   .ai-predictor-btn:hover .arrow { transform: translateX(3px); }
+
+  /* Keep the label readable and the button tappable on phones instead of
+     letting it push neighbouring header controls off-screen. */
+  @media (max-width: 560px) {
+    .ai-predictor-btn {
+      padding: 9px 12px;
+      font-size: 12.5px;
+      gap: 6px;
+      border-radius: 12px;
+    }
+    .arrow { display: none; }
+  }
+
+  @media (max-width: 360px) {
+    .ai-predictor-btn { padding: 8px 10px; font-size: 12px; }
+  }
 </style>

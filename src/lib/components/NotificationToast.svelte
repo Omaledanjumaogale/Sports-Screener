@@ -140,6 +140,9 @@
     border: none;
     color: var(--c-muted, #8899bb);
     cursor: pointer;
+    /* 28px minimum so the dismiss control is reliably tappable on phones */
+    min-width: 28px;
+    min-height: 28px;
     padding: 2px;
     border-radius: 6px;
     display: flex;

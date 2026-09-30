@@ -842,6 +842,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    /* Wrapping is the safety net: `.landing-root` clips with overflow:hidden,
+       so any control that cannot fit must flow onto the next line instead of
+       being pushed off-screen and hidden. */
+    flex-wrap: wrap;
+    gap: 10px;
     padding: 8px 0 16px;
     margin-bottom: 0;
   }
@@ -864,6 +869,7 @@
     font-size: 16px;
     font-weight: 900;
     color: var(--c-text);
+    flex-shrink: 0;
   }
   .pulse-icon {
     font-size: 20px;
@@ -874,16 +880,27 @@
   .header-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 12px;
     margin-left: auto;
+    min-width: 0;
+    max-width: 100%;
   }
   .auth-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* Comfortable touch target regardless of the label length */
+    min-height: 32px;
     font-size: 13px;
     font-weight: 800;
     padding: 6px 14px;
     border-radius: 999px;
     text-decoration: none;
     transition: all var(--t-base);
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .login-btn {
     color: var(--c-text);
@@ -920,6 +937,37 @@
   }
   .logout-btn:hover {
     background: color-mix(in srgb, var(--c-red) 30%, transparent);
+  }
+
+  /* ── Header on narrow screens ────────────────────────────────── */
+  /* The brand keeps the first row and the action cluster takes the row below it,
+     right-aligned. Before this, AI Predictor + theme + Admin + Sign Out summed to
+     ~356px and were clipped off-screen (invisible) by `.landing-root`'s
+     overflow:hidden on any phone narrower than ~480px. */
+  @media (max-width: 560px) {
+    .topbar {
+      row-gap: 12px;
+    }
+    .header-actions {
+      width: 100%;
+      margin-left: 0;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .auth-btn {
+      font-size: 12px;
+      padding: 6px 11px;
+    }
+    .logout-btn {
+      padding: 6px 10px;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .auth-btn {
+      font-size: 11.5px;
+      padding: 5px 9px;
+    }
   }
 
   /* ── Hero — Centered ────────────────────────────────────────── */

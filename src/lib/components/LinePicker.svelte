@@ -234,10 +234,12 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    /* Tappable on touch devices (was a 20px-tall target) */
+    min-height: 28px;
     background: transparent;
     border: 1px solid var(--c-border-sm, rgba(255,255,255,0.08));
     color: var(--c-muted, #8899bb);
-    padding: 2px 7px;
+    padding: 4px 8px;
     border-radius: 6px;
     font-size: 10px;
     font-weight: 700;
