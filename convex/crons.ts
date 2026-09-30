@@ -64,6 +64,14 @@ crons.interval('predictor-sync-past-history', { minutes: 720 }, internal.scores.
 // window. Idempotent: day rows are upserted, the lifetime row is recomputed.
 crons.interval('predictor-stats-snapshot', { minutes: 60 }, internal.predictorStats.recomputeStatsSnapshot, {});
 
+// ── Accumulative bet-slip grading — every 30 minutes ──────────────────────────
+// settleDayPnl already grades slips after every score-sync cycle, but that path
+// only runs for days that had finished matches to settle. This standalone pass
+// guarantees every open/archived slip gets its legs graded against the stored
+// final scorelines regardless, so the bet-slip history stays current.
+// Idempotent: each leg is graded from its own dayKey and re-grading is a no-op.
+crons.interval('betslip-grading', { minutes: 30 }, internal.betSlips.gradeSlipItems, {});
+
 // ── Realtime presence sweep — every 10 minutes ───────────────────────────────
 // Removes heartbeat rows older than the presence window so the online counter
 // stays accurate and the table never accumulates stale sessions.
