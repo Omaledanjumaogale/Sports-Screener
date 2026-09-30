@@ -50,7 +50,6 @@
     | 'instant-basketball'
     | 'vfootball'
     | 'baseball'
-    | 'americanfootball'
     | 'rugby'
     | 'cricket'
     | 'mma'
@@ -117,15 +116,6 @@
       description: '21 baseball markets across 9-Inning, 1-5 Innings, 1st Inning, and Extra-Innings probability extraction.',
       accent: '#8b5cf6',
       path: '/baseball',
-      category: 'real'
-    },
-    {
-      id: 'americanfootball',
-      short: 'Am. Football',
-      title: 'American Football Screener',
-      description: 'Moneyline, point spread, game totals and team totals with MEPT and team sum consistency for NFL markets.',
-      accent: '#f87171',
-      path: '/american-football',
       category: 'real'
     },
     {
@@ -204,7 +194,6 @@
     tennis: 'Tennis',
     hockey: 'Ice Hockey',
     baseball: 'Baseball',
-    americanfootball: 'Am. Football'
   };
 
   function nav(p: string) {
@@ -258,7 +247,7 @@
   ];
 
   const predictorSteps = [
-    { icon: Target, title: 'Pick a sport', desc: 'Football, Basketball, Tennis, Ice Hockey, Baseball or American Football.' },
+    { icon: Target, title: 'Pick a sport', desc: 'Football, Basketball, Tennis, Ice Hockey or Baseball.' },
     { icon: Clock3, title: 'Watch the meter', desc: 'The agent team shows live 0% → 100% progress while they work.' },
     { icon: ShieldCheck, title: 'Review the picks', desc: 'Only matches above the 60% Real Win Chance floor — with top selections, punter edge and risk warnings.' },
     { icon: TrendingUp, title: 'Stake responsibly', desc: 'Refresh anytime; the cache rebuilds automatically each night.' }

@@ -38,7 +38,7 @@
     { key: 'ALL', label: 'All Sports' },
     ...PREDICTOR_SPORTS.map((s: PredictorSportId) => ({
       key: s,
-      label: s === 'americanfootball' ? 'Am. Football' : s.charAt(0).toUpperCase() + s.slice(1)
+      label: s.charAt(0).toUpperCase() + s.slice(1)
     }))
   ];
 

@@ -18,7 +18,7 @@ fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8').split(/\r?\n/)
 });
 
 var SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball',
-  'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'];
+  'rugby', 'cricket', 'mma', 'volleyball'];
 
 function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 

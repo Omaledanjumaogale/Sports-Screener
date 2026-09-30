@@ -24,8 +24,7 @@ const sportId = v.union(
   v.literal('basketball'),
   v.literal('tennis'),
   v.literal('hockey'),
-  v.literal('baseball'),
-  v.literal('americanfootball')
+  v.literal('baseball')
 );
 
 const refreshArgs = {

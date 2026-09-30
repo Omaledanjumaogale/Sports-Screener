@@ -23,8 +23,7 @@ const PREDICTOR_SPORT_IDS = [
   'basketball',
   'tennis',
   'hockey',
-  'baseball',
-  'americanfootball'
+  'baseball'
 ] as const;
 
 function normalizeName(name: string): string {

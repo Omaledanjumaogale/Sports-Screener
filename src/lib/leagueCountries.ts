@@ -410,10 +410,6 @@ const LEAGUE_KEYWORDS: [string, string][] = [
   ['lbprc', 'Puerto Rico'],
   ['lvbp', 'Venezuela'],
   ['lmb', 'Mexico'],
-  // American football
-  ['cfl', 'Canada'],
-  ['xfl', 'USA'],
-  ['ufl', 'USA'],
   // Rugby
   ['premiership rugby', 'England'],
   ['major league rugby', 'USA'],

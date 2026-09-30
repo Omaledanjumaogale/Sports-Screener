@@ -71,8 +71,6 @@ function sportDefaults(sportId?: string, home = 'Home', away = 'Away', league?: 
     return { spreadLabel: `${home} -1.5 Match Sets`, spreadAlt: `${away} +1.5 Match Sets`, totalLabel: 'Over 3.5 Total Sets', totalAlt: 'Under 3.5 Total Sets' };
   } else if (sid === 'baseball') {
     return { spreadLabel: `${home} -1.5 Run Line`, spreadAlt: `${away} +1.5 Run Line`, totalLabel: 'Over 8.5 Runs', totalAlt: 'Under 8.5 Runs' };
-  } else if (sid === 'americanfootball') {
-    return { spreadLabel: `${home} -3.5 Point Spread`, spreadAlt: `${away} +3.5 Point Spread`, totalLabel: 'Over 44.5 Total Points', totalAlt: 'Under 44.5 Total Points' };
   } else if (sid === 'rugby') {
     return { spreadLabel: `${home} -7.5 Handicap`, spreadAlt: `${away} +7.5 Handicap`, totalLabel: 'Over 44.5 Match Points', totalAlt: 'Under 44.5 Match Points' };
   } else if (sid === 'cricket') {

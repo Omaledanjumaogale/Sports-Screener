@@ -11,7 +11,6 @@ const LABEL: Record<string, string> = {
   rally: 'Table Tennis',
   hockey: 'Hockey',
   baseball: 'Baseball',
-  americanfootball: 'American Football',
   rugby: 'Rugby',
   cricket: 'Cricket',
   mma: 'MMA',

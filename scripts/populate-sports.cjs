@@ -14,7 +14,7 @@ fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8').split(/\r?\n/)
   var eq = t.indexOf('='); if (eq > 0) envMap[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
 });
 
-var SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball', 'americanfootball'];
+var SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball'];
 var sports = process.argv.slice(2);
 if (sports.length) SPORTS = sports;
 

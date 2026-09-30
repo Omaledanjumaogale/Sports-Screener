@@ -131,8 +131,9 @@
         </button>
       {/if}
       <div class="stake-row">
-        <label class="stake-label">Stake ₦</label>
+        <label class="stake-label" for="slip-stake">Stake ₦</label>
         <input
+          id="slip-stake"
           class="stake-input"
           type="number"
           min="0"

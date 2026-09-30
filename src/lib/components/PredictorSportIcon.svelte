@@ -58,9 +58,6 @@
   {:else if sport === 'baseball'}
     <circle cx="12" cy="12" r="9" {...C} />
     <path d="M12 3c-2 3-2 15 0 18 M3 9c3 2.4 15 2.4 18 0 M3 15c3-2.4 15-2.4 18 0" {...C} />
-  {:else if sport === 'americanfootball'}
-    <ellipse cx="12" cy="12" rx="8" ry="5" transform="rotate(-30 12 12)" {...C} />
-    <path d="M9 7 L6 3 M11 9 L7 5 M15 17 L18 21 M13 15 L17 19 M12 12 L8 8 M12 12 L16 16 M11 10.5 L6 10 M13 13.5 L18 14" {...C} />
   {:else if sport === 'rugby'}
     <ellipse cx="12" cy="12" rx="5" ry="9" {...C} />
     <path d="M12 3v18 M9.5 4.5Q5.5 12 9.5 19.5 M14.5 4.5Q18.5 12 14.5 19.5" {...C} />

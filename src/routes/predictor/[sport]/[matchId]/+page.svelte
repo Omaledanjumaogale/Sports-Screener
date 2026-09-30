@@ -17,7 +17,7 @@
 
   const ACCENT: Record<PredictorSportId, string> = {
     football: '#34d399', basketball: '#fb923c', tennis: '#a3e635',
-    hockey: '#22d3ee', baseball: '#e11d48', americanfootball: '#f87171'
+    hockey: '#22d3ee', baseball: '#e11d48'
   };
 
   const sport = $derived(page.params.sport as PredictorSportId);

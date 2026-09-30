@@ -10,7 +10,6 @@
     tennis: 'Tennis',
     hockey: 'Hockey',
     baseball: 'Baseball',
-    americanfootball: 'Am. Football'
   };
 
   const SPORT_COLOR: Record<PredictorSportId, string> = {
@@ -19,7 +18,6 @@
     tennis: '#a3e635',
     hockey: '#22d3ee',
     baseball: '#e11d48',
-    americanfootball: '#f87171'
   };
 
   let {

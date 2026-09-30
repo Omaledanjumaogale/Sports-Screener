@@ -33,7 +33,7 @@ var anyApi = require('convex/server').anyApi;  var client = new ConvexHttpClient
   console.log('admin sign-in: OK');
 
   // ── 2. Pull verdicts for the populated sports ──
-  var sports = ['football', 'basketball', 'tennis', 'hockey', 'baseball', 'americanfootball'];
+  var sports = ['football', 'basketball', 'tennis', 'hockey', 'baseball'];
   var total = 0, withJev = 0;
   var sample = null;
   for (const s of sports) {

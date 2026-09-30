@@ -186,7 +186,7 @@ interface VerdictMatchInput {
   citations?: string[];
 }
 
-const VALID_SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball', 'americanfootball'];
+const VALID_SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball'];
 
 const SPORT_SCALE: Record<string, string> = {
   football: 'Goals (0-6 typical), total goals market expected 1.5-3.5',
@@ -196,7 +196,6 @@ const SPORT_SCALE: Record<string, string> = {
   rally: 'Sets (3-6 typical), market expected sets 3-5',
   hockey: 'Goals (2-8 typical), total goals market expected 3-7',
   baseball: 'Runs (5-14 typical), total runs market expected 6-11',
-  americanfootball: 'Points (20-80 typical), market expected total 35-55',
   rugby: 'Points (10-80 typical), market expected total 25-60',
   cricket: 'Runs (100-400 typical), market expected runs 150-350',
   mma: 'Rounds (1-5 typical), market expected total 2.5-4.5',
@@ -239,6 +238,7 @@ const SPORT_RULES: Record<string, string> = {
 - Pick the market with the strongest probability/edge FOR THIS MATCH — the model must choose the safest, most probable selection per fixture, never the same market for every game.`,
   tennis: `TENNIS-SPECIFIC MARKET MODEL:
 - Analyse EVERY tennis market shown: the match winner (moneyline), the games total (O/U), player 1 and player 2 game totals, the games handicap, the set handicap (±1.5 sets), the Total Sets market (Over/Under 2.5 sets for best-of-3, 3.5/4.5 for best-of-5), the Set 1 winner and any correct-score/set-betting grid.
+- TOUR SCORING CONTEXT: games totals are NOT uniform across tennis. A men's best-of-3 ATP match runs ~20-26 games (anchor ~22.5); a women's WTA match runs ~18-24 (anchor ~21 — one-sided sets are more common); Challengers and ITF sit between (~21.5-22); a men's GRAND SLAM match is BEST-OF-FIVE and runs ~28-40 games (anchor ~33). Doubles runs higher (~26-30). Read every games line relative to the match's own tour and format — a 33.5 games line in a WTA first round is NOT a normal line, and a 21.5 line in a men's Grand Slam Bo5 is a LOW line. The matchup also matters: a heavy favourite ends sets faster (fewer games), two big servers in a Bo3 push the total up through tiebreaks.
 - SET MATH IS THE BACKBONE: the set handicap, total sets and Set 1 winner are derived from the per-set win probability implied by the match moneyline. A heavy favourite (e.g. 1.25) carries a per-set probability around 70-75%, which makes Set Handicap -1.5 materially risky in a best-of-3 (needs a straight-sets win) while Total Sets Under 2.5 becomes the strong side. Always reason through the set-level consequences of the moneyline, never treat the markets as independent.
 - DECIDER LOGIC: Over 2.5 sets in a best-of-3 equals the probability of a deciding set (a competitive, evenly-priced match pushes it up; a lopsided favourite pushes it down). Use Total Sets as the cleanest expression of "competitive match vs blowout".
 - SET 1 ANGLE: the Set 1 winner is priced close to each player's per-set probability — a lower-variance alternative when the match winner price is too tight to bet.
@@ -252,6 +252,7 @@ const SPORT_RULES: Record<string, string> = {
 - STANDALONE MATCH: project from THIS fixture's own prices only — never copy a verdict across matches; pick the strongest market per game.`,
   hockey: `ICE HOCKEY-SPECIFIC MARKET MODEL:
 - Analyse EVERY hockey market shown: the regulation 1X2 (Home/Draw/Away — the draw is regulation and is a REAL outcome), the moneyline including overtime, the Puck Line (±1.5/±2.5 goals), the goals total ladder, Home and Away Team Totals, and the 1st Period Total.
+- LEAGUE SCORING CONTEXT: goals totals are NOT uniform across hockey. The NHL runs ~5.5-6.5 goals/game; the KHL and the strong European leagues (SHL, Liiga, DEL, Czech/Slovak Extraliga) run ~4.5-5.5; women's hockey and low-tier leagues run lower still. A 5.5 total in a KHL game is a HIGH line, and a team total of 2.5 that is routine in the NHL is a big ask in the SHL. Read every line relative to the match's own league, never NHL expectations.
 - PUCK LINE LOGIC: one-goal games are the most common margin in hockey, so Puck Line -1.5 on either team is a genuinely risky cover (typically 35-45% even for good favourites) while +1.5 is a high-probability, low-price cover (often 60-70%). NEVER treat the -1.5 favourite cover as safe — price it from the goal-margin distribution, and prefer +1.5 legs or regulation draws when the moneyline is too tight.
 - REGULATION DRAW: a real, fully-modelled outcome — in tight matchups the Draw's real chance (~22-28%) can exceed either dog's win chance; project it (or the safer X2-style double-cover via +1.5) rather than forcing a winner.
 - 1ST PERIOD: period totals run ~25% of game goals. A 1st Period Under 1.5 is often strong in defensive matchups; use it as the "fast vs slow starter" read.
@@ -259,18 +260,12 @@ const SPORT_RULES: Record<string, string> = {
 - STANDALONE MATCH: every fixture is projected from its own grid-fitted probabilities — never replicate verdicts across matches; always land on the single strongest market for THIS game.`,
   baseball: `BASEBALL-SPECIFIC MARKET MODEL:
 - Analyse EVERY baseball market shown: the moneyline (incl. extra innings), the 9-inning regulation 1X2, the Run Line (±1.5/±2.5 runs), the total runs ladder, Home and Away Team Runs totals, and the 1st-5-Innings (F5) total.
+- LEAGUE SCORING CONTEXT: runs totals are NOT uniform across baseball. MLB games run ~8-9 combined runs; NPB (Japan) runs LOWER (~7-8 — the ball and style suppress scoring); KBO (Korea) runs HIGHER (~9-10.5); college and minor leagues higher again. A 7.5 total in MLB is a LOW line, while in NPB it is routine; a 10.5 total in KBO is normal but would be a big over-anchor in NPB. Read every line relative to the match's own league.
 - RUN LINE LOGIC: baseball's most common margins are 1-3 runs, so Run Line -1.5 is a materially risky cover (usually 40-50% even for solid favourites) while +1.5 covers often (55-65%). Price both sides from the run-margin distribution and prefer the +1.5 dog cover or team-run overs when the moneyline price is too tight.
 - F5 ANGLE: the F5 total runs at roughly half the game total removes bullpen variance — use it as a cleaner totals read when the full-game total is priced tight.
 - Team Runs: home/away splits are near-symmetric in runs (±0.1-0.2 runs) — a team-total Over is the natural alternative when the moneyline is too short to bet.
 - Cross-check: Run Line -1.5 agrees with a Team Total Over and the game total Over; F5 Under agrees with a defensive pitchers' duel read on the full total; the regulation draw (9-inning tie) is small but real — respect its probability in tight games.
 - STANDALONE MATCH: project from THIS fixture's own run-model probabilities only — never copy selections across matches; always land on the strongest market for the game at hand.`,
-  americanfootball: `AMERICAN FOOTBALL-SPECIFIC MARKET MODEL:
-- Analyse EVERY market shown: the moneyline, the spread (point handicap, both directions), the game points total, Home and Away Team Totals, and the 1st Half Total.
-- SPREAD LOGIC: the NFL spread is the most efficient market in sport — a -7 favourite covers only ~52-55% in the model's eyes. Never blindly take the favourite to cover; compare the de-vigged cover probability of BOTH spread sides and project the stronger one for THIS game, including +X.5 dog covers.
-- KEY NUMBERS: margins cluster on 3, 6/7 and 10/14 (field goal and touchdown increments) — a spread sitting on a key number (e.g. -3.5, -7.5) carries materially different cover probability than one a half-point inside (e.g. -2.5, -6.5). Prefer the side with the key-number cushion.
-- TOTALS: scoring is NOT uniform — weather, defences and pace swing totals from 35 to 60+ points. Read every total line against THIS game's anchor. The 1st Half Total (~44-46% of game points) is the cleaner half-time read.
-- Cross-check: the favourite's moneyline agrees with its negative spread cover; Team Total Over agrees with the game total Over; a dog +X.5 cover agrees with a low-scoring Under keeping the margin tight.
-- STANDALONE MATCH: reason only from THIS fixture's own numbers — never replicate a pick across games; choose the single strongest market per match.`,
   rugby: `RUGBY-SPECIFIC MARKET MODEL:
 - Analyse EVERY market shown: the match winner, the points handicap/spread, the match points total, Home and Away Team Totals, and the 1st Half Total.
 - SPREAD LOGIC: rugby handicaps are wide (union tests often run -10 to -20) — a double-digit favourite still covers only ~50% by construction. Compare BOTH sides' de-vigged cover probabilities and project the stronger, including the dog +X.5 cover when the favourite's price is unplayable.

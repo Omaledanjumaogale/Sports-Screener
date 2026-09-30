@@ -155,8 +155,8 @@ describe('baseball model (two-way Poisson runs)', () => {
   });
 });
 
-describe('normal-points sports (am. football / rugby / cricket)', () => {
-  for (const sport of ['americanfootball', 'rugby', 'cricket'] as const) {
+describe('normal-points sports (rugby / cricket)', () => {
+  for (const sport of ['rugby', 'cricket'] as const) {
     it(`${sport}: ladders monotonic, margin consistent, spread both-sided`, () => {
       const derived = derivePointsSportMarkets(sport, 1.7, 2.2, sport === 'cricket' ? 320 : 44.5);
       const totals = pairProbabilities(derived.mainTotal.pairs!);

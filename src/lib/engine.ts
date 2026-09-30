@@ -11,7 +11,6 @@ export type SportId =
   | 'instant-basketball'
   | 'vfootball'
   | 'baseball'
-  | 'americanfootball'
   | 'rugby'
   | 'cricket'
   | 'mma'
@@ -1637,7 +1636,6 @@ export function analyzeScope(sportId: SportId, scope: ScopeState): Analysis {
   else if (sportId === 'instant-basketball') res = analyzeInstantBasketball(scope);
   else if (sportId === 'vfootball') res = analyzeVirtualFootball(scope);
   else if (sportId === 'baseball') res = analyzeBaseball(scope);
-  else if (sportId === 'americanfootball') res = analyzeAmericanFootball(scope);
   else if (sportId === 'rugby') res = analyzeRugby(scope);
   else if (sportId === 'cricket') res = analyzeCricket(scope);
   else if (sportId === 'mma') res = analyzeMma(scope);
@@ -2207,15 +2205,6 @@ function analyzeTeamPointsGame(scope: ScopeState, o: TeamPointsOpts): Analysis {
   };
 }
 
-export function analyzeAmericanFootball(scope: ScopeState): Analysis {
-  return analyzeTeamPointsGame(scope, {
-    unit: 'pts', unitLabel: 'Points',
-    metLabel: 'MEPT', totalTitle: 'Game Total Points', homeTitle: 'Home Total Points', awayTitle: 'Away Total Points',
-    strongSignal: 62, modSignal: 54,
-    winnerTitle: { a: `${scope.teamA || 'Home'} Win`, b: `${scope.teamB || 'Away'} Win` }
-  });
-}
-
 export function analyzeRugby(scope: ScopeState): Analysis {
   return analyzeTeamPointsGame(scope, {
     unit: 'pts', unitLabel: 'Points',
@@ -2533,33 +2522,6 @@ export function createBaseballScopes(): ScopeState[] {
 
 /* ========================= NEW SPORT SCOPE FACTORIES ========================= */
 
-export function createAmericanFootballScope(id: 'ft' | 'h1' | 'q1', title: string): ScopeState {
-  const isFT = id === 'ft';
-  const isH1 = id === 'h1';
-  const gameLines = isFT ? range(30.5, 60.5, 3) : isH1 ? range(13.5, 34.5, 2) : range(2.5, 18.5, 1.5);
-  const teamLines = isFT ? range(8.5, 34.5, 2) : isH1 ? range(3.5, 24.5, 2) : range(0.5, 12.5, 1.5);
-  const hdpLines = isFT ? [-24.5, -21.5, -18.5, -14.5, -10.5, -6.5, 0.5, 6.5, 10.5, 14.5, 21.5] : isH1 ? [-13.5, -10.5, -7.5, -5.5, -3.5, -1.5, 0.5, 1.5, 3.5, 5.5, 7.5] : [-6.5, -5.5, -4.5, -3.5, -2.5, -1.5, 0.5, 1.5, 2.5, 3.5, 4.5];
-
-  const state: ScopeState = {
-    id,
-    title,
-    leaguePreset: 'nfl',
-    markets: {
-      winner: market('winner', id === 'ft' ? 'Moneyline (Game Winner)' : id === 'h1' ? '1st Half Winner' : '1st Quarter Winner', 'winner', { primary: true, odds: oddsMap(['a', 'b']) }),
-      handicap: market('handicap', id === 'ft' ? 'Point Spread' : id === 'h1' ? '1st Half Spread' : '1st Quarter Spread', 'handicap', { primary: true, handicapPairs: emptyHandicaps(OU_LINE_COUNT, hdpLines) }),
-      mainTotalO: market('mainTotal', id === 'ft' ? 'Game Total Points' : id === 'h1' ? '1st Half Total Points' : '1st Quarter Total Points', 'ou', { primary: true, pairs: emptyPairs(gameLines.length <= OU_LINE_COUNT ? gameLines.length : OU_LINE_COUNT, gameLines.length <= OU_LINE_COUNT ? gameLines : gameLines.slice(0, OU_LINE_COUNT)) }),
-      homeTotal: market('homeTotal', id === 'ft' ? 'Team 1 Total Points' : id === 'h1' ? '1st Half T1 Points' : '1st Quarter T1 Points', 'ou', { primary: true, pairs: emptyPairs(teamLines.length <= OU_LINE_COUNT ? teamLines.length : OU_LINE_COUNT, teamLines.length <= OU_LINE_COUNT ? teamLines : teamLines.slice(0, OU_LINE_COUNT)) }),
-      awayTotal: market('awayTotal', id === 'ft' ? 'Team 2 Total Points' : id === 'h1' ? '1st Half T2 Points' : '1st Quarter T2 Points', 'ou', { primary: true, pairs: emptyPairs(teamLines.length <= OU_LINE_COUNT ? teamLines.length : OU_LINE_COUNT, teamLines.length <= OU_LINE_COUNT ? teamLines : teamLines.slice(0, OU_LINE_COUNT)) }),
-      correctScore: market('correctScore', 'Correct Score (NFL 1-4 CD)', 'correctScore', { odds: oddsMap(['others', 'homeFavourite']) })
-    }
-  };
-  return state;
-}
-
-export function createAmericanFootballScopes(): ScopeState[] {
-  return [createAmericanFootballScope('ft', 'Full Game'), createAmericanFootballScope('h1', '1st Half'), createAmericanFootballScope('q1', '1st Quarter')];
-}
-
 export function createRugbyScope(id: 'ft' | 'h1', title: string): ScopeState {
   const isFT = id === 'ft';
   const gameLines = isFT ? [23.5, 30.5, 37.5, 44.5, 51.5, 58.5, 65.5] : [5.5, 11.5, 17.5, 23.5, 29.5];
@@ -2717,12 +2679,6 @@ function computeLineOptions(sportId: SportId, scopeId: string, marketId: string)
     if (marketId === 'mainTotal') return scopeId === 'rt' ? [3.5, 4.5, 5.5, 6.5, 7.5, 8.5] : [0.5, 1, 1.5, 2, 2.5, 3];
     if (marketId === 'homeTotal' || marketId === 'awayTotal') return scopeId === 'rt' ? [0.5, 1.5, 2.5, 3.5, 4.5, 5.5] : [0.5, 1, 1.5, 2, 2.5, 3];
     if (marketId === 'handicap') return [-3.5, -2.5, -1.5, -0.5, 0, 0.5, 1.5, 2.5, 3.5];
-    return [];
-  }
-  if (sportId === 'americanfootball') {
-    if (marketId === 'mainTotal') return scopeId === 'q1' ? range(2.5, 18.5, 1) : scopeId === 'h1' ? range(13.5, 34.5, 1) : range(30.5, 60.5, 2);
-    if (marketId === 'homeTotal' || marketId === 'awayTotal') return scopeId === 'q1' ? range(0.5, 12.5, 1) : scopeId === 'h1' ? range(3.5, 24.5, 1) : range(8.5, 34.5, 2);
-    if (marketId === 'handicap') return range(-14.5, 14.5, 1);
     return [];
   }
   if (sportId === 'rugby') {
@@ -2898,7 +2854,6 @@ export function clearAllScopeStorage(): void {
       'instant-basketball',
       'vfootball',
       'baseball',
-      'americanfootball',
       'rugby',
       'cricket',
       'mma',

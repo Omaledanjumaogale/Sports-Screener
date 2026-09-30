@@ -89,7 +89,6 @@
   const SPORT_DISPLAY_NAME: Record<PredictorSportId, string> = {
     football: 'Football', basketball: 'Basketball', tennis: 'Tennis',
     hockey: 'Ice Hockey', baseball: 'Baseball',
-    americanfootball: 'American Football'
   };
   const sportDisplayName = $derived(SPORT_DISPLAY_NAME[effectiveSport] ?? effectiveSport);
 

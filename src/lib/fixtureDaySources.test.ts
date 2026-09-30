@@ -26,7 +26,7 @@ describe('betexplorerDayUrl — day-scoped breadth feed', () => {
   });
 
   it('returns empty for sports with no BetExplorer breadth page', () => {
-    for (const s of ['rally', 'rugby', 'cricket', 'mma', 'americanfootball']) {
+    for (const s of ['rally', 'rugby', 'cricket', 'mma']) {
       expect(betexplorerDayUrl(s, '2026-09-25')).toBe('');
     }
   });

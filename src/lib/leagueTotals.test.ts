@@ -137,16 +137,12 @@ describe('league / format priors across the other sports', () => {
     expect(leagueTotalPrior('baseball', 'MLB')?.avgTotal).toBe(8.5);
     expect(leagueTotalPrior('baseball', 'NPB')?.avgTotal).toBe(7.5);
     expect(leagueTotalPrior('baseball', 'KBO')?.avgTotal).toBe(9.5);
-    expect(leagueTotalPrior('americanfootball', 'NFL')?.avgTotal).toBe(44.5);
-    expect(leagueTotalPrior('americanfootball', 'NCAA')?.avgTotal).toBe(55);
-    expect(leagueTotalPrior('americanfootball', 'CFL')?.avgTotal).toBe(51);
   });
 
   it('defaultTotalAnchor uses the league prior and falls back to the sport base line', () => {
     expect(defaultTotalAnchor('hockey', 'NHL', 5.5)).toBe(5.9);
     expect(defaultTotalAnchor('hockey', 'Unknown League', 5.5)).toBe(5.5);
     expect(defaultTotalAnchor('baseball', 'NPB', 8.5)).toBe(7.5);
-    expect(defaultTotalAnchor('americanfootball', 'CFL', 44.5)).toBe(51);
     expect(defaultTotalAnchor('football', 'Bundesliga', 2.5)).toBe(3.1);
     expect(defaultTotalAnchor('football', 'Premier League', 2.5)).toBe(2.7);
     expect(defaultTotalAnchor('football', 'Unlisted League', 2.5)).toBe(2.5);

@@ -14,7 +14,6 @@
     tennis: '#a3e635',
     hockey: '#22d3ee',
     baseball: '#e11d48',
-    americanfootball: '#f87171'
   };
 </script>
 

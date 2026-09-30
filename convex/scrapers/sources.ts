@@ -353,7 +353,7 @@ const BETEXPLORER_NEXT_SLUG: Record<string, string> = {
 /**
  * BetExplorer day-scoped fixtures URL for a WAT dayKey ('YYYY-MM-DD').
  * Returns '' for sports BetExplorer has no breadth page for (rally, rugby,
- * cricket, mma, americanfootball — those stay API-fed) and for malformed keys.
+ * cricket, mma — those stay API-fed) and for malformed keys.
  */
 export function betexplorerDayUrl(sportId: string, dayKey: string): string {
   const slug = BETEXPLORER_NEXT_SLUG[sportId];
@@ -570,16 +570,6 @@ export const MARKET_GROUPS: Record<string, { label: string; emoji: string; marke
       { id: 'match_winner', label: 'Match Winner', icon: '🏓', cat: 'Winner' },
       { id: 'set_winner', label: 'Set Winner', icon: '1️⃣', cat: 'Sets' },
       { id: 'total_sets', label: 'Total Sets O/U', icon: '📈', cat: 'Sets' }
-    ]
-  },
-  americanfootball: {
-    label: 'American Football',
-    emoji: '🏈',
-    markets: [
-      { id: 'moneyline', label: 'Moneyline', icon: '🏠', cat: 'Match Winner' },
-      { id: 'spread', label: 'Point Spread', icon: '⚖️', cat: 'Handicap' },
-      { id: 'total_pts', label: 'Total Points O/U', icon: '📈', cat: 'Totals' },
-      { id: 'team_total', label: 'Team Total Points', icon: '📊', cat: 'Props' }
     ]
   },
   rugby: {

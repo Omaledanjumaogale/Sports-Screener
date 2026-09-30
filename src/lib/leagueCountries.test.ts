@@ -84,9 +84,6 @@ describe('leagueCountries', () => {
     expect(countryForLeague('LBPRC')).toBe('Puerto Rico');
     expect(countryForLeague('LVBP')).toBe('Venezuela');
     expect(countryForLeague('LMB')).toBe('Mexico');
-    // American football
-    expect(countryForLeague('CFL')).toBe('Canada');
-    expect(countryForLeague('UFL')).toBe('USA');
     // Rugby
     expect(countryForLeague('Premiership Rugby')).toBe('England');
     expect(countryForLeague('Major League Rugby')).toBe('USA');

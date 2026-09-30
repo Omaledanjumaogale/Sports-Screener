@@ -19,8 +19,7 @@ const sportId = v.union(
   v.literal('basketball'),
   v.literal('tennis'),
   v.literal('hockey'),
-  v.literal('baseball'),
-  v.literal('americanfootball')
+  v.literal('baseball')
 );
 
 const dayStatus = v.union(
@@ -45,8 +44,7 @@ export const PREDICTOR_SPORT_ID_LIST = [
   'basketball',
   'tennis',
   'hockey',
-  'baseball',
-  'americanfootball'
+  'baseball'
 ] as const;
 
 // ── Per-sport keyword fingerprints ────────────────────────────────────────────
@@ -85,10 +83,6 @@ export const SPORT_KEYWORDS: Record<string, { positive: RegExp[]; strongExclusiv
     strongExclusive: [/\bmlb\b/i, /\bnpb baseball\b/i, /\bkbo baseball\b/i, /\bmilb\b/i, /\bbaseball\b/i, /\bnew york yankees\b/i, /\bboston red sox\b/i, /\blos angeles dodgers\b/i, /\bsan francisco giants\b/i, /\bchicago cubs\b/i, /\bchicago white sox\b/i, /\bnew york mets\b/i, /\bhouston astros\b/i, /\btoronto blue jays\b/i, /\btampa bay rays\b/i, /\boakland athletics\b/i, /\bseattle mariners\b/i, /\blos angeles angels\b/i, /\btexas rangers\b/i, /\bphiladelphia phillies\b/i, /\batlanta braves\b/i, /\bmiami marlins\b/i, /\bwashington nationals\b/i, /\bst louis cardinals\b/i, /\bmilwaukee brewers\b/i, /\bcincinnati reds\b/i, /\bpittsburgh pirates\b/i, /\bsan diego padres\b/i, /\bcolorado rockies\b/i, /\barizona diamondbacks\b/i, /\bdetroit tigers\b/i, /\bkansas city royals\b/i, /\bminnesota twins\b/i, /\bcleveland guardians\b/i, /\bbaltimore orioles\b/i, /\blvbp\b/i, /\blmb\b/i],
     positive: [/\bmlb\b/i, /\bnpb\b/i, /\bkbo\b/i, /\bmilb\b/i, /\bbaseball\b/i, /\byankees\b/i, /\bred sox\b/i, /\bdodgers\b/i, /\bgiants\b/i, /\bcubs\b/i, /\bwhite sox\b/i, /\bmets\b/i, /\bastros\b/i, /\bblue jays\b/i, /\brays\b/i, /\bathletics\b/i, /\bmariners\b/i, /\bangels\b/i, /\brangers\b/i, /\bphillies\b/i, /\bbraves\b/i, /\bmarlins\b/i, /\bnationals\b/i, /\bcardinals\b/i, /\bbrewers\b/i, /\breds\b/i, /\bpirates\b/i, /\bpadres\b/i, /\brockies\b/i, /\bdiamondbacks\b/i, /\btigers\b/i, /\broyals\b/i, /\btwins\b/i, /\bguardians\b/i, /\borioles\b/i,    /\blvbp\b/i, /\blmb\b/i, /\baustralian baseball\b/i, /\bserie del caribe\b/i, /\bcaribbean series\b/i, /\bpremier12\b/i, /\batlantic league\b/i, /\bfrontier league\b/i, /\bcuban national series\b/i]
   },
-  americanfootball: {
-    strongExclusive: [/\bnfl\b/i, /\bncaaf\b/i, /\bxfl\b/i, /\bcfl\b/i, /\bsuper bowl\b/i, /\bamerican football\b/i, /\bkc chiefs\b/i, /\bphiladelphia eagles\b/i, /\bdallas cowboys\b/i, /\bsan francisco 49ers\b/i, /\bbaltimore ravens\b/i, /\bbuffalo bills\b/i, /\bcincinnati bengals\b/i, /\bpittsburgh steelers\b/i, /\bcleveland browns\b/i, /\bnew york jets\b/i, /\bnew england patriots\b/i, /\bmiami dolphins\b/i, /\bhouston texans\b/i, /\bjaguars\b/i, /\bindianapolis colts\b/i, /\btennessee titans\b/i, /\blas vegas raiders\b/i, /\blos angeles chargers\b/i, /\bdenver broncos\b/i, /\bgreen bay packers\b/i, /\bminnesota vikings\b/i, /\bchicago bears\b/i, /\bdetroit lions\b/i, /\btampa bay buccaneers\b/i, /\batlanta falcons\b/i, /\bnew orleans saints\b/i, /\bcarolina panthers\b/i, /\blos angeles rams\b/i, /\bseattle seahawks\b/i, /\barizona cardinals nfl\b/i, /\bwashington commanders\b/i, /\bny giants nfl\b/i],
-    positive: [/\bnfl\b/i, /\bncaaf\b/i, /\bxfl\b/i, /\bcfl\b/i, /\bsuper bowl\b/i, /\bamerican football\b/i, /\bchiefs\b/i, /\beagles\b/i, /\bcowboys\b/i, /\b49ers\b/i, /\bravens\b/i, /\bbills\b/i, /\bbengals\b/i, /\bsteelers\b/i, /\bbrowns\b/i, /\bjets\b/i, /\bpatriots\b/i, /\bdolphins\b/i, /\btexans\b/i, /\bjaguars\b/i, /\bcolts\b/i, /\btitans\b/i, /\braiders\b/i, /\bchargers\b/i, /\bbroncos\b/i, /\bpackers\b/i, /\bvikings\b/i, /\bbears\b/i, /\blions\b/i, /\bbuccaneers\b/i, /\bfalcons\b/i, /\bsaints\b/i, /\bpanthers\b/i, /\brams\b/i, /\bseahawks\b/i, /\bcardinals\b(?!.*(baseball|soccer))/i, /\bcommanders\b/i,    /\bgiants nfl\b/i, /\bgrey cup\b/i, /\busfl\b/i, /\bncaa fcs\b/i, /\barena football\b/i, /\beuropean league of football\b/i]
-  },
   rugby: {
     strongExclusive: [/\bsix nations\b/i, /\ball blacks\b/i, /\bspringboks\b/i, /\bwallabies\b/i, /\btop 14 rugby\b/i, /\bsuper rugby pacific\b/i, /\bpremiership rugby\b/i, /\burc rugby\b/i, /\bpro14\b/i, /\brugby world cup\b/i, /\brugby league\b/i, /\brugby union\b/i, /\brugby international\b/i, /\benglish premiership rugby\b/i, /\bstade toulousain\b/i, /\bleinster rugby\b/i, /\bmunster rugby\b/i, /\bexeter chiefs\b/i, /\bsaracens rugby\b/i, /\bbath rugby\b/i, /\bnorthampton saints\b/i, /\bbristol bears\b/i, /\bdhl stormers\b/i, /\bvodacom bulls\b/i, /\bemirates lions\b/i, /\bcell c sharks\b/i, /\bhighlanders rugby\b/i, /\bchiefs rugby\b/i, /\bcrusaders rugby\b/i, /\bblues rugby\b/i, /\brugby\b/i],
     positive: [/\brugby\b/i, /\bsix nations\b/i, /\ball blacks\b/i, /\bspringboks\b/i, /\bwallabies\b/i, /\btop 14\b/i, /\bsuper rugby\b/i, /\bpremiership rugby\b/i, /\burc\b/i, /\bpro14\b/i, /\bworld cup rugby\b/i, /\brugby league\b/i, /\brugby union\b/i, /\brugby international\b/i, /\benglish premiership\b/i, /\bnew zealand\b(?!.*(cricket|soccer|tennis))/i, /\bsouth africa\b(?!.*(cricket|soccer|tennis))/i, /\baustralia\b(?!.*(cricket|soccer|tennis|baseball))/i, /\bireland\b(?!.*(soccer))/i, /\bscotland\b(?!.*(soccer))/i, /\bwales\b(?!.*(soccer))/i, /\bfrance rugby\b/i, /\bengland rugby\b/i, /\bargentina rugby\b/i, /\bfiji\b(?!.*(soccer))/i, /\bsamoa\b(?!.*(soccer))/i, /\btonga\b(?!.*(soccer))/i, /\bjapan rugby\b/i, /\bstade toulousain\b/i, /\bleinster\b/i, /\bmunster\b/i, /\bexeter chiefs\b/i, /\bsaracens\b/i, /\bbath rugby\b/i, /\bnorthampton\b/i, /\bbristol rugby\b/i, /\bstormers\b/i, /\bbulls rugby\b/i, /\blions rugby\b/i, /\bsharks rugby\b/i, /\bhighlanders\b/i, /\bchiefs rugby\b/i, /\bcrusaders\b/i,    /\bblues rugby\b/i, /\bpro d2\b/i, /\bsuper rugby americas\b/i, /\bchallenge cup\b/i, /\bstate of origin\b/i, /\bsuper league rugby\b/i, /\bjapan league one\b/i, /\bmajor league rugby\b/i, /\bcurrie cup\b/i]
@@ -114,7 +108,6 @@ const SERVER_SPORT_LEAGUES: Record<string, string[]> = {
   rally: ['ITTF', 'WTT', 'World Table Tennis', 'Table Tennis', 'TT Cup', 'WTT Series', 'WTT Champions', 'WTT Contender', 'WTT Star Contender', 'Europe Top 16', 'ITTF World Tour'],
   hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL', 'Extraliga', 'Swiss National League', 'Czech Extraliga', 'Slovak Extraliga', 'ICEHL', 'Alps Hockey League', 'ECHL', 'SPHL', 'Mestis', 'Hockeyettan', 'Champions Hockey League', 'VHL', 'HockeyAllsvenskan', 'GET Ligaen', 'Metal Ligaen', 'Ligue Magnus', 'DEL2', 'NCAA Hockey', 'OHL', 'QMJHL', 'WHL', 'Belarusian Extraliga', 'Kazakhstan Hockey'],
   baseball: ['MLB', 'NPB', 'KBO', 'MiLB', 'World Baseball Classic', 'CPBL', 'LIDOM', 'LBPRC', 'LVBP', 'LMB', 'Serie del Caribe', 'Caribbean Series', 'ABL', 'Australian Baseball League', 'Premier12', 'Atlantic League', 'Frontier League', 'NCAA Baseball', 'Cuban National Series'],
-  americanfootball: ['NFL', 'NCAAF', 'NCAA', 'NCAA Division I', 'NCAA Division II', 'NCAA Division III', 'NCAA FBS', 'NCAA FCS', 'College Football', 'CFL', 'XFL', 'UFL', 'Super Bowl', 'Grey Cup', 'USFL', 'Arena Football', 'European League of Football'],
   rugby: ['Six Nations', 'Rugby Championship', 'Premiership Rugby', 'Top 14', 'Super Rugby', 'Super Rugby Pacific', 'World Cup Rugby', 'URC', 'Pro14', 'Rugby World Cup', 'Champions Cup', 'Japan League One', 'Major League Rugby', 'Currie Cup', 'NPC', 'NRL', 'Pro D2', 'Super Rugby Americas', 'Challenge Cup', 'State of Origin', 'Super League Rugby'],
   cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash League', 'Big Bash', 'The Hundred', 'World Cup Cricket', 'Cricket World Cup', 'Super League', 'PSL', 'BBL', 'BCCI', 'ICC', 'T20 World Cup', 'Caribbean Premier League', 'Lanka Premier League', 'Bangladesh Premier League', 'Nepal Premier League', 'SA20', 'ILT20', 'Major League Cricket', 'MLC', 'Super Smash', 'County Championship', 'One Day Cup', 'Sheffield Shield', 'Ranji Trophy'],
   mma: ['UFC', 'Bellator', 'PFL', 'ONE Championship', 'ONE', 'MMA', 'Cage Warriors', 'KSW', 'Rizin', 'Brave CF', 'ACA', 'LFA', 'Fight Night', 'UFC Fight Night'],
@@ -348,7 +341,7 @@ const CANONICAL_TEAM_MAP: Record<string, string> = {
 
 const INDIVIDUAL_SPORTS = new Set(['tennis']);
 const TEAM_SPORTS = new Set([
-  'football', 'basketball', 'hockey', 'baseball', 'americanfootball'
+  'football', 'basketball', 'hockey', 'baseball'
 ]);
 
 export function normalizeName(raw: string): string {
@@ -923,7 +916,9 @@ export const replaceMatches = internalMutation({
     }
 
     const now = Date.now();
+    const keptIds = new Set<string>();
     for (const m of args.matches) {
+      keptIds.add(m.matchId);
       const old = prior.get(m.matchId);
       await ctx.db.insert('predictorMatches', {
         dayKey: args.dayKey,
@@ -942,6 +937,17 @@ export const replaceMatches = internalMutation({
         oddsSnapshot: old?.oddsSnapshot,
         createdAt: now
       });
+    }
+    // Verdict-orphan sweep: matchIds can churn between cycles (source-side
+    // slug/name drift), which would otherwise strand a verdict row per cycle —
+    // tennis reached 444 verdict rows for 8 matches. Any verdict for this
+    // (sport, day) whose matchId is not in the new fixture set is dead weight.
+    const dayVerdicts = await ctx.db
+      .query('predictorVerdicts')
+      .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey))
+      .collect();
+    for (const verdict of dayVerdicts) {
+      if (!keptIds.has(verdict.matchId)) await ctx.db.delete(verdict._id);
     }
     return args.matches.length;
   }
@@ -1072,18 +1078,47 @@ export const purgeAllPredictorData = internalMutation({
       v.literal('predictorVerdicts'),
       v.literal('predictorDays'),
       v.literal('predictorRuns'),
-      v.literal('aiPredictorStats')
+      v.literal('aiPredictorStats'),
+      v.literal('drafts'),
+      v.literal('savedScreeners')
     ),
     // Verdict rows carry large aiReport blobs — a smaller batch keeps each
     // function call under the 16 MB read limit.
     batchSize: v.optional(v.number()),
     // Optional dayKey scope: only delete rows for one day (verdict blobs are
     // huge, so per-day scoped deletion keeps each call well under the limits).
-    dayKey: v.optional(v.string())
+    dayKey: v.optional(v.string()),
+    // Optional sport scope: purge one sport's rows entirely (e.g. removing a
+    // sport whose source went away) without touching the others.
+    sportId: v.optional(v.string())
   },
   handler: async (ctx, args): Promise<{ table: string; deleted: number }> => {
     const batch = args.batchSize ?? 400;
     let deleted = 0;
+
+    if (args.sportId) {
+      // Tables without a by_sport_day index — scan-and-filter. All are small.
+      if (
+        args.table === 'aiPredictorStats' ||
+        args.table === 'drafts' ||
+        args.table === 'savedScreeners'
+      ) {
+        const rows = await (ctx.db.query(args.table as any) as any).collect();
+        const stale = rows.filter((r: any) => r.sportId === args.sportId);
+        for (const r of stale) await ctx.db.delete(r._id);
+        return { table: args.table, deleted: stale.length };
+      }
+      for (;;) {
+        const rows = await (ctx.db.query(args.table as any) as any)
+          .withIndex('by_sport_day', (q: any) => q.eq('sportId', args.sportId))
+          .take(batch);
+        if (rows.length === 0) break;
+        for (const r of rows) await ctx.db.delete(r._id);
+        deleted += rows.length;
+      }
+      return { table: args.table, deleted };
+    }
+
     const base = ctx.db.query(args.table as any);
     const indexedDay =
       args.dayKey && (args.table === 'predictorVerdicts' || args.table === 'predictorMatches');
@@ -1101,6 +1136,35 @@ export const purgeAllPredictorData = internalMutation({
   }
 });
 
+// Super-admin: purge every cached row for ONE sport across all predictor
+// tables. Used when a sport's last source disappears (its fixtures can never be
+// rebuilt, so the stale rows must go before the schema union is trimmed).
+export const adminPurgeSport = mutation({
+  args: { sportId: v.string() },
+  handler: async (ctx, args): Promise<{ sportId: string; deleted: number }> => {
+    await requireAdmin(ctx);
+    const tables = [
+      'predictorMatches',
+      'predictorVerdicts',
+      'predictorDays',
+      'predictorRuns',
+      'aiPredictorStats',
+      'drafts',
+      'savedScreeners'
+    ] as const;
+    let deleted = 0;
+    for (const table of tables) {
+      const res = await ctx.runMutation(internal.predictor.purgeAllPredictorData, {
+        table,
+        sportId: args.sportId,
+        batchSize: 200
+      });
+      deleted += res.deleted;
+    }
+    return { sportId: args.sportId, deleted };
+  }
+});
+
 // Internal entry used by the orchestrator's incremental refresh to rebuild
 // verdicts from the ALREADY-CACHED matches+scopes (no new API or LLM spend).
 export const getCachedMatches = internalQuery({
@@ -1111,6 +1175,44 @@ export const getCachedMatches = internalQuery({
       .withIndex('by_sport_day', (q) => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey))
       .order('asc')
       .collect();
+  }
+});
+
+// Diagnostics: summary of every cache row grouped by sport + dayKey (super admin).
+export const dumpCacheSummary = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireMasterPass(ctx);
+    const matches = await ctx.db.query('predictorMatches').collect();
+    const verdicts = await ctx.db.query('predictorVerdicts').collect();
+    const runs = await ctx.db.query('predictorRuns').collect();
+    const byKey = new Map();
+    for (const m of matches) {
+      const key = `${m.sportId}|${m.dayKey}`;
+      const row = byKey.get(key) ?? { sport: m.sportId, dayKey: m.dayKey, matches: 0, verdicts: 0, refreshedAt: 0, status: '-', message: '' };
+      row.matches += 1;
+      row.refreshedAt = Math.max(row.refreshedAt, m.createdAt ?? 0);
+      byKey.set(key, row);
+    }
+    for (const vRow of verdicts) {
+      const key = `${vRow.sportId}|${vRow.dayKey}`;
+      const row = byKey.get(key);
+      if (row) row.verdicts += 1;
+    }
+    // Latest run per (sport, day) carries the cycle status + message.
+    for (const r of runs) {
+      const key = `${r.sportId}|${r.dayKey}`;
+      const row = byKey.get(key);
+      if (!row) continue;
+      if (!row.lastRunAt || r.updatedAt > row.lastRunAt) {
+        row.lastRunAt = r.updatedAt;
+        row.status = r.status;
+        row.message = r.message ?? '';
+      }
+    }
+    const rows = Array.from(byKey.values());
+    rows.sort((a, b) => a.sport.localeCompare(b.sport) || a.dayKey.localeCompare(b.dayKey));
+    return rows;
   }
 });
 
@@ -1131,14 +1233,14 @@ export const purgeAndMarkStale = internalAction({
 
 // ── Bootstrap actions: seed today's cache for all sports when DB is empty ─────
 
-const ALL_SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball', 'americanfootball'] as const;
+const ALL_SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball'] as const;
 type AnySSport = typeof ALL_SPORTS[number];
 
 // Internal: seed a specific sport for today. Called by seedAllSports.
 export const seedSportForToday = internalAction({
   args: { sportId: v.union(
     v.literal('football'), v.literal('basketball'), v.literal('tennis'),
-    v.literal('hockey'), v.literal('baseball'), v.literal('americanfootball')
+    v.literal('hockey'), v.literal('baseball')
   )},
   handler: async (ctx, args): Promise<{ ok: boolean; kept: number }> => {
     const dayKey = watTodayKey();
@@ -1165,7 +1267,7 @@ export const seedSportForToday = internalAction({
 export const getDayInternal = internalQuery({
   args: { sportId: v.union(
     v.literal('football'), v.literal('basketball'), v.literal('tennis'),
-    v.literal('hockey'), v.literal('baseball'), v.literal('americanfootball')
+    v.literal('hockey'), v.literal('baseball')
   ), dayKey: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
@@ -1229,7 +1331,7 @@ export const bootstrapToday = action({
   }
 });
 
-const NON_FOOTBALL_SPORTS = ['basketball', 'tennis', 'hockey', 'baseball', 'americanfootball'] as const;
+const NON_FOOTBALL_SPORTS = ['basketball', 'tennis', 'hockey', 'baseball'] as const;
 
 // Mutation to move all football matches stored under any non-football sport into Football ('football').
 // Merges non-duplicates into football and deletes duplicates from the non-football sports.
@@ -1340,7 +1442,7 @@ export const purgeWrongSportMatches = mutation({
   args: {
     sportId: v.union(
       v.literal('football'), v.literal('basketball'), v.literal('tennis'),
-      v.literal('hockey'), v.literal('baseball'), v.literal('americanfootball')
+      v.literal('hockey'), v.literal('baseball')
     )
   },
   handler: async (ctx, args) => {
@@ -1445,7 +1547,7 @@ export const purgeWrongSportMatchesInternal = internalMutation({
   args: {
     sportId: v.union(
       v.literal('football'), v.literal('basketball'), v.literal('tennis'),
-      v.literal('hockey'), v.literal('baseball'), v.literal('americanfootball')
+      v.literal('hockey'), v.literal('baseball')
     )
   },
   handler: async (ctx, args) => {

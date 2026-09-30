@@ -9,9 +9,8 @@ export type PredictorSportId =
   | 'tennis'
   | 'hockey'
   | 'baseball'
-  | 'americanfootball';
 
-export const PREDICTOR_SPORTS: PredictorSportId[] = ['football', 'basketball', 'tennis', 'hockey', 'baseball', 'americanfootball'];
+export const PREDICTOR_SPORTS: PredictorSportId[] = ['football', 'basketball', 'tennis', 'hockey', 'baseball'];
 
 export function isPredictorSport(id: string | undefined | null): id is PredictorSportId {
   return !!id && (PREDICTOR_SPORTS as string[]).includes(id);
@@ -23,7 +22,6 @@ export const CANONICAL_SPORT_LEAGUES: Record<PredictorSportId, string[]> = {
   tennis: ['ATP', 'WTA', 'Grand Slam', 'Masters 1000', 'ATP Tour', 'WTA Tour', 'Wimbledon', 'Australian Open', 'French Open', 'Roland Garros', 'US Open'],
   hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL', 'Extraliga', 'Swiss National League'],
   baseball: ['MLB', 'NPB', 'KBO', 'MiLB', 'World Baseball Classic'],
-  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'Super Bowl']
 };
 
 const LEAGUE_NORMALIZE_MAP: Record<string, string> = {

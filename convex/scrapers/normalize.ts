@@ -80,10 +80,6 @@ const BASE_LINES: Record<string, { line: number; over: number; under: number }[]
     { line: 8.5, over: 1.9, under: 1.9 },
     { line: 7.5, over: 1.8, under: 2.0 }
   ],
-  americanfootball: [
-    { line: 42.5, over: 1.9, under: 1.9 },
-    { line: 44.5, over: 1.85, under: 1.95 }
-  ],
   rugby: [
     { line: 37.5, over: 1.9, under: 1.9 },
     { line: 28.5, over: 1.85, under: 1.95 }
@@ -103,7 +99,7 @@ const BASE_LINES: Record<string, { line: number; over: number; under: number }[]
 };
 
 // Sports whose "result" market has no draw leg.
-const TWO_WAY_SPORTS = new Set(['basketball', 'tennis', 'rally', 'hockey', 'baseball', 'americanfootball', 'mma', 'volleyball']);
+const TWO_WAY_SPORTS = new Set(['basketball', 'tennis', 'rally', 'hockey', 'baseball', 'mma', 'volleyball']);
 
 function stableId(seed: string): string {
   let h = 0;
@@ -991,8 +987,8 @@ export const SPORT_TOTAL_PRIORS: Record<string, TotalPrior[]> = {
   basketball: BASKETBALL_LEAGUE_PRIORS,
   football: [
     { pattern: /bundesliga|eredivisie|austria|switzerland|norway|eliteserien|sweden|allsvenskan|denmark|iceland/i, avgTotal: 3.1, label: 'High-scoring league', band: 1.1 },
-    { pattern: /premier league|\bepl\b|championship|serie a|la liga|ligue 1|primeira|eredivisie|spain|italy|france|england|portugal|netherlands|germany/i, avgTotal: 2.7, label: 'Top-5 league', band: 1.0 },
-    { pattern: /\bmls\b|japan|j-?league|korea|\bk league\b|china|australia|a-?league|brazil|brasileir|argentina|mexico|liga mx/i, avgTotal: 2.6, label: 'Non-European league', band: 1.0 },
+    { pattern: /premier.?league|\bepl\b|championship|serie.?a|la.?liga|ligue.?1|primeira|eredivisie|spain|italy|france|england|portugal|netherlands|germany/i, avgTotal: 2.7, label: 'Top-5 league', band: 1.0 },
+    { pattern: /\bmls\b|japan|j-?league|korea|\bk.?league\b|china|australia|a-?league|brazil|brasileir|argentina|mexico|liga.?mx/i, avgTotal: 2.6, label: 'Non-European league', band: 1.0 },
     { pattern: /women|wmn|fem|\bw-?league\b/i, avgTotal: 2.9, label: "Women's football", band: 1.1 },
     { pattern: /u1[0-9]|u2[0-9]|youth|junior/i, avgTotal: 3.1, label: 'Youth football', band: 1.2 }
   ],
@@ -1010,12 +1006,50 @@ export const SPORT_TOTAL_PRIORS: Record<string, TotalPrior[]> = {
     { pattern: /\bwnba\b|women|softball/i, avgTotal: 8.0, label: "Women's baseball", band: 1.8 },
     { pattern: /college|ncaa|minor|\bmilb\b/i, avgTotal: 9.5, label: 'College / minor league', band: 2.2 }
   ],
-  americanfootball: [
-    { pattern: /\bnfl\b|national football league/i, avgTotal: 44.5, label: 'NFL', band: 8 },
-    { pattern: /\bcfl\b|canadian/i, avgTotal: 51, label: 'CFL', band: 9 },
-    { pattern: /ncaa|college|\bcfb\b/i, avgTotal: 55, label: 'NCAA football', band: 12 },
-    { pattern: /\bxfl\b|\busfl\b|spring league|arena|indoor/i, avgTotal: 45, label: 'Spring / indoor', band: 12 },
-    { pattern: /women|wmn/i, avgTotal: 50, label: "Women's football", band: 12 }
+  tennis: [
+    // ORDER MATTERS: doubles and WTA must be checked BEFORE the Grand Slam and
+    // ATP patterns — "atp-miami-doubles" is a doubles match (~28 games) and
+    // "wta-wimbledon" is a Bo3 match (~21 games), NOT the men's Bo5 (33).
+    { pattern: /doubles/i, avgTotal: 28.0, label: 'Doubles', band: 7 },
+    { pattern: /\bwta\b|wta tour|wta 250|wta 500|wta 125|wta finals|billie jean/i, avgTotal: 21.0, label: 'WTA (Bo3)', band: 5 },
+    // Men's Grand Slam singles are Bo5 (~33-36 games); the /next/ slugs are
+    // "atp-wimbledon", "atp-us-open" etc., so the atp- prefix is already on
+    // the string — these patterns only catch the tournament names themselves.
+    { pattern: /wimbledon|roland garros|french open|australian open|us open\b/i, avgTotal: 33.0, label: 'Grand Slam (Bo5)', band: 8 },
+    { pattern: /\batp\b|atp tour|atp finals|atp 250|atp 500|masters 1000|atp masters/i, avgTotal: 22.5, label: 'ATP Tour (Bo3)', band: 5 },
+    { pattern: /challenger/i, avgTotal: 22.0, label: 'ATP Challenger (Bo3)', band: 5 },
+    { pattern: /\bitf\b|world tennis tour/i, avgTotal: 21.5, label: 'ITF (Bo3)', band: 5 },
+    { pattern: /davis cup|united cup|laver cup/i, avgTotal: 22.0, label: 'Team competition', band: 6 }
+  ],
+  rugby: [
+    // Hyphen-tolerant: slugs are "six-nations", "top-14", "tri-nations" etc.
+    { pattern: /six.?nations/i, avgTotal: 50.0, label: 'Six Nations', band: 14 },
+    { pattern: /rugby.?championship|tri.?nations/i, avgTotal: 52.0, label: 'Rugby Championship', band: 14 },
+    { pattern: /premiership rugby|gallagher/i, avgTotal: 48.0, label: 'Premiership Rugby', band: 14 },
+    { pattern: /top.?14/i, avgTotal: 46.0, label: 'Top 14', band: 14 },
+    { pattern: /super.?rugby/i, avgTotal: 54.0, label: 'Super Rugby', band: 15 },
+    { pattern: /world cup/i, avgTotal: 48.0, label: 'Rugby World Cup', band: 14 },
+    { pattern: /united rugby|\burc\b/i, avgTotal: 50.0, label: 'URC', band: 14 },
+    { pattern: /currie.?cup/i, avgTotal: 52.0, label: 'Currie Cup', band: 14 },
+    { pattern: /\bnpc\b|mitre.?10/i, avgTotal: 54.0, label: 'NPC (NZ)', band: 14 },
+    { pattern: /major.?league.?rugby|\bmlr\b/i, avgTotal: 50.0, label: 'MLR', band: 14 }
+  ],
+  cricket: [
+    { pattern: /\bipl\b|indian.?premier/i, avgTotal: 340, label: 'IPL', band: 80 },
+    { pattern: /big.?bash|\bbbl\b/i, avgTotal: 330, label: 'Big Bash', band: 80 },
+    { pattern: /the.?hundred/i, avgTotal: 280, label: 'The Hundred', band: 70 },
+    { pattern: /t20.?world.?cup|t20i/i, avgTotal: 310, label: 'T20 International', band: 75 },
+    { pattern: /\bpsl\b|pakistan.?super/i, avgTotal: 320, label: 'PSL', band: 75 },
+    { pattern: /\btest\b/i, avgTotal: 550, label: 'Test cricket', band: 120 },
+    { pattern: /\bodi\b|one.?day|50.?over/i, avgTotal: 520, label: 'ODI', band: 110 }
+  ],
+  volleyball: [
+    { pattern: /fivb|vnl|volleyball nations league|world championship/i, avgTotal: 3.5, label: 'FIVB international', band: 0.8 },
+    { pattern: /italian|superlega|serie a1/i, avgTotal: 3.6, label: 'Italy SuperLega', band: 0.8 },
+    { pattern: /polish|plusliga/i, avgTotal: 3.5, label: 'Poland PlusLiga', band: 0.8 },
+    { pattern: /turkish|sultanlar/i, avgTotal: 3.5, label: 'Turkey Sultanlar', band: 0.8 },
+    { pattern: /cev|champions league/i, avgTotal: 3.5, label: 'CEV club competitions', band: 0.8 },
+    { pattern: /ncaa|college|women/i, avgTotal: 3.2, label: 'NCAA volleyball', band: 0.8 }
   ]
 };
 
@@ -1038,6 +1072,22 @@ export function leagueTotalPrior(sportId: string, league?: string): TotalPrior |
   if (!table || !raw) return null;
   for (const p of table) if (p.pattern.test(raw)) return p;
   return null;
+}
+
+// Convenience wrappers over leagueTotalPrior with the sport's generic fallback.
+export function hockeyLeagueProfile(league: string | undefined): { avgTotal: number; label: string } {
+  const prior = leagueTotalPrior('hockey', league);
+  return prior ? { avgTotal: prior.avgTotal, label: prior.label } : { avgTotal: 5.5, label: 'Generic hockey' };
+}
+
+export function baseballLeagueProfile(league: string | undefined): { avgTotal: number; label: string } {
+  const prior = leagueTotalPrior('baseball', league);
+  return prior ? { avgTotal: prior.avgTotal, label: prior.label } : { avgTotal: 8.5, label: 'Generic baseball' };
+}
+
+export function tennisLeagueProfile(league: string | undefined): { avgTotal: number; label: string } {
+  const prior = leagueTotalPrior('tennis', league);
+  return prior ? { avgTotal: prior.avgTotal, label: prior.label } : { avgTotal: 22.0, label: 'Generic tennis (Bo3)' };
 }
 
 // Fallback anchor for a fixture with no real total: the league's own scoring
@@ -1613,13 +1663,6 @@ export interface PointsSportCfg {
 }
 
 export const POINTS_SPORT_CFG: Record<string, PointsSportCfg> = {
-  americanfootball: {
-    sdTotal: 13.5, sdMargin: 13.0, sdTeam: 9.4, firstHalfShare: 0.44,
-    totalOffsets: [-10.5, -7, -3.5, 0, 3.5, 7, 10.5],
-    teamOffsets: [-7, -3.5, 0, 3.5, 7],
-    spreadLines: [-14.5, -10.5, -7.5, -4.5, -2.5, -0.5, 1.5, 3.5, 6.5, 9.5, 13.5],
-    unitLabel: 'Points'
-  },
   rugby: {
     sdTotal: 16, sdMargin: 15, sdTeam: 11, firstHalfShare: 0.45,
     totalOffsets: [-12, -8, -4, 0, 4, 8, 12],
@@ -1685,7 +1728,8 @@ export function derivePointsSportMarkets(
   awayOdds: number,
   totalAnchorLine: number,
   realTotals?: { line: number; over: number; under: number },
-  realSpread?: { point: number; home: number; away: number }
+  realSpread?: { point: number; home: number; away: number },
+  league?: string
 ): {
   mainTotal: Market;
   homeTotal: Market;
@@ -1693,7 +1737,31 @@ export function derivePointsSportMarkets(
   firstHalfTotal: Market;
   handicap: Market;
 } {
-  const cfg = POINTS_SPORT_CFG[sportId] ?? POINTS_SPORT_CFG.americanfootball;
+  const baseCfg = POINTS_SPORT_CFG[sportId] ?? POINTS_SPORT_CFG.rugby;
+  // League-aware SD damping: a competition's scoring spread differs from the
+  // generic baseline (Test cricket totals dwarf T20; Super Rugby out-scores
+  // the Six Nations). Scale factor is damped so no league swings SD past ±20%.
+  const sdScale = (() => {
+    const raw = String(league || '');
+    if (sportId === 'rugby') {
+      if (/super rugby|npc\b|mitre 10|currie cup/i.test(raw)) return 1.1;
+      if (/top 14|premiership rugby|gallagher|six nations/i.test(raw)) return 0.94;
+      if (/sevens|7s\b/i.test(raw)) return 1.2;
+    }
+    if (sportId === 'cricket') {
+      if (/the hundred/i.test(raw)) return 0.85;
+      if (/test\b/i.test(raw)) return 0.8;
+      if (/odi\b|one day/i.test(raw)) return 1.05;
+      if (/\bipl\b|big bash|bbl|psl\b|t20/i.test(raw)) return 1.0;
+    }
+    return 1.0;
+  })();
+  const cfg: PointsSportCfg = sdScale === 1.0 ? baseCfg : {
+    ...baseCfg,
+    sdTotal: baseCfg.sdTotal * sdScale,
+    sdMargin: baseCfg.sdMargin * (0.5 + sdScale * 0.5),
+    sdTeam: baseCfg.sdTeam * sdScale
+  };
   const model = buildPointsModel(homeOdds, awayOdds, totalAnchorLine, cfg);
 
   const totalLadder = cfg.totalOffsets.map((off) => {
@@ -1720,7 +1788,23 @@ export function derivePointsSportMarkets(
     })
   });
 
-  const spreadLadder = cfg.spreadLines.map((line) => {
+  // Adaptive spread ladder: centred on the model's expected margin, spanning
+  // ±4 SD so an NCAAF -25 favourite gets lines near its real cover window
+  // instead of being clipped by a fixed NFL-shaped [-14.5..13.5] grid.
+  // Candidates whose cover probability would clamp against the 1.01 price
+  // floor (prob > ~0.949) are trimmed — every emitted pair must carry the
+  // full 1.05 overround. The real scraped spread always wins its own line.
+  const sdM = cfg.sdMargin;
+  const centre = model.margin;
+  const raw = [-4.5, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5].map((k) => roundHalf(centre + k * sdM * 0.9));
+  const spreadCandidates = Array.from(new Set(raw));
+  const spreadLadder = spreadCandidates
+    .filter((line) => {
+      if (realSpread && Math.abs(line - realSpread.point) < 0.01) return true;
+      const covers = pointsHomeCovers(model, line);
+      return Math.min(covers, 1 - covers) > 0.055;
+    })
+    .map((line) => {
     if (realSpread && Math.abs(line - realSpread.point) < 0.01) {
       return { line: realSpread.point, sideA: realSpread.home, sideB: realSpread.away };
     }
@@ -1781,7 +1865,16 @@ function uniqueFallbackOdds(m: ScrapeMatch, isTwoWay: boolean): number[] {
 
 export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch {
   const lines = BASE_LINES[sportId] ?? BASE_LINES.football;
-  const id = stableId(`${m.homeTeam}|${m.awayTeam}|${m.league}`);
+  // Match-id stability: sources drift in punctuation/case/spacing between
+  // cycles ("Sinner J." vs "Sinner J", "ATP  Rome" vs "ATP Rome"), and an
+  // unstable id strands verdicts + re-triggers the LLM for the same real
+  // match. Normalize the seed so trivial formatting drift keeps the id.
+  const idSeed = `${m.homeTeam}|${m.awayTeam}|${m.league}`
+    .toLowerCase()
+    .replace(/[.·’']/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const id = stableId(idSeed);
 
   const parsed = parseOddsText(m.oddsText ?? '');
   const isTwoWay = TWO_WAY_SPORTS.has(sportId);
@@ -1919,7 +2012,7 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
       h2h[0],
       h2h[1],
       parsed.total && parsed.total.line > 0
-        ? parsed.total.line
+        ? clampTotalToLeague('hockey', m.league, parsed.total.line)
         : defaultTotalAnchor('hockey', m.league, 5.5),
       parsed.total && parsed.total.line > 0 ? parsed.total : undefined
     );
@@ -1938,7 +2031,7 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
       h2h[0],
       h2h[1],
       parsed.total && parsed.total.line > 0
-        ? parsed.total.line
+        ? clampTotalToLeague('baseball', m.league, parsed.total.line)
         : defaultTotalAnchor('baseball', m.league, 8.5),
       parsed.total && parsed.total.line > 0 ? parsed.total : undefined,
       parsed.spread || undefined
@@ -1951,20 +2044,21 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
     markets.handicap = derived.handicap;
   }
 
-  // ── Derived normal-points markets (am. football / rugby / cricket):
+  // ── Derived normal-points markets (rugby / cricket):
   //    spread ladder, totals ladder, team totals and 1st-half total from the
   //    sport-calibrated Normal points model. ─────────────────────────────────
-  if ((sportId === 'americanfootball' || sportId === 'rugby' || sportId === 'cricket') && h2h.length >= 2 && h2h[1]) {
+  if ((sportId === 'rugby' || sportId === 'cricket') && h2h.length >= 2 && h2h[1]) {
     const cfg = POINTS_SPORT_CFG[sportId];
     const derived = derivePointsSportMarkets(
       sportId,
       h2h[0],
       h2h[1],
       parsed.total && parsed.total.line > 0
-        ? parsed.total.line
+        ? clampTotalToLeague(sportId, m.league, parsed.total.line)
         : defaultTotalAnchor(sportId, m.league, BASE_LINES[sportId]?.[0]?.line ?? 44.5),
       parsed.total && parsed.total.line > 0 ? parsed.total : undefined,
-      parsed.spread || undefined
+      parsed.spread || undefined,
+      m.league
     );
     markets.mainTotal = derived.mainTotal;
     markets.homeTotal = derived.homeTotal;
@@ -1975,18 +2069,29 @@ export function normalizeMatch(m: ScrapeMatch, sportId: string): NormalizedMatch
 
   // ── Total (real line; football/basketball already have derived ladders) ──
   if (
-    !['football', 'basketball', 'hockey', 'baseball', 'americanfootball', 'rugby', 'cricket'].includes(sportId) ||
+    !['football', 'basketball', 'hockey', 'baseball', 'rugby', 'cricket'].includes(sportId) ||
     (!markets.mainTotal && sportId !== 'tennis' && sportId !== 'rally' && sportId !== 'volleyball')
   ) {
+    // League-aware fallback: when the fixture carries no real total, the anchor
+    // comes from the sport's league prior table (tennis ATP 22.5 / WTA 21.0 /
+    // Challenger 22.0 / ITF 21.5 / Grand Slam Bo5 33.0; volleyball FIVB 3.5 …).
+    // The over/under odds shape stays the BASE_LINES shape — the downstream
+    // model recalibrates from the real 1X2 anyway.
     const pair = parsed.total && parsed.total.line > 0
-      ? { line: parsed.total.line, over: parsed.total.over, under: parsed.total.under }
+      ? { line: clampTotalToLeague(sportId, m.league, parsed.total.line), over: parsed.total.over, under: parsed.total.under }
       : parsed.total && parsed.total.line === 0
         ? { ...lines[0], over: parsed.total.over, under: parsed.total.under }
-        : lines[0];
+        : (() => {
+            const prior = leagueTotalPrior(sportId, m.league);
+            const base = lines[0];
+            if (!prior) return base;
+            // Emit the league's own scoring level as the anchor line.
+            return { line: Math.round(prior.avgTotal * 2) / 2, over: base.over, under: base.under };
+          })();
     const totalMarket: Market = {
       id: 'mainTotal',
       kind: 'ou',
-      title: 'Match Total',
+      title: sportId === 'tennis' ? 'Total Games' : sportId === 'rally' || sportId === 'volleyball' ? 'Total Points' : 'Match Total',
       pairs: [pair]
     };
     markets.mainTotal = totalMarket;

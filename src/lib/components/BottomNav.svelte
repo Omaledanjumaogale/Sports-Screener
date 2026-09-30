@@ -18,7 +18,6 @@
     { id: 'rally',      path: '/rally',      label: 'Table Tennis', accent: '#38bdf8' },
     { id: 'hockey',     path: '/hockey',     label: 'Ice Hockey', accent: '#60a5fa' },
     { id: 'baseball',   path: '/baseball',   label: 'Baseball',  accent: '#f472b6' },
-    { id: 'american-football', path: '/american-football', label: 'Am. Football', accent: '#f87171' },
     { id: 'rugby',      path: '/rugby',      label: 'Rugby',     accent: '#a78bfa' },
     { id: 'cricket',    path: '/cricket',    label: 'Cricket',   accent: '#fbbf24' },
     { id: 'mma',        path: '/mma',        label: 'MMA',       accent: '#818cf8' },

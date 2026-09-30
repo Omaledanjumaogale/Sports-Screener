@@ -85,7 +85,6 @@ export async function tundeFetchFixtures(sportId: string, dayKey?: string): Prom
       hockey: 'Ice Hockey',
       baseball: 'Baseball',
       rally: 'Table Tennis',
-      americanfootball: 'American Football',
       rugby: 'Rugby',
       cricket: 'Cricket',
       mma: 'MMA',

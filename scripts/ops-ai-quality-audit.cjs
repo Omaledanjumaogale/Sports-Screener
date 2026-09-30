@@ -37,7 +37,7 @@ function todayKey() {
 }
 
 var SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball',
-  'americanfootball', 'rugby', 'cricket', 'mma', 'volleyball'];
+  'rugby', 'cricket', 'mma', 'volleyball'];
 
 function anyApi(client) {
   // anyApi avoids codegen coupling in ops scripts.

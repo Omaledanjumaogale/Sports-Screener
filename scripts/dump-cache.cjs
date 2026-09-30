@@ -1,4 +1,4 @@
-// Diagnose day rows per sport via authed public query (predictor.getDay).
+// Dump predictor cache rows grouped by sport + dayKey with counts.
 "use strict";
 var fs = require('fs');
 var path = require('path');
@@ -11,8 +11,6 @@ fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8').split(/\r?\n/)
   var eq = t.indexOf('='); if (eq > 0) envMap[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
 });
 
-var SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball'];
-
 async function main() {
   var client = new ConvexHttpClient(envMap.PUBLIC_CONVEX_URL);
   var si = await client.action(anyApi.auth.signIn, {
@@ -21,13 +19,17 @@ async function main() {
   });
   var tok = si && si.tokens && (si.tokens.token || (Array.isArray(si.tokens) && si.tokens[0] && (si.tokens[0].token || si.tokens[0])));
   client.setAuth(tok);
-  var day = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 10);
-  for (var s of SPORTS) {
-    var d = null;
-    try { d = await client.query(anyApi.predictor.getDay, { sportId: s, dayKey: day }); } catch (e) { d = { err: String(e && e.message || e).slice(0, 60) }; }
-    if (!d) { console.log(s.padEnd(17) + ': <no day row>'); continue; }
-    console.log(s.padEnd(17) + ': status=' + (d.status || '?') + ' | ' + String(d.message || '').slice(0, 110));
+  var rows = await client.query(anyApi.predictor.dumpCacheSummary, {});
+  for (var r of rows) {
+    console.log(
+      (r.sport + '                 ').slice(0, 17) + r.dayKey +
+      '  matches=' + String(r.matches).padStart(3) +
+      '  verdicts=' + String(r.verdicts).padStart(3) +
+      '  status=' + String(r.status).padEnd(8) +
+      '  ' + String(r.message || '').slice(0, 90)
+    );
   }
+  if (!rows.length) console.log('(no rows)');
   process.exit(0);
 }
-main().catch(function (e) { console.log('FATAL: ' + (e && e.message || e)); process.exit(1); });
+main().catch(function (e) { console.error('FATAL: ' + (e && e.message || e)); process.exit(1); });

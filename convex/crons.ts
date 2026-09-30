@@ -26,7 +26,6 @@ crons.daily('predictor-refresh-midnight-basketball', { hourUTC: 23, minuteUTC: 1
 crons.daily('predictor-refresh-midnight-tennis',     { hourUTC: 23, minuteUTC: 18 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'tennis',     dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-refresh-midnight-hockey',     { hourUTC: 23, minuteUTC: 26 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'hockey',     dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-refresh-midnight-baseball',   { hourUTC: 23, minuteUTC: 34 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'baseball',   dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-refresh-midnight-americanfootball', { hourUTC: 23, minuteUTC: 42 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'americanfootball', dayKey: '', floor: FLOOR, cap: CAP });
 
 // ── Afternoon West Africa Time (1:00 PM WAT) cache refresh — 6 sports ──────────
 // Midday pass keeps predictions fresh for afternoon/evening match windows.
@@ -35,7 +34,6 @@ crons.daily('predictor-refresh-noon-basketball', { hourUTC: 11, minuteUTC: 10 },
 crons.daily('predictor-refresh-noon-tennis',     { hourUTC: 11, minuteUTC: 18 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'tennis',     dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-refresh-noon-hockey',     { hourUTC: 11, minuteUTC: 26 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'hockey',     dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-refresh-noon-baseball',   { hourUTC: 11, minuteUTC: 34 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'baseball',   dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-refresh-noon-americanfootball', { hourUTC: 11, minuteUTC: 42 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'americanfootball', dayKey: '', floor: FLOOR, cap: CAP });
 
 // ── Morning West Africa Time (7:00 AM WAT) early seed ──────────────────────────
 // 7:00 AM WAT seed ensures morning users see today's matches populated early.
@@ -44,7 +42,6 @@ crons.daily('predictor-seed-morning-basketball', { hourUTC: 6, minuteUTC: 10 }, 
 crons.daily('predictor-seed-morning-tennis',     { hourUTC: 6, minuteUTC: 18 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'tennis',     dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-seed-morning-hockey',     { hourUTC: 6, minuteUTC: 26 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'hockey',     dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-seed-morning-baseball',   { hourUTC: 6, minuteUTC: 34 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'baseball',   dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-seed-morning-americanfootball', { hourUTC: 6, minuteUTC: 42 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'americanfootball', dayKey: '', floor: FLOOR, cap: CAP });
 
 
 // ── Live scoreline synchronization — every 5 minutes ──────────────────────────

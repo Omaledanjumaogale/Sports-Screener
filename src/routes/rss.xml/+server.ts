@@ -69,15 +69,6 @@ export const GET: RequestHandler = async () => {
       category: 'Table Tennis'
     },
     {
-      title: 'American Football Screener — PulseOdds',
-      link: `${SITE_URL}/american-football`,
-      description:
-        'Moneyline, point spread, game totals and team totals with MEPT and team sum consistency for NFL betting markets.',
-      pubDate: 'Mon, 27 Jul 2026 00:00:00 GMT',
-      guid: `${SITE_URL}/american-football`,
-      category: 'American Football'
-    },
-    {
       title: 'Rugby Screener — PulseOdds',
       link: `${SITE_URL}/rugby`,
       description:

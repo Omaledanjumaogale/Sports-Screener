@@ -8,7 +8,6 @@ export type ConvexSportId =
   | 'instant-basketball'
   | 'vfootball'
   | 'baseball'
-  | 'americanfootball'
   | 'rugby'
   | 'cricket'
   | 'mma'

@@ -26,7 +26,6 @@ const SPORT_LEAGUES: Record<string, string[]> = {
   rally: ['ITTF', 'WTT', 'Table Tennis', 'TT'],
   hockey: ['NHL', 'KHL', 'SHL', 'Liiga', 'AHL', 'DEL', 'HockeyAllsvenskan', 'GET Ligaen', 'Metal Ligaen', 'Ligue Magnus', 'DEL2', 'ICEHL', 'Extraliga', 'VHL'],
   baseball: ['MLB', 'NPB', 'KBO', 'MiLB', 'CPBL', 'LIDOM', 'LBPRC', 'LVBP', 'LMB'],
-  americanfootball: ['NFL', 'NCAAF', 'CFL', 'XFL', 'UFL', 'Super Bowl'],
   rugby: ['Six Nations', 'Rugby', 'Premier Rugby', 'Top 14', 'Super Rugby', 'URC', 'Champions Cup', 'Japan League One', 'Currie Cup', 'NRL'],
   cricket: ['Test', 'ODI', 'T20', 'IPL', 'Big Bash', 'Hundred', 'World Cup', 'T20 Blast', 'Caribbean Premier League', 'Lanka Premier League', 'SA20', 'Pakistan Super League'],
   mma: ['UFC', 'Bellator', 'PFL', 'ONE'],
@@ -129,7 +128,6 @@ export function syntheticFixtures(sportId: string): ScrapeMatch[] {
     rally: [['Lebrun', 'Harimoto'], ['Wang Chuqin', 'Fan Zhendong']],
     hockey: [['Rangers', 'Bruins'], ['Maple Leafs', 'Canadiens']],
     baseball: [['Yankees', 'Red Sox'], ['Dodgers', 'Giants']],
-    americanfootball: [['Chiefs', 'Eagles'], ['Cowboys', '49ers'], ['Ravens', 'Bills'], ['Lions', 'Packers']],
     rugby: [['All Blacks', 'Springboks'], ['England', 'France'], ['Ireland', 'Wales']],
     cricket: [['India', 'Australia'], ['England', 'Pakistan'], ['New Zealand', 'South Africa']],
     mma: [['Islam Makhachev', 'Ilia Topuria'], ['Joanna Jędrzejczyk', 'Rose Namajunas']],
@@ -141,8 +139,7 @@ export function syntheticFixtures(sportId: string): ScrapeMatch[] {
   // the root of the 'all matches show England - Premier League' bug).
   const label: Record<string, string> = {
     football: 'Football', basketball: 'Basketball', tennis: 'Tennis', rally: 'Table Tennis',
-    hockey: 'Ice Hockey', baseball: 'Baseball', americanfootball: 'American Football',
-    rugby: 'Rugby', cricket: 'Cricket', mma: 'MMA', volleyball: 'Volleyball'
+    hockey: 'Ice Hockey', baseball: 'Baseball', rugby: 'Rugby', cricket: 'Cricket', mma: 'MMA', volleyball: 'Volleyball'
   };
   return pairs.map(([h, a], i) => ({
     source: 'SyntheticDev',

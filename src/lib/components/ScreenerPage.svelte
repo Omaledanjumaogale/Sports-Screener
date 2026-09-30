@@ -58,7 +58,7 @@
   } = $props();
 
   // Derive the SportId union for SVG icon
-  type SportIconId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball' | 'americanfootball' | 'rugby' | 'cricket' | 'mma' | 'volleyball' | 'predictor';
+  type SportIconId = 'football' | 'basketball' | 'tennis' | 'rally' | 'hockey' | 'instant-football' | 'instant-basketball' | 'vfootball' | 'baseball' | 'rugby' | 'cricket' | 'mma' | 'volleyball' | 'predictor';
   const iconId = $derived(sportId as SportIconId);
 
   let scopes: ScopeState[] = $state([]);
@@ -324,7 +324,6 @@
     rally: ['Player A', 'Player B'],
     hockey: ['Team 1', 'Team 2'],
     baseball: ['Home', 'Away'],
-    americanfootball: ['Home', 'Away'],
     rugby: ['Home', 'Away'],
     cricket: ['Team 1', 'Team 2'],
     mma: ['Fighter A', 'Fighter B'],

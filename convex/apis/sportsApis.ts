@@ -27,7 +27,6 @@ const ODDS_SPORT_PREFERENCE: Record<string, RegExp[]> = {
   rally: [/^table_tennis_/, /^table_tennis_ittf/],
   hockey: [/^icehockey_nhl$/, /^icehockey_/],
   baseball: [/^baseball_mlb$/, /^baseball_/],
-  americanfootball: [/^americanfootball_nfl$/, /^americanfootball_ncaaf$/, /^americanfootball_/],
   rugby: [/^rugby_union_/, /^rugby_league_/, /^rugby_/],
   cricket: [/^cricket_test_match$/, /^cricket_/],
   mma: [/^mma_/],
@@ -43,7 +42,6 @@ export const TSDB_SPORT: Record<string, string> = {
   hockey: 'IceHockey',
   baseball: 'Baseball',
   rally: 'TableTennis',
-  americanfootball: 'American Football',
   rugby: 'Rugby',
   cricket: 'Cricket',
   mma: 'MMA',
@@ -57,7 +55,6 @@ export const TSDB_SPORT_KEYS: Record<string, RegExp> = {
   hockey: /ice\s*hockey|nhl/i,
   baseball: /baseball|mlb/i,
   rally: /table.?tennis|ping.?pong/i,
-  americanfootball: /american.?football|nfl/i,
   rugby: /rugby/i,
   cricket: /cricket/i,
   mma: /mma|mixed.?martial/i,
@@ -269,7 +266,6 @@ const ODDS_FALLBACK: Record<string, string> = {
   tennis: 'tennis_atp_canadian_open',
   hockey: 'icehockey_nhl',
   baseball: 'baseball_mlb',
-  americanfootball: 'americanfootball_nfl',
   rugby: 'rugby_union',
   cricket: 'cricket_test_match',
   mma: 'mma_mixed_martial_arts',
@@ -358,9 +354,6 @@ export function leagueForOddsSportKey(key: string | undefined): string {
     icehockey_czech_extraliga: 'Czech Extraliga',
     icehockey_ahl: 'AHL',
     icehockey_germany_del: 'DEL',
-    americanfootball_nfl: 'NFL',
-    americanfootball_ncaaf: 'NCAAF',
-    americanfootball_xfl: 'XFL',
     rugby_union_international: 'Rugby International',
     rugby_union_english_premiership: 'English Premiership',
     rugby_union_england_premiership: 'English Premiership',
@@ -463,8 +456,6 @@ export function leagueForOddsSportKey(key: string | undefined): string {
     baseball_dominican_lidom: 'Dominican LIDOM',
     baseball_puerto_rico_lbprc: 'Puerto Rico LBPRC',
     baseball_cuba_serie_nacional: 'Cuban Serie Nacional',
-    americanfootball_cfl: 'CFL',
-    americanfootball_ufl: 'UFL',
     rugby_union_urc: 'United Rugby Championship',
     rugby_union_champions_cup: 'Champions Cup',
     rugby_union_japan_league_one: 'Japan Rugby League One',
@@ -499,7 +490,6 @@ export function leagueForOddsSportKey(key: string | undefined): string {
   if (key.startsWith('basketball_')) return 'Basketball League';
   if (key.startsWith('baseball_')) return 'Baseball League';
   if (key.startsWith('icehockey_')) return 'Hockey League';
-  if (key.startsWith('americanfootball_')) return 'American Football';
   if (key.startsWith('rugby_')) return 'Rugby League';
   if (key.startsWith('cricket_')) return 'Cricket Match';
   if (key.startsWith('mma_')) return 'MMA Fight';
@@ -690,7 +680,6 @@ const SHARP_LEAGUES: Record<string, string[]> = {
   tennis: ['atp', 'wta', 'atp_challenger', 'itf'],
   hockey: ['nhl', 'khl', 'sweden_-_shl', 'sweden_-_hockeyallsvenskan', 'finland_-_liiga', 'germany_-_del', 'germany_-_del2', 'czech_-_extraliga', 'switzerland_-_national_league', 'austria_-_ice_hockey_league', 'norway_-_get_ligaen', 'denmark_-_metal_ligaen', 'france_-_ligue_magnus', 'slovakia_-_extraliga'],
   baseball: ['mlb', 'npb', 'kbo', 'milb', 'cpbl', 'dominican_-_lidom', 'puerto_rico_-_lbprc', 'venezuela_-_lvbp', 'mexican_-_lmb'],
-  americanfootball: ['nfl', 'ncaa_football', 'cfl', 'ufl'],
   rugby: ['rugby_union', 'england_-_premiership', 'france_-_top_14', 'united_rugby_championship', 'japan_-_league_one', 'australia_-_nrl', 'super_league'],
   cricket: ['india_-_ipl', 'australia_-_big_bash', 'england_-_t20_blast', 'pakistan_super_league', 'sa20', 'lanka_premier_league', 'caribbean_premier_league', 'bangladesh_premier_league', 'the_hundred'],
   mma: ['ufc', 'bellator', 'pfl', 'one_championship'],
@@ -774,7 +763,7 @@ export function mapSharpFixtures(rows: any[], sportId: string): ApiFixture[] {
   const out: ApiFixture[] = [];
   const now = Date.now();
   const seen = new Set<string>();
-  const lg: Record<string, string> = { football: 'Soccer', basketball: 'Basketball', tennis: 'Tennis', hockey: 'Hockey', baseball: 'Baseball', rally: 'Table Tennis', americanfootball: 'NFL', rugby: 'Rugby', cricket: 'Cricket', mma: 'MMA', volleyball: 'Volleyball' };
+  const lg: Record<string, string> = { football: 'Soccer', basketball: 'Basketball', tennis: 'Tennis', hockey: 'Hockey', baseball: 'Baseball', rally: 'Table Tennis', rugby: 'Rugby', cricket: 'Cricket', mma: 'MMA', volleyball: 'Volleyball' };
   for (const r of rows ?? []) {
     const home = String(r?.home_team || '').trim();
     const away = String(r?.away_team || '').trim();
@@ -1067,10 +1056,6 @@ const HTML_RESULT_PAGES: Record<string, Array<{ url: (date: string) => string }>
     { url: () => 'https://www.betexplorer.com/results/baseball/' },
     { url: () => 'https://www.flashscore.com/baseball/results/' }
   ],
-  americanfootball: [
-    { url: () => 'https://www.betexplorer.com/results/american-football/' },
-    { url: () => 'https://www.flashscore.com/american-football/results/' }
-  ],
   volleyball: [
     { url: () => 'https://www.flashscore.com/volleyball/results/' }
   ],
@@ -1102,7 +1087,6 @@ const SCORE_CAPS: Record<string, number> = {
   rally: 5, // sets won: 0-3 / 0-4
   hockey: 15,
   baseball: 40,
-  americanfootball: 80,
   rugby: 120,
   cricket: 999, // innings totals are large; only the clock guard constrains them
   mma: 5, // MMA has no numeric scoreline; never trust high digits
