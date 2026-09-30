@@ -14,8 +14,8 @@
   // is only cosmetic.
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { ArrowLeft, Activity, RefreshCw, Database, ShieldAlert, Trash2, Radio, Check, Trophy, Gauge, LineChart } from '@lucide/svelte';
-  import { api, queryConvex, callConvex, subscribeConvexQuery } from '$lib/convexClient';
+  import { ArrowLeft, Activity, RefreshCw, Database, ShieldAlert, Trash2, Radio, Check, Trophy, Gauge, LineChart, Users, KeyRound, Copy, ShieldOff, RotateCcw, CalendarPlus, Smartphone, Eye } from '@lucide/svelte';
+  import { api, queryConvex, callConvex, subscribeConvexQuery, convexErrorMessage } from '$lib/convexClient';
   import { authState } from '$lib/authStore.svelte';
   import { todayKey, dayKeyFor } from '$lib/predictorClient';
   import type {
@@ -24,6 +24,66 @@
     StatsAccuracyRow,
     StatsSnapshotData
   } from '$lib/predictorTypes';
+
+  // Admin user-management payload (tester codes + subscribers + counters).
+  interface TesterRow {
+    code: string;
+    status: 'issued' | 'claimed' | 'revoked';
+    label: string | null;
+    batch: string | null;
+    createdBy: string;
+    createdAt: number;
+    fullName: string | null;
+    ninMasked: string;
+    ninLast4: string | null;
+    testerEmail: string | null;
+    actualEmail: string | null;
+    hasPreferredPassword: boolean;
+    mobile: string | null;
+    stateOfResidence: string | null;
+    registeredAt: number | null;
+    deviceId: string | null;
+    deviceLabel: string | null;
+    trialStartsAt: number | null;
+    trialExpiresAt: number | null;
+    daysRemaining: number | null;
+    loginCount: number;
+    lastLoginAt: number | null;
+    sessionActive: boolean;
+    lastSeenAt: number | null;
+    revokedAt: number | null;
+    notes: string | null;
+  }
+  interface SubscriberRow {
+    email: string;
+    fullName: string;
+    mobile: string | null;
+    stateOfResidence: string | null;
+    role: string;
+    tier: 'punter' | 'master' | null;
+    isSubscribed: boolean;
+    subscriptionExpiresAt: number | null;
+    daysRemaining: number | null;
+    updatedAt: number;
+  }
+  interface TesterOverview {
+    generatedAt: number;
+    trialDays: number;
+    testers: TesterRow[];
+    subscribers: SubscriberRow[];
+    counts: {
+      codesIssued: number;
+      codesAwaitingRegistration: number;
+      claimable: number;
+      revoked: number;
+      registered: number;
+      deviceBound: number;
+      activeTrials: number;
+      expiredTrials: number;
+      expiringSoon: number;
+      onlineNow: number;
+    };
+  }
 
   const isAdmin = $derived(!!authState.user?.isAdmin);
 
@@ -77,6 +137,28 @@
   const maxOf = (rows: StatsAccuracyRow[] | undefined, key: 'winRatePct' | 'avgPredictedPct' | 'picks') =>
     Math.max(1, ...(rows ?? []).map((r) => Number(r?.[key] ?? 0)));
 
+  // ── Tester / user-management formatting helpers ──────────────────────────
+  const fmtDate = (ts?: number | null) =>
+    ts ? new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const fmtDateTime = (ts?: number | null) =>
+    ts ? new Date(ts).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+  const agoLabel = (ts?: number | null) => {
+    if (!ts) return 'never';
+    const mins = Math.floor((Date.now() - ts) / 60_000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+  const trialTone = (t: TesterRow) => {
+    if (t.status === 'revoked' || t.status === 'issued') return 'cold';
+    if (!t.trialExpiresAt) return 'cold';
+    if ((t.daysRemaining ?? 0) <= 0) return 'cold';
+    if ((t.daysRemaining ?? 0) <= 7) return 'warn';
+    return 'hot';
+  };
+
   // ── Winning-day streaks ───────────────────────────────────────────────────────
   // Walk the stored day snapshots oldest → newest and count CONSECUTIVE WAT days
   // where a market/sport finished with a winning record (wins > losses). The
@@ -116,17 +198,19 @@
     loading = true;
     error = '';
     try {
-      const [life, hist, tot] = await Promise.all([
+      const [life, hist, tot, testers] = await Promise.all([
         queryConvex<PredictorStatsSnapshot | null>(api.predictorStats.getSnapshot, { scope: 'lifetime' }),
         queryConvex<PredictorStatsSnapshot[]>(api.predictorStats.getHistory, { days: 45 }),
-        queryConvex<PredictorTotals>(api.scores.getPredictorTotals, {}).catch(() => null)
+        queryConvex<PredictorTotals>(api.scores.getPredictorTotals, {}).catch(() => null),
+        queryConvex<TesterOverview | null>(api.testerCodes.overview, {}).catch(() => null)
       ]);
       lifetime = life;
       history = Array.isArray(hist) ? hist : [];
       totals = tot;
+      testerData = testers;
       if (availableDays.length && !availableDays.includes(selectedDay)) selectedDay = 'lifetime';
     } catch (err: any) {
-      const msg = String(err?.message || err);
+      const msg = convexErrorMessage(err, 'Could not load the data bank.');
       error = /Admin access required/i.test(msg)
         ? 'Admin access required — sign in with the super-admin account.'
         : msg;
@@ -155,11 +239,93 @@
         if (Array.isArray(rows)) history = rows;
       }
     ).then((u) => unsubs.push(u));
+    // Tester codes + user management stream live too: a registration or a first
+    // login on a tester's device appears here without a refresh.
+    void subscribeConvexQuery<TesterOverview | null>(
+      api.testerCodes.overview,
+      {},
+      (rows) => {
+        if (rows) testerData = rows;
+      }
+    ).then((u) => unsubs.push(u));
     return () => {
       unsubs.forEach((u) => u());
       unsubs = [];
     };
   });
+
+  // ── Tester access-code management ─────────────────────────────────────────
+  let testerData = $state<TesterOverview | null>(null);
+  let codeCount = $state(1);
+  let codeLabel = $state('');
+  let codeBatch = $state('');
+  let generatedCodes = $state<string[]>([]);
+  let copiedCode = $state('');
+  let revealed = $state<Record<string, string>>({});
+  let testerFilter = $state<'all' | 'issued' | 'claimed' | 'revoked'>('all');
+
+  const testerRows = $derived(
+    (testerData?.testers ?? []).filter((t) => testerFilter === 'all' || t.status === testerFilter)
+  );
+
+  async function copyText(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      copiedCode = value;
+      setTimeout(() => {
+        if (copiedCode === value) copiedCode = '';
+      }, 1800);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
+  const generateCodes = () =>
+    run(
+      'generate',
+      async () => {
+        const res = await callConvex<any>(api.testerCodes.generate, {
+          count: Number(codeCount) || 1,
+          label: codeLabel.trim() || undefined,
+          batch: codeBatch.trim() || undefined
+        });
+        generatedCodes = res?.codes ?? [];
+        codeLabel = '';
+        await loadAll();
+      },
+      'Access codes generated — copy and issue them to your testers.'
+    );
+
+  const revokeCode = (code: string) =>
+    run('revoke:' + code, () => callConvex(api.testerCodes.revoke, { code }), `Code ${code} revoked.`);
+
+  const restoreCode = (code: string) =>
+    run('restore:' + code, () => callConvex(api.testerCodes.restore, { code }), `Code ${code} restored.`);
+
+  const extendCode = (code: string) =>
+    run(
+      'extend:' + code,
+      () => callConvex(api.testerCodes.adjust, { code, addDays: 30 }),
+      `Added 30 days to ${code}.`
+    );
+
+  const releaseDevice = (code: string) =>
+    run(
+      'device:' + code,
+      () => callConvex(api.testerCodes.adjust, { code, clearDevice: true }),
+      `Device binding released for ${code} — the tester can now activate a new device.`
+    );
+
+  async function revealNin(code: string) {
+    await run(
+      'nin:' + code,
+      async () => {
+        const res = await callConvex<any>(api.testerCodes.revealNin, { code });
+        revealed = { ...revealed, [code]: res?.nin ?? '' };
+      },
+      `NIN revealed for ${code} (logged in the audit trail).`
+    );
+  }
 
   async function run(label: string, fn: () => Promise<unknown>, successMessage: string) {
     busy = label;
@@ -169,7 +335,7 @@
       await fn();
       notice = successMessage;
     } catch (err: any) {
-      error = String(err?.message || err);
+      error = convexErrorMessage(err, 'That action failed. Please try again.');
     } finally {
       busy = '';
     }
@@ -322,6 +488,257 @@
           {busy === 'wrongSport' ? 'Purging…' : 'Purge wrong-sport rows'}
         </button>
       </div>
+    </section>
+
+    <!-- ── Tester access codes · user management ─────────────────── -->
+    <section class="panel" aria-label="Tester access codes">
+      <h2>
+        Tester Access Codes
+        <span class="tag">
+          one code = one tester = one device · {testerData?.trialDays ?? 90}-day free trial
+        </span>
+      </h2>
+      <p class="panel-copy">
+        Issue a code, hand it to the tester, and they register their details against it
+        (<a href="/tester" target="_blank" rel="noopener">open the tester registration form</a>).
+        The code binds to the <strong>first device</strong> that logs in with it and the trial clock
+        starts at that moment. Only this super-admin console can issue, extend or revoke codes.
+      </p>
+
+      <div class="gen-row">
+        <div class="control-group">
+          <span class="control-label">How many</span>
+          <select bind:value={codeCount} aria-label="Number of codes to generate">
+            <option value={1}>1 code</option>
+            <option value={2}>2 codes</option>
+            <option value={5}>5 codes</option>
+            <option value={10}>10 codes</option>
+            <option value={25}>25 codes</option>
+          </select>
+        </div>
+        <div class="control-group grow">
+          <span class="control-label">Label (optional)</span>
+          <input type="text" bind:value={codeLabel} placeholder="e.g. Lagos cohort — Instagram" disabled={!!busy} />
+        </div>
+        <div class="control-group grow">
+          <span class="control-label">Batch (optional)</span>
+          <input type="text" bind:value={codeBatch} placeholder="e.g. 2026-10 wave 1" disabled={!!busy} />
+        </div>
+        <div class="control-group actions">
+          <button class="ops-btn" type="button" disabled={!!busy} onclick={generateCodes}>
+            <span class="ic" class:spin={busy === 'generate'}>
+              <KeyRound size={14} stroke-width={2.4} />
+            </span>
+            {busy === 'generate' ? 'Generating…' : 'Generate access code'}
+          </button>
+        </div>
+      </div>
+
+      {#if generatedCodes.length > 0}
+        <div class="issued-box">
+          <span class="issued-head">
+            <Check size={13} stroke-width={3} /> Just issued — copy and send to your tester(s)
+          </span>
+          <div class="issued-chips">
+            {#each generatedCodes as c (c)}
+              <button class="code-pill" type="button" onclick={() => copyText(c)} title="Copy code">
+                <code>{c}</code>
+                {#if copiedCode === c}<Check size={13} stroke-width={3} />{:else}<Copy size={13} />{/if}
+              </button>
+            {/each}
+          </div>
+        </div>
+      {/if}
+    </section>
+
+    <!-- ── State counters ────────────────────────────────────────── -->
+    <section class="kpi-strip" aria-label="Tester state counters">
+      <div class="kpi">
+        <span class="kpi-ic"><Users size={15} stroke-width={2.2} /></span>
+        <span class="kpi-val">{testerData?.counts.onlineNow ?? 0}</span>
+        <span class="kpi-lbl">Active users now</span>
+        <span class="kpi-sub">live heartbeat window</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-ic"><KeyRound size={15} stroke-width={2.2} /></span>
+        <span class="kpi-val">{testerData?.counts.codesIssued ?? 0}</span>
+        <span class="kpi-lbl">Codes issued</span>
+        <span class="kpi-sub">{testerData?.counts.claimable ?? 0} in use · {testerData?.counts.revoked ?? 0} revoked</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-ic"><Activity size={15} stroke-width={2.2} /></span>
+        <span class="kpi-val pos">{testerData?.counts.activeTrials ?? 0}</span>
+        <span class="kpi-lbl">Active free trials</span>
+        <span class="kpi-sub">{testerData?.counts.expiringSoon ?? 0} expiring within 7 days</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-ic"><Smartphone size={15} stroke-width={2.2} /></span>
+        <span class="kpi-val">{testerData?.counts.deviceBound ?? 0}</span>
+        <span class="kpi-lbl">Device-bound codes</span>
+        <span class="kpi-sub">{testerData?.counts.registered ?? 0} registered</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-ic"><ShieldOff size={15} stroke-width={2.2} /></span>
+        <span class="kpi-val">{testerData?.counts.codesAwaitingRegistration ?? 0}</span>
+        <span class="kpi-lbl">Awaiting registration</span>
+        <span class="kpi-sub">{testerData?.counts.expiredTrials ?? 0} trials finished</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-ic"><RefreshCw size={15} stroke-width={2.2} /></span>
+        <span class="kpi-val small">{testerData ? new Date(testerData.generatedAt).toLocaleTimeString() : '—'}</span>
+        <span class="kpi-lbl">Register updated</span>
+        <span class="kpi-sub">streams live from Convex</span>
+      </div>
+    </section>
+
+    <!-- ── Tester user management table ───────────────────────────── -->
+    <section class="panel" aria-label="Tester users">
+      <h2>
+        Tester Users
+        <span class="tag">registration · login details · code · device · trial</span>
+      </h2>
+      <div class="filter-row">
+        {#each [['all', 'All'], ['issued', 'Awaiting registration'], ['claimed', 'Registered'], ['revoked', 'Revoked']] as [key, label] (key)}
+          <button
+            class="filter-chip"
+            class:on={testerFilter === key}
+            type="button"
+            onclick={() => (testerFilter = key as typeof testerFilter)}
+          >{label}</button>
+        {/each}
+      </div>
+
+      {#if testerRows.length === 0}
+        <p class="empty">
+          No tester codes here yet. Generate one above, then hand it to the tester to register.
+        </p>
+      {:else}
+        <div class="tbl-scroll">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Code</th><th>Tester</th><th>NIN</th><th>Login email</th>
+                <th>Mobile · State</th><th>Status</th><th>Device</th>
+                <th>Trial ends</th><th>Days</th><th>Last login</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each testerRows as t (t.code)}
+                <tr class:row-dead={t.status === 'revoked'}>
+                  <td>
+                    <button class="code-inline" type="button" onclick={() => copyText(t.code)} title="Copy code">
+                      {t.code}
+                      {#if copiedCode === t.code}<Check size={11} stroke-width={3} />{:else}<Copy size={11} />{/if}
+                    </button>
+                    {#if t.label}<span class="sub-note">{t.label}</span>{/if}
+                  </td>
+                  <td>
+                    {#if t.fullName}
+                      <strong>{t.fullName}</strong>
+                      {#if t.hasPreferredPassword}<span class="sub-note">preferred password set</span>{/if}
+                    {:else}
+                      <span class="dash">not registered</span>
+                    {/if}
+                  </td>
+                  <td>
+                    {#if t.ninMasked}
+                      <span class="mono">{revealed[t.code] ?? t.ninMasked}</span>
+                      {#if !revealed[t.code]}
+                        <button class="mini-btn" type="button" disabled={!!busy} onclick={() => revealNin(t.code)} title="Reveal NIN (audited)">
+                          <Eye size={11} /> reveal
+                        </button>
+                      {/if}
+                    {:else}<span class="dash">—</span>{/if}
+                  </td>
+                  <td>
+                    <span class="sub-note">{t.testerEmail ?? '—'}</span>
+                    {#if t.actualEmail}<span class="mono small">{t.actualEmail}</span>{/if}
+                  </td>
+                  <td>
+                    <span class="mono small">{t.mobile ?? '—'}</span>
+                    <span class="sub-note">{t.stateOfResidence ?? ''}</span>
+                  </td>
+                  <td>
+                    <span class="status-pill {t.status}">{t.status}</span>
+                    {#if t.sessionActive}<span class="live-dot" title="Session active in the last 30 minutes"></span>{/if}
+                  </td>
+                  <td>
+                    {#if t.deviceLabel}
+                      <span class="sub-note">{t.deviceLabel}</span>
+                      <span class="mono tiny">{t.deviceId}</span>
+                    {:else}<span class="dash">unbound</span>{/if}
+                  </td>
+                  <td>{t.trialExpiresAt ? fmtDate(t.trialExpiresAt) : '—'}</td>
+                  <td>
+                    {#if t.daysRemaining !== null && t.status !== 'issued'}
+                      <span class="streak {trialTone(t)}">{t.daysRemaining}d</span>
+                    {:else}<span class="dash">—</span>{/if}
+                  </td>
+                  <td>
+                    <span class="sub-note">{agoLabel(t.lastLoginAt)}</span>
+                    <span class="mono tiny">{t.loginCount} login{t.loginCount === 1 ? '' : 's'}</span>
+                  </td>
+                  <td>
+                    <div class="row-actions">
+                      {#if t.status !== 'revoked'}
+                        <button class="mini-btn" type="button" disabled={!!busy} onclick={() => extendCode(t.code)} title="Add 30 trial days">
+                          <CalendarPlus size={11} /> +30d
+                        </button>
+                        {#if t.deviceId}
+                          <button class="mini-btn" type="button" disabled={!!busy} onclick={() => releaseDevice(t.code)} title="Release the device binding so the tester can move to a new device">
+                            <Smartphone size={11} /> unlock
+                          </button>
+                        {/if}
+                        <button class="mini-btn danger" type="button" disabled={!!busy} onclick={() => revokeCode(t.code)} title="Revoke this code">
+                          <ShieldOff size={11} /> revoke
+                        </button>
+                      {:else}
+                        <button class="mini-btn" type="button" disabled={!!busy} onclick={() => restoreCode(t.code)} title="Restore this code">
+                          <RotateCcw size={11} /> restore
+                        </button>
+                      {/if}
+                    </div>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </section>
+
+    <!-- ── Paying subscribers ────────────────────────────────────── -->
+    <section class="panel" aria-label="Subscribers">
+      <h2>Subscribed Users <span class="tag">paid Punter / Master Pass accounts</span></h2>
+      {#if (testerData?.subscribers.length ?? 0) === 0}
+        <p class="empty">No paying subscribers recorded yet.</p>
+      {:else}
+        <div class="tbl-scroll">
+          <table class="tbl">
+            <thead>
+              <tr><th>Name</th><th>Email</th><th>Mobile</th><th>State</th><th>Role</th><th>Tier</th><th>Expires</th><th>Days</th></tr>
+            </thead>
+            <tbody>
+              {#each testerData?.subscribers ?? [] as s (s.email)}
+                <tr>
+                  <td><strong>{s.fullName || '—'}</strong></td>
+                  <td><span class="mono small">{s.email}</span></td>
+                  <td><span class="mono small">{s.mobile ?? '—'}</span></td>
+                  <td>{s.stateOfResidence ?? '—'}</td>
+                  <td><span class="status-pill {s.role}">{s.role}</span></td>
+                  <td>{s.tier ?? '—'}</td>
+                  <td>{s.subscriptionExpiresAt ? fmtDate(s.subscriptionExpiresAt) : '—'}</td>
+                  <td>
+                    {#if s.daysRemaining !== null}
+                      <span class="streak {s.daysRemaining <= 7 ? 'warn' : 'hot'}">{s.daysRemaining}d</span>
+                    {:else}<span class="dash">—</span>{/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
     </section>
 
     {#if loading}
@@ -917,6 +1334,157 @@
     cursor: pointer;
     text-decoration: underline;
   }
+
+  /* ── Tester access codes & user management ─────────────────────────────── */
+  .gen-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--c-border) 70%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--brand, #a3e635) 4%, transparent);
+    margin-bottom: 14px;
+  }
+  .gen-row .control-group { flex-direction: column; align-items: flex-start; gap: 5px; }
+  .gen-row .control-group.grow { flex: 1 1 200px; min-width: 180px; }
+  .gen-row .control-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 800; color: var(--c-text-dim); }
+  .gen-row input, .gen-row select {
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--c-bg);
+    border: 1px solid var(--c-border);
+    border-radius: 9px;
+    color: var(--c-text);
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+  }
+  .gen-row input:focus, .gen-row select:focus { border-color: var(--brand, #a3e635); }
+  .gen-row .control-group.actions { flex: 0 0 auto; }
+
+  .issued-box {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 12px 14px;
+    border: 1px dashed color-mix(in srgb, var(--c-success) 45%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--c-success) 7%, transparent);
+  }
+  .issued-head { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--c-success); }
+  .issued-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .code-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-radius: 9px;
+    border: 1px solid color-mix(in srgb, var(--brand, #a3e635) 45%, transparent);
+    background: color-mix(in srgb, var(--brand, #a3e635) 10%, transparent);
+    color: var(--c-text);
+    cursor: pointer;
+    transition: background var(--t-fast, 0.15s);
+  }
+  .code-pill:hover { background: color-mix(in srgb, var(--brand, #a3e635) 20%, transparent); }
+  .code-pill code { font-family: var(--font-mono); font-size: 13px; font-weight: 800; letter-spacing: 0.06em; }
+
+  .code-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: var(--brand, #a3e635);
+    cursor: pointer;
+  }
+  .code-inline:hover { text-decoration: underline; }
+
+  .filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .filter-chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--c-border);
+    background: var(--c-bg);
+    color: var(--c-text-dim);
+    font-size: 11.5px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all var(--t-fast, 0.15s);
+  }
+  .filter-chip:hover { color: var(--c-text); border-color: var(--brand, #a3e635); }
+  .filter-chip.on {
+    color: #07120a;
+    background: var(--brand, #a3e635);
+    border-color: var(--brand, #a3e635);
+  }
+
+  .tbl-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tbl-scroll .tbl { min-width: 860px; }
+
+  .mono { font-family: var(--font-mono); font-size: 12px; }
+  .mono.small { font-size: 11px; color: var(--c-text-dim); display: block; }
+  .mono.tiny { font-size: 10px; color: var(--c-faint, var(--c-text-dim)); display: block; }
+  .sub-note { display: block; font-size: 10.5px; color: var(--c-faint, var(--c-text-dim)); }
+  .dash { color: var(--c-faint, var(--c-text-dim)); font-size: 11.5px; }
+  .row-dead { opacity: 0.55; }
+
+  .status-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border: 1px solid transparent;
+  }
+  .status-pill.issued { color: #fbbf24; background: color-mix(in srgb, #f59e0b 16%, transparent); border-color: color-mix(in srgb, #f59e0b 40%, transparent); }
+  .status-pill.claimed { color: var(--c-success); background: color-mix(in srgb, var(--c-success) 16%, transparent); border-color: color-mix(in srgb, var(--c-success) 40%, transparent); }
+  .status-pill.revoked { color: #f87171; background: color-mix(in srgb, #ef4444 16%, transparent); border-color: color-mix(in srgb, #ef4444 40%, transparent); }
+  .status-pill.user { color: var(--c-text-dim); background: color-mix(in srgb, var(--c-border) 40%, transparent); }
+  .status-pill.tester { color: #22d3ee; background: color-mix(in srgb, #22d3ee 16%, transparent); }
+  .status-pill.admin { color: #07120a; background: var(--brand, #a3e635); }
+
+  .live-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: var(--c-success);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-success) 25%, transparent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+
+  .row-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+  .mini-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 7px;
+    border: 1px solid var(--c-border);
+    background: var(--c-bg);
+    color: var(--c-text-dim);
+    font-size: 10.5px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--t-fast, 0.15s);
+  }
+  .mini-btn:hover:not(:disabled) { color: var(--c-text); border-color: var(--brand, #a3e635); }
+  .mini-btn.danger:hover:not(:disabled) { color: #f87171; border-color: #f87171; }
+  .mini-btn:disabled { opacity: 0.5; cursor: progress; }
+
+  .streak.warn { color: #fbbf24; }
 
   @media (max-width: 720px) {
     .band-row { grid-template-columns: 1fr; gap: 6px; }

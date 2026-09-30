@@ -56,6 +56,7 @@ import type * as scrapers_scrapegraph from "../scrapers/scrapegraph.js";
 import type * as scrapers_selfScrape from "../scrapers/selfScrape.js";
 import type * as scrapers_serper from "../scrapers/serper.js";
 import type * as scrapers_sources from "../scrapers/sources.js";
+import type * as testerCodes from "../testerCodes.js";
 import type * as users from "../users.js";
 
 import type {
@@ -113,6 +114,7 @@ declare const fullApi: ApiFromModules<{
   "scrapers/selfScrape": typeof scrapers_selfScrape;
   "scrapers/serper": typeof scrapers_serper;
   "scrapers/sources": typeof scrapers_sources;
+  testerCodes: typeof testerCodes;
   users: typeof users;
 }>;
 

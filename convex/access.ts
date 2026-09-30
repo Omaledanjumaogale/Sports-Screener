@@ -13,6 +13,13 @@ import type { QueryCtx } from './_generated/server';
 import { deriveAccess, identityDetails, type AccessStatus } from './users';
 import { isFeatureEnabled } from './featureFlags';
 import { internal } from './_generated/api';
+import { ConvexError } from 'convex/values';
+
+// NOTE ON ERRORS: these gates reject with `ConvexError`, not a plain `Error`.
+// On a PRODUCTION deployment Convex redacts plain Error messages (the client
+// receives only "Server Error"), which would turn every paywall message —
+// "Master Pass required", "Admin access required" — into an unexplained
+// failure. ConvexError payloads are forwarded to the client verbatim.
 
 export type { AccessStatus };
 
@@ -22,7 +29,9 @@ export async function currentAccess(ctx: QueryCtx): Promise<AccessStatus | null>
   const details = await identityDetails(ctx, identity);
   if (!details) return null;
   const email = details.email.trim().toLowerCase();
-  return deriveAccess(ctx, email);
+  // Pass the JWT subject (`userId|sessionId`): a tester's trial is bound to one
+  // SESSION (and therefore one device), not to the shared tester email.
+  return deriveAccess(ctx, email, details.subject);
 }
 
 /**
@@ -40,12 +49,12 @@ export async function requireMasterPassInAction(ctx: {
 }): Promise<AccessStatus> {
   const flags = await ctx.runQuery(internal.access.flagStatus, {});
   if (!flags.predictor) {
-    throw new Error('The AI Predictor is temporarily disabled for maintenance. Please check back shortly.');
+    throw new ConvexError('The AI Predictor is temporarily disabled for maintenance. Please check back shortly.');
   }
   const access: AccessStatus | null = await ctx.runQuery(internal.access.forCaller, {});
-  if (!access) throw new Error('Please sign in to access the AI Predictor.');
+  if (!access) throw new ConvexError('Please sign in to access the AI Predictor.');
   if (!access.hasMasterPass) {
-    throw new Error('Master Pass required. Upgrade your plan to unlock AI Predictor projections.');
+    throw new ConvexError('Master Pass required. Upgrade your plan to unlock AI Predictor projections.');
   }
   return access;
 }
@@ -57,12 +66,12 @@ export async function requireMasterPassInAction(ctx: {
  */
 export async function requireMasterPass(ctx: QueryCtx): Promise<AccessStatus> {
   if (!(await isFeatureEnabled(ctx, 'predictor'))) {
-    throw new Error('The AI Predictor is temporarily disabled for maintenance. Please check back shortly.');
+    throw new ConvexError('The AI Predictor is temporarily disabled for maintenance. Please check back shortly.');
   }
   const access = await currentAccess(ctx);
-  if (!access) throw new Error('Please sign in to access the AI Predictor.');
+  if (!access) throw new ConvexError('Please sign in to access the AI Predictor.');
   if (!access.hasMasterPass) {
-    throw new Error('Master Pass required. Upgrade your plan to unlock AI Predictor projections.');
+    throw new ConvexError('Master Pass required. Upgrade your plan to unlock AI Predictor projections.');
   }
   return access;
 }
@@ -70,7 +79,7 @@ export async function requireMasterPass(ctx: QueryCtx): Promise<AccessStatus> {
 /** Hard gate: super admin only. */
 export async function requireAdmin(ctx: QueryCtx): Promise<AccessStatus> {
   const access = await currentAccess(ctx);
-  if (!access || !access.isAdmin) throw new Error('Admin access required.');
+  if (!access || !access.isAdmin) throw new ConvexError('Admin access required.');
   return access;
 }
 

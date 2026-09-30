@@ -8,7 +8,6 @@ declare const process: { env: Record<string, string | undefined> };
 
 const DEFAULT_ADMIN_EMAIL = '';
 const DEFAULT_TESTER_EMAIL = '';
-const TESTER_TRIAL_DAYS = 30;
 
 function superAdminEmail(): string {
   return process.env.SUPER_ADMIN_EMAIL?.trim().toLowerCase() || DEFAULT_ADMIN_EMAIL;
@@ -18,15 +17,26 @@ function testerEmail(): string {
   return process.env.TESTER_EMAIL?.trim().toLowerCase() || DEFAULT_TESTER_EMAIL;
 }
 
-function isSuperAdminEmail(email?: string): boolean {
+export function isSuperAdminEmail(email?: string): boolean {
   if (!email) return false;
   return email.trim().toLowerCase() === superAdminEmail();
 }
 
-function isTesterEmail(email?: string): boolean {
+export function isTesterEmail(email?: string): boolean {
   if (!email) return false;
   return email.trim().toLowerCase() === testerEmail();
 }
+
+/**
+ * Why a tester session does not currently hold Master Pass. Surfaced to the
+ * client so it can tell "register with your code" apart from "trial over".
+ */
+export type TesterReason =
+  | 'active'
+  | 'no-session'
+  | 'not-registered'
+  | 'revoked'
+  | 'expired';
 
 export type AccessStatus = {
   email: string;
@@ -37,6 +47,9 @@ export type AccessStatus = {
   trialExpiresAt?: number;
   subscriptionTier?: 'punter' | 'master';
   hasMasterPass?: boolean;
+  /** The tester access code bound to this session, when there is one. */
+  testerCode?: string;
+  testerReason?: TesterReason;
 };
 
 // Resolve the identity's email/name. `@convex-dev/auth` JWTs only carry `sub`
@@ -58,13 +71,51 @@ async function identityDetails(
 }
 export { identityDetails };
 
+/**
+ * Resolve the tester trial for ONE auth session.
+ *
+ * The tester email is shared by every tester, so the shared `userProfiles` row
+ * can never say WHICH tester is calling, when their clock started, or whether
+ * their device is the bound one. That identity lives on the access code, and the
+ * code is reached through the `testerSessions` row for this JWT `subject`
+ * (userId|sessionId). No session → no trial, which is what forces a tester
+ * through registration + code activation before they get Master Pass.
+ */
+async function resolveTesterSession(
+  ctx: { db: QueryCtx['db'] },
+  subject: string | undefined,
+  now: number
+): Promise<{ active: boolean; reason: TesterReason; expiresAt?: number; code?: string }> {
+  if (!subject) return { active: false, reason: 'no-session' };
+
+  const session = await ctx.db
+    .query('testerSessions')
+    .withIndex('by_subject', (q) => q.eq('subject', subject))
+    .first();
+  if (!session) return { active: false, reason: 'no-session' };
+  if (session.revoked) return { active: false, reason: 'revoked', code: session.code };
+
+  const row = await ctx.db
+    .query('testerCodes')
+    .withIndex('by_code', (q) => q.eq('code', session.code))
+    .first();
+  if (!row) return { active: false, reason: 'no-session' };
+  if (row.status === 'revoked') return { active: false, reason: 'revoked', code: row.code };
+  if (row.status !== 'claimed') return { active: false, reason: 'not-registered', code: row.code };
+  if (!row.trialExpiresAt) return { active: false, reason: 'not-registered', code: row.code };
+  if (row.trialExpiresAt <= now) {
+    return { active: false, reason: 'expired', expiresAt: row.trialExpiresAt, code: row.code };
+  }
+  return { active: true, reason: 'active', expiresAt: row.trialExpiresAt, code: row.code };
+}
+
 // Derive the effective access for a user. Read-only (no writes) — used by `me`
-// and `checkSubscription`. Tester trial is computed from `trialStartsAt`; when a
-// tester profile hasn't been persisted yet we treat the trial as live so the
-// first `syncAccess` call can persist a real start timestamp.
+// and `checkSubscription`. Admin status comes from the configured email; a
+// tester's access comes ONLY from a registered, device-bound, unexpired code.
 async function deriveAccess(
   ctx: { db: QueryCtx['db'] },
   email: string,
+  subject?: string,
   now = Date.now()
 ): Promise<AccessStatus> {
   const isAdmin = isSuperAdminEmail(email);
@@ -78,22 +129,24 @@ async function deriveAccess(
   let isSubscribed = false;
   let subscriptionExpiresAt: number | undefined = profile?.subscriptionExpiresAt;
   let trialExpiresAt: number | undefined;
+  let testerCode: string | undefined;
+  let testerReason: TesterReason | undefined;
 
   if (isAdmin) {
     isSubscribed = true;
   } else if (isTester) {
-    const trialStartsAt = profile?.trialStartsAt ?? now;
-    const trialExp = trialStartsAt + TESTER_TRIAL_DAYS * 24 * 60 * 60 * 1000;
-    trialExpiresAt = trialExp;
-    isSubscribed = now < trialExp;
+    const trial = await resolveTesterSession(ctx, subject, now);
+    testerReason = trial.reason;
+    testerCode = trial.code;
+    trialExpiresAt = trial.expiresAt;
+    isSubscribed = trial.active;
   } else {
     isSubscribed =
       !!profile?.isSubscribed && (!subscriptionExpiresAt || subscriptionExpiresAt > now);
   }
 
   const subscriptionTier = profile?.subscriptionTier;
-  // Master Pass = admins, active testers (full trial), or subscribers whose
-  // recorded tier is 'master'.
+  // Master Pass = admins, testers on a live code trial, or master subscribers.
   const hasMasterPass =
     isAdmin || (isTester && isSubscribed) || (isSubscribed && subscriptionTier === 'master');
 
@@ -102,10 +155,12 @@ async function deriveAccess(
     isAdmin,
     isTester,
     isSubscribed,
-    subscriptionExpiresAt,
+    subscriptionExpiresAt: isTester && trialExpiresAt ? trialExpiresAt : subscriptionExpiresAt,
     trialExpiresAt,
-    subscriptionTier,
-    hasMasterPass
+    subscriptionTier: isTester && isSubscribed ? 'master' : subscriptionTier,
+    hasMasterPass,
+    ...(testerCode ? { testerCode } : {}),
+    ...(testerReason ? { testerReason } : {})
   };
 }
 export { deriveAccess };
@@ -122,7 +177,7 @@ export const me = query({
     if (!details) throw new Error('Not signed in');
     const email = details.email.trim().toLowerCase();
 
-    const access = await deriveAccess(ctx, email);
+    const access = await deriveAccess(ctx, email, details.subject);
 
     const profile = await ctx.db
       .query('userProfiles')
@@ -160,51 +215,33 @@ export const syncAccess = mutation({
       .first();
 
     if (isTester) {
-      const trialStartsAt = profile?.trialStartsAt ?? now;
-      const trialExpiresAt = trialStartsAt + TESTER_TRIAL_DAYS * 24 * 60 * 60 * 1000;
-      const active = now < trialExpiresAt;
-
+      // The shared tester email has ONE profile row, and it is NOT the trial's
+      // source of truth — access comes from the caller's code-bound session
+      // (see resolveTesterSession). This branch therefore only records the
+      // identity; the returned flags are derived, never granted.
       if (!profile) {
-        profile = {
-          _id: await ctx.db.insert('userProfiles', {
-            userId: subject,
-            email,
-            fullName: name,
-            mobile: '',
-            dob: '',
-            stateOfResidence: '',
-            consentAccepted: true,
-            role: 'tester',
-            isTester: true,
-            trialStartsAt,
-            isSubscribed: active,
-            subscriptionExpiresAt: trialExpiresAt,
-            createdAt: now,
-            updatedAt: now
-          })
-        };
+        await ctx.db.insert('userProfiles', {
+          userId: subject,
+          email,
+          fullName: name,
+          mobile: '',
+          dob: '',
+          stateOfResidence: '',
+          consentAccepted: true,
+          role: 'tester',
+          isTester: true,
+          createdAt: now,
+          updatedAt: now
+        });
       } else {
         await ctx.db.patch(profile._id, {
           userId: subject,
           role: 'tester',
           isTester: true,
-          trialStartsAt,
-          isSubscribed: active,
-          subscriptionExpiresAt: trialExpiresAt,
           updatedAt: now
         });
       }
-
-      return {
-        email,
-        isAdmin: false,
-        isTester: true,
-        isSubscribed: active,
-        subscriptionExpiresAt: trialExpiresAt,
-        trialExpiresAt,
-        subscriptionTier: 'master',
-        hasMasterPass: active
-      };
+      return await deriveAccess(ctx, email, subject, now);
     }
 
     if (isAdmin) {
@@ -490,7 +527,7 @@ export const checkSubscription = query({
     if (identity?.email && identity.email.trim().toLowerCase() !== email) {
       return { isSubscribed: false, isAdmin: false, isTester: false, authorized: false };
     }
-    const access = await deriveAccess(ctx, email);
+    const access = await deriveAccess(ctx, email, identity?.subject);
     return {
       ...access,
       txRef: access.isAdmin ? 'SUPER_ADMIN_PASS' : undefined

@@ -73,6 +73,32 @@ type HttpClientLike = {
   clearAuth: () => void;
 };
 
+/**
+ * The user-facing message for a thrown Convex error.
+ *
+ * Why this exists: Convex redacts plain `Error` messages on PRODUCTION
+ * deployments — the client only ever sees "[Request ID: …] Server Error". A
+ * backend that wants its rules READ (paywall notices, "this tester code is
+ * already active on another device", validation failures) must throw a
+ * `ConvexError`, whose payload arrives here as `error.data`. This unwraps that
+ * payload, falls back to `message` for anything else, and strips the transport
+ * decoration so the UI never shows a Request ID to a user.
+ */
+export function convexErrorMessage(err: unknown, fallback = 'Something went wrong. Please try again.'): string {
+  const anyErr = err as { data?: unknown; message?: unknown } | null;
+  const data = anyErr?.data;
+  let msg = '';
+  if (typeof data === 'string') msg = data;
+  else if (data && typeof data === 'object' && typeof (data as { message?: unknown }).message === 'string') {
+    msg = (data as { message: string }).message;
+  } else if (typeof anyErr?.message === 'string') {
+    msg = anyErr.message;
+  }
+  msg = msg.replace(/^\[Request ID: [^\]]+\]\s*/i, '').trim();
+  if (!msg || /^server error$/i.test(msg)) return fallback;
+  return msg;
+}
+
 // Realtime (WebSocket) Convex client — powers live query subscriptions. It is
 // created lazily on first subscribe and kept alongside the one-shot HTTP client.
 type AuthTokenArgs = { forceRefreshToken: boolean };
@@ -385,6 +411,22 @@ export const api = {
     me: 'users:me',
     syncAccess: 'users:syncAccess',
     verifyFlutterwaveCharge: 'users:verifyFlutterwaveCharge'
+  },
+  // Tester access codes: admin issues them, testers register against one and
+  // activate it on a single device (which starts the 3-month trial clock).
+  testerCodes: {
+    generate: 'testerCodes:generate',
+    revoke: 'testerCodes:revoke',
+    restore: 'testerCodes:restore',
+    adjust: 'testerCodes:adjust',
+    setNotes: 'testerCodes:setNotes',
+    revealNin: 'testerCodes:revealNin',
+    register: 'testerCodes:register',
+    checkCode: 'testerCodes:checkCode',
+    activateSession: 'testerCodes:activateSession',
+    mySession: 'testerCodes:mySession',
+    touchSession: 'testerCodes:touchSession',
+    overview: 'testerCodes:overview'
   },
   predictor: {
     getDay: 'predictor:getDay',

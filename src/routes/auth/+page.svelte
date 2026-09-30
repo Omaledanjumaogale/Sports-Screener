@@ -1,10 +1,11 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { ShieldAlert, LogIn, UserPlus, Eye, EyeOff, ArrowLeft, Crown } from '@lucide/svelte';
-  import { setAuthenticated, isSuperAdminEmail, isTesterEmail } from '$lib/authStore.svelte';
+  import { ShieldAlert, LogIn, UserPlus, Eye, EyeOff, ArrowLeft, Crown, KeyRound, Smartphone } from '@lucide/svelte';
+  import { setAuthenticated, isSuperAdminEmail, isTesterEmail, setUnauthenticated } from '$lib/authStore.svelte';
   import { notify } from '$lib/notificationStore';
-  import { getConvexClient, api, convexSignIn } from '$lib/convexClient';
+  import { getConvexClient, api, convexSignIn, convexSignOut, convexErrorMessage } from '$lib/convexClient';
+  import { getDeviceId, getDeviceLabel } from '$lib/deviceId';
 
   let isSignUp = $derived($page.url.searchParams.get('mode') === 'signup');
   let redirectTarget = $derived($page.url.searchParams.get('redirect') || '');
@@ -16,6 +17,9 @@
   let dob = $state('');
   let stateOfResidence = $state('');
   let consentAccepted = $state(false);
+  // Tester accounts are a SHARED email/password, so the access code is what
+  // identifies the individual tester (and binds them to one device).
+  let accessCode = $state(($page.url.searchParams.get('code') || '').toUpperCase());
   
   let showPassword = $state(false);
   let loading = $state(false);
@@ -67,11 +71,55 @@
       }
       const token = res.token;
       const userId = res.subject || 'user_' + Math.random().toString(36).slice(2, 10);
+      const client = await getConvexClient();
+
+      // ── Tester accounts: code-gated, one device, 3-month trial ─────────────
+      // The tester email/password is shared, so authentication alone proves
+      // nothing about WHO is logging in. The access code does: it must already
+      // be registered, it gets bound to THIS device on first use, and the trial
+      // clock starts here. Every refusal below signs the session back out.
+      if (isTester) {
+        const code = accessCode.trim().toUpperCase();
+        if (!code) {
+          await convexSignOut();
+          setUnauthenticated();
+          error = 'This account needs a tester access code. Enter the code you were issued, or register your details first.';
+          loading = false;
+          return;
+        }
+        try {
+          await client.mutation(api.testerCodes.activateSession, {
+            code,
+            deviceId: getDeviceId(),
+            deviceLabel: getDeviceLabel()
+          });
+        } catch (activateErr: any) {
+          const msg = convexErrorMessage(
+            activateErr,
+            'Could not activate tester access. Check your access code and try again.'
+          );
+          await convexSignOut();
+          setUnauthenticated();
+          const expired = /trial has ended|trial has expired/i.test(msg);
+          notify(
+            msg,
+            expired ? 'warning' : 'error',
+            expired ? 'Free Trial Ended' : 'Tester Access Denied',
+            9000
+          );
+          if (expired) {
+            void goto('/checkout');
+          } else {
+            error = msg;
+          }
+          loading = false;
+          return;
+        }
+      }
 
       // Fetch the authoritative access state (admin/tester/subscription) from
       // the server now that the real token is attached.
       let access: any = {};
-      const client = await getConvexClient();
       try {
         access = await client.mutation(api.users.syncAccess, {});
       } catch (err: any) {
@@ -132,18 +180,26 @@
         );
         void goto('/');
       } else if (effectiveIsTester && !testerExpired) {
+        const daysLeft = access.subscriptionExpiresAt
+          ? Math.max(0, Math.ceil((access.subscriptionExpiresAt - Date.now()) / 86_400_000))
+          : null;
         notify(
-          'Welcome, Tester! 1-month free trial pass active. Full unrestricted access granted to all screeners.',
+          daysLeft !== null
+            ? `Welcome, ${user.fullName || 'Tester'}! Full Master Pass access is active on this device — ${daysLeft} day${daysLeft === 1 ? '' : 's'} left of your free trial.`
+            : 'Welcome, Tester! Your free trial is active. Full unrestricted access granted to all screeners and the AI Predictor.',
           'success',
-          'Tester Free Access Granted (1 Month Trial)',
-          7000
+          'Tester Free Access Granted',
+          8000
         );
-        void goto('/football');
+        void goto('/predictor');
       } else if (testerExpired) {
+        await convexSignOut();
+        setUnauthenticated();
         notify(
-          'Your 1-month tester trial has expired. Please subscribe to continue using the screeners.',
+          'Your 3-month free trial has ended. Subscribe to continue using the AI Predictor and screeners.',
           'warning',
-          'Trial Expired'
+          'Trial Expired',
+          9000
         );
         void goto('/checkout');
       } else if (isSignUp) {
@@ -166,7 +222,7 @@
         void goto('/football');
       }
     } catch (err: any) {
-      error = err.message || 'Authentication failed. Please check your credentials.';
+      error = convexErrorMessage(err, 'Authentication failed. Please check your credentials.');
       notify(error ?? 'Authentication failed.', 'error', 'Authentication Error');
     } finally {
       loading = false;
@@ -264,6 +320,35 @@
         </div>
       </div>
 
+      {#if !isSignUp}
+        <!-- Tester access code (the shared tester login needs one) -->
+        <div class="form-group">
+          <label for="accessCode">
+            Tester Access Code
+            <span class="optional">only for tester accounts</span>
+          </label>
+          <div class="code-input">
+            <KeyRound size={16} />
+            <input
+              type="text"
+              id="accessCode"
+              bind:value={accessCode}
+              placeholder="PDT-XXXX-XXXX"
+              disabled={loading}
+              autocomplete="off"
+              spellcheck="false"
+              maxlength="14"
+              oninput={() => (accessCode = accessCode.toUpperCase())}
+            />
+          </div>
+          <span class="field-hint">
+            <Smartphone size={11} /> A tester code works on <strong>one device only</strong> and starts
+            your 3-month free trial on the first device you use.
+            <a href="/tester">Register your details first</a>
+          </span>
+        </div>
+      {/if}
+
       {#if isSignUp}
         <!-- Mobile Number -->
         <div class="form-group">
@@ -341,6 +426,9 @@
       {:else}
         Don't have an account? <a href="/auth?mode=signup">Sign up</a>
       {/if}
+      <div class="tester-cta">
+        <a href="/tester">Have a tester access code? Register here →</a>
+      </div>
     </div>
   </div>
 </div>
@@ -514,6 +602,63 @@
     margin-top: 22px;
     margin-bottom: 24px;
   }
+
+  .optional {
+    margin-left: 6px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--c-orange) 14%, transparent);
+    color: var(--c-orange);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+
+  .code-input {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .code-input > :global(svg) {
+    position: absolute;
+    left: 13px;
+    color: var(--c-muted);
+    pointer-events: none;
+  }
+  .code-input input {
+    padding-left: 38px !important;
+    letter-spacing: 0.08em;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .field-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    margin-top: 7px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--c-muted);
+  }
+  .field-hint a {
+    color: var(--c-orange);
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .field-hint a:hover { text-decoration: underline; }
+
+  .tester-cta {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--c-border);
+    font-size: 12.5px;
+  }
+  .tester-cta a { color: var(--c-muted); font-weight: 700; text-decoration: none; }
+  .tester-cta a:hover { color: var(--c-orange); text-decoration: underline; }
 
   .checkbox-label {
     display: flex;

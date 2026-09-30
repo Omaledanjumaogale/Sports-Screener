@@ -109,6 +109,63 @@ export default defineSchema({
     .index('by_email', ['email'])
     .index('by_txRef', ['txRef']),
 
+  // ── Tester access codes (single shared tester login, one code per user) ─────
+  // The tester EMAIL/PASSWORD is shared and provisioned server-side; a code is
+  // what identifies an individual tester. A code is issued by the super admin,
+  // claimed when the tester registers their details, then BOUND TO ONE DEVICE on
+  // first login (which is also when the trial clock starts).
+  testerCodes: defineTable({
+    code: v.string(),
+    status: v.union(v.literal('issued'), v.literal('claimed'), v.literal('revoked')),
+    label: v.optional(v.string()),
+    batch: v.optional(v.string()),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    // Registration (collected BEFORE the code can be used to log in).
+    fullName: v.optional(v.string()),
+    nin: v.optional(v.string()),
+    testerEmail: v.optional(v.string()),
+    actualEmail: v.optional(v.string()),
+    /** One-way fingerprint of the tester's chosen password — never the password. */
+    preferredPasswordHash: v.optional(v.string()),
+    hasPreferredPassword: v.optional(v.boolean()),
+    mobile: v.optional(v.string()),
+    stateOfResidence: v.optional(v.string()),
+    consentAccepted: v.optional(v.boolean()),
+    registeredAt: v.optional(v.number()),
+    // Device binding + trial window.
+    deviceId: v.optional(v.string()),
+    deviceLabel: v.optional(v.string()),
+    trialStartsAt: v.optional(v.number()),
+    trialExpiresAt: v.optional(v.number()),
+    lastLoginAt: v.optional(v.number()),
+    loginCount: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    revokedBy: v.optional(v.string()),
+    notes: v.optional(v.string())
+  })
+    .index('by_code', ['code'])
+    .index('by_status', ['status'])
+    .index('by_device', ['deviceId'])
+    .index('by_actualEmail', ['actualEmail'])
+    .index('by_status_createdAt', ['status', 'createdAt']),
+
+  // Binds one Convex auth SESSION (the `sub` claim: userId|sessionId) to the
+  // tester code + device that opened it, so server-side gates can tell WHICH
+  // tester is behind the shared tester login.
+  testerSessions: defineTable({
+    subject: v.string(),
+    userId: v.optional(v.string()),
+    code: v.string(),
+    deviceId: v.string(),
+    deviceLabel: v.optional(v.string()),
+    createdAt: v.number(),
+    lastSeenAt: v.number(),
+    revoked: v.optional(v.boolean())
+  })
+    .index('by_subject', ['subject'])
+    .index('by_code', ['code']),
+
   predictorDays: defineTable({
     dayKey: v.string(),
     sportId: PREDICTOR_SPORT_IDS,

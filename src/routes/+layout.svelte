@@ -7,7 +7,8 @@
   import '../app.css';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { authState, initAuth } from '$lib/authStore.svelte';
+  import { authState, initAuth, setUnauthenticated, fetchTesterSession, isTesterEmail } from '$lib/authStore.svelte';
+  import { notify } from '$lib/notificationStore';
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import NotificationToast from '$lib/components/NotificationToast.svelte';
@@ -19,11 +20,47 @@
     initAuth();
   });
 
+  // ── Tester trial enforcement ────────────────────────────────────────────
+  // A tester holds Master Pass only while their device-bound access code is
+  // live. This watcher catches the moment the server says the window has
+  // closed (expired or revoked) and ends the session with a subscription
+  // prompt, instead of letting requests fail one by one.
+  $effect(() => {
+    if (!browser) return;
+    const user = authState.user;
+    if (!authState.isAuthenticated || !user || !isTesterEmail(user.email)) return;
+
+    let stopped = false;
+    const check = async () => {
+      if (stopped) return;
+      const session = await fetchTesterSession();
+      if (stopped || !session || session.active) return;
+      stopped = true;
+      setUnauthenticated();
+      notify(
+        session.reason === 'expired'
+          ? 'Your 3-month free tester trial has ended. Subscribe to keep using the AI Predictor and screeners.'
+          : 'Your tester access has been ended. Please contact the administrator or subscribe.',
+        'warning',
+        session.reason === 'expired' ? 'Free Trial Ended' : 'Tester Access Ended',
+        10000
+      );
+      void goto('/checkout');
+    };
+
+    void check();
+    const timer = setInterval(() => void check(), 5 * 60_000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  });
+
   // Auth guard — runs only in the browser, never during SSR pre-rendering
   $effect(() => {
     if (!browser) return;
 
-    const publicPaths = ['/', '/auth', '/checkout'];
+    const publicPaths = ['/', '/auth', '/checkout', '/tester'];
     if (!publicPaths.includes($page.url.pathname) && !authState.isLoading) {
       if (!authState.isAuthenticated) {
         // Re-check storage synchronously before bouncing: a just-completed

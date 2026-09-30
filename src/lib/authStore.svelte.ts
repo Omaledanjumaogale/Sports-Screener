@@ -6,7 +6,8 @@ const AUTH_STORAGE_KEY = 'pulseodds_auth_session_v1';
 export const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || '';
 export const TESTER_EMAIL = import.meta.env.VITE_TESTER_EMAIL || '';
 
-const TESTER_TRIAL_START_KEY = 'pulseodds_tester_trial_start_v1';
+/** Tester free trial length (mirrors TESTER_TRIAL_DAYS on the server). */
+export const TESTER_TRIAL_DAYS = 90;
 
 import {
   setAuthTokens,
@@ -32,22 +33,6 @@ export function isTesterEmail(email?: string): boolean {
   return email.trim().toLowerCase() === TESTER_EMAIL.trim().toLowerCase();
 }
 
-export function getTesterTrialExpiresAt(): number {
-  if (typeof window === 'undefined') return Date.now() + 30 * 24 * 60 * 60 * 1000;
-  let start = 0;
-  try {
-    const raw = localStorage.getItem(TESTER_TRIAL_START_KEY);
-    if (raw) start = parseInt(raw, 10);
-    if (!start || isNaN(start)) {
-      start = Date.now();
-      localStorage.setItem(TESTER_TRIAL_START_KEY, start.toString());
-    }
-  } catch (_) {
-    start = Date.now();
-  }
-  return start + 30 * 24 * 60 * 60 * 1000; // 1 month (30 days)
-}
-
 export interface UserSession {
   id: string;
   email: string;
@@ -64,6 +49,10 @@ export interface UserSession {
   subscriptionExpiresAt?: number;
   subscriptionTier?: 'punter' | 'master';
   hasMasterPass?: boolean;
+  /** The tester access code bound to this session (tester accounts only). */
+  testerCode?: string;
+  /** Server verdict on why a tester session does/doesn't hold Master Pass. */
+  testerReason?: 'active' | 'no-session' | 'not-registered' | 'revoked' | 'expired';
   txRef?: string;
 }
 
@@ -157,12 +146,14 @@ export function initAuth() {
           data.user.subscriptionTier = 'master';
           data.user.hasMasterPass = true;
         } else if (isTester) {
-          const expAt = getTesterTrialExpiresAt();
-          const now = Date.now();
+          // The tester trial is decided SERVER-side from the device-bound access
+          // code, so a restored session carries whatever the server last said —
+          // no local fallback may ever mint access for a shared tester login.
           data.user.isTester = true;
-          data.user.subscriptionExpiresAt = expAt;
-          data.user.isSubscribed = now <= expAt;
-          data.user.hasMasterPass = now <= expAt;
+          const now = Date.now();
+          const exp = data.user.subscriptionExpiresAt;
+          data.user.isSubscribed = !!data.user.hasMasterPass && (!exp || now <= exp);
+          data.user.hasMasterPass = data.user.isSubscribed;
         } else {
           // Check if subscription has expired for normal users
           const now = Date.now();
@@ -200,19 +191,13 @@ export function setAuthenticated(user: UserSession, token: string, refreshToken?
     user.hasMasterPass = true;
   } else if (isTester) {
     user.isTester = true;
-    // Prefer the server-anchored expiry (from `syncAccess`); fall back to the
-    // legacy localStorage trial only when none was provided.
-    const serverExp = user.subscriptionExpiresAt;
-    if (serverExp) {
-      user.subscriptionExpiresAt = serverExp;
-      user.isSubscribed = Date.now() <= serverExp;
-      user.hasMasterPass = Date.now() <= serverExp;
-    } else {
-      const expAt = getTesterTrialExpiresAt();
-      user.subscriptionExpiresAt = expAt;
-      user.isSubscribed = Date.now() <= expAt;
-      user.hasMasterPass = Date.now() <= expAt;
-    }
+    // Server truth only: the trial lives on the device-bound access code and is
+    // resolved by `deriveAccess`. A tester with no code, no session, a revoked
+    // code or an expired window gets NO Master Pass here either.
+    const exp = user.subscriptionExpiresAt;
+    const serverActive = !!user.hasMasterPass && (!exp || Date.now() <= exp);
+    user.isSubscribed = serverActive;
+    user.hasMasterPass = serverActive;
   }
 
   authState.isAuthenticated = true;
@@ -271,16 +256,19 @@ export async function refreshAccess(): Promise<void> {
 // does not own (txRef) are preserved.
 function applyServerAccess(me: any): void {
   if (!me || !me.email || !authState.user) return;
+  const isTester = !!me.isTester;
   const user: UserSession = {
     ...authState.user,
     email: me.email,
     fullName: me.name || authState.user.fullName,
     isAdmin: !!me.isAdmin,
-    isTester: !!me.isTester,
+    isTester,
     isSubscribed: !!me.isSubscribed,
     subscriptionExpiresAt: me.subscriptionExpiresAt ?? me.trialExpiresAt,
     subscriptionTier: me.subscriptionTier || authState.user.subscriptionTier,
     hasMasterPass: !!me.hasMasterPass,
+    testerCode: isTester ? (me.testerCode ?? authState.user.testerCode) : undefined,
+    testerReason: isTester ? me.testerReason : undefined,
     txRef: authState.user.txRef
   };
   authState.isAuthenticated = true;
@@ -288,23 +276,75 @@ function applyServerAccess(me: any): void {
   persistSession();
 }
 
+/**
+ * Live trial state for the signed-in tester, derived from the server-owned
+ * window. Returns null for non-tester sessions so the UI can simply skip it.
+ */
+export function testerTrialState(user?: UserSession | null): {
+  isTester: boolean;
+  code?: string;
+  expiresAt?: number;
+  daysLeft: number | null;
+  active: boolean;
+  reason?: UserSession['testerReason'];
+} | null {
+  if (!user || !isTesterEmail(user.email)) return null;
+  const expiresAt = user.subscriptionExpiresAt;
+  const daysLeft = expiresAt
+    ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 86_400_000))
+    : null;
+  return {
+    isTester: true,
+    code: user.testerCode,
+    expiresAt,
+    daysLeft,
+    active: !!user.hasMasterPass && (!expiresAt || Date.now() <= expiresAt),
+    reason: user.testerReason
+  };
+}
+
+/**
+ * Ask the server for the tester's live session state. Returns the state, or
+ * null when the caller is not a tester. Used to drive the countdown badge and
+ * to detect the moment a trial lapses (the server then reports inactive).
+ */
+export async function fetchTesterSession(): Promise<any | null> {
+  if (!authState.isAuthenticated || !authState.user || !authState.token) return null;
+  if (!isTesterEmail(authState.user.email)) return null;
+  try {
+    return await queryConvex<any>(api.testerCodes.mySession, {});
+  } catch (err: any) {
+    console.warn('tester session lookup skipped:', err?.message || err);
+    return null;
+  }
+}
+
 export function setSubscribedStatus(isSubscribed: boolean, txRef?: string, tier?: 'punter' | 'master') {
   if (!authState.user) return;
   const isAdmin = isSuperAdminEmail(authState.user.email);
   const isTester = isTesterEmail(authState.user.email);
+
+  // A tester's window is owned by the server (their access code), so a payment
+  // callback must never overwrite it with a fresh 30-day period.
+  if (isTester && !isAdmin) {
+    authState.user = { ...authState.user, txRef: txRef ?? authState.user.txRef };
+    persistSession();
+    return;
+  }
+
   const now = Date.now();
-  const expiresAt = isTester ? getTesterTrialExpiresAt() : (now + 30 * 24 * 60 * 60 * 1000);
+  const expiresAt = now + 30 * 24 * 60 * 60 * 1000;
   const effectiveTier: 'punter' | 'master' | undefined =
-    isAdmin || isTester ? 'master' : tier ?? authState.user.subscriptionTier ?? 'punter';
+    isAdmin ? 'master' : tier ?? authState.user.subscriptionTier ?? 'punter';
 
   authState.user = {
     ...authState.user,
-    isSubscribed: isAdmin || (isTester ? now <= expiresAt : isSubscribed),
+    isSubscribed: isAdmin || isSubscribed,
     isAdmin: isAdmin || authState.user.isAdmin,
-    isTester: isTester || authState.user.isTester,
+    isTester: isAdmin ? false : authState.user.isTester,
     subscriptionExpiresAt: isAdmin ? undefined : expiresAt,
     subscriptionTier: effectiveTier,
-    hasMasterPass: isAdmin || isTester || (isSubscribed && effectiveTier === 'master'),
+    hasMasterPass: isAdmin || (isSubscribed && effectiveTier === 'master'),
     txRef: txRef ?? authState.user.txRef
   };
 
@@ -324,15 +364,15 @@ export function setUnauthenticated() {
   persistSession();
 }
 
-// The AI Predictor is a Master Pass feature (admins and testers always pass).
+// The AI Predictor is a Master Pass feature. `hasMasterPass` is the SERVER's
+// verdict (admin, active code-bound tester trial, or master subscriber) — the
+// client never grants itself access.
 export function canAccessPredictor(user?: UserSession | null): boolean {
   if (!user) return false;
   if (user.isAdmin) return true;
-  if (user.hasMasterPass) return true;
-  // Tester trial grants master access while active.
-  if (isTesterEmail(user.email)) {
-    const expiry = user.subscriptionExpiresAt ?? getTesterTrialExpiresAt();
-    return Date.now() <= expiry;
+  if (user.hasMasterPass) {
+    const exp = user.subscriptionExpiresAt;
+    return !exp || Date.now() <= exp;
   }
   return false;
 }
