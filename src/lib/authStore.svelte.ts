@@ -8,7 +8,16 @@ export const TESTER_EMAIL = import.meta.env.VITE_TESTER_EMAIL || '';
 
 const TESTER_TRIAL_START_KEY = 'pulseodds_tester_trial_start_v1';
 
-import { setConvexAuthToken, clearConvexAuthToken, queryConvex, api } from './convexClient';
+import {
+  setAuthTokens,
+  clearConvexAuthTokens,
+  getAuthRefreshToken,
+  refreshAuthSession,
+  isAuthTokenStale,
+  type RefreshOutcome,
+  queryConvex,
+  api
+} from './convexClient';
 
 export function isSuperAdminEmail(email?: string): boolean {
   if (!email) return false;
@@ -63,8 +72,75 @@ export const authState = $state({
   isAuthenticated: false,
   isLoading: true,
   user: null as UserSession | null,
-  token: null as string | null
+  token: null as string | null,
+  // Convex Auth issues a 1-hour JWT plus a 30-day refresh token. The refresh
+  // token is what keeps a user signed in between those two horizons; dropping it
+  // (the previous behaviour) signed everyone out one hour after logging in.
+  refreshToken: null as string | null
 });
+
+// Persist the whole session — user and BOTH tokens — in one place, so no code
+// path can accidentally save a session that cannot be renewed.
+function persistSession() {
+  if (typeof window === 'undefined') return;
+  try {
+    if (authState.user && authState.token) {
+      localStorage.setItem(
+        AUTH_STORAGE_KEY,
+        JSON.stringify({
+          user: authState.user,
+          token: authState.token,
+          refreshToken: authState.refreshToken
+        })
+      );
+    } else {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+  } catch (e) {
+    console.error('Failed to persist auth session:', e);
+  }
+}
+
+// Convex Auth JWTs last 60 minutes. Refreshing on a timer — and again before any
+// call that finds the token stale — keeps a signed-in user signed in for the
+// full 30-day session instead of being logged out mid-session.
+const SESSION_MAINTENANCE_MS = 10 * 60 * 1000;
+let maintenanceTimer: ReturnType<typeof setInterval> | null = null;
+
+function startSessionMaintenance() {
+  if (typeof window === 'undefined' || maintenanceTimer) return;
+  maintenanceTimer = setInterval(() => {
+    void renewSession();
+  }, SESSION_MAINTENANCE_MS);
+}
+
+function stopSessionMaintenance() {
+  if (maintenanceTimer) {
+    clearInterval(maintenanceTimer);
+    maintenanceTimer = null;
+  }
+}
+
+/**
+ * Exchange the stored refresh token for a fresh JWT. Returns the outcome so the
+ * caller can tell "session ended" apart from "could not renew right now" —
+ * only the former should ever sign a user out.
+ *
+ * Pass `force` when a request already failed for auth reasons: the token may not
+ * look stale locally yet still be rejected (e.g. after a signing-key rotation).
+ */
+export async function renewSession(force = false): Promise<RefreshOutcome | null> {
+  if (!authState.isAuthenticated || !authState.refreshToken) return null;
+  if (!force && !isAuthTokenStale(authState.token)) return null;
+
+  const outcome = await refreshAuthSession();
+  if (outcome.status === 'refreshed') {
+    authState.token = outcome.token;
+    authState.refreshToken = outcome.refreshToken ?? authState.refreshToken;
+    persistSession();
+  }
+  return outcome;
+}
 
 export function initAuth() {
   if (typeof window === 'undefined') return;
@@ -99,7 +175,9 @@ export function initAuth() {
         authState.isAuthenticated = true;
         authState.user = data.user;
         authState.token = data.token;
-        setConvexAuthToken(data.token);
+        authState.refreshToken = typeof data.refreshToken === 'string' ? data.refreshToken : null;
+        setAuthTokens({ token: data.token, refreshToken: authState.refreshToken });
+        startSessionMaintenance();
         // Re-sync access flags from the server in the background so webhook
         // upgrades / trial expiry are reflected without a full reload.
         void refreshAccess();
@@ -112,7 +190,7 @@ export function initAuth() {
   }
 }
 
-export function setAuthenticated(user: UserSession, token: string) {
+export function setAuthenticated(user: UserSession, token: string, refreshToken?: string | null) {
   const isAdmin = isSuperAdminEmail(user.email);
   const isTester = isTesterEmail(user.email);
   if (isAdmin) {
@@ -140,16 +218,11 @@ export function setAuthenticated(user: UserSession, token: string) {
   authState.isAuthenticated = true;
   authState.user = user;
   authState.token = token;
+  authState.refreshToken = refreshToken ?? getAuthRefreshToken();
   authState.isLoading = false;
-  setConvexAuthToken(token);
-
-  try {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user, token }));
-    }
-  } catch (e) {
-    console.error('Failed to store auth session:', e);
-  }
+  setAuthTokens({ token, refreshToken: authState.refreshToken });
+  persistSession();
+  startSessionMaintenance();
 }
 
 // Re-sync subscription/access flags from the server (Convex `users:me`). This
@@ -160,46 +233,59 @@ export async function refreshAccess(): Promise<void> {
   if (!authState.isAuthenticated || !authState.user || !authState.token) return;
   if (typeof window === 'undefined') return;
   try {
-    const me = await queryConvex<any>(api.users.me, {});
-    if (!me || !me.email) return;
-    const user: UserSession = {
-      ...authState.user,
-      email: me.email,
-      fullName: me.name || authState.user.fullName,
-      isAdmin: !!me.isAdmin,
-      isTester: !!me.isTester,
-      isSubscribed: !!me.isSubscribed,
-      subscriptionExpiresAt: me.subscriptionExpiresAt ?? me.trialExpiresAt,
-      subscriptionTier: me.subscriptionTier || authState.user.subscriptionTier,
-      hasMasterPass: !!me.hasMasterPass,
-      txRef: authState.user.txRef
-    };
-    authState.isAuthenticated = true;
-    authState.user = user;
-    try {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user, token: authState.token }));
-    } catch (e) {
-      console.error('Failed to persist refreshed auth session:', e);
-    }
+    applyServerAccess(await queryConvex<any>(api.users.me, {}));
   } catch (err: any) {
     const msg = String(err?.message || err);
-    // A persisted JWT can become invalid (server key rotation, expiry). The
-    // dead token is auto-attached to EVERY call — including auth:signIn — so
-    // it must be cleared, not skipped, or sign-in itself fails with "Could not
-    // verify OIDC token claim". Self-heal: drop the session so the next
-    // sign-in starts clean.
+    // A lapsed JWT is an ORDINARY event — they last one hour — and never a
+    // reason to sign the user out. When the server says the identity could not
+    // be established, mint a fresh token from the refresh token and retry once.
     //
-    // Narrowed to the unambiguous invalid-token signatures only: a generic
-    // "Unauthenticated" also occurs transiently while a freshly issued token
-    // is still attaching to the shared client, and clearing the session on
-    // that race would log the user out mid-navigation.
-    if (/Could not verify|invalid token claim|token expired|TokenExpired/i.test(msg)) {
-      console.warn('refreshAccess: stored token invalid — clearing session for a clean sign-in.');
-      setUnauthenticated();
+    // This replaces the old behaviour of calling setUnauthenticated() here,
+    // which is what silently logged everyone out roughly an hour after login.
+    if (/Could not verify|invalid token claim|token expired|TokenExpired|Not signed in/i.test(msg)) {
+      const outcome = await renewSession(true);
+      if (outcome?.status === 'refreshed') {
+        try {
+          applyServerAccess(await queryConvex<any>(api.users.me, {}));
+        } catch (retryErr: any) {
+          console.warn('refreshAccess retry skipped:', retryErr?.message || retryErr);
+        }
+        return;
+      }
+      if (outcome?.status === 'invalid') {
+        // The server rejected the refresh token itself: the session is genuinely
+        // over (revoked or past its 30-day inactivity window).
+        console.warn('refreshAccess: session rejected by the server — signing out.');
+        setUnauthenticated();
+        return;
+      }
+      console.warn('refreshAccess: could not renew the token right now; keeping the session.');
       return;
     }
     console.warn('refreshAccess skipped:', msg);
   }
+}
+
+// Merge the server's authoritative access flags into the local session. Server
+// truth wins (webhook upgrades, trial expiry) while local-only fields the server
+// does not own (txRef) are preserved.
+function applyServerAccess(me: any): void {
+  if (!me || !me.email || !authState.user) return;
+  const user: UserSession = {
+    ...authState.user,
+    email: me.email,
+    fullName: me.name || authState.user.fullName,
+    isAdmin: !!me.isAdmin,
+    isTester: !!me.isTester,
+    isSubscribed: !!me.isSubscribed,
+    subscriptionExpiresAt: me.subscriptionExpiresAt ?? me.trialExpiresAt,
+    subscriptionTier: me.subscriptionTier || authState.user.subscriptionTier,
+    hasMasterPass: !!me.hasMasterPass,
+    txRef: authState.user.txRef
+  };
+  authState.isAuthenticated = true;
+  authState.user = user;
+  persistSession();
 }
 
 export function setSubscribedStatus(isSubscribed: boolean, txRef?: string, tier?: 'punter' | 'master') {
@@ -222,28 +308,20 @@ export function setSubscribedStatus(isSubscribed: boolean, txRef?: string, tier?
     txRef: txRef ?? authState.user.txRef
   };
 
-  try {
-    if (typeof window !== 'undefined' && authState.token) {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user: authState.user, token: authState.token }));
-    }
-  } catch (e) {
-    console.error('Failed to update subscription in auth session:', e);
-  }
+  persistSession();
 }
 
 export function setUnauthenticated() {
   authState.isAuthenticated = false;
   authState.user = null;
   authState.token = null;
+  authState.refreshToken = null;
   authState.isLoading = false;
-  clearConvexAuthToken();
-  try {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-    }
-  } catch (e) {
-    console.error('Failed to clear auth session:', e);
-  }
+  stopSessionMaintenance();
+  // Also drop the refresh token, otherwise a later background call could
+  // silently restore the session the user just ended.
+  clearConvexAuthTokens();
+  persistSession();
 }
 
 // The AI Predictor is a Master Pass feature (admins and testers always pass).

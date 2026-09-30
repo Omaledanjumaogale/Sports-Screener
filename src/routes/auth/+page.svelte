@@ -119,7 +119,9 @@
         createdAt: Date.now()
       };
 
-      setAuthenticated(user, token);
+      // Pass the refresh token through so the session can renew itself; without
+      // it the 1-hour JWT expires and the user is signed out mid-session.
+      setAuthenticated(user, token, res.refreshToken);
 
       if (effectiveIsAdmin) {
         notify(
@@ -489,7 +491,7 @@
 
   .eye-btn {
     position: absolute;
-    right: 12px;
+    right: 10px;
     background: transparent;
     border: none;
     color: var(--c-muted);
@@ -497,6 +499,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    min-width: 30px;
+    min-height: 30px;
     padding: 4px;
     border-radius: 6px;
     transition: color var(--t-fast);
