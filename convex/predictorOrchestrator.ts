@@ -2,9 +2,11 @@
 // inside. Persists every progress tick, upserts the day cache, replaces stored
 // matches and writes agent verdicts.
 
-import { action, internalAction } from './_generated/server';
+import { action, internalAction, internalMutation, mutation } from './_generated/server';
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
+import { requireAdmin } from './access';
+import { logAuditEvent } from './auditLog';
 import { runSmoaPipeline } from './agents/smoa';
 import { amaraFilter, type NormalizeResult } from './agents/specialists';
 import { dailyCap, watDayKeyFor, watTodayKey } from './scrapers/sources';
@@ -135,6 +137,14 @@ async function executeRefresh(
           noteBlocked([`malformed fixture pair "${m.homeTeam}" vs "${m.awayTeam}"`]);
           return null;
         }
+        // PROVENANCE GATE: every legitimate path stamps sourceUrl (scrape page
+        // URL or data-API endpoint). A fixture with no provenance is legacy
+        // pool data that can never be verified against a real source — never
+        // cache it.
+        if (!String(m.sourceUrl || '').trim()) {
+          noteBlocked([`fixture "${m.homeTeam}" has no source provenance (sourceUrl)`]);
+          return null;
+        }
         const q = qualityReport({ ...m, league: v.normalizedLeague || m.league });
         if (!q.eligible) {
           noteBlocked(q.issues);
@@ -193,6 +203,7 @@ async function executeRefresh(
           awayTeam: m.awayTeam,
           startTime: m.startTime,
           source: m.source,
+          sourceUrl: m.sourceUrl,
           marketsAvailable: m.markets,
           scopes: m.scope,
           dataQuality: m.dataQuality,
@@ -492,6 +503,50 @@ export const runRefreshInternal = internalAction({
   args: refreshArgs,
   handler: async (ctx, args) => {
     return executeRefresh(ctx, args);
+  }
+});
+
+// Tomorrow-seed scheduler — the midnight-WAT cron refreshes TODAY only, which
+// left tomorrow's day cache empty until that day became today (and, before the
+// provenance gates, let stale garbage be the ONLY thing on tomorrow's tab).
+// Schedules a seedOnly pass (fixtures + deterministic reference verdicts, no
+// LLM spend) per sport for tomorrow's WAT day.
+const SEED_SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball'] as const;
+export const seedTomorrowInternal = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const tomorrow = watDayKeyFor(1);
+    for (const sportId of SEED_SPORTS) {
+      await ctx.scheduler.runAfter(0, internal.predictorOrchestrator.runRefreshInternal, {
+        sportId,
+        dayKey: tomorrow,
+        seedOnly: true,
+        floor: FILTER_CONFIDENCE_FLOOR,
+        cap: dailyCap()
+      });
+    }
+    return { dayKey: tomorrow, scheduled: SEED_SPORTS.length };
+  }
+});
+
+// Admin-gated public wrapper so ops scripts can trigger the tomorrow seed on
+// demand instead of waiting for the 23:42 UTC cron.
+export const seedTomorrow = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const access = await requireAdmin(ctx);
+    const tomorrow = watDayKeyFor(1);
+    for (const sportId of SEED_SPORTS) {
+      await ctx.scheduler.runAfter(0, internal.predictorOrchestrator.runRefreshInternal, {
+        sportId,
+        dayKey: tomorrow,
+        seedOnly: true,
+        floor: FILTER_CONFIDENCE_FLOOR,
+        cap: dailyCap()
+      });
+    }
+    await logAuditEvent(ctx, access.email, 'predictorOrchestrator.seedTomorrow', tomorrow, {});
+    return { dayKey: tomorrow, scheduled: SEED_SPORTS.length };
   }
 });
 

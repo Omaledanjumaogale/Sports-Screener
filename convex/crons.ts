@@ -35,6 +35,13 @@ crons.daily('predictor-refresh-tennis',     { hourUTC: 23, minuteUTC: 18 }, inte
 crons.daily('predictor-refresh-hockey',     { hourUTC: 23, minuteUTC: 26 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'hockey',     dayKey: '', floor: FLOOR, cap: CAP });
 crons.daily('predictor-refresh-baseball',   { hourUTC: 23, minuteUTC: 34 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'baseball',   dayKey: '', floor: FLOOR, cap: CAP });
 
+// ── Tomorrow seed — 00:42 WAT, after the today pass ───────────────────────────
+// Tomorrow's tab must be populated with REAL fixtures too (the user checks it
+// by hand). seedOnly: fixtures + deterministic reference verdicts, zero LLM
+// spend; the midnight cron re-runs the day with full verdicts when it becomes
+// today.
+crons.daily('predictor-seed-tomorrow', { hourUTC: 23, minuteUTC: 42 }, internal.predictorOrchestrator.seedTomorrowInternal, {});
+
 // ── Live scoreline synchronization — every 30 minutes (was 15) ────────────────
 // Doubled the interval to halve IO; the UI is per-session, half-hour updates
 // are still responsive enough for in-play cards.

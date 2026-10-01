@@ -41,7 +41,7 @@ const SPORT_LABELS: Record<string, string> = {
 
 function clean(name: string): string {
   return String(name || '')
-    .replace(/[|#*_`~]/g, '')
+    .replace(/[|#*_`~\\]/g, '')
     .replace(/&amp;/g, '&')
     .replace(/&#0?39;/g, "'")
     .replace(/&quot;/g, '"')

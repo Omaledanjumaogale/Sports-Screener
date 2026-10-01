@@ -218,6 +218,10 @@ export default defineSchema({
     awayTeam: v.string(),
     startTime: v.number(),
     source: v.string(),
+    // Source provenance: the exact page/endpoint the fixture came from. Every
+    // ingest path stamps it; the purge sweep treats a stored row without one
+    // (AND without odds) as pre-gate legacy data.
+    sourceUrl: v.optional(v.string()),
     marketsAvailable: v.array(v.string()),
     scopes: v.any(),
     dataQuality: v.optional(v.string()),

@@ -134,8 +134,15 @@ export function serverCanonicalizeLeague(rawLeague: string, sportId?: string): s
   if (SERVER_LEAGUE_NORMALIZE[key]) return SERVER_LEAGUE_NORMALIZE[key];
   if (sportId && SERVER_SPORT_LEAGUES[sportId]) {
     const pool = SERVER_SPORT_LEAGUES[sportId];
-    const match = pool.find((canon) => key.includes(canon.toLowerCase()) || canon.toLowerCase().includes(key));
-    if (match) return match;
+    // EXACT match only. Substring matching rebranded whole leagues by famous
+    // names ("Canadian Premier League" → "Premier League", "USL Championship"
+    // → "Championship", Mexican "Liga Premier Serie A" → "Serie A", "WTA
+    // Singles: Wuhan" → bare "WTA" losing tournament identity) — pool order
+    // decided which famous name captured the substring. Known variant names
+    // live in SERVER_LEAGUE_NORMALIZE (exact-keyed); everything else keeps its
+    // raw (ideally country-prefixed) label.
+    const idx = pool.findIndex((canon) => canon.toLowerCase() === key);
+    if (idx >= 0) return pool[idx];
   }
   return raw;
 }
@@ -911,6 +918,7 @@ export const replaceMatches = internalMutation({
         awayTeam: v.string(),
         startTime: v.number(),
         source: v.string(),
+        sourceUrl: v.optional(v.string()),
         marketsAvailable: v.array(v.string()),
         scopes: v.any(),
         dataQuality: v.optional(v.string()),
@@ -947,6 +955,7 @@ export const replaceMatches = internalMutation({
         awayTeam: m.awayTeam,
         startTime: m.startTime,
         source: m.source,
+        sourceUrl: m.sourceUrl,
         marketsAvailable: m.marketsAvailable,
         scopes: m.scopes,
         dataQuality: m.dataQuality ?? 'verified',
@@ -1509,8 +1518,38 @@ async function purgeMalformedForSport(ctx: any, sportId: string) {
     .withIndex('by_sport_day', (q: any) => q.eq('sportId', sportId as any))
     .collect();
   let deleted = 0;
+  let repaired = 0;
   const samples: string[] = [];
   for (const m of all) {
+    // PROVENANCE RULE (stored rows): every real ingest path stamps sourceUrl
+    // AND scraped rows carry structural odds. A stored row with NEITHER is
+    // pre-gate legacy pool data whose league/team data is unverifiable —
+    // purge it and its verdict. (Requiring both tells avoids nuking rows that
+    // were stored before sourceUrl was persisted but DO carry real odds.)
+    const hasOdds = !!m.oddsSnapshot || !!(m.scopes && typeof m.scopes === 'object' && Object.keys(m.scopes).length > 0);
+    if (!String(m.sourceUrl || '').trim() && !hasOdds) {
+      if (samples.length < 5) samples.push(`${m.dayKey}: "${m.homeTeam}" vs "${m.awayTeam}" (no source provenance)`);
+      const verdict = await ctx.db
+        .query('predictorVerdicts')
+        .withIndex('by_day_match', (q: any) => q.eq('dayKey', m.dayKey).eq('matchId', m.matchId))
+        .first();
+      if (verdict) await ctx.db.delete(verdict._id);
+      await ctx.db.delete(m._id);
+      deleted++;
+      continue;
+    }
+    // WNBA mislabel repair on ALREADY-CACHED rows: the ingest-time repair only
+    // runs through validateFixture; rows stored before it keep the wrong
+    // "NBA" label (wrong 221 total baseline on a 163 game). Patch the league
+    // in place when the women's-team repair says otherwise.
+    if (sportId === 'basketball' && m.league) {
+      const fixed = repairBasketballLeague(String(m.league), String(m.homeTeam || ''), String(m.awayTeam || ''));
+      if (fixed && fixed !== m.league) {
+        await ctx.db.patch(m._id, { league: fixed });
+        repaired++;
+        continue;
+      }
+    }
     if (plausiblePair(m.homeTeam, m.awayTeam)) continue;
     if (samples.length < 5) samples.push(`${m.dayKey}: "${m.homeTeam}" vs "${m.awayTeam}"`);
     const verdict = await ctx.db
@@ -1521,7 +1560,7 @@ async function purgeMalformedForSport(ctx: any, sportId: string) {
     await ctx.db.delete(m._id);
     deleted++;
   }
-  return { sportId, examined: all.length, deleted, samples };
+  return { sportId, examined: all.length, deleted, repaired, samples };
 }
 
 export const purgeMalformedMatchesInternal = internalMutation({
