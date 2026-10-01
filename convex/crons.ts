@@ -1,6 +1,14 @@
 // Scheduled cache cycle for the AI Predictor. Emeka Obi's scheduled duty: purge
-// stale predictor days and refresh the day cache for every sport three times a
-// day (1:00 AM WAT, 7:00 AM WAT & 1:00 PM WAT) so projections stay current.
+// stale predictor days and refresh the day cache for every sport once a day at
+// midnight WAT so projections stay current.
+//
+// STORAGE-BUDGET NOTE: this file is sized for the FREE Convex plan. Every cron
+// job costs DB reads + writes; every refresh mutates the day row and writes one
+// verdict per qualified match. The historical 18-job / 3-refresh-per-day cadence
+// accumulated GB of finished matches + verdicts until Convex disabled the
+// deployment. We now run ONE daily refresh (midnight WAT) plus the scoring and
+// housekeeping jobs, and rely on the bounded hygiene sweep to drop finished
+// rows past the retention window.
 //
 // Keep this module dependency-light: Convex's analyzer EXECUTES the module body
 // to read the cron definitions, so a heavy/toErroring import would abort the
@@ -13,89 +21,56 @@ const crons = cronJobs();
 const FLOOR = 52;
 const CAP = 1200;
 
-// ── Daily purge ───────────────────────────────────────────────────────────────
-// Every 24h purge stale days older than 7 days.
+// ── Daily purge — once per 24h, scans for stale day rows ───────────────────────
 crons.interval('predictor-purge-daily', { minutes: 1440 }, internal.predictor.purgeAndMarkStale, {});
 
-// ── Midnight West Africa Time (1:00 AM WAT / 00:00 WAT) cache refresh — 6 sports ─
-// Staggered by 8 minutes to avoid simultaneous heavy LLM/API bursts.
-// Rally, rugby, cricket, mma and volleyball were removed — no registered
-// source provides consistent daily fixtures for them.
-crons.daily('predictor-refresh-midnight-football',   { hourUTC: 23, minuteUTC: 2  }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'football',   dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-refresh-midnight-basketball', { hourUTC: 23, minuteUTC: 10 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'basketball', dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-refresh-midnight-tennis',     { hourUTC: 23, minuteUTC: 18 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'tennis',     dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-refresh-midnight-hockey',     { hourUTC: 23, minuteUTC: 26 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'hockey',     dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-refresh-midnight-baseball',   { hourUTC: 23, minuteUTC: 34 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'baseball',   dayKey: '', floor: FLOOR, cap: CAP });
+// ── Midnight West Africa Time cache refresh — 5 sports, single daily pass ─────
+// One pass per sport at 00:02 WAT = 23:02 UTC. Staggered by 8 minutes to avoid
+// simultaneous heavy LLM/API bursts. Morning + noon passes were removed in the
+// storage-cut pass — the morning list is updated by live score sync and the
+// noon pass was duplicating work the cache already contained.
+crons.daily('predictor-refresh-football',   { hourUTC: 23, minuteUTC: 2  }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'football',   dayKey: '', floor: FLOOR, cap: CAP });
+crons.daily('predictor-refresh-basketball', { hourUTC: 23, minuteUTC: 10 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'basketball', dayKey: '', floor: FLOOR, cap: CAP });
+crons.daily('predictor-refresh-tennis',     { hourUTC: 23, minuteUTC: 18 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'tennis',     dayKey: '', floor: FLOOR, cap: CAP });
+crons.daily('predictor-refresh-hockey',     { hourUTC: 23, minuteUTC: 26 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'hockey',     dayKey: '', floor: FLOOR, cap: CAP });
+crons.daily('predictor-refresh-baseball',   { hourUTC: 23, minuteUTC: 34 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'baseball',   dayKey: '', floor: FLOOR, cap: CAP });
 
-// ── Afternoon West Africa Time (1:00 PM WAT) cache refresh — 6 sports ──────────
-// Midday pass keeps predictions fresh for afternoon/evening match windows.
-crons.daily('predictor-refresh-noon-football',   { hourUTC: 11, minuteUTC: 2  }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'football',   dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-refresh-noon-basketball', { hourUTC: 11, minuteUTC: 10 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'basketball', dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-refresh-noon-tennis',     { hourUTC: 11, minuteUTC: 18 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'tennis',     dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-refresh-noon-hockey',     { hourUTC: 11, minuteUTC: 26 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'hockey',     dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-refresh-noon-baseball',   { hourUTC: 11, minuteUTC: 34 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'baseball',   dayKey: '', floor: FLOOR, cap: CAP });
+// ── Live scoreline synchronization — every 30 minutes (was 15) ────────────────
+// Doubled the interval to halve IO; the UI is per-session, half-hour updates
+// are still responsive enough for in-play cards.
+crons.interval('predictor-sync-live-scores', { minutes: 30 }, internal.scores.syncScoresAction, {});
 
-// ── Morning West Africa Time (7:00 AM WAT) early seed ──────────────────────────
-// 7:00 AM WAT seed ensures morning users see today's matches populated early.
-crons.daily('predictor-seed-morning-football',   { hourUTC: 6, minuteUTC: 2  }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'football',   dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-seed-morning-basketball', { hourUTC: 6, minuteUTC: 10 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'basketball', dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-seed-morning-tennis',     { hourUTC: 6, minuteUTC: 18 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'tennis',     dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-seed-morning-hockey',     { hourUTC: 6, minuteUTC: 26 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'hockey',     dayKey: '', floor: FLOOR, cap: CAP });
-crons.daily('predictor-seed-morning-baseball',   { hourUTC: 6, minuteUTC: 34 }, internal.predictorOrchestrator.runRefreshInternal, { sportId: 'baseball',   dayKey: '', floor: FLOOR, cap: CAP });
+// ── Past match history & outcome settlement — every 6 hours (was 30-day) ───────
+crons.interval('predictor-sync-past-history', { minutes: 360 }, internal.scores.syncPastHistoryAction, {});
 
-
-// ── Live scoreline synchronization — every 5 minutes ──────────────────────────
-// Synchronizes real-time live scorelines and score updates for today's active
-// matches across all sports so the application UI stays current in real time.
-crons.interval('predictor-sync-live-scores', { minutes: 15 }, internal.scores.syncScoresAction, {});
-
-// ── Past match history & outcome settlement — every 3 hours ────────────────────
-// Scans completed matches from past days, fetches final scorelines, updates match
-// statuses to 'finished', and settles PnL historical summaries.
-crons.interval('predictor-sync-past-history', { minutes: 720 }, internal.scores.syncPastHistoryAction, {});
-
-// ── AI performance data bank — hourly recompute ───────────────────────────────
+// ── AI performance data bank — every 6 hours (was hourly) ─────────────────────
 // Re-derives today's accuracy / calibration / Great-Minds / verdict-ranking
-// snapshot and the lifetime aggregate from stored results, so the measurement
-// record stays current even on days when no match finishes during a score-sync
-// window. Idempotent: day rows are upserted, the lifetime row is recomputed.
-crons.interval('predictor-stats-snapshot', { minutes: 60 }, internal.predictorStats.recomputeStatsSnapshot, {});
+// snapshot and the lifetime aggregate from stored results. Every-6-hours keeps
+// the data bank fresh without paying hourly recompute IO.
+crons.interval('predictor-stats-snapshot', { minutes: 360 }, internal.predictorStats.recomputeStatsSnapshot, {});
 
-// ── Accumulative bet-slip grading — every 30 minutes ──────────────────────────
-// settleDayPnl already grades slips after every score-sync cycle, but that path
-// only runs for days that had finished matches to settle. This standalone pass
-// guarantees every open/archived slip gets its legs graded against the stored
-// final scorelines regardless, so the bet-slip history stays current.
-// Idempotent: each leg is graded from its own dayKey and re-grading is a no-op.
-crons.interval('betslip-grading', { minutes: 30 }, internal.betSlips.gradeSlipItems, {});
+// ── Accumulative bet-slip grading — hourly (was 30 min) ────────────────────────
+// Halves the IO of grading; legs are still graded on the same day.
+crons.interval('betslip-grading', { minutes: 60 }, internal.betSlips.gradeSlipItems, {});
 
 // ── Realtime presence sweep — every 10 minutes ───────────────────────────────
 // Removes heartbeat rows older than the presence window so the online counter
 // stays accurate and the table never accumulates stale sessions.
 crons.interval('presence-sweep', { minutes: 10 }, internal.presence.sweepStalePresence, {});
 
-// ── Finished-match retention — daily ───────────────────────────────────────────
-// Completed games accumulate indefinitely by default. When PREDICTOR_RETENTION_DAYS
-// is configured, outdated finished matches (and their verdicts) are wiped once a
-// day per the retention policy; otherwise this job is a no-op.
+// ── Finished-match retention — daily + every 6 hours (was hourly) ─────────────
+// PREDICTOR_RETENTION_DAYS is the primary knob; the 6-hourly pass guarantees
+// sub-day catch-up for any rows aged out between the daily job.
 crons.daily('predictor-retention-finished', { hourUTC: 3, minuteUTC: 30 }, internal.retention.purgeFinishedMatchesAction, {});
+crons.interval('predictor-retention-periodic', { minutes: 360 }, internal.retention.purgeFinishedMatchesAction, {});
 
-// Sub-day retention (RETENTION_HOURS, e.g. 12h) needs an hourly pass; the
-// daily job above remains as a catch-up for day-scale policies.
-crons.hourly('predictor-retention-hourly', { minuteUTC: 24 }, internal.retention.purgeFinishedMatchesAction, {});
-
-// ── Database hygiene sweep — hourly, bounded & incremental ────────────────────
+// ── Database hygiene sweep — every 6 hours, bounded & incremental ─────────────
 // Each pass deletes at most ~1200 expired/over-retention rows (oldest days
-// first) using indexed per-day reads, so it can never hit mutation limits no
-// matter how large the DB grows: finished matches + cascaded verdicts beyond
-// the retention window, dead runs, stale operational audits, dead rate-limit
-// buckets, expired cache rows, orphaned day rows, old drafts, anonymous push
-// subs, expired email tokens. Keeps free-tier storage flat.
-crons.hourly('db-hygiene-sweep', { minuteUTC: 50 }, internal.hygiene.hygieneSweepAction, {});
+// first) using indexed per-day reads. 6-hourly keeps the deployment flat without
+// running the sweep so often that it competes with refresh IO.
+crons.interval('db-hygiene-sweep', { minutes: 360 }, internal.hygiene.hygieneSweepAction, {});
 
-// ── Subscription-expiry enforcement — hourly ──────────────────────────────────
-// Flips lapsed userProfiles.isSubscribed off so expired subscriptions are
-// enforced at the data level (deriveAccess also ignores them on read).
-crons.hourly('subscription-expiry-enforce', { minuteUTC: 12 }, internal.users.expireLapsedSubscriptions, {});
+// ── Subscription-expiry enforcement — every 6 hours ───────────────────────────
+crons.interval('subscription-expiry-enforce', { minutes: 360 }, internal.users.expireLapsedSubscriptions, {});
 
 export default crons;

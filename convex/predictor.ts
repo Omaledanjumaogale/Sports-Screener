@@ -7,6 +7,7 @@ import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { watTodayKey } from './scrapers/sources';
 import { plausiblePair, plausibleTeamName } from './scrapers/fixtures';
+import { repairBasketballLeague } from './scrapers/normalize';
 import { enforceRateLimit } from './rateLimit';
 import { requireMasterPass, requireAdmin } from './access';
 import { logAuditEvent } from './auditLog';
@@ -383,7 +384,14 @@ export function validateFixture(
 
   const normalizedHome = homeRaw ? normalizeName(homeRaw) : '';
   const normalizedAway = awayRaw ? normalizeName(awayRaw) : '';
-  const normalizedLeague = leagueRaw ? serverCanonicalizeLeague(leagueRaw, sportId) : '';
+  let normalizedLeague = leagueRaw ? serverCanonicalizeLeague(leagueRaw, sportId) : '';
+
+  // NBA mislabel repair: women's sides ("Las Vegas Aces W", "Indiana Fever W")
+  // published under the "NBA" label must never carry the NBA total baseline
+  // (221 vs 163) — relabel to WNBA (shared helper in scrapers/normalize).
+  if (sportId === 'basketball') {
+    normalizedLeague = repairBasketballLeague(normalizedLeague, homeRaw, awayRaw);
+  }
 
   if (normalizedHome && normalizedHome.length < 2) issues.push('homeTeam too short');
   if (normalizedAway && normalizedAway.length < 2) issues.push('awayTeam too short');

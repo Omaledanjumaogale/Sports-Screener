@@ -95,7 +95,20 @@ export function convexErrorMessage(err: unknown, fallback = 'Something went wron
     msg = anyErr.message;
   }
   msg = msg.replace(/^\[Request ID: [^\]]+\]\s*/i, '').trim();
-  if (!msg || /^server error$/i.test(msg)) return fallback;
+  // Convex surfaces "plan limits exceeded / disabled" in several shapes: the
+  // CLI shows the plain reason, the HTTP transport redacts it to "Server
+  // Error". When the raw text names the condition directly, translate it.
+  const planDisabled =
+    /free plan limits|deployments? (?:have|has) been disabled|exceeded the (?:free )?plan|please upgrade to a pro plan|account.*paused|team.*paused/i;
+  if (planDisabled.test(msg)) {
+    return 'The AI backend is temporarily offline (free hosting limits reached). Login and live data will resume once hosting resets — nothing is wrong with your credentials.';
+  }
+  if (!msg || /^server error$/i.test(msg)) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return 'You appear to be offline. Reconnect and try again.';
+    }
+    return fallback;
+  }
   return msg;
 }
 
@@ -460,6 +473,11 @@ export const api = {
   predictorOps: {
     purgeMalformedMatches: 'predictor:purgeMalformedMatches',
     purgeWrongSportMatches: 'predictor:purgeWrongSportMatches'
+  },
+  // Emergency storage drain (admin): schedules bounded purge passes so the
+  // free-plan deployment never fills up while unattended.
+  retention: {
+    runAggressivePurge: 'retention:runAggressivePurge'
   },
   scores: {
     triggerScoreSync: 'scores:triggerScoreSync',

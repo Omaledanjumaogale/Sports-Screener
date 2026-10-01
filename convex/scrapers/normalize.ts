@@ -1070,6 +1070,21 @@ export function basketballLeagueProfile(league: string | undefined): { avgTotal:
   return { avgTotal: 162, label: 'Generic league (mid-level)', band: 38 };
 }
 
+// NBA mislabel repair: odds feeds sometimes publish women's sides ("Las Vegas
+// Aces W", "Indiana Fever W", "(W)") under the "NBA" league label. A WNBA game
+// must never inherit the NBA total baseline (221 vs 163) — relabel to WNBA
+// when the women marker rides a team name. Pure + testable.
+const WOMEN_TEAM_MARKER = /(^|\s)(w|\(w\)|women|wmn|feminin[ae]?|femenino)$/i;
+
+export function repairBasketballLeague(league: string | undefined, homeTeam: string, awayTeam: string): string {
+  const lg = String(league || '').trim();
+  if (!/\bnba\b/i.test(lg) || /\bwnba\b/i.test(lg)) return lg;
+  if (WOMEN_TEAM_MARKER.test(String(homeTeam || '').trim()) || WOMEN_TEAM_MARKER.test(String(awayTeam || '').trim())) {
+    return 'WNBA';
+  }
+  return lg;
+}
+
 // The league/format prior for any sport, or null when the league is unknown.
 export function leagueTotalPrior(sportId: string, league?: string): TotalPrior | null {
   const raw = String(league || '');

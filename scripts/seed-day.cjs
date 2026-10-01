@@ -1,4 +1,4 @@
-// Seed a specific dayKey's fixture cache for all 11 predictor sports.
+// Seed a specific dayKey's fixture cache for all 5 predictor sports.
 // Usage: node scripts/seed-day.cjs [tomorrow|today|YYYY-MM-DD]
 //
 // startRefresh returns SILENTLY (alreadyRunning / rate-limited) without
@@ -17,8 +17,7 @@ fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8').split(/\r?\n/)
   var eq = t.indexOf('='); if (eq > 0) envMap[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
 });
 
-var SPORTS = ['football', 'basketball', 'tennis', 'rally', 'hockey', 'baseball',
-  'rugby', 'cricket', 'mma', 'volleyball'];
+var SPORTS = ['football', 'basketball', 'tennis', 'hockey', 'baseball'];
 
 function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 

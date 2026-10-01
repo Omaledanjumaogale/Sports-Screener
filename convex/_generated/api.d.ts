@@ -9,6 +9,7 @@
  */
 
 import type * as access from "../access.js";
+import type * as accountAdmin from "../accountAdmin.js";
 import type * as actionCache from "../actionCache.js";
 import type * as agents_agentDefinitions from "../agents/agentDefinitions.js";
 import type * as agents_jevEvaluator from "../agents/jevEvaluator.js";
@@ -67,6 +68,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   access: typeof access;
+  accountAdmin: typeof accountAdmin;
   actionCache: typeof actionCache;
   "agents/agentDefinitions": typeof agents_agentDefinitions;
   "agents/jevEvaluator": typeof agents_jevEvaluator;

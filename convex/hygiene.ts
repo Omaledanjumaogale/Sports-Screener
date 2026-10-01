@@ -22,6 +22,7 @@
 import { internalMutation, internalAction } from './_generated/server';
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
+import { retentionDaysFromEnv } from './retentionPolicy';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -54,14 +55,19 @@ export function isOperationalAuditRow(action: string): boolean {
  * Each pass processes at most MAX_DAYS oldest stale days with a total delete
  * budget of MAX_DELETES, and only reads via indexed per-day queries — so a
  * pass can never blow the per-mutation read/write limits no matter how large
- * the database grows. Registered hourly: steady-state cleanup happens within
- * hours of data aging out, with tiny per-pass cost (free-tier friendly).
+ * the database grows. Registered every 6 hours.
+ *
+ * Storage-cut pass: also STRIPS `oddsSnapshot` from finished matches older
+ * than 48h. `oddsSnapshot` is the largest payload stored on a match row
+ * (full odds book per market) and is only needed while the match is in-play.
+ * After it finishes, the snapshot is dead weight.
  */
 export const hygieneSweep = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
     const summary: Record<string, number> = {
+      total: 0,
       matches: 0,
       verdicts: 0,
       runs: 0,
@@ -70,6 +76,9 @@ export const hygieneSweep = internalMutation({
       actionCache: 0,
       days: 0,
       drafts: 0,
+      snapshotsStripped: 0,
+      authSessions: 0,
+      authRefreshTokens: 0,
       daysProcessed: 0
     };
 
@@ -77,10 +86,9 @@ export const hygieneSweep = internalMutation({
     const MAX_DAYS = 4;
 
     // 1) Finished matches + cascaded verdicts older than the retention window
-    //    (default 14d, PREDICTOR_RETENTION_DAYS overrides). Oldest days first.
-    const days = Number(process.env.PREDICTOR_RETENTION_DAYS || '') > 0
-      ? Number(process.env.PREDICTOR_RETENTION_DAYS)
-      : 14;
+    //    (PREDICTOR_RETENTION_DAYS, default 7d — retentionPolicy.ts owns the
+    //    default). Oldest days first.
+    const days = retentionDaysFromEnv(process.env);
     const cutoff = now - days * 86_400_000;
     const cutoffDay = new Date(cutoff).toISOString().slice(0, 10);
 
@@ -137,7 +145,32 @@ export const hygieneSweep = internalMutation({
       }
     }
 
-    // 2) predictorRuns — one-off progress rows, useless after 2 days. Runs are
+    // 2) Storage cut: STRIP `oddsSnapshot` from finished matches older than
+    //    48h. This is the heaviest payload per match row, and it is only
+    //    meaningful while the match is in-play or just-finished. Strips use
+    //    the existing `by_sport_startTime` index so they are bounded reads.
+    if (summary.total < MAX_DELETES) {
+      const stripCutoff = now - 48 * 60 * 60 * 1000;
+      // Per-sport indexed reads so a single pass can never read more than
+      // PREDICTOR_SPORT_IDS.length * 200 rows.
+      const sports = ['football', 'basketball', 'tennis', 'hockey', 'baseball'] as const;
+      for (const sportId of sports) {
+        if (summary.snapshotsStripped >= 500) break;
+        const rows = await ctx.db
+          .query('predictorMatches')
+          .withIndex('by_sport_startTime', (q) => q.eq('sportId', sportId).lt('startTime', stripCutoff))
+          .take(200);
+        for (const m of rows) {
+          if (summary.snapshotsStripped >= 500) break;
+          if (m.oddsSnapshot) {
+            await ctx.db.patch(m._id, { oddsSnapshot: undefined });
+            summary.snapshotsStripped++;
+          }
+        }
+      }
+    }
+
+    // 3) predictorRuns — one-off progress rows, useless after 2 days. Runs are
     //    small; sweep by scan is safe here (purgeOld bounds their lifetime).
     const oldRuns = await ctx.db.query('predictorRuns').collect();
     for (const r of oldRuns) {
@@ -147,7 +180,7 @@ export const hygieneSweep = internalMutation({
       }
     }
 
-    // 3) auditEvents — payments/auth/roles are permanent; operational rows
+    // 4) auditEvents — payments/auth/roles are permanent; operational rows
     //    capped at 500 newest. Read via by_createdAt (small rows), take(2000).
     const audits = await ctx.db
       .query('auditEvents')
@@ -160,7 +193,7 @@ export const hygieneSweep = internalMutation({
       summary.audits++;
     }
 
-    // 4) rateLimitBuckets — dead windows (small rows, indexed read).
+    // 5) rateLimitBuckets — dead windows (small rows, indexed read).
     const buckets = await ctx.db
       .query('rateLimitBuckets')
       .withIndex('by_window', (q) => q.lt('windowStart', now - 3_600_000))
@@ -172,7 +205,7 @@ export const hygieneSweep = internalMutation({
       }
     }
 
-    // 5) actionCache — expired rows only (indexed read, bounded by expiry).
+    // 6) actionCache — expired rows only (indexed read, bounded by expiry).
     const cacheRows = await ctx.db
       .query('actionCache')
       .withIndex('by_expiresAt', (q) => q.lt('expiresAt', now))
@@ -182,7 +215,7 @@ export const hygieneSweep = internalMutation({
       summary.actionCache++;
     }
 
-    // 6) drafts — untouched for 90 days (indexed read).
+    // 7) drafts — untouched for 90 days (indexed read).
     const draftRows = await ctx.db
       .query('drafts')
       .withIndex('by_updatedAt', (q) => q.lt('updatedAt', now - 90 * 86_400_000))
@@ -192,7 +225,7 @@ export const hygieneSweep = internalMutation({
       summary.drafts++;
     }
 
-    // 7) Anonymous push rows + expired email tokens (their own modules).
+    // 8) Anonymous push rows + expired email tokens (their own modules).
     try {
       await ctx.runMutation(internal.pushSubscriptions.sweepStale, {});
     } catch { /* table may be empty — fine */ }
@@ -200,12 +233,42 @@ export const hygieneSweep = internalMutation({
       await ctx.runMutation(internal.email.sweepExpiredTokens, {});
     } catch { /* nothing pending — fine */ }
 
+    // 9) Convex auth tables — sessions + refresh tokens older than 24h are
+    //    dead storage. Bounded by the shared delete budget.
+    if (summary.total < MAX_DELETES) {
+      const sessionCutoff = now - 24 * 60 * 60 * 1000;
+      try {
+        const sessions = await ctx.db.query('authSessions').collect();
+        for (const s of sessions) {
+          const exp = (s as any).expirationTime ?? (s as any).expiresAt ?? 0;
+          if (!exp || exp < sessionCutoff) {
+            await ctx.db.delete(s._id);
+            summary.authSessions++;
+            summary.total++;
+          }
+        }
+      } catch { /* table may not exist */ }
+    }
+    if (summary.total < MAX_DELETES) {
+      try {
+        const tokens = await ctx.db.query('authRefreshTokens').collect();
+        for (const t of tokens) {
+          const exp = (t as any).expirationTime ?? (t as any).expiresAt ?? 0;
+          if (!exp || exp < now - 5 * 60 * 1000) {
+            await ctx.db.delete(t._id);
+            summary.authRefreshTokens++;
+            summary.total++;
+          }
+        }
+      } catch { /* table may not exist */ }
+    }
+
     // Stamp cron health so /api/health reflects the sweep.
     try {
       await ctx.runMutation(internal.cronHealth.stampCron, {
         job: 'hygiene',
         ok: true,
-        note: `m:${summary.matches} v:${summary.verdicts} d:${summary.daysProcessed}`
+        note: `m:${summary.matches} v:${summary.verdicts} strip:${summary.snapshotsStripped} d:${summary.daysProcessed}`
       });
     } catch { /* health row is best-effort */ }
 

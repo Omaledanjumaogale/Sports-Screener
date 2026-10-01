@@ -8,7 +8,7 @@
 import { internalMutation, query } from './_generated/server';
 import { v } from 'convex/values';
 
-const ROWS = ['orchestrator', 'scoreSync', 'pastHistory', 'presence', 'retention', 'purge', 'hygiene'] as const;
+const ROWS = ['orchestrator', 'scoreSync', 'pastHistory', 'presence', 'retention', 'purge', 'hygiene', 'purgeAggressive'] as const;
 export type CronRow = (typeof ROWS)[number];
 
 export const stampCron = internalMutation({

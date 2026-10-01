@@ -368,6 +368,17 @@
       () => callConvex(api.predictorOps.purgeWrongSportMatches, { sportId: 'football' }),
       'Wrong-sport rows purged from the football cache.'
     );
+
+  // Emergency storage drain — the free plan fills up with finished matches,
+  // verdict payloads, dead auth sessions/refresh tokens and stale scheduled
+  // one-shots. One click schedules 8 bounded purge passes (30s apart).
+  const storageDrain = () =>
+    run(
+      'drain',
+      () =>
+        callConvex<{ scheduled: number }>(api.retention.runAggressivePurge, { passes: 8, maxDeletesPerPass: 6000 }),
+      'Emergency storage drain scheduled — 8 purge passes over the next few minutes.'
+    );
 </script>
 
 <svelte:head>

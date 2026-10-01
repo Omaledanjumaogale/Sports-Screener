@@ -76,6 +76,15 @@ export async function requireMasterPass(ctx: QueryCtx): Promise<AccessStatus> {
   return access;
 }
 
+/** Throw when the caller of an ACTION is not the super admin. */
+export async function requireAdminInAction(ctx: {
+  runQuery: (ref: any, args?: any) => Promise<any>;
+}): Promise<AccessStatus> {
+  const access: AccessStatus | null = await ctx.runQuery(internal.access.forCaller, {});
+  if (!access || !access.isAdmin) throw new ConvexError('Admin access required.');
+  return access;
+}
+
 /** Hard gate: super admin only. */
 export async function requireAdmin(ctx: QueryCtx): Promise<AccessStatus> {
   const access = await currentAccess(ctx);

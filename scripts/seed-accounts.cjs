@@ -8,6 +8,11 @@
 // under BOTH the configured casing and its lowercase form (idempotent).
 //
 // Usage: node scripts/seed-accounts.cjs   (reads .env.local)
+//
+// SHELL-QUOTING: passwords containing '&' or '#' MUST be quoted when running
+// from a shell so the shell doesn't split them or treat '#' as a comment:
+//     node scripts/seed-accounts.cjs    (reads .env.local, safe)
+//     npm run seed:accounts             (npm sets env from .env.local)
 var fs = require('fs');
 
 var envMap = {};

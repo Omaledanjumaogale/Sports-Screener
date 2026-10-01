@@ -291,10 +291,21 @@ export const settleDayPnl = internalAction({
         const matches = await ctx.runQuery(internal.predictor.getCachedMatches, { sportId: sport, dayKey });
         if (!matches || matches.length === 0) continue;
 
+        // ONE bulk read for every verdict on this (sport, day) instead of one
+        // query per finished match. The 30-minute score sync used to pay
+        // hundreds of per-match verdict lookups per cycle — the single largest
+        // read-amplification source in the free-plan budget.
+        const verdictRows = await ctx.runQuery(internal.predictor.getVerdictsForDay, { sportId: sport, dayKey });
+        const verdictsByMatchId = new Map<string, any>();
+        for (const v of (verdictRows ?? []) as any[]) {
+          if (v?.matchId && v?.aiReport) verdictsByMatchId.set(v.matchId, v);
+        }
+        if (verdictsByMatchId.size === 0) continue;
+
         for (const m of matches) {
           if (m.status !== 'finished' || !m.finalScore) continue;
-          const verdict = await ctx.runQuery(internal.predictor.getVerdictInternal, { dayKey, matchId: m.matchId }).catch(() => null);
-          if (!verdict?.aiReport) continue;
+          const verdict = verdictsByMatchId.get(m.matchId);
+          if (!verdict) continue;
           const topN = Array.isArray(verdict.aiReport.top3Selections) ? verdict.aiReport.top3Selections : [];
           if (topN.length === 0) continue;
 
@@ -372,22 +383,26 @@ export const settleDayPnl = internalAction({
 
     // Persist the monitoring snapshot for this day (accuracy by signal band,
     // calibration gap, Great-Minds rank/provider performance, verdict rankings)
-    // AND re-derive the lifetime aggregate. This is the AI data bank: it runs on
-    // every score-sync cycle, so the stored record of how the predictions
-    // performed grows continuously with the finished results.
-    try {
-      await ctx.scheduler.runAfter(0, internal.predictorStats.recomputeStatsSnapshot, { dayKey });
-    } catch (err: any) {
-      console.error(`[SettlePnl] stats snapshot schedule ${dayKey}:`, err?.message || err);
-    }
+    // AND re-derive the lifetime aggregate — but ONLY when this cycle actually
+    // graded picks. The recompute has its own 6-hourly cron; chaining it after
+    // every 30-minute score sync (even when nothing settled) doubled the job
+    // count and paid a full per-day read pass for nothing.
+    if (picks > 0) {
+      try {
+        await ctx.scheduler.runAfter(0, internal.predictorStats.recomputeStatsSnapshot, { dayKey });
+      } catch (err: any) {
+        console.error(`[SettlePnl] stats snapshot schedule ${dayKey}:`, err?.message || err);
+      }
 
-    // Grade the users' accumulative bet slips against the same finished results
-    // (same grader as the verdict P&L), so finished slips show final scorelines
-    // and which legs won or failed without any manual action.
-    try {
-      await ctx.scheduler.runAfter(0, internal.betSlips.gradeSlipItems, {});
-    } catch (err: any) {
-      console.error(`[SettlePnl] bet slip grading schedule ${dayKey}:`, err?.message || err);
+      // Grade the users' accumulative bet slips against the same finished results
+      // (same grader as the verdict P&L), so finished slips show final scorelines
+      // and which legs won or failed without any manual action. Chained only when
+      // new picks settled — the hourly betslip-grading cron covers the rest.
+      try {
+        await ctx.scheduler.runAfter(0, internal.betSlips.gradeSlipItems, {});
+      } catch (err: any) {
+        console.error(`[SettlePnl] bet slip grading schedule ${dayKey}:`, err?.message || err);
+      }
     }
 
     return { picks, wins, losses, dayKey };

@@ -1,0 +1,19 @@
+feat(ops): account repair action, storage-drain fixes, WNBA league repair
+
+- accountAdmin.resetAccountPassword: super-admin action to repair accounts
+  seeded with a stale password hash (retrieveAccount/modifyAccountCredentials/
+  invalidateSessions) + scripts/reset-tester.cjs — tester login restored
+- retention: per-sport indexed match purge (by_sport_startTime needs the
+  sportId prefix), logAuditEvent arg order fixed, purgeAggressive cron-health
+  row added; crons.ts duplicate module body removed
+- hygiene/retention policy: env-configured windows default to 7d matches /
+  3d verdicts; tests updated to the new default policy
+- predictor.validateFixture: NBA-mislabeled women fixtures ("Las Vegas Aces W
+  vs Indiana Fever W") relabel to WNBA via shared repairBasketballLeague so
+  WNBA games never inherit the 221-point NBA total baseline; 3 regression
+  tests pin the repair
+- admin page: api.retention.runAggressivePurge added to the client api map,
+  dead string fallback removed
+- seed-day/populate scripts trimmed to the 5 live predictor sports
+
+Co-authored-by: CommandCodeBot <noreply@commandcode.ai>

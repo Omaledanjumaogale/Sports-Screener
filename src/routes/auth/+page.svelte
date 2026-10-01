@@ -54,6 +54,20 @@
       }
     }
 
+    // Validate the credential fields before any backend round-trip. A blank
+    // email/password produces an opaque "Server Error" from the auth provider
+    // and was making real customers think their credentials were wrong.
+    if (!typedEmail || !password) {
+      error = 'Enter both your email and password to continue.';
+      loading = false;
+      return;
+    }
+    if (password.length < 8) {
+      error = 'Passwords are at least 8 characters long.';
+      loading = false;
+      return;
+    }
+
     try {
       // Real Convex Password-provider auth. Admin/tester accounts are provisioned
       // server-side (seeded) and always log in — never sign up. No local
@@ -67,7 +81,20 @@
         res = await convexSignIn({ email: cleanEmail, password, flow });
       }
       if (!res?.token) {
-        throw new Error(isSignUp ? 'Could not create account. Please try again.' : 'Invalid credentials. Access denied.');
+        // Distinguish "no such account" from "wrong password" from "backend
+        // unreachable". The auth provider throws plain Errors with messages like
+        // "Invalid credentials" that Convex redacts to "Server Error" on prod,
+        // so the safe UI message is "could not verify credentials".
+        if (isAdmin || isTester) {
+          throw new Error(
+            'Could not verify the admin/tester credentials. If this is a new deployment, the account must be seeded first (run `node scripts/seed-accounts.cjs`). Otherwise double-check the email and password — note that special characters like #, &, % must be entered exactly as issued.'
+          );
+        }
+        throw new Error(
+          isSignUp
+            ? 'Could not create your account. The email may already be registered, or the password may not meet the security policy.'
+            : 'Could not sign you in. Check your email and password — special characters like #, &, % must be entered exactly.'
+        );
       }
       const token = res.token;
       const userId = res.subject || 'user_' + Math.random().toString(36).slice(2, 10);

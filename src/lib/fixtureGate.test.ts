@@ -3,6 +3,7 @@
 // matches", standings rows, nav links), while REAL team/player names pass.
 import { describe, it, expect } from 'vitest';
 import { plausibleTeamName, plausiblePair, parseFixtures } from '../../convex/scrapers/fixtures';
+import { repairBasketballLeague } from '../../convex/scrapers/normalize';
 
 describe('plausibleTeamName — garbage that must NEVER be a fixture side', () => {
   const GARBAGE = [
@@ -76,6 +77,21 @@ describe('plausiblePair — pair-level sanity', () => {
   it('accepts a real pair', () => {
     expect(plausiblePair('Al Jazira', 'Al Ittihad')).toBe(true);
     expect(plausiblePair('Hapoel Tel Aviv', 'Bayern München')).toBe(true);
+  });
+});
+
+describe('repairBasketballLeague — NBA mislabel on women fixtures', () => {
+  it('relabels NBA → WNBA when a team carries the women marker', () => {
+    expect(repairBasketballLeague('NBA', 'Las Vegas Aces W', 'Indiana Fever W')).toBe('WNBA');
+    expect(repairBasketballLeague('NBA', 'Connecticut Sun (W)', 'New York Liberty')).toBe('WNBA');
+    expect(repairBasketballLeague('NBA', 'Fenerbahce Women', 'Galatasaray')).toBe('WNBA');
+  });
+  it('leaves genuine NBA games untouched', () => {
+    expect(repairBasketballLeague('NBA', 'Boston Celtics', 'Los Angeles Lakers')).toBe('NBA');
+    expect(repairBasketballLeague('NBA', 'Milwaukee Bucks', 'Denver Nuggets')).toBe('NBA');
+  });
+  it('never touches an already-WNBA label', () => {
+    expect(repairBasketballLeague('WNBA', 'Las Vegas Aces', 'Indiana Fever')).toBe('WNBA');
   });
 });
 

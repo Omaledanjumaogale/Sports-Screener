@@ -6,12 +6,12 @@ const NOW = Date.UTC(2026, 7, 11, 12, 0, 0); // 2026-08-11 12:00 UTC
 const CUTOFF = NOW - 2 * DAY; // a 2-day retention window
 
 describe('retentionDaysFromEnv', () => {
-  it('0 / unset / invalid = keep everything forever (default policy)', () => {
-    expect(retentionDaysFromEnv({})).toBe(0);
-    expect(retentionDaysFromEnv({ PREDICTOR_RETENTION_DAYS: '0' })).toBe(0);
-    expect(retentionDaysFromEnv({ PREDICTOR_RETENTION_DAYS: '-5' })).toBe(0);
-    expect(retentionDaysFromEnv({ PREDICTOR_RETENTION_DAYS: 'abc' })).toBe(0);
-    expect(retentionDaysFromEnv({ PREDICTOR_RETENTION_DAYS: '  ' })).toBe(0);
+  it('0 / unset / invalid falls back to DEFAULT_MATCH_RETENTION_DAYS (7)', () => {
+    expect(retentionDaysFromEnv({})).toBe(7);
+    expect(retentionDaysFromEnv({ PREDICTOR_RETENTION_DAYS: '0' })).toBe(7);
+    expect(retentionDaysFromEnv({ PREDICTOR_RETENTION_DAYS: '-5' })).toBe(7);
+    expect(retentionDaysFromEnv({ PREDICTOR_RETENTION_DAYS: 'abc' })).toBe(7);
+    expect(retentionDaysFromEnv({ PREDICTOR_RETENTION_DAYS: '  ' })).toBe(7);
   });
   it('parses a positive integer policy and floors fractions', () => {
     expect(retentionDaysFromEnv({ PREDICTOR_RETENTION_DAYS: '7' })).toBe(7);
