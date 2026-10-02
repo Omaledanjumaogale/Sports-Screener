@@ -1,17 +1,10 @@
 /**
  * audit-pwa.mjs — Lighthouse PWA audit for the PulseOdds production site.
  *
- * Checks the three PWA pillars after every deploy:
- *   1. Installability + manifest validity + SW presence — Lighthouse's
- *      `installable-manifest` audit (v11) verifies the web manifest (name,
- *      short_name, icons 192+512, display, start_url) AND that a service
- *      worker with a fetch handler is registered.
- *   2. PWA-optimized details — maskable icon, theme color, viewport,
- *      splash screen, content width (warnings, not blockers).
- *   3. Offline capability — Lighthouse 11 no longer ships an `offline`
- *      audit, so we cross-check with a Playwright pass that reloads the
- *      start_url with the network emulated offline and asserts the shell
- *      renders from the service worker cache.
+ * Measures mobile performance, accessibility and best practices with
+ * Lighthouse 13. Playwright separately checks manifest fields, loadable
+ * 192/512 icons, a controlling service worker and offline shell reload.
+ * These prerequisites do not guarantee install prompts on every platform.
  *
  * Chrome is launched via Playwright (which handles executable discovery on
  * this machine) and handed to Lighthouse over the remote-debugging port.
@@ -30,12 +23,11 @@ import * as chromeLauncher from 'chrome-launcher';
 
 const target = process.argv[2] || process.env.AUDIT_URL || 'https://pulseodds.ewinproject.org';
 
-// Lighthouse 11 PWA category — `installable-manifest` is the installability
-// gate; the rest are PWA-optimized signals we report but don't block on.
+// Lighthouse 13 has no PWA category; browser checks below cover prerequisites.
 const config = {
   extends: 'lighthouse:default',
   settings: {
-    onlyCategories: ['pwa'],
+    onlyCategories: ['performance', 'accessibility', 'best-practices'],
     formFactor: 'mobile',
     screenEmulation: { mobile: true, width: 390, height: 844, deviceScaleFactor: 2 },
     throttlingMethod: 'simulate',
@@ -80,14 +72,45 @@ try {
   writeFileSync(reportFile, JSON.stringify(lhr, null, 2));
   console.log(`    Report saved to ${reportFile}`);
 
-  results.score = lhr.categories?.pwa?.score ?? null;
+  results.score = lhr.categories?.performance?.score ?? null;
   for (const id of Object.keys(lhr.audits ?? {})) {
     const a = lhr.audits[id];
     if (!a || typeof a.score !== 'number') continue;
     results.audits[id] = { score: a.score, display: a.displayValue ?? '', title: a.title, manual: a.scoreDisplayMode === 'manual' };
   }
 
-  console.log(`    PWA score: ${results.score === null ? 'n/a' : Math.round(results.score * 100)}/100\n`);
+  console.log(`    Performance score: ${results.score === null ? 'n/a' : Math.round(results.score * 100)}/100\n`);
+
+  // A failed bootstrap can produce an artificially high performance score.
+  // Do not accept a run with console errors as a release-quality measurement.
+  if (lhr.audits?.['errors-in-console']?.score === 0) {
+    failed = true;
+    console.log('  [FAIL] Browser console errors observed; investigate the raw report before accepting performance results.');
+  }
+
+  // Lighthouse 13 removed its PWA category. Check the manifest and controlling
+  // service worker explicitly rather than treating a missing audit as a failure.
+  const manifestBrowser = await chromium.launch({ headless: true });
+  try {
+    const manifestPage = await manifestBrowser.newPage();
+    await manifestPage.goto(target, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const manifestHref = await manifestPage.locator('link[rel="manifest"]').getAttribute('href');
+    if (!manifestHref) throw new Error('Manifest link is missing');
+    const manifestUrl = new URL(manifestHref, target);
+    const manifestResponse = await manifestPage.request.get(manifestUrl.href);
+    if (!manifestResponse.ok()) throw new Error('Manifest could not be loaded');
+    const manifest = await manifestResponse.json();
+    const icons = Array.isArray(manifest.icons) ? manifest.icons : [];
+    const iconsValid = ['192x192', '512x512'].every((size) => icons.some((icon) => String(icon.sizes || '').split(/\s+/).includes(size)));
+    let iconsLoad = true;
+    for (const icon of icons) {
+      const response = await manifestPage.request.get(new URL(icon.src, manifestUrl).href);
+      iconsLoad = iconsLoad && response.ok() && (response.headers()['content-type'] || '').startsWith('image/');
+    }
+    await manifestPage.waitForFunction(() => !!navigator.serviceWorker.controller, undefined, { timeout: 30000 });
+    const valid = !!(manifest.name || manifest.short_name) && !!manifest.start_url && ['standalone', 'fullscreen', 'minimal-ui'].includes(manifest.display) && iconsValid && iconsLoad;
+    results.audits['installable-manifest'] = { score: valid ? 1 : 0, title: 'Manifest and service-worker prerequisites (Playwright)', display: '', manual: false };
+  } finally { await manifestBrowser.close(); }
 
   // Pillar 1 — installability + manifest + SW (the hard gate).
   const inst = results.audits['installable-manifest'];
@@ -140,7 +163,7 @@ if (!failed) {
           const regs = await navigator.serviceWorker.getRegistrations();
           return regs.length > 0 && navigator.serviceWorker.controller !== null;
         },
-        { timeout: 30_000 }
+        undefined, { timeout: 30_000 }
       )
       .catch(() => false);
     await page.goto(new URL('/predictor/football', target).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
@@ -161,7 +184,7 @@ if (!failed) {
             return false;
           }
         },
-        { timeout: 15_000 }
+        undefined, { timeout: 15_000 }
       )
       .catch(() => {});
 

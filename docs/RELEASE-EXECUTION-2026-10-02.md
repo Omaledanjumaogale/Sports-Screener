@@ -1,0 +1,77 @@
+# Release execution — 2 October 2026
+
+This report supersedes the remaining-requirements table in PRODUCTION-AUDIT-2026-10-02.md. Production backend work was executed; remaining external acceptance is identified below. No performance or profitability certification is implied.
+
+## Implemented and executed
+
+- Removed all three hero scene components and their imports. Removed Three.js, Threlte and Three type packages. The responsive hero artwork remains; no floating sports icons or interactive canvas remains.
+- Deployed Convex production functions, schema and indexes to gallant-minnow-735 before the frontend release. Verified administrator login, operations snapshot, Copilot entitlement and anonymous rejection against this deployment.
+- Tester registration now creates or authenticates a personal Password-provider account. Registration requires the authenticated email, binds the code to a verified account ID, and activation rejects other accounts, wrong devices, suspended/revoked codes and pending reviews. Legacy shared login is retired. Legacy personal-account claims require administrator approval and preserve the original trial clock. Passwords are handled by Convex Auth, not stored as unused fingerprints.
+- Registration no longer collects NIN. Removed raw NIN and unused password fingerprints from 8 of 13 existing tester-code rows after a dry run and private backup. No non-sensitive registration details or trial windows were deleted.
+- Reviewed cloud ownership using bounded, audited batches. Drafts and saved screeners were empty; 7 bet slips were safely skipped because no verified ordinary-account migration was possible. Shared/anonymous ownership must not be guessed.
+- Inventory scanned 1,202 historical text blobs and current tracked files against configured active credential values and base64 representations without printing them. Two historical blobs contained the active Flutterwave webhook secret. Invalidated that secret on Convex. Also rotated administrator and retired shared-account passwords, invalidated their sessions and verified the new administrator credential.
+- Payment fulfillment is an internal mutation. Webhooks require HMAC-SHA256 signatures by default, re-query Flutterwave, validate customer/reference/transaction/NGN/exact plan amounts and settle idempotently. Legacy verif-hash is allowed only through explicit server configuration and still requires provider reverification. Missing profiles fail before consuming settlement. Payment verification has a 15-second provider timeout.
+- Checkout waits for server access confirmation; it no longer assigns a local 30-day expiry. Removed the unused optimistic subscription setter. Replayed or expired transactions cannot mint a new local access window.
+- Recovery exposes service availability, supports configurable sender identity and case-sensitive legacy account IDs, has rate-limited cryptographic codes, atomic consumption and session invalidation. The UI reports unavailable delivery rather than pretending to send email when the service is absent.
+- Push delivery is explicitly unavailable. Both client enablement and backend enabled-preference writes reject until a verified sender is introduced.
+- Added actual streamed Copilot body-size limits and message/token/temperature validation. Added CSP alongside existing transport, framing, MIME and referrer headers.
+- Added indexed subscription-expiry batches, cursor-based bet-slip grading and score sanitation, bounded tester/session/profile reads and paginated operational accounts. Some historical/statistical paths still need load testing and further pagination; bounded sample labels are shown rather than claiming global totals.
+- Added immutable first pre-kickoff prediction reports, odds, source, quality, capture/start time and model provenance. Score sync preserves the first validated final score in the archive. Implemented Brier score, log loss, observed win rate and calibration from resolved archived probabilities; pushes and qualitative probabilities are excluded. Gross ROI is available only when a retained pick contains actual decimal odds, and does not include fees/slippage.
+- Corrected public refresh schedule copy and labels that falsely implied calls to named external AI models. Scenario-model agreement is explicitly described as correlated deterministic analysis. Actual provider-backed analysis remains separate.
+- Added five connected administrator views: Performance, Services, Accounts, Evidence and Migrations. Includes date-window charts with accessible source tables, live service/configuration/error data, feature controls, cursor-paginated inventory, evidence metrics, migration previews and JSON report export. Empty samples display unavailable metrics.
+
+## Credential and backup handling
+
+Private files are ignored by Git and their directories restrict inherited Windows access to the current user:
+
+- `.secrets/release-admin-credentials.json`: new administrator email/password. Do not paste into chat or commit.
+- `.secrets/flutterwave-webhook-secret.txt`: replacement webhook secret to configure in Flutterwave.
+- `.secrets/admin-password.txt` and `.secrets/retired-tester-password.txt`: rotation inputs.
+- `backups/release-2026-10-02.zip`: pre-minimization production database snapshot; 68 archive entries, 5,726,694 bytes. SHA-256: `59F7D168861FF7D9E1A3E0F7DC14E56FB7279816218511FE8FE8E2BB082E8756`.
+
+This snapshot contains historical personal data and authentication records. Keep it private, verify restoration into isolated staging, then remove the superseded copy according to retention policy. Download/readability was verified; restoration was not performed against production.
+
+## Requirements still dependent on external access or evidence
+
+| Priority | Remaining requirement | Concrete blocker / next action |
+| --- | --- | --- |
+| P0 | Isolated authenticated staging matrix | Deployment creation was rejected with the current production deploy key. The saved interactive login also could not access this project. Connect the correct Convex account/project key or supply an existing staging deployment. Real administrator checks and server regression tests are available; do not represent them as the complete multi-role staging matrix |
+| P0 | Flutterwave dashboard and sandbox acceptance | Update dashboard secret from the private replacement file and confirm its signature scheme. v3 verif-hash requires explicitly enabling FLW_ALLOW_LEGACY_WEBHOOK=true; HMAC uses flutterwave-signature. Enable provider retries. Test delayed, duplicate/concurrent, failed, interrupted and wrong-customer/reference/currency/amount payments in sandbox. No real charge was made |
+| P0 | Historical provider revocation evidence | The inventory checked current configured values against tracked source/history and rotated the detected live exposure. Older credentials absent from current configuration may still be valid in provider accounts. Verify their revocation in each provider dashboard; a source scan or current-value mismatch is not evidence of revocation |
+| P1 | Recovery email delivery | Production has no RESEND_API_KEY / RESEND_FROM. Configure a verified sender domain, then test delivery, expiry/reuse, rate limits, credential rotation and old-session rejection. Recovery currently reports unavailable |
+| P1 | Legacy tester transitions | Approve verified personal-account claims in the admin console. Browser device IDs remain an application restriction, not hardware attestation. Email ownership verification/MFA and device-change review remain future identity hardening |
+| P1 | Remaining ownership attribution | Seven ambiguous slips were not reassigned. Review source identities with an audited mapping; do not reopen caller-supplied ownership bypasses |
+| P1 | Prediction evidence | The archive starts with this release. A held-out season/league evaluation cannot be manufactured retroactively. Evaluate prospective data by sport/market/date, quality and sample size; retain exact model/data versions, actual prices, fees and odds movement. Capacity and archival retention must be agreed before long-term growth |
+| P1 | Capacity and resilience | Export exists, but restore drill, paid quota sizing, peak/concurrent load tests, alert delivery, availability/recovery targets and incident ownership need project/operator acceptance. Existing CI and uptime workflows remain in place; check their runs and notification delivery |
+| P2 | Device/performance acceptance | Controlled production Core Web Vitals, keyboard/screen-reader acceptance and real touch/low-memory devices remain. WebGL acceptance is no longer applicable because the scene and dependencies were removed |
+| P1 | Privacy lifecycle and abuse capacity | Raw NIN and unused password fingerprints were removed; define retention/deletion for remaining contact/usage records and private backups. Validate registration/code-lookup and telemetry limits under hostile concurrent traffic; successful bounded checks alone do not establish abuse resistance |
+
+## Operational release sequence
+
+1. Use Node 22.19+ and npm ci; run tests, frontend and Convex checks, then build.
+2. Deploy Convex and verify the public deployment URL before publishing Pages functions/assets. Do not publish protected Copilot against a backend missing users:authorizeCopilot.
+3. Configure provider secrets through secure files/dashboard. Never put secret values in Git, logs, browser bundles or chat. Verify production CSP and route rewrites after Pages publication.
+4. Test real role/session/payment/email behavior in isolated staging. Observe the deployed health endpoint and CI/uptime jobs.
+5. If a release fails, disable affected features through server feature controls and redeploy the verified compatible frontend/backend revision. Avoid restoring an older backend that reintroduces ownership/payment security defects.
+6. Restore the private snapshot into staging only, check record counts and representative owner access, then document restore duration and recovery objectives. Do not overwrite production as a test.
+
+Validation artifacts under tmp/production-audit are local and ignored: release-tests.log, release-typecheck.log, release-build.log, backend-deploy.log, live-release-verification.json, credential-inventory.json, pii-preview.log, pii-applied.log, results.json and authenticated-results.json. Final publication and test results are recorded in the closing validation note.
+
+References: [Flutterwave v3 webhook handling](https://developer.flutterwave.com/docs/webhooks), [Flutterwave HMAC webhook handling](https://developer.flutterwave.com/v4.0.0/docs/webhooks), [transaction verification](https://developer.flutterwave.com/docs/transaction-verification), [Convex deployment targeting](https://docs.convex.dev/cli/reference/deploy).
+
+## Closing validation — published production release
+
+- Unit regression gate: 33 suites passed, 385 tests passed, 1 skipped. Frontend diagnostics: zero errors and zero warnings. Convex typecheck and production build passed. Dependency audit reported zero known vulnerabilities; this is not a complete security certification.
+- Backend functions, schema and indexes were deployed before frontend publication. Production health returned `ok`, with no stale job flags at verification.
+- Published Pages release: https://18e662ca.sports-screener.pages.dev, served through https://pulseodds.ewinproject.org. This publication includes accessibility/CSP, mobile compositing and copy follow-ups; the prior route-acceptance deployment was https://f85112a4.sports-screener.pages.dev.
+- Live acceptance exposed a Cloudflare-specific deep-link defect: rewrites to `/200.html` received a canonical redirect to `/200`. Rewrites now target `/200` internally, preserving the requested URL and post-login destination. Verified direct HTTP responses for screeners, login and predictor detail routes. See [Cloudflare HTML URL normalization](https://developers.cloudflare.com/pages/configuration/serving-pages/).
+- Authenticated administrator browser acceptance: 20 checks passed, including the operations views, account pagination, migration dry run, all 13 screeners, predictor overview/sport and bet slips. No uncaught UI errors were observed. This does not replace the still-required isolated multi-role matrix.
+- Anonymous/responsive production browser acceptance: 32 checks passed at 390, 768 and 1440 pixels, including loaded artwork, no horizontal overflow, no hero canvas, reduced/normal motion visibility, all protected route destinations and registration/recovery forms. No uncaught browser errors were observed. The lazy-image check scrolls the image itself into view before checking its resource load.
+- Published canary: nine checks passed. Six public/protected shell routes retain their URLs and serve CSP; anonymous AI requests return 401; an authenticated administrator AI request returns 200 through the configured provider; backend health is healthy.
+- Sensitive credentials, production backup, logs and screenshots remain ignored and were excluded from commits. The administrator credential changed; operators must retrieve it from the private local file. The replacement webhook secret must be synchronized with Flutterwave before webhook acceptance.
+- The first production mobile Lighthouse run measured performance 70, accessibility 96 and best practices 92; FCP 2.7 s, LCP 2.9 s, blocking time 700 ms and layout shift 0.027. Offline shell, manifest, icons and service-worker control passed. That run identified blocked bundled fonts/analytics and minor badge/button accessibility findings; these were corrected before final publication. Performance work should prioritize main-thread/hydration cost and verify field data, rather than treating one workstation run as production capacity evidence.
+- A subsequent 95-point performance run was rejected: TLS asset-download failures prevented normal app startup. The audit tool now fails on console errors. A clean repeat measured accessibility 100 and best practices 100, but performance 53 (LCP 3.5 s, blocking time 3,710 ms, layout shift 0). Layout/rendering dominated this workstation run. Mobile now avoids continuously blurred aurora layers and backdrop filters; repeat controlled measurements and production field data are still required. Do not present the rejected score as an improvement.
+- Corrected the remaining statistics/pricing copy to five predictor sports, one daily refresh and model confidence, rather than implying an observed win rate or independent named provider calls.
+- Final mobile-compositing publication passed the strengthened PWA audit with no Lighthouse console errors: accessibility 100, best practices 100, performance 62; FCP 5.3 s, LCP 6.3 s, blocking time 0 ms, layout shift 0.002. Manifest/icons, controlling service worker and offline shell reload passed. The different network/rendering timings across runs make a controlled baseline and field Core Web Vitals necessary; the performance release requirement remains open.
+
+No profitable winning streak, future win rate, production capacity or complete enterprise readiness is asserted. The remaining requirement table above is the release follow-up register.

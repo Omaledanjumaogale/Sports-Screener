@@ -1,5 +1,7 @@
 # PulseOdds Sports Screener — Audit & Convex Synchronization Report
 
+> Historical report. For the current security findings, implemented fixes, validation and release requirements, see [the 2 October 2026 production audit](docs/PRODUCTION-AUDIT-2026-10-02.md). Earlier statements accepting client-trusting authorization or payment shortcuts are superseded.
+
 > Generated: Aug 2026 · App: SvelteKit static SPA (Cloudflare Pages) + Convex backend
 > Convex deployment: `https://gallant-minnow-735.eu-west-1.convex.cloud` (`prod:gallant-minnow-735`)
 
