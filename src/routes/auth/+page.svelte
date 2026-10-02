@@ -7,6 +7,7 @@
   import { notify } from '$lib/notificationStore';
   import { getConvexClient, api, convexSignIn, convexSignOut, convexErrorMessage, queryConvex } from '$lib/convexClient';
   import { getDeviceId, getDeviceLabel } from '$lib/deviceId';
+  import { loginDestination } from '$lib/loginDestination';
 
   // The tester email is ISSUED server-side. Fetching it means a tester never has
   // to remember (or mistype) the shared account address — the single most common
@@ -220,8 +221,8 @@
           'Super Admin Access Granted',
           6000
         );
-        void goto('/admin');
-      } else if (effectiveIsTester && !testerExpired) {
+        void goto(loginDestination(access,redirectTarget));
+      } else if (effectiveIsTester && access.testerReason === 'active') {
         const daysLeft = access.subscriptionExpiresAt
           ? Math.max(0, Math.ceil((access.subscriptionExpiresAt - Date.now()) / 86_400_000))
           : null;
@@ -233,7 +234,7 @@
           'Tester Free Access Granted',
           8000
         );
-        void goto('/predictor');
+        void goto(loginDestination(access,redirectTarget));
       } else if (testerSuspended) {
         await convexSignOut();
         setUnauthenticated();
@@ -271,8 +272,7 @@
         void goto('/checkout');
       } else {
         notify(`Welcome back, ${user.fullName || 'Punter'}!`, 'success', 'Logged In');
-        const destination = redirectTarget.startsWith('/') && !redirectTarget.startsWith('//') && !redirectTarget.includes('\\')
-          ? redirectTarget : '/football';
+        const destination = loginDestination(access,redirectTarget);
         void goto(destination);
       }
     } catch (err: any) {

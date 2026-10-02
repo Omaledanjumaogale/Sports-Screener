@@ -38,7 +38,7 @@
     <p class="monitor-sub">
       Grades every resolved Great Minds pick against the real final score. The
       <strong>calibration gap</strong> compares the average published Real Win Chance with the actual win
-      rate — 0% means the verdicts are delivering exactly what they promise.
+      rate in this sample. A small gap is not proof of future accuracy; read it alongside sample size, market, date range and source quality.
     </p>
   </header>
 

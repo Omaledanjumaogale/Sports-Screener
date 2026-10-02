@@ -29,6 +29,7 @@ describe('authoritative access acceptance matrix',()=>{
     expect(result.isTester).toBe(true);expect(result.hasMasterPass).toBe(active);
   });
   it('retired shared credentials cannot retain trial access',async()=>{vi.stubEnv('TESTER_EMAIL','shared@example.com');const result=await deriveAccess({db:database()},'shared@example.com','shared|session',2000);expect(result.isSubscribed).toBe(false);});
+  it('an expired tester on a paid Punter plan retains paid access without a Master upgrade',async()=>{const result=await deriveAccess({db:database({testerCodes:[{code:'PDT-CODE',actualEmail:'person@example.com',authUserId:'personal',status:'claimed',trialExpiresAt:1000}],testerSessions:[{subject:'personal|session',code:'PDT-CODE'}],userProfiles:[{email:'person@example.com',isSubscribed:true,subscriptionTier:'punter',subscriptionExpiresAt:3000}]})},'person@example.com','personal|session',2000);expect(result.isSubscribed).toBe(true);expect(result.hasMasterPass).toBe(false);expect(result.subscriptionExpiresAt).toBe(3000);});
   it('rejects another account attempting to activate a tester code',async()=>{
     const db=database({testerCodes:[{code:'PDT-CODE',authUserId:'owner',actualEmail:'owner@example.com',status:'claimed'}]});
     await expect((activateSession as any)._handler({db,auth:{getUserIdentity:async()=>({subject:'attacker|session',email:'attacker@example.com'})}},{code:'PDT-CODE',deviceId:'device123'})).rejects.toThrow('another account');
