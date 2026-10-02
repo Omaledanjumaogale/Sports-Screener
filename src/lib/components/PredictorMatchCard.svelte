@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge, X, Sparkles, ExternalLink, CheckCircle2, XCircle, MinusCircle, Plus } from '@lucide/svelte';
-  import { isInBuilder, addToBuilder, removeFromBuilder } from '$lib/betSlipStore.svelte';
+  import { Trophy, Clock3, ShieldCheck, TrendingUp, Check, ChevronDown, BarChart3, Gauge, X, Sparkles, ExternalLink, CheckCircle2, XCircle, MinusCircle } from '@lucide/svelte';
   import { gradeSelection, type PredictorSportId, type SelectionGrade } from '$lib/predictorTypes';
   import type { PredictorMatch } from '$lib/predictorTypes';
   import { DEFAULT_CONFIDENCE_FLOOR } from '$lib/predictorTypes';
@@ -9,7 +8,7 @@
   import { displayLeague } from '$lib/leagueCountries';
   import PredictorMatchStats from './PredictorMatchStats.svelte';
   import { generateGreatMindsDebate } from '$lib/greatMindsEngine';
-  import { pickSegment } from '$lib/predictorSegments';
+  import PredictorVerdictPanel from './PredictorVerdictPanel.svelte';
 
   let {
     match,
@@ -102,11 +101,11 @@
   aria-label={`${match.homeTeam} vs ${match.awayTeam} — ${open ? 'Collapse' : 'Expand'} analysis${inPlay ? ' (in play)' : ''}`}
   tabindex={disabled ? -1 : 0}
   onclick={(e) => {
-    if (disabled) return;
+    if (disabled || (e.target instanceof Element && e.target.closest('button, a, input, select, textarea'))) return;
     onClick();
   }}
   onkeydown={(e) => {
-    if (disabled) return;
+    if (disabled || e.target !== e.currentTarget) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       onClick();
@@ -293,59 +292,15 @@
   {#if open}
     <div class="expanded">
       <PredictorMatchStats scopes={match.scopes} {accent} />
-      <div class="exp-title">Research &amp; analysis summary — ranked by confidence</div>
-      {#if insight?.verdictSummary}
-        <p class="verdict-summary">{insight.verdictSummary}</p>
-      {/if}
-      {#if bottomPicks.length > 0}
-        <div class="exp-segments">
-          {#each bottomPicks as p, i ((p.marketId || '') + p.label)}
-            {@const seg = pickSegment(p.marketId)}
-            {@const g = score && isFinished ? gradeOf(p.label, p.marketTitle) : null}
-            <div class="exp-seg-row" style={`--seg-accent:${seg.accent}`}>
-              <span class="seg-rank">#{i + 1}</span>
-              <span class="seg-tag">{seg.short}</span>
-              <span class="pick-name">{p.label}</span>
-              <span class="pick-market">{p.marketTitle}</span>
-              {#if g}
-                <span class="seg-grade seg-{g === 'win' ? 'win' : g === 'loss' ? 'loss' : 'push'}">
-                  {#if g === 'win'}<CheckCircle2 size={12} />{:else if g === 'loss'}<XCircle size={12} />{:else}<MinusCircle size={12} />{/if}
-                </span>
-              {/if}
-              <span class="pick-pct">{Number(p.probability).toFixed(1)}%</span>
-              <button
-                class="slip-add-btn"
-                class:in-slip={isInBuilder(match.matchId, p.label)}
-                type="button"
-                aria-label={isInBuilder(match.matchId, p.label) ? 'Remove from bet slip' : 'Add to bet slip'}
-                title={isInBuilder(match.matchId, p.label) ? 'Remove from bet slip' : 'Add to bet slip'}
-                onclick={(e) => {
-                  e.stopPropagation();
-                  if (isInBuilder(match.matchId, p.label)) {
-                    void removeFromBuilder(match.matchId, p.label);
-                  } else {
-                    void addToBuilder({
-                      sportId: cardSport ?? '',
-                      dayKey: match.dayKey || '',
-                      matchId: match.matchId,
-                      homeTeam: match.homeTeam,
-                      awayTeam: match.awayTeam,
-                      league: match.league,
-                      marketTitle: p.marketTitle,
-                      selection: p.label,
-                      odds: Number(p.odds) || 1.01,
-                      publishedPct: Number(p.probability),
-                      kickoff: match.startTime
-                    });
-                  }
-                }}
-              >
-                {#if isInBuilder(match.matchId, p.label)}<Check size={12} stroke-width={3} />{:else}<Plus size={12} stroke-width={3} />{/if}
-              </button>
-            </div>
-          {/each}
-        </div>
-      {:else}
+      <PredictorVerdictPanel
+        {insight}
+        picks={bottomPicks}
+        {accent}
+        {match}
+        finalScore={isFinished ? score : null}
+        summaryOnly
+      />
+      {#if bottomPicks.length === 0 && !insight?.top3Selections?.length}
         <p class="muted">No selections qualify — revisit after the next refresh.</p>
       {/if}
       {#if top}
@@ -616,11 +571,6 @@
   .g-push { color: #f59e0b; }
   .g-void { color: var(--c-text-dim, var(--c-text)); opacity: 0.6; }
 
-  .seg-grade { display: inline-flex; color: var(--c-text-dim, var(--c-text)); flex-shrink: 0; }
-  .seg-win { color: #34d399; }
-  .seg-loss { color: #ef4444; }
-  .seg-push { color: #f59e0b; }
-
 .mini-section {
     margin-top: 14px;
   }
@@ -681,50 +631,6 @@
   .mm-note { font-size: 10px; color: var(--c-text-dim, var(--c-text)); line-height: 1.3; }
 
   .expanded { margin-top: 14px; border-top: 1px solid var(--c-border); padding-top: 12px; }
-
-  .exp-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--c-text-dim, var(--c-text)); margin-bottom: 8px; }
-
-  .verdict-summary { font-size: 13px; line-height: 1.55; color: var(--c-text); margin: 0 0 8px; }
-
-  .seg-rank { font-weight: 900; color: var(--accent); font-size: 11.5px; font-variant-numeric: tabular-nums; min-width: 22px; }
-
-  .pick-name { font-weight: 800; color: var(--c-text); flex: 1; }
-  .pick-market { color: var(--c-text-dim, var(--c-text)); font-size: 11px; }
-  .pick-pct { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
-
-  .slip-add-btn {
-    flex-shrink: 0; width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--c-border-2);
-    background: var(--c-glass-sm); color: var(--c-muted); display: inline-flex; align-items: center;
-    justify-content: center; cursor: pointer; transition: all 160ms ease;
-  }
-  .slip-add-btn:hover { border-color: color-mix(in srgb, var(--brand) 50%, transparent); color: var(--brand); }
-  .slip-add-btn.in-slip { border-color: var(--c-success); color: var(--c-success); background: color-mix(in srgb, var(--c-success) 12%, transparent); }
-
-  .exp-segments { display: flex; flex-direction: column; gap: 6px; }
-
-  .exp-seg-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: var(--c-glass-sm);
-    font-size: 12.5px;
-    border-left: 3px solid color-mix(in srgb, var(--seg-accent) 55%, transparent);
-  }
-
-  .exp-seg-row .seg-tag {
-    flex-shrink: 0;
-    font-size: 9.5px;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--seg-accent);
-    background: color-mix(in srgb, var(--seg-accent) 14%, transparent);
-    border: 1px solid color-mix(in srgb, var(--seg-accent) 30%, transparent);
-    padding: 2px 6px;
-    border-radius: 6px;
-  }
 
   .trophy-note {
     display: flex;

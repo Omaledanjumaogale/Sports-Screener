@@ -75,3 +75,11 @@ References: [Flutterwave v3 webhook handling](https://developer.flutterwave.com/
 - Final mobile-compositing publication passed the strengthened PWA audit with no Lighthouse console errors: accessibility 100, best practices 100, performance 62; FCP 5.3 s, LCP 6.3 s, blocking time 0 ms, layout shift 0.002. Manifest/icons, controlling service worker and offline shell reload passed. The different network/rendering timings across runs make a controlled baseline and field Core Web Vitals necessary; the performance release requirement remains open.
 
 No profitable winning streak, future win rate, production capacity or complete enterprise readiness is asserted. The remaining requirement table above is the release follow-up register.
+
+## UI follow-up — unified ranked cards and tactile surfaces
+
+Analyse Match now reuses PredictorVerdictPanel for its confidence-ranked summary, replacing the separate flat-row implementation. Its summary-only mode preserves the Agent Verdict heading, context, market colors, odds, EV, confidence bars, grading and bet-slip controls while omitting the full page's extra metrics/debate sections. Empty selections still show a clear message. Nested controls no longer trigger the parent match-card toggle through keyboard bubbling.
+
+Shared theme-aware depth tokens now style buttons, tabs, navigation controls and card/panel surfaces across the application. Inset highlights, shallow bottom edges, cast shadows, selected rings and pressed states provide depth without canvas or animation loops. Reduced motion suppresses lift/press translation; disabled controls remain visually flat.
+
+Verification: frontend diagnostics zero errors/warnings; production build passed; seven fixture visual checks passed across light/dark themes at 360, 768 and 1440 pixels plus reduced motion. Thirty-two public/responsive browser checks and twenty authenticated administrator checks passed against the rebuilt local preview. Fixture images use sample data and are not prediction evidence. Generated preview HTML is removed before deployment.

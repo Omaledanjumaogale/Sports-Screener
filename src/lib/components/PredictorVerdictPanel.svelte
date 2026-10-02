@@ -21,6 +21,7 @@
     agentsRun = [] as string[],
     citations = [] as string[],
     warnings = [] as string[],
+    summaryOnly = false,
     accent = '#22d3ee',
     finalScore = null as string | null,
     match = null as PredictorMatch | null
@@ -32,6 +33,7 @@
     agentsRun?: string[];
     citations?: string[];
     warnings?: string[];
+    summaryOnly?: boolean;
     accent?: string;
     finalScore?: string | null;
     match?: PredictorMatch | null;
@@ -260,6 +262,7 @@
       </div>
     {/if}
 
+    {#if !summaryOnly}
     {#if metrics.length > 0}
       <div class="chart-block">
         <div class="block-title"><ListOrdered size={13} stroke-width={2.2} /> Key metrics</div>
@@ -333,6 +336,7 @@
     {#if greatMindsDebate}
       <GreatMindsDebatePanel debate={greatMindsDebate} {accent} {finalScore} finished={!!finalScore} />
     {/if}
+    {/if}
   </div>
 {/if}
 
@@ -398,15 +402,16 @@
     margin-left: 4px;
   }
 
-  .ranked-list { display: flex; flex-direction: column; gap: 6px; }
+  .ranked-list { display: flex; flex-direction: column; gap: 8px; }
 
   .ranked-row {
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    padding: 9px 11px;
-    border-radius: 12px;
+    padding: 13px 14px;
+    border-radius: 15px;
     background: var(--c-glass-sm);
+    box-shadow: var(--depth-card);
     border: 1px solid var(--c-border);
     border-left: 3px solid var(--seg-accent, var(--accent));
   }
@@ -483,14 +488,14 @@
     flex-shrink: 0;
   }
 
-  .confidence { font-weight: 900; font-size: 14px; color: #34d399; font-variant-numeric: tabular-nums; }
-  .edge { font-size: 10px; color: #34d399; font-weight: 700; }
+  .confidence { font-weight: 900; font-size: 16px; color: var(--c-success); font-variant-numeric: tabular-nums; }
+  .edge { font-size: 11px; color: var(--c-success); font-weight: 700; }
 
   .slip-btn {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    min-height: 26px;
+    min-height: 36px;
     padding: 3px 9px;
     border-radius: 8px;
     font-size: 10.5px;
@@ -513,8 +518,9 @@
     flex-direction: column;
     gap: 2px;
     padding: 10px 11px;
-    border-radius: 12px;
+    border-radius: 15px;
     background: var(--c-glass-sm);
+    box-shadow: var(--depth-card);
     border: 1px solid var(--c-border);
     min-width: 0;
   }
