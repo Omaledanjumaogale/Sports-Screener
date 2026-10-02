@@ -756,7 +756,8 @@
         </p>
       {:else}
         <div class="tbl-scroll">
-          <table class="tbl">
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to focus this region to scroll the report.) -->
+            <div class="report-scroll" tabindex="0" role="region" aria-label="Scrollable performance report"><table class="tbl">
             <thead>
               <tr>
                 <th>Code</th><th>Tester</th><th>NIN</th><th>Login email</th>
@@ -889,7 +890,7 @@
                 </tr>
               {/each}
             </tbody>
-          </table>
+          </table></div>
         </div>
       {/if}
     </section>
@@ -901,7 +902,8 @@
         <p class="empty">No paying subscribers recorded yet.</p>
       {:else}
         <div class="tbl-scroll">
-          <table class="tbl">
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to focus this region to scroll the report.) -->
+            <div class="report-scroll" tabindex="0" role="region" aria-label="Scrollable performance report"><table class="tbl">
             <thead>
               <tr><th>Name</th><th>Email</th><th>Mobile</th><th>State</th><th>Role</th><th>Tier</th><th>Expires</th><th>Days</th><th>Logins</th><th>In app</th><th>Strike rate</th></tr>
             </thead>
@@ -939,7 +941,7 @@
                 </tr>
               {/each}
             </tbody>
-          </table>
+          </table></div>
         </div>
       {/if}
     </section>
@@ -1036,7 +1038,8 @@
               <span><i class="sw dot"></i> daily win rate (dots)</span>
             </div>
           </div>
-          <table class="tbl">
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to focus this region to scroll the report.) -->
+            <div class="report-scroll" tabindex="0" role="region" aria-label="Scrollable performance report"><table class="tbl">
             <thead><tr><th>Day</th><th>Picks</th><th>Settled</th><th>Win rate</th><th>Units</th></tr></thead>
             <tbody>
               {#each [...trend].reverse() as t (t.dayKey)}
@@ -1049,7 +1052,7 @@
                 </tr>
               {/each}
             </tbody>
-          </table>
+          </table></div>
         </section>
       {/if}
 
@@ -1087,7 +1090,8 @@
       <div class="two-col">
         <section class="panel">
           <h2>Accuracy by Market</h2>
-          <table class="tbl">
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to focus this region to scroll the report.) -->
+            <div class="report-scroll" tabindex="0" role="region" aria-label="Scrollable performance report"><table class="tbl">
             <thead><tr><th>Market</th><th>Picks</th><th>Win rate</th><th>Day streak</th><th>Gap</th><th>ROI</th></tr></thead>
             <tbody>
               {#each scopeData.byMarket as r (r.group)}
@@ -1107,12 +1111,13 @@
                 </tr>
               {/each}
             </tbody>
-          </table>
+          </table></div>
         </section>
 
         <section class="panel">
           <h2>Accuracy by Sport</h2>
-          <table class="tbl">
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to focus this region to scroll the report.) -->
+            <div class="report-scroll" tabindex="0" role="region" aria-label="Scrollable performance report"><table class="tbl">
             <thead><tr><th>Sport</th><th>Picks</th><th>Win rate</th><th>Day streak</th><th>Units</th><th>Gap</th></tr></thead>
             <tbody>
               {#each scopeData.bySport as r (r.group)}
@@ -1132,7 +1137,7 @@
                 </tr>
               {/each}
             </tbody>
-          </table>
+          </table></div>
         </section>
       </div>
 
@@ -1154,7 +1159,8 @@
           </div>
           <div>
             <h3>Verdict engine / provider</h3>
-            <table class="tbl">
+            <!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to focus this region to scroll the report.) -->
+            <div class="report-scroll" tabindex="0" role="region" aria-label="Scrollable performance report"><table class="tbl">
               <thead><tr><th>Provider</th><th>Picks</th><th>Win rate</th><th>ROI</th></tr></thead>
               <tbody>
                 {#each scopeData.byProvider as r (r.group)}
@@ -1166,7 +1172,7 @@
                   </tr>
                 {/each}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
       </section>
@@ -1178,7 +1184,8 @@
           Ranked by realised hit rate against final scores — the families of analysis the engine
           should lean on, and the ones to re-tune.
         </p>
-        <table class="tbl wide">
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to focus this region to scroll the report.) -->
+      <div class="report-scroll" tabindex="0" role="region" aria-label="Scrollable performance report"><table class="tbl wide">
           <thead>
             <tr><th>#</th><th>Verdict family</th><th>Picks</th><th>W–L</th><th>Win rate</th><th>Published</th><th>Gap</th><th>Units</th><th>ROI</th></tr>
           </thead>
@@ -1200,13 +1207,14 @@
               </tr>
             {/each}
           </tbody>
-        </table>
+        </table></div>
       </section>
     {/if}
   {/if}
 </div>
 
 <style>
+  .report-scroll{max-width:100%;overflow-x:auto;border-radius:10px;min-width:0}
   /* ── Winning-day streaks ─────────────────────────────────── */
   .streak-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
   .streak-card {
