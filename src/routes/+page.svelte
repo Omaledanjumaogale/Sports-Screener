@@ -248,17 +248,17 @@
   const predictorSteps = [
     { icon: Target, title: 'Pick a sport', desc: 'Football, Basketball, Tennis, Ice Hockey or Baseball.' },
     { icon: Clock3, title: 'Watch the meter', desc: 'The agent team shows live 0% → 100% progress while they work.' },
-    { icon: ShieldCheck, title: 'Review the picks', desc: 'Only matches above the 60% Real Win Chance floor — with top selections, punter edge and risk warnings.' },
+    { icon: ShieldCheck, title: 'Review the picks', desc: 'Only matches above the 60% model-confidence floor — with top selections, punter edge and risk warnings.' },
     { icon: TrendingUp, title: 'Stake responsibly', desc: 'Refresh anytime; the cache rebuilds automatically each night.' }
   ];
 
   // Animated landing stats — count up when the ribbon enters the viewport.
   const statDefs = [
     { end: 9, suffix: '', label: 'Specialist Agents' },
-    { end: 5, suffix: '', label: 'AI Models' },
-    { end: 60, suffix: '%+', label: 'Win Chance Floor' },
-    { end: 3, suffix: '×', label: 'Daily Auto-Sync' },
-    { end: 6, suffix: '', label: 'Sports Covered' }
+    { end: 5, suffix: '', label: 'Model Lenses' },
+    { end: 60, suffix: '%+', label: 'Confidence Floor' },
+    { end: 1, suffix: '×', label: 'Daily Refresh' },
+    { end: PREDICTOR_SPORTS.length, suffix: '', label: 'Predictor Sports' }
   ];
   let statVals = $state<number[]>(statDefs.map(() => 0));
   let statsEl: HTMLDivElement | null = $state(null);
@@ -675,7 +675,7 @@
               <span class="period">/ month</span>
             </div>
             <p class="pricing-copy">
-              The full Punter Pass plus the <strong>AI Predictor</strong> — a multi-agent team that surfaces only matches clearing the <strong>60% Real Win Chance floor</strong> across 11 sports.
+              The full Punter Pass plus the <strong>AI Predictor</strong> — a multi-agent team that surfaces only matches clearing the <strong>60% model-confidence floor</strong> across five predictor sports.
             </p>
           </div>
 
@@ -690,15 +690,15 @@
             </li>
             <li>
               <CheckCircle2 class="icon-check check-gold" size={18} />
-              <span>Only matches over the 60% Real Win Chance confidence floor</span>
+              <span>Only matches over the 60% model-confidence confidence floor</span>
             </li>
             <li>
               <CheckCircle2 class="icon-check check-gold" size={18} />
-              <span>Real Win Chance, Punter Edge & risk warnings on every pick</span>
+              <span>Model confidence, Punter Edge & risk warnings on every pick</span>
             </li>
             <li>
               <CheckCircle2 class="icon-check check-gold" size={18} />
-              <span>1–7 day fixture window across 11 sports, refreshed nightly & on demand</span>
+              <span>1–7 day fixture window across five predictor sports, refreshed nightly & on demand</span>
             </li>
           </ul>
 
@@ -1964,6 +1964,14 @@
   :global(html[data-theme='light']) .step-count-badge { color: #155e75; }
 
   /* ── Responsive ─────────────────────────────────────────────── */
+  @media (max-width: 767px) {
+    /* Preserve the gradient palette without continuous blurred layers on mobile. */
+    .aurora-orb { filter: none; animation: none; }
+    .landing-root :global(*) {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+  }
   @media (max-width: 440px) {
     .landing-inner { padding-left: 12px; padding-right: 12px; }
     .sport-grid, .steps-grid { grid-template-columns: 1fr; }
