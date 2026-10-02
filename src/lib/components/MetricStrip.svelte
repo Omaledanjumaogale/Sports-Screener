@@ -1,11 +1,16 @@
 <script lang="ts">
+  import { expectedTotalDecision } from '$lib/marketDecision';
+  import type { Pick, ScopeState } from '$lib/engine';
   import type { Status } from '../engine';
 
   let {
+    scope = null, sportId = '', picks = [],
     metrics = [] as { label: string; value: string; note?: string; status?: Status }[]
   }: {
+    scope?: ScopeState | null; sportId?: string; picks?: Pick[];
     metrics?: { label: string; value: string; note?: string; status?: Status }[];
   } = $props();
+  const totalGuide = $derived(expectedTotalDecision(scope, sportId, picks));
 </script>
 
 {#if metrics.length}
@@ -16,7 +21,7 @@
         aria-label={`${metric.label}: ${metric.value}${metric.note ? ' — ' + metric.note : ''}`}
       >
         <span class="metric-label">{metric.label}</span>
-        <strong class="metric-value mono">{metric.value}</strong>
+        <strong class="metric-value mono">{['MEG','MET','MER'].includes(metric.label) && totalGuide.label ? totalGuide.label : metric.value}</strong>
         {#if metric.note}
           <small class="metric-note">{metric.note}</small>
         {/if}

@@ -1,6 +1,6 @@
 import type { Pick, ScopeState } from './engine';
 
-export const DECISION_VERSION = 'market-direction-v1';
+export const DECISION_VERSION = 'market-direction-v2';
 export type DirectionDecision = { marketId: string; title: string; preferred: Pick | null; explanation: string; value: string };
 export const pickKey = (p: Pick) => `${p.marketId}:${p.label.toLowerCase().trim()}`;
 export function totalLine(label: string): { direction: 'over' | 'under'; line: number } | null {
@@ -42,6 +42,31 @@ export function adviceFor(p: Pick, decisions: DirectionDecision[]): string {
     if (over.line < under.line) return `Compatible alternative · both can win between ${over.line} and ${under.line}; prefer ${d.preferred.label}`;
   }
   return `Not preferred · lean ${d.preferred.label}`;
+}
+export const hasPositiveEdge = (p: Pick | null | undefined): p is Pick => !!p && p.priceVerified !== false && Number.isFinite(p.odds) && p.odds > 1.15 && p.probability / 100 * p.odds > 1;
+/** Visible guidance must have both a clear direction and positive estimated value. */
+export function positiveDecisions(picks: Pick[], scope?: ScopeState | null) {
+  return decideMarkets(picks, scope).filter(d => hasPositiveEdge(d.preferred));
+}
+/** Cross-check the fair total against team totals; never invent a direction at 50/50. */
+export function expectedTotalDecision(scope: ScopeState | null | undefined, sportId: string, picks: Pick[] = []) {
+  const marketId = scope?.markets?.mainTotal ? 'mainTotal' : 'gameTotal';
+  const threshold = centre(scope, marketId);
+  const home = centre(scope, 'homeTotal'), away = centre(scope, 'awayTotal');
+  const proxy = home !== null && away !== null ? home + away : null;
+  const goals = /football|hockey/.test(sportId), games = sportId === 'tennis';
+  const acronym = goals || games ? 'MEG' : sportId === 'baseball' || sportId === 'cricket' ? 'MER' : 'MET';
+  const unit = goals ? 'goals' : games ? 'games' : sportId === 'baseball' || sportId === 'cricket' ? 'runs' : sportId === 'mma' ? 'rounds' : 'points';
+  const gap = threshold !== null && proxy !== null ? proxy - threshold : null;
+  const minimumGap = goals || sportId === 'baseball' || sportId === 'mma' ? .25 : games ? 1 : 2;
+  const direction = gap !== null && Math.abs(gap) >= minimumGap ? gap > 0 ? 'over' : 'under' : null;
+  const quoted = positiveDecisions(picks, scope).find(d => d.marketId === marketId)?.preferred;
+  const quotedLine = quoted ? totalLine(quoted.label) : null;
+  const value = threshold === null ? null : Math.round(threshold * 10) / 10;
+  return { acronym, unit, threshold: value, direction: direction ?? quotedLine?.direction ?? null,
+    label: direction ? `${direction === 'over' ? 'Over' : 'Under'} ${value} ${acronym}` : quotedLine ? `${quoted!.label} · quoted total` : null,
+    explanation: direction ? `Team-total centres project ${proxy!.toFixed(1)} ${unit} against ${acronym} ${value}. This is a correlated market cross-check, with no measured confidence at this threshold.` : quotedLine ? `Preferred positive-value quoted line; ${acronym} ${value ?? 'unavailable'} is a separate market centre. The quoted probability does not apply to that centre.` : null,
+    quoted: !direction && !!quotedLine, confidence: null, version: DECISION_VERSION };
 }
 function centre(scope: ScopeState | null | undefined, id: string): number | null {
   if ((scope?.markets?.[id] as any)?.derived || (scope as any)?._meta?.oddsIsReal === false) return null;

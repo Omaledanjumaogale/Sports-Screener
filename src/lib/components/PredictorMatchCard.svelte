@@ -3,7 +3,8 @@
   import { gradeSelection, type PredictorSportId, type SelectionGrade } from '$lib/predictorTypes';
   import type { PredictorMatch } from '$lib/predictorTypes';
   import { DEFAULT_CONFIDENCE_FLOOR } from '$lib/predictorTypes';
-  import type { Analysis, Pick } from '$lib/engine';
+  import { analyzeScope, type ScopeState, type Analysis, type Pick } from '$lib/engine';
+  import { positiveDecisions, expectedTotalDecision } from '$lib/marketDecision';
   import { formatWAT } from '$lib/watTime';
   import { displayLeague } from '$lib/leagueCountries';
   import PredictorMatchStats from './PredictorMatchStats.svelte';
@@ -61,6 +62,13 @@
   const bottomPicks = $derived(
     [...qualifying].sort((a, b) => Number(b.probability) - Number(a.probability))
   );
+  const guidancePicks = $derived.by(() => {
+    if (analysis?.picks?.length) return analysis.picks;
+    if (!(match.scopes as ScopeState)?.markets) return qualifying;
+    try { return analyzeScope(match.sportId, match.scopes as ScopeState).picks; } catch { return qualifying; }
+  });
+  const edgePreview = $derived(positiveDecisions(guidancePicks, match.scopes as ScopeState).sort((a,b) => b.preferred!.probability-a.preferred!.probability)[0]?.preferred);
+  const totalGuide = $derived(expectedTotalDecision(match.scopes as ScopeState, match.sportId, guidancePicks));
   const metrics = $derived((analysis?.metrics ?? []).slice(0, 4));
 
   const greatMindsData = $derived(generateGreatMindsDebate(match, analysis));
@@ -207,6 +215,12 @@
     </div>
   </header>
 
+  {#if edgePreview}
+    <div class="fixture-edge" aria-label="Positive estimated edge preview"><strong>Preferred pick · {edgePreview.label}</strong><span>{edgePreview.marketTitle} · {edgePreview.probability.toFixed(1)}% estimated · @ {edgePreview.odds.toFixed(2)} · positive estimated value</span></div>
+  {/if}
+  {#if totalGuide.label}
+    <div class="fixture-total" title={totalGuide.explanation ?? ''}>{totalGuide.label}<small>{totalGuide.quoted ? 'Preferred quoted total' : 'Market cross-check · uncertainty applies'}</small></div>
+  {/if}
   <!-- Great AI Minds Mini Badges -->
   {#if greatMindsData}
     <!-- Only qualified (real, above-floor) consensus picks are projected — a
@@ -281,7 +295,7 @@
         {#each metrics as metric}
           <div class={`mini-metric ${metric.status ? 'st-' + metric.status : 'st-empty'}`}>
             <span class="mm-label">{metric.label}</span>
-            <strong class="mm-value">{metric.value}</strong>
+            <strong class="mm-value">{['MEG','MET','MER'].includes(metric.label) && totalGuide.label ? totalGuide.label : metric.value}</strong>
             {#if metric.note}
               <span class="mm-note">{metric.note}</span>
             {/if}
@@ -329,6 +343,7 @@
 </div>
 
 <style>
+  .fixture-edge,.fixture-total{margin:10px 14px;padding:12px;border-radius:12px;background:var(--c-bg-2);box-shadow:var(--depth-card);border:1px solid var(--c-border);border-left:3px solid var(--c-success);overflow-wrap:anywhere}.fixture-edge span,.fixture-total small{display:block;font-size:.75rem;color:var(--c-muted);margin-top:4px}.fixture-total{border-left-color:var(--accent)}
   .match-card {
     border: 1px solid var(--c-border-md);
     border-radius: 16px;

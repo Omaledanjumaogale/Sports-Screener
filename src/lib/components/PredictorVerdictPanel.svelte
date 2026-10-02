@@ -5,7 +5,7 @@
   } from '@lucide/svelte';
   import type { AiAnalysisResult } from '$lib/cloudflareAi';
   import { analyzeScope, type Pick, type ScopeState } from '$lib/engine';
-  import { decideMarkets, adviceFor } from '$lib/marketDecision';
+  import { decideMarkets, adviceFor, expectedTotalDecision } from '$lib/marketDecision';
   import MarketDirectionBoard from './MarketDirectionBoard.svelte';
   import type { PredictorMatch, SelectionGrade } from '$lib/predictorTypes';
   import { gradeEvidence } from '$lib/marketEvidence';
@@ -282,7 +282,7 @@
           {#each metrics as metric}
             <div class={`p-metric ${metric.status ? 'st-' + metric.status : 'st-empty'}`}>
               <span class="pm-label">{metric.label}</span>
-              <strong class="pm-value">{metric.value}</strong>
+              <strong class="pm-value">{['MEG','MET','MER'].includes(metric.label) && match ? expectedTotalDecision(match.scopes as ScopeState, match.sportId, fullPicks).label ?? metric.value : metric.value}</strong>
               {#if metric.note}
                 <span class="pm-note">{metric.note}</span>
               {/if}

@@ -395,7 +395,7 @@
 
       <div class="spacer"></div>
 
-      <MetricStrip metrics={analysis.metrics} />
+      <MetricStrip metrics={analysis.metrics} {scope} {sportId} picks={analysis.picks} />
 
       <div class="spacer"></div>
 
