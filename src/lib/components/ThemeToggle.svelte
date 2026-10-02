@@ -19,7 +19,7 @@
   type="button"
   class="theme-toggle-btn"
   onclick={handleToggle}
-  aria-label={`Switch to ${currentTheme === 'dark' ? 'light' : 'dark'} mode`}
+  aria-label={`${currentTheme === 'dark' ? 'Dark' : 'Light'} mode; switch to ${currentTheme === 'dark' ? 'light' : 'dark'} mode`}
   title={`Switch to ${currentTheme === 'dark' ? 'light' : 'dark'} mode`}
 >
   <div class="icon-wrap" class:is-light={currentTheme === 'light'}>

@@ -1960,6 +1960,9 @@
     text-decoration: underline;
   }
 
+  :global(html[data-theme='light']) .sport-count-badge { color: #065f46; }
+  :global(html[data-theme='light']) .step-count-badge { color: #155e75; }
+
   /* ── Responsive ─────────────────────────────────────────────── */
   @media (max-width: 440px) {
     .landing-inner { padding-left: 12px; padding-right: 12px; }
