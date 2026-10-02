@@ -12,6 +12,7 @@ import { internalMutation, mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import type { QueryCtx } from './_generated/server';
 import { requireAdmin } from './access';
+import { logAuditEvent } from './auditLog';
 
 /** Read a flag; missing row = enabled (default-open, keeps the table minimal). */
 export async function isFeatureEnabled(ctx: QueryCtx, key: string): Promise<boolean> {
@@ -19,7 +20,7 @@ export async function isFeatureEnabled(ctx: QueryCtx, key: string): Promise<bool
     .query('featureFlags')
     .withIndex('by_key', (q) => q.eq('key', key))
     .first();
-  return row ? row.enabled : true;
+  return row ? row.enabled : key !== 'maintenance';
 }
 
 /** Read-only status snapshot for the ops endpoint / admin UI. */
@@ -35,8 +36,10 @@ export const listFlags = query({
 export const setFlag = mutation({
   args: { key: v.string(), enabled: v.boolean(), note: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const admin = await requireAdmin(ctx);
     const key = args.key.trim().toLowerCase();
+    if (!['predictor', 'payments', 'maintenance'].includes(key)) throw new Error('Unknown feature flag');
+    await logAuditEvent(ctx,admin.email,'feature.state.changed',key,{enabled:args.enabled});
     const existing = await ctx.db
       .query('featureFlags')
       .withIndex('by_key', (q) => q.eq('key', key))

@@ -5,6 +5,7 @@
 // keys out of the public bundle and avoids CORS & WAF bot challenges).
 
 import type { MasterConfluenceLedger, Profile, Pick, SportId } from './engine';
+import { getFreshAccessToken } from './convexClient';
 
 export interface Top3Selection {
   rank: number;
@@ -344,11 +345,14 @@ async function callPagesFunction(
   messages: { role: string; content: string }[],
   signal: AbortSignal
 ): Promise<AiAnalysisResult> {
+  const token = await getFreshAccessToken();
+  if (!token) throw new Error('Please sign in to use AI Copilot.');
   const res = await fetch('/api/ai-analyze', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'application/json'
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`
     },
     body: JSON.stringify({ messages, max_tokens: 2000, temperature: 0.25 }),
     signal

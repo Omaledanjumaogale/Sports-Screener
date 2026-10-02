@@ -49,11 +49,11 @@ export const getHealth = query({
       // 26h: daily jobs may legitimately skip to the next slot.
       daily: 26 * 3600_000,
       // 30 min: 15-min live-score sync with generous jitter allowance.
-      frequent: 30 * 60_000,
+      frequent: 75 * 60_000,
       // 14h: 12h past-history settlement cycle (cadence + 2h margin).
       history: 14 * 3600_000,
       // 2h: hourly retention purge (cadence + 1h margin).
-      retention: 2 * 3600_000
+      retention: 8 * 3600_000
     };
     // lastRunAt === 0 means the job has NEVER stamped — that is not healthy.
     // Report it stale so a silently dead job cannot read as green forever.

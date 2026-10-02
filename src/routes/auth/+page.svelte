@@ -59,7 +59,7 @@
     // so a lowercased input can miss an account created with different casing.
     const typedEmail = email.trim();
     const isAdmin = isSuperAdminEmail(cleanEmail);
-    const isTester = isTesterEmail(cleanEmail);
+    const isTester = isTesterEmail(cleanEmail) || (!!issuedTesterEmail && cleanEmail === issuedTesterEmail.trim().toLowerCase());
 
     if (isSignUp && !isAdmin && !isTester) {
       if (!fullName.trim() || !mobile.trim() || !dob.trim() || !stateOfResidence || !consentAccepted) {
@@ -95,6 +95,7 @@
       if (!res?.token && typedEmail !== cleanEmail) {
         res = await convexSignIn({ email: cleanEmail, password, flow });
       }
+      if (!res?.token && flow === 'signUp') res = await convexSignIn({ email: cleanEmail, password, flow: 'signIn' });
       if (!res?.token) {
         // Distinguish "no such account" from "wrong password" from "backend
         // unreachable". The auth provider throws plain Errors with messages like
@@ -120,8 +121,9 @@
       // nothing about WHO is logging in. The access code does: it must already
       // be registered, it gets bound to THIS device on first use, and the trial
       // clock starts here. Every refusal below signs the session back out.
-      if (isTester) {
-        const code = accessCode.trim().toUpperCase();
+      const registration = await client.query(api.testerCodes.myRegistration, {});
+      if (isTester || registration?.code) {
+        const code = accessCode.trim().toUpperCase() || registration?.code || '';
         if (!code) {
           await convexSignOut();
           setUnauthenticated();
@@ -161,15 +163,9 @@
 
       // Fetch the authoritative access state (admin/tester/subscription) from
       // the server now that the real token is attached.
-      let access: any = {};
-      try {
-        access = await client.mutation(api.users.syncAccess, {});
-      } catch (err: any) {
-        console.warn('syncAccess skipped:', err?.message || err);
-      }
+      const access = await client.mutation(api.users.syncAccess, {});
 
       if (isSignUp && !isAdmin && !isTester) {
-        try {
           await client.mutation(api.users.registerProfile, {
             email: cleanEmail,
             fullName: fullName.trim(),
@@ -179,12 +175,9 @@
             consentAccepted: true,
             userId
           });
-        } catch (err: any) {
-          console.warn('registerProfile skipped:', err?.message || err);
-        }
       }
 
-      const isSubscribed = !!(access.isAdmin || access.isTester || access.isSubscribed);
+      const isSubscribed = !!access.isSubscribed;
       const testerExpired = access.isTester && !access.isSubscribed;
       // A SUSPENDED code is an admin matter, not a lapsed payment — the tester is
       // told to contact the administrator instead of being pushed to checkout.
@@ -193,8 +186,8 @@
       // Server truth wins: syncAccess is authoritative for privileged access,
       // so an env-casing mismatch on the client can never demote a real admin
       // or tester session.
-      const effectiveIsAdmin = isAdmin || !!access.isAdmin;
-      const effectiveIsTester = isTester || !!access.isTester;
+      const effectiveIsAdmin = !!access.isAdmin;
+      const effectiveIsTester = !!access.isTester;
 
       const user = {
         id: userId,
@@ -205,7 +198,11 @@
         stateOfResidence: stateOfResidence || undefined,
         consentAccepted: true,
         name: effectiveIsAdmin ? 'Super Admin' : effectiveIsTester ? 'Tester User' : (fullName.trim() || cleanEmail.split('@')[0]),
-        isSubscribed: effectiveIsAdmin || effectiveIsTester || isSubscribed,
+        isSubscribed,
+        hasMasterPass: !!access.hasMasterPass,
+        subscriptionTier: access.subscriptionTier,
+        testerCode: access.testerCode,
+        testerReason: access.testerReason,
         isAdmin: effectiveIsAdmin,
         isTester: effectiveIsTester,
         subscriptionExpiresAt: access.subscriptionExpiresAt ?? access.trialExpiresAt,
@@ -218,12 +215,12 @@
 
       if (effectiveIsAdmin) {
         notify(
-          'Welcome, Super Admin! Full unrestricted access granted. Choose any sport screener from the homepage.',
+          'Welcome, Super Admin. Your operations console is ready.',
           'success',
           'Super Admin Access Granted',
           6000
         );
-        void goto('/');
+        void goto('/admin');
       } else if (effectiveIsTester && !testerExpired) {
         const daysLeft = access.subscriptionExpiresAt
           ? Math.max(0, Math.ceil((access.subscriptionExpiresAt - Date.now()) / 86_400_000))
@@ -274,9 +271,13 @@
         void goto('/checkout');
       } else {
         notify(`Welcome back, ${user.fullName || 'Punter'}!`, 'success', 'Logged In');
-        void goto('/football');
+        const destination = redirectTarget.startsWith('/') && !redirectTarget.startsWith('//') && !redirectTarget.includes('\\')
+          ? redirectTarget : '/football';
+        void goto(destination);
       }
     } catch (err: any) {
+      await convexSignOut().catch(() => {});
+      setUnauthenticated();
       error = convexErrorMessage(err, 'Authentication failed. Please check your credentials.');
       notify(error ?? 'Authentication failed.', 'error', 'Authentication Error');
     } finally {
@@ -487,6 +488,7 @@
         {/if}
       </button>
     </form>
+    {#if !isSignUp}<p class="auth-footer"><a href="/auth/reset">Forgot your password?</a></p>{/if}
 
     <div class="auth-footer">
       {#if isSignUp}

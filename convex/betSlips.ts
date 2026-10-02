@@ -5,8 +5,10 @@
 // same selection-grading engine as the verdict P&L (convex/predictorGrading.ts).
 
 import { internalMutation, mutation, query } from './_generated/server';
-import { v } from 'convex/values';
+import { v, ConvexError } from 'convex/values';
 import { gradeSelection } from './predictorGrading';
+import { authenticatedRecordOwner, ownsRecord } from './recordOwnership';
+import { internal } from './_generated/api';
 
 const slipItem = v.object({
   sportId: v.string(),
@@ -28,7 +30,7 @@ async function resolveOwner(
   ctx: any
 ): Promise<{ owner: string; userName: string | undefined; email: string | undefined } | null> {
   const identity = await ctx.auth.getUserIdentity();
-  if (!identity) return null;
+  if (!identity) throw new ConvexError('Please sign in to access your bet slips.');
   const userName = (identity.name as string) || (identity.givenName as string) || undefined;
   // Resolve the account email so the admin console can attribute a graded slip
   // record (and therefore a strike rate) to a named user.
@@ -38,7 +40,7 @@ async function resolveOwner(
     const userDoc: any = userId ? await ctx.db.get(userId as any) : null;
     email = String(userDoc?.email || '').trim().toLowerCase() || undefined;
   }
-  return { owner: identity.subject, userName, email };
+  return { owner: await authenticatedRecordOwner(ctx), userName, email };
 }
 
 // ── Create a new named slip ──────────────────────────────────────────────────
@@ -83,7 +85,7 @@ export const updateSlip = mutation({
     const slip = await ctx.db.get(args.slipId);
     if (!slip) throw new Error('Bet slip not found.');
     const owner = session?.owner ?? null;
-    if (owner && slip.owner !== owner) throw new Error('Not your bet slip.');
+    if (!owner || !ownsRecord({ userId: slip.owner }, owner)) throw new ConvexError('Bet slip access denied.');
     const patch: Record<string, unknown> = { updatedAt: Date.now() };
     if (args.title !== undefined) patch.title = args.title.trim();
     if (args.stake !== undefined) patch.stake = args.stake;
@@ -99,11 +101,14 @@ export const listSlips = query({
   handler: async (ctx, args) => {
     const session = await resolveOwner(ctx);
     const owner = session?.owner ?? ('anon:' + args.sessionId);
-    return await ctx.db
-      .query('betSlips')
-      .withIndex('by_owner_updated', (q) => q.eq('owner', owner))
-      .order('desc')
-      .collect();
+    const subject = (await ctx.auth.getUserIdentity())!.subject;
+    const rows = [];
+    for (const alias of new Set([owner, subject])) {
+      rows.push(...await ctx.db.query('betSlips')
+        .withIndex('by_owner_updated', (q) => q.eq('owner', alias))
+        .order('desc').collect());
+    }
+    return rows.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 });
 
@@ -111,7 +116,9 @@ export const listSlips = query({
 export const getSlipById = query({
   args: { slipId: v.id('betSlips') },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.slipId);
+    const session = await resolveOwner(ctx);
+    const slip = await ctx.db.get(args.slipId);
+    return session && slip && ownsRecord({ userId: slip.owner }, session.owner) ? slip : null;
   }
 });
 
@@ -123,7 +130,7 @@ export const deleteSlip = mutation({
     const slip = await ctx.db.get(args.slipId);
     if (!slip) return { deleted: false };
     const owner = session?.owner ?? null;
-    if (owner && slip.owner !== owner) throw new Error('Not your bet slip.');
+    if (!owner || !ownsRecord({ userId: slip.owner }, owner)) throw new ConvexError('Bet slip access denied.');
     await ctx.db.delete(args.slipId);
     return { deleted: true };
   }
@@ -135,9 +142,10 @@ export const deleteSlip = mutation({
 // Markets a plain full-time scoreline cannot settle (halves/quarters/periods)
 // stay scored-but-ungraded rather than guessed.
 export const gradeSlipItems = internalMutation({
-  args: { dayKey: v.optional(v.string()) },
+  args: { dayKey: v.optional(v.string()), cursor: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const slips = await ctx.db.query('betSlips').collect();
+    const page = await ctx.db.query('betSlips').paginate({ cursor: args.cursor ?? null, numItems: 100 });
+    const slips = page.page;
     if (slips.length === 0) return { graded: 0, scored: 0 };
 
     const cache = new Map<string, { finalScore: string; homeTeam: string; awayTeam: string } | null>();
@@ -184,7 +192,10 @@ export const gradeSlipItems = internalMutation({
             homeTeam: fin.homeTeam,
             awayTeam: fin.awayTeam
           });
-          if (grade) graded += 1;
+          if (grade) {
+            graded += 1;
+            changed = true;
+          }
         }
         items.push({
           ...item,
@@ -194,6 +205,7 @@ export const gradeSlipItems = internalMutation({
       }
       if (changed) await ctx.db.patch(slip._id, { items, updatedAt: Date.now() });
     }
-    return { graded, scored };
+    if (!page.isDone) await ctx.scheduler.runAfter(1000, internal.betSlips.gradeSlipItems, { dayKey: args.dayKey, cursor: page.continueCursor });
+    return { graded, scored, done: page.isDone };
   }
 });

@@ -1,5 +1,6 @@
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
+import { authenticatedRecordOwner, ownsRecord } from './recordOwnership';
 
 export const list = query({
   args: {
@@ -22,8 +23,7 @@ export const list = query({
     userId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const effectiveUserId = identity?.subject ?? args.userId;
+    const effectiveUserId = await authenticatedRecordOwner(ctx);
 
     const seen = new Set<string>();
     const merged: any[] = [];
@@ -34,39 +34,24 @@ export const list = query({
       }
     };
 
-    // 1. Records owned by the signed-in user (real identity or user-arg).
-    if (effectiveUserId) {
+    // Include current-session legacy rows while new writes use stable ownership.
+    const subject = (await ctx.auth.getUserIdentity())!.subject;
+    for (const owner of new Set([effectiveUserId, subject])) {
       const userDocs = args.sportId
         ? await ctx.db
             .query('savedScreeners')
             .withIndex('by_sport_and_user', (q) =>
-              q.eq('sportId', args.sportId!).eq('userId', effectiveUserId!)
+              q.eq('sportId', args.sportId!).eq('userId', owner)
             )
             .order('desc')
             .collect()
         : await ctx.db
             .query('savedScreeners')
-            .withIndex('by_user', (q) => q.eq('userId', effectiveUserId!))
+            .withIndex('by_user', (q) => q.eq('userId', owner))
             .order('desc')
             .collect();
       for (const d of userDocs) push(d);
     }
-
-    // 2. Records owned by this browser session (covers pre-login saves).
-    const sessionDocs = args.sportId
-      ? await ctx.db
-          .query('savedScreeners')
-          .withIndex('by_sport_and_session', (q) =>
-            q.eq('sportId', args.sportId!).eq('sessionId', args.sessionId)
-          )
-          .order('desc')
-          .collect()
-      : await ctx.db
-          .query('savedScreeners')
-          .withIndex('by_session', (q) => q.eq('sessionId', args.sessionId))
-          .order('desc')
-          .collect();
-    for (const d of sessionDocs) push(d);
 
     return merged;
   }
@@ -75,7 +60,9 @@ export const list = query({
 export const get = query({
   args: { id: v.id('savedScreeners') },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const owner = await authenticatedRecordOwner(ctx);
+    const record = await ctx.db.get(args.id);
+    return ownsRecord(record, owner) ? record : null;
   }
 });
 
@@ -105,12 +92,11 @@ export const save = mutation({
     _id: v.optional(v.id('savedScreeners'))
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const effectiveUserId = identity?.subject ?? args.userId;
+    const effectiveUserId = await authenticatedRecordOwner(ctx);
     const now = Date.now();
     if (args._id) {
       const existing = await ctx.db.get(args._id);
-      if (existing && (existing.sessionId === args.sessionId || (effectiveUserId && existing.userId === effectiveUserId))) {
+      if (ownsRecord(existing, effectiveUserId)) {
         await ctx.db.patch(args._id, {
           title: args.title,
           notes: args.notes,
@@ -147,11 +133,10 @@ export const update = mutation({
     verdict: v.optional(v.any())
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const effectiveUserId = identity?.subject ?? args.userId;
+    const effectiveUserId = await authenticatedRecordOwner(ctx);
     const existing = await ctx.db.get(args.id);
     if (!existing) return null;
-    if (existing.sessionId !== args.sessionId && (!effectiveUserId || existing.userId !== effectiveUserId)) return null;
+    if (!ownsRecord(existing, effectiveUserId)) return null;
     const patch: Record<string, any> = { updatedAt: Date.now() };
     if (args.title !== undefined) patch.title = args.title;
     if (args.notes !== undefined) patch.notes = args.notes;
@@ -169,10 +154,9 @@ export const remove = mutation({
     userId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const effectiveUserId = identity?.subject ?? args.userId;
+    const effectiveUserId = await authenticatedRecordOwner(ctx);
     const existing = await ctx.db.get(args.id);
-    if (existing && (existing.sessionId === args.sessionId || (effectiveUserId && existing.userId === effectiveUserId))) {
+    if (ownsRecord(existing, effectiveUserId)) {
       await ctx.db.delete(args.id);
     }
     return null;

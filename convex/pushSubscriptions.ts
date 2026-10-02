@@ -121,6 +121,7 @@ export const setEnabled = mutation({
   handler: async (ctx, args) => {
     const access = await currentAccess(ctx);
     if (!access) throw new Error('Sign in required.');
+    if (args.enabled) throw new Error('Push delivery is unavailable until verified.');
     const pref = await ctx.db
       .query('userPreferences')
       .withIndex('by_user', (q) => q.eq('userId', access.email))

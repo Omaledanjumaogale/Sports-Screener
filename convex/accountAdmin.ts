@@ -1,7 +1,6 @@
 // ── Account administration (super-admin only) ─────────────────────────────────
 // Server-side credential repair. Used when an account was seeded with a bad
-// password hash (e.g. the tester account created while .env.local carried the
-// `Share&getbloacked#` typo) so both `signIn` (wrong secret) and `signUp`
+// password hash, so both `signIn` (wrong secret) and `signUp`
 // (account exists) fail. The @convex-dev/auth helpers run in an ACTION because
 // Scrypt hashing needs the action runtime.
 

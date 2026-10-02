@@ -1,8 +1,8 @@
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
+import { authenticatedRecordOwner } from './recordOwnership';
 
-// Auto-saved per-sport screener drafts. Owners are either a real Convex user
-// identity (when an auth token is attached) or an anonymous browser session id.
+// Cloud drafts require verified authentication; anonymous work remains local.
 // Drafts let a user's in-progress work follow them across devices/browsers.
 
 const sportId = v.union(
@@ -28,25 +28,19 @@ export const get = query({
     userId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const effectiveUserId = identity?.subject ?? args.userId;
+    const effectiveUserId = await authenticatedRecordOwner(ctx);
 
-    // 1. Prefer the user-owned draft (real identity or user-arg).
-    if (effectiveUserId) {
+    const subject = (await ctx.auth.getUserIdentity())!.subject;
+    for (const owner of new Set([effectiveUserId, subject])) {
       const userDraft = await ctx.db
         .query('drafts')
-        .withIndex('by_user_sport', (q) => q.eq('userId', effectiveUserId).eq('sportId', args.sportId))
+        .withIndex('by_user_sport', (q) => q.eq('userId', owner).eq('sportId', args.sportId))
         .order('desc')
         .first();
       if (userDraft) return userDraft;
     }
 
-    // 2. Fall back to the anonymous session draft.
-    return await ctx.db
-      .query('drafts')
-      .withIndex('by_session_sport', (q) => q.eq('sessionId', args.sessionId).eq('sportId', args.sportId))
-      .order('desc')
-      .first();
+    return null;
   }
 });
 
@@ -58,8 +52,7 @@ export const save = mutation({
     scopes: v.any()
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const effectiveUserId = identity?.subject ?? args.userId;
+    const effectiveUserId = await authenticatedRecordOwner(ctx);
     const owner = effectiveUserId ?? args.sessionId;
     const now = Date.now();
 
@@ -97,8 +90,7 @@ export const remove = mutation({
     userId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const effectiveUserId = identity?.subject ?? args.userId;
+    const effectiveUserId = await authenticatedRecordOwner(ctx);
     const owner = effectiveUserId ?? args.sessionId;
 
     const existing = await ctx.db

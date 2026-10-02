@@ -70,6 +70,10 @@ export const updateScoresBatch = internalMutation({
           });
           updatedCount++;
         }
+        if (u.status === 'finished' && parseScore(u.finalScore)) {
+          const evidence = await ctx.db.query('predictionEvidence').withIndex('by_match', q => q.eq('sportId', match.sportId).eq('dayKey', u.dayKey).eq('matchId', u.matchId)).first();
+          if (evidence && !evidence.finalScore) await ctx.db.patch(evidence._id, { finalScore: u.finalScore, settledAt: Date.now() });
+        }
       }
     }
     return updatedCount;
@@ -232,9 +236,10 @@ function scorePassesGate(sportId: string, finalScore: string): boolean {
 // rows are demoted to 'upcoming'/'inplay' so the Finished tab never shows them.
 // Idempotent and safe to run on every score cycle.
 export const sanitizeImplausibleScores = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const all = await ctx.db.query('predictorMatches').collect();
+  args: { cursor: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query('predictorMatches').paginate({ cursor: args.cursor ?? null, numItems: 100 });
+    const all = page.page;
     let fixed = 0;
     for (const m of all) {
       const raw = m.finalScore ?? m.oddsSnapshot?.finalScore;
@@ -254,7 +259,8 @@ export const sanitizeImplausibleScores = internalMutation({
       });
       fixed++;
     }
-    return { fixed };
+    if (!page.isDone) await ctx.scheduler.runAfter(1000, internal.scores.sanitizeImplausibleScores, { cursor: page.continueCursor });
+    return { fixed, done: page.isDone };
   }
 });
 

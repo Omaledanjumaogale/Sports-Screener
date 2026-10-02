@@ -34,10 +34,10 @@
     if (!browser) return;
     // Track the reactive inputs so a login/logout restarts the heartbeat.
     const signedIn = authState.isAuthenticated;
-    const isTester = !!authState.user && isTesterEmail(authState.user.email);
+    const isTester = !!authState.user?.isTester;
     let stopped = false;
     const beat = async () => {
-      if (stopped) return;
+      if (stopped || document.visibilityState !== 'visible') return;
       try {
         await callConvex(api.usage.beat, { sessionId: getSessionId() });
       } catch (_) {
@@ -66,7 +66,7 @@
   $effect(() => {
     if (!browser) return;
     const user = authState.user;
-    if (!authState.isAuthenticated || !user || !isTesterEmail(user.email)) return;
+    if (!authState.isAuthenticated || !user || !user.isTester) return;
 
     let stopped = false;
     const check = async () => {
@@ -102,21 +102,11 @@
   $effect(() => {
     if (!browser) return;
 
-    const publicPaths = ['/', '/auth', '/checkout', '/tester'];
+    const publicPaths = ['/', '/auth', '/auth/reset', '/checkout', '/tester'];
     if (!publicPaths.includes($page.url.pathname) && !authState.isLoading) {
       if (!authState.isAuthenticated) {
-        // Re-check storage synchronously before bouncing: a just-completed
-        // login (or an in-flight store propagation) can briefly show an empty
-        // reactive user while the persisted session is perfectly valid.
-        let hasStoredSession = false;
-        try {
-          hasStoredSession = !!localStorage.getItem('pulseodds_auth_session_v1');
-        } catch (_) {
-          hasStoredSession = false;
-        }
-        if (!hasStoredSession) {
-          goto('/auth?mode=signup&redirect=checkout');
-        }
+        const destination = $page.url.pathname + $page.url.search;
+        void goto(`/auth?redirect=${encodeURIComponent(destination)}`);
       }
     }
   });

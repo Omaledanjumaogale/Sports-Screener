@@ -38,14 +38,12 @@ export async function pushDraft(
   updatedAt = Date.now()
 ): Promise<void> {
   const sessionId = getSessionId();
-  const owner = ownerFor(authUserId);
   try {
     await callConvex(api.drafts.save, {
       sportId,
       sessionId,
       userId: authUserId ?? undefined,
-      scopes: JSON.parse(JSON.stringify(scopes)),
-      owner
+      scopes: JSON.parse(JSON.stringify(scopes))
     });
     const pending = readPending();
     delete pending[sportId];
@@ -91,8 +89,7 @@ export async function flushPendingDrafts(authUserId?: string | null): Promise<vo
         sportId,
         sessionId,
         userId: authUserId ?? undefined,
-        scopes: JSON.parse(JSON.stringify(entry.scopes)),
-        owner: ownerFor(authUserId)
+        scopes: JSON.parse(JSON.stringify(entry.scopes))
       });
       delete pending[sportId];
     } catch { /* keep queued; retry next time */ }

@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { authState, setSubscribedStatus, refreshAccess } from '$lib/authStore.svelte';
+  import { authState, refreshAccess } from '$lib/authStore.svelte';
   import { notify } from '$lib/notificationStore';
   import { getConvexClient, api } from '$lib/convexClient';
   import { ShieldCheck, HeartHandshake, CheckCircle2, Lock, ArrowLeft, ExternalLink, RefreshCw } from '@lucide/svelte';
@@ -95,8 +95,10 @@
       });
 
       const tier: Tier = result?.tier === 'master' ? 'master' : 'punter';
-      setSubscribedStatus(true, txRef, tier);
-      void refreshAccess();
+      await refreshAccess(true);
+      if (!authState.user?.isSubscribed) {
+        throw new Error('Payment was verified, but active access has not been confirmed. Refresh access or contact support with your payment reference.');
+      }
       verifyingSuccess = true;
 
       const name = PLANS[tier].label;

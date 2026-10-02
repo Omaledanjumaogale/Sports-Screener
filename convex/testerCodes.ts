@@ -16,8 +16,9 @@ import { mutation, query, internalMutation } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { v, ConvexError } from 'convex/values';
 import { requireAdmin } from './access';
-import { isTesterEmail } from './users';
+import { isTesterEmail, deriveAccess } from './users';
 import { logAuditEvent } from './auditLog';
+import { enforceRateLimit } from './rateLimit';
 
 // NOTE ON ERRORS: every rejection below is a `ConvexError`, not a plain
 // `Error`. Convex REDACTES plain Error messages on production deployments
@@ -46,15 +47,8 @@ const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
 function randomBytes(n: number): Uint8Array {
   const out = new Uint8Array(n);
-  try {
-    crypto.getRandomValues(out);
-    return out;
-  } catch {
-    // Non-crypto fallback: only reachable if Web Crypto is unavailable. Codes
-    // are still unguessable in practice thanks to the uniqueness check below.
-    for (let i = 0; i < n; i++) out[i] = Math.floor(Math.random() * 256);
-    return out;
-  }
+  crypto.getRandomValues(out);
+  return out;
 }
 
 /** A code looks like `PDT-7K2M-9QX4` (11 significant chars, ~51 bits). */
@@ -63,29 +57,6 @@ function makeCode(): string {
   let body = '';
   for (let i = 0; i < 9; i++) body += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
   return `PDT-${body.slice(0, 4)}-${body.slice(4)}`;
-}
-
-/**
- * One-way fingerprint for a registered password. The plaintext is NEVER stored;
- * the admin console can only ever show "set / not set".
- */
-async function hashSecret(value: string, salt: string): Promise<string> {
-  const material = `${salt}:${value}`;
-  try {
-    const data = new TextEncoder().encode(material);
-    const digest = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(digest))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-  } catch {
-    // Deterministic FNV-1a fallback — still never reversible to the password.
-    let h = 0x811c9dc5;
-    for (let i = 0; i < material.length; i++) {
-      h ^= material.charCodeAt(i);
-      h = Math.imul(h, 0x01000193) >>> 0;
-    }
-    return `fnv1a_${h.toString(16)}`;
-  }
 }
 
 function normalizeCode(raw: string): string {
@@ -480,15 +451,20 @@ export const register = mutation({
   args: {
     code: v.string(),
     fullName: v.string(),
-    nin: v.string(),
-    testerEmail: v.string(),
+    nin: v.optional(v.string()),
+    testerEmail: v.optional(v.string()),
     actualEmail: v.string(),
-    preferredPassword: v.string(),
+    preferredPassword: v.optional(v.string()),
     mobile: v.string(),
     stateOfResidence: v.string(),
     consentAccepted: v.boolean()
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError('Create or sign in to your personal account first.');
+    const email = await callerEmail(ctx, identity);
+    if (isTesterEmail(email)) throw new ConvexError('Use your personal account, not the legacy shared account.');
+    if (!(await enforceRateLimit(ctx, 'tester-registration', identity.subject, 5, 30 * 60_000))) return { ok: false, message: 'Too many attempts. Please retry later.' };
     const code = normalizeCode(args.code);
     const row = await ctx.db
       .query('testerCodes')
@@ -505,7 +481,7 @@ export const register = mutation({
         'That access code is currently suspended. Please contact the administrator — it can be re-activated for you.'
       );
     }
-    if (row.status === 'claimed') {
+    if (row.status === 'claimed' && (row.authUserId || row.actualEmail !== email)) {
       throw new ConvexError(
         'That access code has already been registered to another tester. If that was you and the login failed, ask the administrator to re-activate the code so you can register again with your details.'
       );
@@ -514,22 +490,15 @@ export const register = mutation({
     // The tester email is ISSUED, not chosen — reject anything else so a code
     // can never be pointed at a different account.
     const issued = testerLoginEmail();
-    const suppliedTesterEmail = args.testerEmail.trim().toLowerCase();
-    if (issued && suppliedTesterEmail !== issued) {
-      throw new ConvexError('Please use the tester email address exactly as it was issued to you.');
-    }
+    const suppliedTesterEmail = email;
 
     const fullName = args.fullName.trim();
     if (fullName.length < 3 || fullName.split(/\s+/).length < 2) {
       throw new ConvexError('Please enter your full name (first and last name).');
     }
 
-    const nin = args.nin.replace(/\D/g, '');
-    if (nin.length !== 11) {
-      throw new ConvexError('Your NIN must be exactly 11 digits.');
-    }
-
     const actualEmail = args.actualEmail.trim().toLowerCase();
+    if (actualEmail !== email) throw new ConvexError('Registration email must match your signed-in account.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(actualEmail)) {
       throw new ConvexError('Please enter a valid personal email address.');
     }
@@ -542,9 +511,6 @@ export const register = mutation({
       throw new ConvexError('Please enter a valid mobile number (at least 10 digits).');
     }
 
-    if (args.preferredPassword.length < 8) {
-      throw new ConvexError('Your preferred password must be at least 8 characters long.');
-    }
     if (!args.stateOfResidence.trim()) {
       throw new ConvexError('Please select your state of residence.');
     }
@@ -562,10 +528,6 @@ export const register = mutation({
     }
 
     const now = Date.now();
-    const preferredPasswordHash = await hashSecret(
-      args.preferredPassword,
-      `${code}:${actualEmail}`
-    );
 
     // A RE-OPENED code (previously claimed, then released by the admin) keeps a
     // snapshot of the old submission so the console can flag it for a final
@@ -573,16 +535,17 @@ export const register = mutation({
     await ctx.db.patch(row._id, {
       status: 'claimed',
       fullName,
-      nin,
+      nin: undefined,
+      authUserId: identity.subject.split('|')[0],
       testerEmail: suppliedTesterEmail || issued,
       actualEmail,
-      preferredPasswordHash,
-      hasPreferredPassword: true,
+      preferredPasswordHash: undefined,
+      hasPreferredPassword: undefined,
       mobile,
       stateOfResidence: args.stateOfResidence.trim(),
       consentAccepted: true,
       registeredAt: now,
-      needsReview: !!row.previousRegistration,
+      needsReview: row.status === 'claimed' || !!row.previousRegistration,
       approvedAt: undefined,
       approvedBy: undefined
     });
@@ -599,15 +562,16 @@ export const register = mutation({
       fullName,
       testerEmail: suppliedTesterEmail || issued,
       trialDays: TESTER_TRIAL_DAYS,
-      message: `Registration complete. Log in with the tester account and code ${code} on the ONE device you will use for your ${TESTER_TRIAL_DAYS}-day free trial.`
+      message: `Registration complete. Sign in with your personal email and password to activate your ${TESTER_TRIAL_DAYS}-day trial.`
     };
   }
 });
 
 /** Public lookup so the register form (and login page) can validate a code. */
-export const checkCode = query({
+export const checkCode = mutation({
   args: { code: v.string() },
   handler: async (ctx, args) => {
+    if (!(await enforceRateLimit(ctx, 'tester-code-lookup', 'global', 120, 60_000))) return { found: false, status: 'unknown' as const };
     const code = normalizeCode(args.code);
     if (!code) return { found: false, status: 'unknown' as const };
     const row = await ctx.db
@@ -652,6 +616,17 @@ export const testerIdentity = query({
 
 // ── Tester session: device binding + trial clock ──────────────────────────────
 
+/** Only the authenticated account can discover its own trial code. */
+export const myRegistration = query({
+  args: {}, handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const email = await callerEmail(ctx, identity);
+    const row = await ctx.db.query('testerCodes').withIndex('by_actualEmail', q => q.eq('actualEmail', email)).first();
+    return row?.authUserId === identity.subject.split('|')[0] ? { code: row.code } : null;
+  }
+});
+
 /**
  * Called right after the tester login succeeds. Binds the code to this device
  * and starts the trial clock on the FIRST activation; every later call from a
@@ -667,9 +642,7 @@ export const activateSession = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new ConvexError('Please sign in with the tester account first.');
     const email = await callerEmail(ctx, identity);
-    if (!isTesterEmail(email)) {
-      throw new ConvexError('Tester access codes can only be activated by the tester account.');
-    }
+    if (isTesterEmail(email)) throw new ConvexError('Shared tester login has been retired. Register your personal account to retain your code.');
 
     const code = normalizeCode(args.code);
     const deviceId = String(args.deviceId || '').trim();
@@ -684,6 +657,7 @@ export const activateSession = mutation({
     if (!row) {
       throw new ConvexError('That access code was not recognised. Check it with whoever issued it.');
     }
+    if (row.authUserId !== identity.subject.split('|')[0] || row.actualEmail !== email) throw new ConvexError('This code belongs to another account.');
     if (row.status === 'revoked') {
       throw new ConvexError('That access code has been revoked. Please contact the administrator.');
     }
@@ -697,6 +671,7 @@ export const activateSession = mutation({
         'This code has not been registered yet. Complete the tester registration form first.'
       );
     }
+    if (row.needsReview) throw new ConvexError('This account claim is awaiting administrator approval.');
 
     // ONE DEVICE ONLY. The first device to activate owns the code; any other is
     // refused (the admin can release the binding from the console if a tester
@@ -711,9 +686,12 @@ export const activateSession = mutation({
     const trialStartsAt = row.trialStartsAt ?? now;
     const trialExpiresAt = row.trialExpiresAt ?? trialStartsAt + TESTER_TRIAL_MS;
     if (trialExpiresAt <= now) {
+      const paid = await ctx.db.query('userProfiles').withIndex('by_email', q => q.eq('email', email)).first();
+      if (!paid?.isSubscribed || !paid.subscriptionExpiresAt || paid.subscriptionExpiresAt <= now) {
       throw new ConvexError(
         `Your ${TESTER_TRIAL_DAYS}-day free trial has ended. Please subscribe to keep using PulseOdds.`
       );
+      }
     }
 
     await ctx.db.patch(row._id, {
@@ -765,7 +743,7 @@ export const activateSession = mutation({
       trialStartsAt,
       trialExpiresAt,
       daysRemaining: daysLeft(trialExpiresAt),
-      hasMasterPass: true
+      hasMasterPass: (await deriveAccess(ctx,email,subject,now)).hasMasterPass
     };
   }
 });
@@ -788,11 +766,13 @@ export const mySession = query({
       .withIndex('by_code', (q) => q.eq('code', session.code))
       .first();
     if (!code) return { active: false, reason: 'unknown-code' as const };
+    if (code.authUserId !== subject.split('|')[0]) return { active: false, reason: 'not-registered' as const };
 
     const now = Date.now();
     const expired = !!code.trialExpiresAt && code.trialExpiresAt <= now;
     const suspended = code.status === 'suspended';
-    const active = !session.revoked && code.status !== 'revoked' && !suspended && !expired;
+    const access = await deriveAccess(ctx,await callerEmail(ctx,identity),subject,now);
+    const active = access.isSubscribed;
 
     return {
       active,
@@ -874,12 +854,10 @@ export const overview = query({
     const limit = Math.min(Math.max(Math.floor(args.limit ?? 300), 1), 1000);
     const now = Date.now();
 
-    const codes = (await ctx.db.query('testerCodes').collect())
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, limit);
+    const codes = await ctx.db.query('testerCodes').order('desc').take(limit);
 
     // ── Sessions: per-code liveness + foreground time ────────────────────────
-    const sessions = await ctx.db.query('testerSessions').collect();
+    const sessions = (await Promise.all(codes.map(code => ctx.db.query('testerSessions').withIndex('by_code', q => q.eq('code', code.code)).take(20)))).flat();
     const sessionsByCode = new Map<string, { live: boolean; lastSeenAt: number; sessionMs: number }>();
     /** JWT subject → tester code, so a bet slip's owner can be attributed. */
     const codeBySubject = new Map<string, string>();
@@ -1012,7 +990,7 @@ export const overview = query({
       };
     });
 
-    const profiles = await ctx.db.query('userProfiles').collect();
+    const profiles = await ctx.db.query('userProfiles').order('desc').take(1000);
     const subscribers = profiles
       .filter((p) => p.isSubscribed || (p.subscriptionExpiresAt ?? 0) > now || (p.role ?? '') === 'admin')
       .map((p) => {

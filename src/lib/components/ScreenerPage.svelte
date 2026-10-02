@@ -39,7 +39,7 @@
   } from '../engine';
   import type { SavedScreenerDoc, ConvexSportId } from '../convexClient';
   import { pushDraft, pullDraft, flushPendingDrafts, subscribeDraft } from '../draftSync';
-  import { authState, setSubscribedStatus } from '$lib/authStore.svelte';
+  import { authState, initAuth, refreshAccess } from '$lib/authStore.svelte';
   import { notify } from '$lib/notificationStore';
   import { getConvexClient, api } from '$lib/convexClient';
 
@@ -195,6 +195,7 @@
   }
 
   onMount(async () => {
+    if (authState.isLoading) initAuth();
     // Flush any pending debounced save when the page is closed or hidden.
     if (typeof window !== 'undefined') {
       window.addEventListener('beforeunload', flushSaveScopes);
@@ -208,14 +209,14 @@
         'warning',
         'Access Restricted'
       );
-      void goto('/auth?mode=signup&redirect=checkout');
+      void goto(`/auth?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
       return;
     }
 
     if (!authState.user?.isSubscribed) {
       if (authState.user?.isTester) {
         notify(
-          `Your 1-month free trial for ${authState.user?.email || 'your account'} has expired. Please sign up with your own account and subscribe to continue using PulseOdds screeners.`,
+          'Your tester access is inactive. Check your access code or contact the administrator to review your 90-day trial.',
           'warning',
           'Free Trial Expired'
         );
@@ -226,11 +227,7 @@
       // Re-verify against Convex DB in case user paid via webhook
       if (authState.user?.email) {
         try {
-          const client = await getConvexClient();
-          const sub = await client.query(api.users.checkSubscription, { email: authState.user.email });
-          if (sub?.isSubscribed) {
-            setSubscribedStatus(true, sub.txRef, (sub as any)?.subscriptionTier as 'punter' | 'master' | undefined);
-          }
+          await refreshAccess();
         } catch (_) { /* fallback */ }
       }
 

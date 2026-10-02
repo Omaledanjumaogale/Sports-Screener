@@ -12,6 +12,8 @@
 import { internalMutation, mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
+import { requireAdmin } from './access';
+import { enforceRateLimit } from './rateLimit';
 
 export const MAX_PER_SOURCE = 50;
 
@@ -53,11 +55,19 @@ export const report = mutation({
     meta: v.optional(v.any())
   },
   handler: async (ctx, args) => {
+    if (!(await enforceRateLimit(ctx, 'publicErrorReport', 'global', 60, 60_000))) return { ok: false };
+    // Unknown source names cannot create arbitrarily many ring buffers.
+    const source = args.source === 'edge' ? 'edge' : 'client';
+    let href: string | undefined;
+    try {
+      const url = new URL(String(args.meta?.href || ''));
+      href = `${url.origin}${url.pathname}`.slice(0, 200);
+    } catch { /* No arbitrary metadata or URL query secrets in public reports. */ }
     await ctx.runMutation(internal.errorLog.recordError, {
-      source: args.source,
+      source,
       message: args.message,
       stack: args.stack,
-      meta: args.meta
+      meta: href ? { href } : undefined
     });
     return { ok: true };
   }
@@ -67,6 +77,7 @@ export const report = mutation({
 export const recent = query({
   args: { source: v.optional(v.string()), limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
     const limit = Math.min(args.limit ?? 50, 100);
     if (args.source) {
       return ctx.db

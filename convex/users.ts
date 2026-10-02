@@ -1,10 +1,25 @@
 import { query, mutation, action, internalMutation } from './_generated/server';
 import type { QueryCtx } from './_generated/server';
 import { internal, api } from './_generated/api';
-import { v } from 'convex/values';
+import { v, ConvexError } from 'convex/values';
+import { enforceRateLimit } from './rateLimit';
 import { logAuditEvent } from './auditLog';
+import { verifiedPayment } from './paymentValidation';
 
 declare const process: { env: Record<string, string | undefined> };
+
+/** Edge Copilot gate: verifies identity, subscription and provider cost budget. */
+export const authorizeCopilot = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const details = await identityDetails(ctx, await ctx.auth.getUserIdentity());
+    if (!details) throw new ConvexError('Please sign in to use AI Copilot.');
+    const access = await deriveAccess(ctx, details.email.trim().toLowerCase(), details.subject);
+    if (!access.isSubscribed) throw new ConvexError('An active pass is required for AI Copilot.');
+    const allowed = await enforceRateLimit(ctx, 'copilot', details.subject!, 12, 60_000);
+    return { allowed };
+  }
+});
 
 const DEFAULT_ADMIN_EMAIL = '';
 const DEFAULT_TESTER_EMAIL = '';
@@ -101,9 +116,11 @@ async function resolveTesterSession(
     .withIndex('by_code', (q) => q.eq('code', session.code))
     .first();
   if (!row) return { active: false, reason: 'no-session' };
+  if (row.authUserId !== subject.split('|')[0]) return { active: false, reason: 'not-registered', code: row.code };
   if (row.status === 'revoked') return { active: false, reason: 'revoked', code: row.code };
   if (row.status === 'suspended') return { active: false, reason: 'suspended', code: row.code };
   if (row.status !== 'claimed') return { active: false, reason: 'not-registered', code: row.code };
+  if (row.needsReview) return { active: false, reason: 'not-registered', code: row.code };
   if (!row.trialExpiresAt) return { active: false, reason: 'not-registered', code: row.code };
   if (row.trialExpiresAt <= now) {
     return { active: false, reason: 'expired', expiresAt: row.trialExpiresAt, code: row.code };
@@ -121,7 +138,8 @@ async function deriveAccess(
   now = Date.now()
 ): Promise<AccessStatus> {
   const isAdmin = isSuperAdminEmail(email);
-  const isTester = isTesterEmail(email);
+  const personalCode = await ctx.db.query('testerCodes').withIndex('by_actualEmail', (q) => q.eq('actualEmail', email)).first();
+  const isTester = isTesterEmail(email) || !!personalCode;
 
   const profile = await ctx.db
     .query('userProfiles')
@@ -133,15 +151,20 @@ async function deriveAccess(
   let trialExpiresAt: number | undefined;
   let testerCode: string | undefined;
   let testerReason: TesterReason | undefined;
+  let activeTrial = false;
 
   if (isAdmin) {
     isSubscribed = true;
   } else if (isTester) {
-    const trial = await resolveTesterSession(ctx, subject, now);
+    const trial = isTesterEmail(email) || (personalCode && personalCode.authUserId !== subject?.split('|')[0])
+      ? { active: false, reason: 'not-registered' as const, code: personalCode?.code }
+      : await resolveTesterSession(ctx, subject, now);
     testerReason = trial.reason;
     testerCode = trial.code;
     trialExpiresAt = trial.expiresAt;
+    activeTrial = trial.active;
     isSubscribed = trial.active;
+    if (trial.reason === 'expired' && profile?.isSubscribed && profile.subscriptionExpiresAt && profile.subscriptionExpiresAt > now) isSubscribed = true;
   } else {
     isSubscribed =
       !!profile?.isSubscribed && (!subscriptionExpiresAt || subscriptionExpiresAt > now);
@@ -150,16 +173,16 @@ async function deriveAccess(
   const subscriptionTier = profile?.subscriptionTier;
   // Master Pass = admins, testers on a live code trial, or master subscribers.
   const hasMasterPass =
-    isAdmin || (isTester && isSubscribed) || (isSubscribed && subscriptionTier === 'master');
+    isAdmin || activeTrial || (isSubscribed && subscriptionTier === 'master');
 
   return {
     email,
     isAdmin,
     isTester,
     isSubscribed,
-    subscriptionExpiresAt: isTester && trialExpiresAt ? trialExpiresAt : subscriptionExpiresAt,
+    subscriptionExpiresAt: activeTrial ? trialExpiresAt : subscriptionExpiresAt,
     trialExpiresAt,
-    subscriptionTier: isTester && isSubscribed ? 'master' : subscriptionTier,
+    subscriptionTier: activeTrial ? 'master' : subscriptionTier,
     hasMasterPass,
     ...(testerCode ? { testerCode } : {}),
     ...(testerReason ? { testerReason } : {})
@@ -207,7 +230,8 @@ export const syncAccess = mutation({
     const email = details.email.trim().toLowerCase();
     const now = Date.now();
     const isAdmin = isSuperAdminEmail(email);
-    const isTester = isTesterEmail(email);
+    const personalCode = await ctx.db.query('testerCodes').withIndex('by_actualEmail', q => q.eq('actualEmail', email)).first();
+    const isTester = isTesterEmail(email) || !!personalCode;
     const subject = details.subject;
     const name = details.name ?? email.split('@')[0];
 
@@ -288,6 +312,9 @@ export const registerProfile = mutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const email = args.email.trim().toLowerCase();
+    const details = await identityDetails(ctx, await ctx.auth.getUserIdentity());
+    if (!details || details.email.trim().toLowerCase() !== email) throw new ConvexError('Profile must belong to the signed-in account.');
+    const verifiedUserId = details.subject!.split('|')[0];
     const isAdmin = isSuperAdminEmail(email);
     const isTester = isTesterEmail(email);
     // Audit only REGISTRATIONS OF NEW accounts — updates fire on every profile
@@ -307,7 +334,7 @@ export const registerProfile = mutation({
         dob: args.dob,
         stateOfResidence: args.stateOfResidence,
         consentAccepted: args.consentAccepted,
-        userId: args.userId ?? existing.userId,
+        userId: verifiedUserId,
         role: isAdmin ? 'admin' : isTester ? 'tester' : existing.role,
         isTester: isTester || existing.isTester,
         isSubscribed: isAdmin || existing.isSubscribed,
@@ -323,7 +350,7 @@ export const registerProfile = mutation({
       dob: args.dob,
       stateOfResidence: args.stateOfResidence,
       consentAccepted: args.consentAccepted,
-      userId: args.userId,
+      userId: verifiedUserId,
       role: isAdmin ? 'admin' : isTester ? 'tester' : 'user',
       isTester: isTester || undefined,
       isSubscribed: isAdmin,
@@ -376,6 +403,10 @@ export const verifyFlutterwaveCharge = action({
   },
   handler: async (ctx, args) => {
     // Kill switch: payments can be disabled instantly (flag defaults to on).
+    const caller = await ctx.runQuery(internal.access.forCaller, {});
+    if (!caller || caller.email !== args.email.trim().toLowerCase()) {
+      throw new Error('Please sign in with the account receiving this payment.');
+    }
     const flags = await ctx.runQuery(internal.access.flagStatus, {});
     if (!flags.payments) throw new Error('Payments are temporarily unavailable. Please try again later.');
 
@@ -403,7 +434,8 @@ export const verifyFlutterwaveCharge = action({
       : `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(args.txRef)}`;
 
     const res = await fetch(verifyUrl, {
-      headers: { Authorization: `Bearer ${secretKey}` }
+      headers: { Authorization: `Bearer ${secretKey}` },
+      signal: AbortSignal.timeout(15000)
     });
 
     if (!res.ok) {
@@ -427,50 +459,55 @@ export const verifyFlutterwaveCharge = action({
     }
 
     const verifiedEmail = String(tx.customer?.email || '').trim().toLowerCase();
-    if (verifiedEmail && verifiedEmail !== args.email.trim().toLowerCase()) {
+    verifiedPayment(tx, { email: caller.email, reference: args.txRef });
+    const verifiedReference = String(tx.tx_ref || '').trim();
+    if (!verifiedReference || verifiedReference !== args.txRef) {
+      throw new ConvexError('Payment reference does not match the verified transaction.');
+    }
+    if (!verifiedEmail || verifiedEmail !== caller.email) {
       throw new Error('Payment email does not match your account');
     }
 
-    const now = Date.now();
     const durationDays = 30;
-    const expiresAt = now + durationDays * 24 * 60 * 60 * 1000;
     const amount = Number(tx.amount) || 5000;
     // ₦10,000+ → Master Pass (includes the AI Predictor); otherwise Punter.
-    const tier: 'punter' | 'master' = amount >= 9500 ? 'master' : 'punter';
+    const tier: 'punter' | 'master' = amount >= 10000 ? 'master' : 'punter';
 
-    await ctx.runMutation(api.users.markSubscribed, {
+    const settlement: { success: boolean; expiresAt?: number } = await ctx.runMutation(internal.users.markSubscribed, {
       email: args.email.trim().toLowerCase(),
-      txRef: args.txRef,
+      txRef: verifiedReference,
       transactionId: String(tx.id || ''),
       amount,
       durationDays,
-      tier,
-      webhookSecret: process.env.FLW_SECRET_HASH || ''
+      tier
     });
 
-    return { success: true, expiresAt, txRef: args.txRef, amount, tier };
+    return { success: true, expiresAt: settlement.expiresAt, txRef: args.txRef, amount, tier };
   }
 });
 
 // Marks a user as subscribed. Gated on the Flutterwave webhook secret so it can
 // only be triggered by the server (webhook listener or the verify action).
-export const markSubscribed = mutation({
+export const markSubscribed = internalMutation({
   args: {
     email: v.string(),
     txRef: v.string(),
     transactionId: v.optional(v.string()),
     amount: v.optional(v.number()),
     durationDays: v.optional(v.number()),
-    tier: v.optional(v.union(v.literal('punter'), v.literal('master'))),
-    webhookSecret: v.optional(v.string())
+    tier: v.optional(v.union(v.literal('punter'), v.literal('master')))
   },
   handler: async (ctx, args) => {
-    const secretHash = process.env.FLW_SECRET_HASH || '';
-    const authed = !!secretHash && args.webhookSecret === secretHash;
-    if (!authed) throw new Error('Unauthorized');
-
     const now = Date.now();
     const email = args.email.trim().toLowerCase();
+    const settled = await ctx.db.query('subscriptions')
+      .withIndex('by_txRef', (q) => q.eq('txRef', args.txRef)).first();
+    if (settled?.status === 'successful') {
+      if (settled.email !== email) throw new Error('Payment belongs to another account.');
+      const profile = await ctx.db.query('userProfiles')
+        .withIndex('by_email', (q) => q.eq('email', email)).first();
+      return { success: true, expiresAt: profile?.subscriptionExpiresAt, alreadyApplied: true };
+    }
     const durationMs = (args.durationDays ?? 30) * 24 * 60 * 60 * 1000;
     const expiresAt = now + durationMs;
 
@@ -478,6 +515,8 @@ export const markSubscribed = mutation({
       .query('userProfiles')
       .withIndex('by_email', (q) => q.eq('email', email))
       .first();
+
+    if (!existingProfile) throw new ConvexError('Account profile is missing. Create your profile before settling payment.');
 
     if (existingProfile) {
       await ctx.db.patch(existingProfile._id, {
@@ -526,7 +565,8 @@ export const checkSubscription = query({
   handler: async (ctx, args) => {
     const email = args.email.trim().toLowerCase();
     const identity = await ctx.auth.getUserIdentity();
-    if (identity?.email && identity.email.trim().toLowerCase() !== email) {
+    const details = await identityDetails(ctx, identity);
+    if (!details || details.email.trim().toLowerCase() !== email) {
       return { isSubscribed: false, isAdmin: false, isTester: false, authorized: false };
     }
     const access = await deriveAccess(ctx, email, identity?.subject);
@@ -547,7 +587,7 @@ export const expireLapsedSubscriptions = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
     let expired = 0;
-    const rows = await ctx.db.query('userProfiles').collect();
+    const rows = await ctx.db.query('userProfiles').withIndex('by_subscription_expiry', q => q.eq('isSubscribed', true).lt('subscriptionExpiresAt', now)).take(200);
     for (const p of rows) {
       if (p.isSubscribed && p.subscriptionExpiresAt && p.subscriptionExpiresAt < now) {
         await ctx.db.patch(p._id, { isSubscribed: false, updatedAt: now });

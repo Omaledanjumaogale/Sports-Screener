@@ -1028,6 +1028,16 @@ export const insertVerdicts = internalMutation({
         ...(vv.jevEvaluation !== undefined ? { jevEvaluation: vv.jevEvaluation } : {}),
         updatedAt: now
       };
+      const match = await ctx.db.query('predictorMatches').withIndex('by_day_match', q => q.eq('dayKey', args.dayKey).eq('matchId', vv.matchId)).first();
+      if (match && match.sportId === args.sportId && match.startTime > now && !match.finalScore) {
+        const evidence = await ctx.db.query('predictionEvidence').withIndex('by_match', q => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey).eq('matchId', vv.matchId)).first();
+        if (!evidence) await ctx.db.insert('predictionEvidence', {
+          dayKey: args.dayKey, sportId: args.sportId, matchId: vv.matchId,
+          capturedAt: now, startTime: match.startTime, modelVersion: `${vv.llmProvider || 'deterministic'}:archive-v1`,
+          source: match.source, dataQuality: match.dataQuality, odds: match.oddsSnapshot ?? match.scopes, report: aiReport,
+          homeTeam: match.homeTeam, awayTeam: match.awayTeam
+        });
+      }
       if (existing) {
         await ctx.db.patch(existing._id, { ...patch, agentsRun: vv.agentsRun, citations: vv.citations });
       } else {

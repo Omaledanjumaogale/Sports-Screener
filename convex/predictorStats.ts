@@ -83,7 +83,7 @@ function emptyBucket(): Bucket {
 
 function addToBucket(b: Bucket, grade: 'win' | 'loss' | 'push', publishedPct: number): void {
   b.picks += 1;
-  b.predictedSum += publishedPct;
+  if (grade !== 'push') b.predictedSum += publishedPct;
   if (grade === 'win') {
     b.wins += 1;
     b.units += 0.95;
@@ -98,7 +98,7 @@ function addToBucket(b: Bucket, grade: 'win' | 'loss' | 'push', publishedPct: nu
 function toRow(group: string, b: Bucket): AccuracyRowData {
   const resolved = b.wins + b.losses;
   const winRatePct = resolved > 0 ? Math.round((b.wins / resolved) * 100) : 0;
-  const avgPredictedPct = b.picks > 0 ? Math.round(b.predictedSum / b.picks) : 0;
+  const avgPredictedPct = resolved > 0 ? Math.round(b.predictedSum / resolved) : 0;
   return {
     group,
     picks: b.picks,
@@ -107,7 +107,7 @@ function toRow(group: string, b: Bucket): AccuracyRowData {
     pushes: b.pushes,
     winRatePct,
     avgPredictedPct,
-    calibrationGapPct: b.picks > 0 ? Number((avgPredictedPct - winRatePct).toFixed(1)) : 0,
+    calibrationGapPct: resolved > 0 ? Number((avgPredictedPct - winRatePct).toFixed(1)) : 0,
     unitsPnl: Number(b.units.toFixed(1)),
     roiPct: b.picks > 0 ? Number(((b.units / b.picks) * 100).toFixed(1)) : 0
   };
@@ -225,7 +225,7 @@ function mergeRows(rows: AccuracyRowData[]): AccuracyRowData[] {
     b.wins += r.wins;
     b.losses += r.losses;
     b.pushes += r.pushes;
-    b.predictedSum += r.avgPredictedPct * r.picks;
+    b.predictedSum += r.avgPredictedPct * (r.wins + r.losses);
     b.units += r.unitsPnl;
     merged.set(r.group, b);
   }

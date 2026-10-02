@@ -1,7 +1,8 @@
 import { httpRouter } from "convex/server";
 import { auth } from "./auth";
 import { httpAction } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
+import { verifiedPayment, validWebhookSignature } from './paymentValidation';
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -15,12 +16,16 @@ http.route({
   path: "/webhooks/flutterwave",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const signature = request.headers.get("verif-hash");
     const secretHash = process.env.FLW_SECRET_HASH;
+    const raw = await request.text();
+    if (new TextEncoder().encode(raw).length > 131072) return new Response('Payload too large', { status: 413 });
+    const signature = request.headers.get('flutterwave-signature');
+    const modernValid = !!secretHash && await validWebhookSignature(raw, signature, secretHash);
+    const legacyValid = process.env.FLW_ALLOW_LEGACY_WEBHOOK === 'true' && !!secretHash && request.headers.get('verif-hash') === secretHash;
 
     // Verify webhook signature against the configured secret hash. No hardcoded
     // fallback — a missing env secret must fail closed.
-    if (!secretHash || !signature || signature !== secretHash) {
+    if (!secretHash || (!modernValid && !legacyValid)) {
       console.warn("Flutterwave Webhook Signature Mismatch");
       return new Response(JSON.stringify({ status: "error", message: "Unauthorized signature" }), {
         status: 401,
@@ -29,40 +34,25 @@ http.route({
     }
 
     try {
-      const payload = await request.json();
+      const payload = JSON.parse(raw);
       const event = payload?.event;
       const data = payload?.data;
 
       if (event === "charge.completed" && data?.status === "successful") {
-        const customerEmail = data?.customer?.email;
-        const txRef = data?.tx_ref || data?.flw_ref || `flw_${Date.now()}`;
-        const amount = Number(data?.amount) || 0;
-        const currency = String(data?.currency || "").toUpperCase();
-
-        // Only honor the configured plan amounts/currency (₦5,000 / ₦10,000 NGN).
-        if (amount < 5000 || currency !== "NGN") {
-          console.warn(`[Flutterwave Webhook] Rejected non-plan charge: ${amount} ${currency}`);
-          return new Response(JSON.stringify({ status: "error", message: "Invalid amount or currency" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" }
-          });
-        }
-
-        // ₦10,000+ → Master Pass (includes the AI Predictor); otherwise Punter.
-        const tier: "punter" | "master" = amount >= 9500 ? "master" : "punter";
-
-        if (customerEmail) {
-          await ctx.runMutation(api.users.markSubscribed, {
-            email: customerEmail,
-            txRef,
-            transactionId: data?.id ? String(data.id) : undefined,
-            amount,
-            durationDays: 30,
-            tier,
-            webhookSecret: secretHash
-          });
-          console.log(`[Flutterwave Webhook] ${tier === "master" ? "Master" : "Punter"} pass activated for ${customerEmail} (txRef: ${txRef})`);
-        }
+        const flags = await ctx.runQuery(internal.access.flagStatus, {});
+        if (!flags.payments) return new Response('Settlement temporarily disabled', { status: 503 });
+        const id = String(data?.id ?? '');
+        const key = process.env.FLW_SECRET_KEY;
+        if (!key || !/^\d+$/.test(id)) throw new Error('Verification unavailable');
+        const response = await fetch(`https://api.flutterwave.com/v3/transactions/${id}/verify`, {
+          headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(15000)
+        });
+        if (!response.ok) throw new Error('Provider verification failed');
+        const result = await response.json();
+        if (result.status !== 'success') throw new Error('Provider verification failed');
+        const payment = verifiedPayment(result.data, { email: data?.customer?.email, reference: data?.tx_ref });
+        if (payment.transactionId !== id) throw new Error('Transaction ID mismatch');
+        await ctx.runMutation(internal.users.markSubscribed, { ...payment, durationDays: 30 });
       }
 
       return new Response(JSON.stringify({ status: "success" }), {
@@ -71,7 +61,7 @@ http.route({
       });
     } catch (err: any) {
       console.error("[Flutterwave Webhook Error]:", err?.message);
-      return new Response(JSON.stringify({ status: "error", message: err?.message }), {
+      return new Response(JSON.stringify({ status: "error", message: "Webhook processing failed" }), {
         status: 500,
         headers: { "Content-Type": "application/json" }
       });

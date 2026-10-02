@@ -138,8 +138,8 @@ export function initAuth() {
     if (raw) {
       const data = JSON.parse(raw);
       if (data && data.user && data.token) {
-        const isAdmin = isSuperAdminEmail(data.user.email);
-        const isTester = isTesterEmail(data.user.email);
+        const isAdmin = !!data.user.isAdmin;
+        const isTester = !!data.user.isTester;
         if (isAdmin) {
           data.user.isSubscribed = true;
           data.user.isAdmin = true;
@@ -182,8 +182,8 @@ export function initAuth() {
 }
 
 export function setAuthenticated(user: UserSession, token: string, refreshToken?: string | null) {
-  const isAdmin = isSuperAdminEmail(user.email);
-  const isTester = isTesterEmail(user.email);
+  const isAdmin = !!user.isAdmin;
+  const isTester = !!user.isTester;
   if (isAdmin) {
     user.isSubscribed = true;
     user.isAdmin = true;
@@ -214,12 +214,13 @@ export function setAuthenticated(user: UserSession, token: string, refreshToken?
 // reflects webhook-driven upgrades (e.g. a Flutterwave payment completing on
 // another device) without a full reload. Non-blocking and silently ignored when
 // the session token is emulated/expired.
-export async function refreshAccess(): Promise<void> {
+export async function refreshAccess(strict = false): Promise<void> {
   if (!authState.isAuthenticated || !authState.user || !authState.token) return;
   if (typeof window === 'undefined') return;
   try {
     applyServerAccess(await queryConvex<any>(api.users.me, {}));
   } catch (err: any) {
+    if (strict) throw err;
     const msg = String(err?.message || err);
     // A lapsed JWT is an ORDINARY event — they last one hour — and never a
     // reason to sign the user out. When the server says the identity could not
@@ -288,7 +289,7 @@ export function testerTrialState(user?: UserSession | null): {
   active: boolean;
   reason?: UserSession['testerReason'];
 } | null {
-  if (!user || !isTesterEmail(user.email)) return null;
+  if (!user || !user.isTester) return null;
   const expiresAt = user.subscriptionExpiresAt;
   const daysLeft = expiresAt
     ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 86_400_000))
@@ -310,45 +311,13 @@ export function testerTrialState(user?: UserSession | null): {
  */
 export async function fetchTesterSession(): Promise<any | null> {
   if (!authState.isAuthenticated || !authState.user || !authState.token) return null;
-  if (!isTesterEmail(authState.user.email)) return null;
+  if (!authState.user.isTester) return null;
   try {
     return await queryConvex<any>(api.testerCodes.mySession, {});
   } catch (err: any) {
     console.warn('tester session lookup skipped:', err?.message || err);
     return null;
   }
-}
-
-export function setSubscribedStatus(isSubscribed: boolean, txRef?: string, tier?: 'punter' | 'master') {
-  if (!authState.user) return;
-  const isAdmin = isSuperAdminEmail(authState.user.email);
-  const isTester = isTesterEmail(authState.user.email);
-
-  // A tester's window is owned by the server (their access code), so a payment
-  // callback must never overwrite it with a fresh 30-day period.
-  if (isTester && !isAdmin) {
-    authState.user = { ...authState.user, txRef: txRef ?? authState.user.txRef };
-    persistSession();
-    return;
-  }
-
-  const now = Date.now();
-  const expiresAt = now + 30 * 24 * 60 * 60 * 1000;
-  const effectiveTier: 'punter' | 'master' | undefined =
-    isAdmin ? 'master' : tier ?? authState.user.subscriptionTier ?? 'punter';
-
-  authState.user = {
-    ...authState.user,
-    isSubscribed: isAdmin || isSubscribed,
-    isAdmin: isAdmin || authState.user.isAdmin,
-    isTester: isAdmin ? false : authState.user.isTester,
-    subscriptionExpiresAt: isAdmin ? undefined : expiresAt,
-    subscriptionTier: effectiveTier,
-    hasMasterPass: isAdmin || (isSubscribed && effectiveTier === 'master'),
-    txRef: txRef ?? authState.user.txRef
-  };
-
-  persistSession();
 }
 
 export function setUnauthenticated() {

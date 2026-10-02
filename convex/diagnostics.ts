@@ -21,6 +21,7 @@ import { parseFixtures, plausiblePair } from './scrapers/fixtures';
 import { FIXTURE_PAGES, fixturePagesFor, watTodayKey } from './scrapers/sources';
 import { validateFixture, matchBelongsToSport } from './predictor';
 import { assessDataQuality } from './scrapers/dataQuality';
+import { requireAdminInAction } from './access';
 
 type PageVerdict = 'healthy' | 'unparseable' | 'dead';
 
@@ -66,6 +67,7 @@ export const diagnoseFixturePages = action({
     overall: { total: number; healthy: number; unparseable: number; dead: number; matches: number };
     pages: FixturePageHealth[];
   }> => {
+    await requireAdminInAction(ctx);
     const dayKey = args.dayKey || watTodayKey();
     const timeoutMs = args.timeoutMs ?? 18_000;
     const validSportIds = Object.keys(FIXTURE_PAGES);

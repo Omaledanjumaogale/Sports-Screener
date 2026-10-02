@@ -91,7 +91,7 @@ export default defineSchema({
     flutterwaveTxRef: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number()
-  }).index('by_email', ['email']),
+    }).index('by_email', ['email']).index('by_subscription_expiry', ['isSubscribed', 'subscriptionExpiresAt']),
 
   subscriptions: defineTable({
     email: v.string(),
@@ -116,6 +116,7 @@ export default defineSchema({
   // first login (which is also when the trial clock starts).
   testerCodes: defineTable({
     code: v.string(),
+      authUserId: v.optional(v.string()),
     // issued   · code handed out, not yet registered
     // claimed  · tester registered their details (may still be awaiting a first login)
     // suspended· temporarily blocked by the admin (keeps the registration + trial clock)
@@ -308,7 +309,14 @@ export default defineSchema({
     .index('by_day_match', ['dayKey', 'matchId'])
     .index('by_sport_day_team', ['sportId', 'dayKey', 'homeTeam', 'awayTeam']),
 
-  predictorVerdicts: defineTable({
+    predictionEvidence: defineTable({
+      dayKey: v.string(), sportId: PREDICTOR_SPORT_IDS, matchId: v.string(),
+      capturedAt: v.number(), startTime: v.number(), modelVersion: v.string(),
+      source: v.string(), dataQuality: v.optional(v.string()), odds: v.any(), report: v.any(),
+      homeTeam: v.optional(v.string()), awayTeam: v.optional(v.string()), finalScore: v.optional(v.string()), settledAt: v.optional(v.number())
+    }).index('by_match', ['sportId', 'dayKey', 'matchId']).index('by_captured', ['capturedAt']),
+
+    predictorVerdicts: defineTable({
     dayKey: v.string(),
     sportId: PREDICTOR_SPORT_IDS,
     matchId: v.string(),

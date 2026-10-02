@@ -259,6 +259,11 @@ export function getAuthRefreshToken(): string | null {
   return pendingRefreshToken;
 }
 
+export async function getFreshAccessToken(): Promise<string | null> {
+  await ensureFreshAuthToken();
+  return pendingAuthToken;
+}
+
 /** Decode a JWT's `exp` claim (ms since epoch), or null when unreadable. */
 export function jwtExpiresAt(token: string | null | undefined): number | null {
   if (!token) return null;
@@ -419,7 +424,6 @@ export const api = {
   users: {
     registerProfile: 'users:registerProfile',
     getProfile: 'users:getProfile',
-    markSubscribed: 'users:markSubscribed',
     checkSubscription: 'users:checkSubscription',
     me: 'users:me',
     syncAccess: 'users:syncAccess',
@@ -428,6 +432,7 @@ export const api = {
   // Tester access codes: admin issues them, testers register against one and
   // activate it on a single device (which starts the 3-month trial clock).
   testerCodes: {
+    myRegistration: 'testerCodes:myRegistration',
     generate: 'testerCodes:generate',
     revoke: 'testerCodes:revoke',
     restore: 'testerCodes:restore',

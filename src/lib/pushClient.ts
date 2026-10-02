@@ -25,6 +25,11 @@ export function pushSupported(): boolean {
  * toggle still works and delivery can be enabled without another migration.
  */
 export async function enablePush(): Promise<{ ok: boolean; message: string }> {
+  return { ok: false, message: 'Push delivery is unavailable until the notification service is configured and verified.' };
+}
+
+/** Subscription plumbing reserved for a verified delivery release. */
+async function provisionPush(): Promise<{ ok: boolean; message: string }> {
   if (!pushSupported()) return { ok: false, message: 'Push is not supported in this browser.' };
   try {
     const permission = await Notification.requestPermission();
