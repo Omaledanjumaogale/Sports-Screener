@@ -1,10 +1,7 @@
 // Scroll-reveal action — IntersectionObserver-driven fade/slide-up with
 // optional child staggering. Touch-scroll safe (IO fires on any scroll source).
 //
-// NOTE (product-owner requirement): landing motion must run on EVERY device,
-// including desktops whose OS reports prefers-reduced-motion — so this action
-// intentionally has no reduced-motion opt-out. Content is never hidden when
-// JS/IO are unavailable (see the early returns below).
+// Content remains visible when motion is reduced or observation is unavailable.
 //
 // Usage:
 //   <section use:reveal>…</section>
@@ -28,6 +25,7 @@ export function reveal(node: HTMLElement, options: RevealOptions = {}) {
   if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') {
     return {};
   }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return {};
 
   const {
     stagger = 0,
@@ -100,7 +98,8 @@ export function reveal(node: HTMLElement, options: RevealOptions = {}) {
         }
       }
     },
-    { threshold: 0.12, rootMargin }
+    // A tall mobile section can never put 12% of itself in the viewport.
+    { threshold: 0, rootMargin }
   );
 
   io.observe(node);

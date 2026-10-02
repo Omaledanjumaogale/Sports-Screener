@@ -9,7 +9,6 @@
   import MasterModelShowcase from '$lib/components/MasterModelShowcase.svelte';
   import AiPredictorButton from '$lib/components/AiPredictorButton.svelte';
   import AgentOrbit from '$lib/components/AgentOrbit.svelte';
-  import HeroScene from '$lib/components/hero/HeroScene.svelte';
   import { reveal } from '$lib/actions/reveal';
   import { animateValue } from '$lib/motion.svelte';
   import PredictorSportIcon from '$lib/components/PredictorSportIcon.svelte';
@@ -341,7 +340,7 @@
         Pulse<span class="wordmark-accent">Odds</span>
       </h1>
 
-      <p class="tagline">Read the odds. Own the edge. Beat the Bookies</p>
+      <p class="tagline">Read the odds. Understand the edge.</p>
 
       <p class="hero-copy">
         A mobile-first workspace for screening football, basketball, tennis, table tennis, ice hockey,
@@ -359,8 +358,10 @@
         {/each}
       </ul>
 
-      <!-- 3D odds constellation — lazy Three.js, static fallback built in -->
-      <HeroScene />
+      <picture class="landing-art hero-art">
+        <source media="(max-width: 640px)" srcset="/images/sports-intelligence-mobile-v1.webp" />
+        <img src="/images/sports-intelligence-v1.webp" alt="Football, basketball and tennis illuminated by sports data trajectories" width="1600" height="640" fetchpriority="high" decoding="async" />
+      </picture>
     </section>
 
     <!-- ── Real Sports Section ──────────────────────────────── -->
@@ -415,7 +416,7 @@
       </div>
 
       <h2 class="predictor-section-title">AI Predictor <span class="predictor-title-accent">&amp; Great AI Minds</span></h2>
-      <p class="predictor-section-sub">9 specialist agents. 5 AI models. 1 consensus engine — refreshed 3× daily at <strong>1:00 AM, 7:00 AM &amp; 1:00 PM WAT.</strong></p>
+      <p class="predictor-section-sub">Specialist analysis and five deterministic scenario models share an odds-based consensus engine. Daily fixture refreshes are staggered after midnight WAT, with score updates approximately every 30 minutes.</p>
 
       <!-- Stats ribbon -->
       <div class="predictor-stats-row" aria-label="AI Predictor key metrics" bind:this={statsEl}>
@@ -466,35 +467,35 @@
               <div class="gm-model claude">
                 <span class="gm-model-dot"></span>
                 <div class="gm-model-info">
-                  <b>Claude Opus 4.0</b>
+                  <b>Consensus synthesis</b>
                   <span>Moderator &amp; Synthesis</span>
                 </div>
               </div>
               <div class="gm-model gpt">
                 <span class="gm-model-dot"></span>
                 <div class="gm-model-info">
-                  <b>ChatGPT 3.2 Pro</b>
+                  <b>Probability model</b>
                   <span>+EV Data Scientist</span>
                 </div>
               </div>
               <div class="gm-model kimi">
                 <span class="gm-model-dot"></span>
                 <div class="gm-model-info">
-                  <b>Kimi K2.5</b>
+                  <b>Tempo model</b>
                   <span>Tempo &amp; Historical Analyst</span>
                 </div>
               </div>
               <div class="gm-model qwen">
                 <span class="gm-model-dot"></span>
                 <div class="gm-model-info">
-                  <b>Qwen 3.5</b>
+                  <b>Market efficiency model</b>
                   <span>Line Efficiency Technician</span>
                 </div>
               </div>
               <div class="gm-model grok">
                 <span class="gm-model-dot"></span>
                 <div class="gm-model-info">
-                  <b>Grok 4.2</b>
+                  <b>Risk challenge model</b>
                   <span>Contrarian Risk Auditor</span>
                 </div>
               </div>
@@ -569,6 +570,15 @@
 
     <!-- ── How to Use PulseOdds ───────────────────────────── -->
     <section class="how-to-use-section" aria-label="How to use PulseOdds">
+      <div class="intelligence-feature">
+        <img src="/images/consensus-intelligence-v1.webp" alt="Glass prism and connected nodes illustrating independent signals brought together" width="960" height="640" loading="lazy" decoding="async" />
+        <div>
+          <span class="eyebrow-pill">From odds to decisions</span>
+          <h2>Compare the signals.<br />Understand the uncertainty.</h2>
+          <p>Screen market prices, compare model agreement and review settled results in one workspace. Confidence is a model estimate; assess data quality and observed calibration before making a decision.</p>
+          <a href="/auth?mode=signup" class="intelligence-link">Create your workspace <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
       <div class="section-head">
         <h2 class="section-title">How to Use PulseOdds</h2>
         <span class="step-count-badge">7 Easy Steps</span>
@@ -648,7 +658,6 @@
             href={PUNTER_PAYMENT_LINK}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Pay for the Punter Pass directly on Flutterwave"
           >
             Pay the ₦5,000 Punter Pass directly <ExternalLink size={12} />
           </a>
@@ -702,7 +711,6 @@
             href={MASTER_PAYMENT_LINK}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Pay for the Master Punter Pass directly on Flutterwave"
           >
             Pay the ₦10,000 Master Pass directly <ExternalLink size={12} />
           </a>
@@ -772,6 +780,23 @@
 </div>
 
 <style>
+  .sport-section, .ai-predictor-section, .master-model-section,
+  .how-to-use-section, .pricing-section, .disclaimer-section {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 800px;
+  }
+  .landing-art { display: block; margin: 2rem auto 0; max-width: 1040px; overflow: hidden; border-radius: 24px; border: 1px solid var(--c-border); box-shadow: 0 28px 70px -30px #0009; }
+  .landing-art img { display: block; width: 100%; height: auto; }
+  .intelligence-feature { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 4vw, 56px); align-items: center; margin-bottom: 48px; }
+  .intelligence-feature img { width: 100%; height: auto; border-radius: 24px; border: 1px solid var(--c-border); box-shadow: 0 28px 60px -35px #000a; }
+  .intelligence-feature h2 { font-size: clamp(24px, 3vw, 38px); line-height: 1.15; letter-spacing: -0.035em; margin: 20px 0; }
+  .intelligence-feature p { color: var(--c-muted); line-height: 1.75; }
+  .intelligence-link { display: inline-flex; gap: 18px; margin-top: 20px; color: var(--brand); font-weight: 600; }
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .landing-art img { transition: transform 650ms ease; }
+    .landing-art:hover img { transform: scale(1.025); }
+  }
+  @media (max-width: 680px) { .intelligence-feature { grid-template-columns: 1fr; } }
   /* ── Root & Centered Alignment ─────────────────────────────── */
   .landing-root {
     position: relative;
@@ -1433,7 +1458,7 @@
     border-radius: 14px;
     background: #25d366;
     border: 1px solid rgba(255, 255, 255, 0.25);
-    color: #ffffff;
+    color: #052e16;
     font-size: 14.5px;
     font-weight: 800;
     font-family: var(--font-brand, 'Outfit', system-ui);
@@ -1472,7 +1497,7 @@
     border-radius: 999px;
     background: color-mix(in srgb, #22d3ee 14%, var(--c-surface));
     border: 1px solid color-mix(in srgb, #22d3ee 40%, transparent);
-    color: #67e8f9;
+    color: var(--accent2);
     font-size: 11.5px;
     font-weight: 900;
     letter-spacing: 0.07em;
@@ -1511,7 +1536,6 @@
     max-width: 600px;
     line-height: 1.6;
   }
-  .predictor-section-sub strong { color: var(--c-text); }
 
   /* Stats ribbon */
   .predictor-stats-row {
@@ -1545,7 +1569,7 @@
   .pstat-val {
     font-size: 26px;
     font-weight: 900;
-    color: #67e8f9;
+    color: var(--accent2);
     font-family: var(--font-mono, 'JetBrains Mono', monospace);
     letter-spacing: -0.02em;
     line-height: 1;
@@ -1731,10 +1755,10 @@
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #67e8f9;
+    color: var(--accent2);
     margin-bottom: 4px;
   }
-  .pipeline-head :global(svg) { color: #67e8f9; }
+  .pipeline-head :global(svg) { color: var(--accent2); }
   .pipeline-step {
     display: flex;
     align-items: flex-start;
@@ -1768,7 +1792,7 @@
     border-radius: 8px;
     background: color-mix(in srgb, #22d3ee 15%, transparent);
     border: 1px solid color-mix(in srgb, #22d3ee 28%, transparent);
-    color: #67e8f9;
+    color: var(--accent2);
   }
   .pipeline-body {
     display: flex;
@@ -1804,7 +1828,7 @@
     color: #a5b4fc;
     transform: translateY(-1px);
   }
-  .pred-sport-chip :global(svg) { color: #67e8f9; }
+  .pred-sport-chip :global(svg) { color: var(--accent2); }
 
   /* CTA wrapper */
   .predictor-cta-wrap {

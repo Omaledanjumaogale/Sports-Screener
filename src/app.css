@@ -190,39 +190,39 @@ html[data-theme='light'] {
   --c-on-accent: #0c1424;
 
   /* Brand — darkened volt/cyan for AA on light */
-  --brand:        #4d7c0f;
+  --brand:        #3f6212;
   --brand-hover:  #65a30d;
   --brand-deep:   #3f6212;
-  --accent2:      #0891b2;
+  --accent2:      #0e7490;
   --accent2-deep: #0e7490;
 
   /* Legacy brand names */
-  --c-orange:         #4d7c0f;
+  --c-orange:         #3f6212;
   --c-orange-deep:    #3f6212;
-  --c-orange-green:   #0891b2;
-  --c-brand-gradient: linear-gradient(135deg, #65a30d 0%, #16a34a 45%, #0891b2 100%);
+  --c-orange-green:   #0e7490;
+  --c-brand-gradient: linear-gradient(135deg, #65a30d 0%, #16a34a 45%, #0e7490 100%);
   --c-brand-glow:     rgba(101, 163, 13, 0.18);
-  --c-pulse-color:    #4d7c0f;
-  --c-indigo:         #4d7c0f;
+  --c-pulse-color:    #3f6212;
+  --c-indigo:         #3f6212;
   --c-violet:         #3f6212;
-  --c-neon:           #0891b2;
+  --c-neon:           #0e7490;
 
   /* Semantic status */
-  --c-success: #059669;
+  --c-success: #047857;
   --c-warning: #d97706;
   --c-error:   #e11d48;
   --c-info:    #0284c7;
 
   /* Sport accents */
-  --c-football:   #059669;
+  --c-football:   #047857;
   --c-basketball: #c2410c;
   --c-tennis:     #a21caf;
-  --c-rally:      #0891b2;
+  --c-rally:      #0e7490;
   --c-hockey:     #2563eb;
   --c-baseball:   #be185d;
 
   /* Status (legacy names kept) */
-  --c-green:      #059669;
+  --c-green:      #047857;
   --c-amber:      #d97706;
   --c-red:        #e11d48;
 

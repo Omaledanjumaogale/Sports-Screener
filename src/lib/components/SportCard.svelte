@@ -23,7 +23,6 @@
   class="sport-card"
   class:coming-soon={props.comingSoon}
   style={`--accent:${props.accent}`}
-  aria-label={props.comingSoon ? `${props.title} (Coming Soon)` : `Open ${props.title}`}
   type="button"
   disabled={props.comingSoon}
   onclick={() => {

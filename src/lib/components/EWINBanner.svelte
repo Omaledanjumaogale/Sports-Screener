@@ -35,7 +35,6 @@
         target="_blank"
         rel="noopener noreferrer"
         itemprop="url"
-        aria-label="Visit the Elite Workforce Impact Nigeria Project website"
       >
         Elite Workforce Impact Nigeria (E-WIN) Project
       </a>

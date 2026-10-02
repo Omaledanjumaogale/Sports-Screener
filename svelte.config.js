@@ -7,7 +7,7 @@ export default {
     adapter: adapter({
       pages: 'dist',
       assets: 'dist',
-      fallback: 'index.html',
+      fallback: '200.html',
       strict: false
     })
   }
