@@ -142,7 +142,8 @@ export interface GradedPickInput {
 export function gradePick(p: GradedPickInput): 'win' | 'loss' | 'push' | null {
   return gradeSelection(p.selection, p.marketTitle, p.finalScore, {
     homeTeam: p.homeTeam,
-    awayTeam: p.awayTeam
+    awayTeam: p.awayTeam,
+    sportId:p.sportId
   });
 }
 

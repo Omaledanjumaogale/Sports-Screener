@@ -4,9 +4,11 @@
     ListOrdered, Plus, Check
   } from '@lucide/svelte';
   import type { AiAnalysisResult } from '$lib/cloudflareAi';
-  import type { Pick } from '$lib/engine';
+  import { analyzeScope, type Pick, type ScopeState } from '$lib/engine';
+  import { decideMarkets, adviceFor } from '$lib/marketDecision';
+  import MarketDirectionBoard from './MarketDirectionBoard.svelte';
   import type { PredictorMatch, SelectionGrade } from '$lib/predictorTypes';
-  import { gradeSelection } from '$lib/predictorTypes';
+  import { gradeEvidence } from '$lib/marketEvidence';
   import { pickSegment } from '$lib/predictorSegments';
   import { isInBuilder, addToBuilder, removeFromBuilder } from '$lib/betSlipStore.svelte';
 
@@ -39,6 +41,12 @@
     match?: PredictorMatch | null;
   } = $props();
 
+  const fullPicks = $derived.by<Pick[]>(() => {
+    const scope = match?.scopes as ScopeState | undefined;
+    if (!scope?.markets || !match) return picks;
+    try { return analyzeScope(match.sportId, scope).picks; } catch { return picks; }
+  });
+  const decisions = $derived(decideMarkets(fullPicks, match?.scopes as ScopeState));
   interface RankedRow {
     key: string;
     selection: string;
@@ -121,7 +129,7 @@
     for (const t of insight?.top3Selections ?? []) {
       const pct = pctOf(t.confidence);
       const existing = rows.find(
-        (r) => sameMarket(r.selection, t.selection) || sameMarket(r.marketTitle, t.marketTitle)
+        (r) => sameMarket(r.marketTitle, t.marketTitle) && sameMarket(r.selection, t.selection)
       );
       if (existing) {
         // The LLM agrees with an engine pick — enrich, never duplicate.
@@ -150,15 +158,15 @@
 
   const gradeOf = (row: RankedRow): SelectionGrade => {
     if (!finalScore) return null;
-    return gradeSelection(row.selection, row.marketTitle, finalScore, {
-      homeTeam: match?.homeTeam,
-      awayTeam: match?.awayTeam,
-      marketId: row.marketId
-    });
+    const grade=gradeEvidence({label:row.selection,marketTitle:row.marketTitle,marketId:row.marketId,probability:row.pct,odds:row.odds??0},{sportId:match?.sportId??'unknown',dayKey:match?.dayKey??'',matchId:match?.matchId??'',homeTeam:match?.homeTeam,awayTeam:match?.awayTeam,finalScore,periodScores:match?.periodScores});
+    return grade==='partial'?null:grade;
   };
 
   const inSlip = (row: RankedRow): boolean =>
     !!match && isInBuilder(match.matchId, row.selection);
+
+  const hasQuote = (row: RankedRow): boolean => !!row.marketId && row.odds !== null && row.odds > 1 &&
+    match?.scopes?._meta?.oddsIsReal !== false && match?.scopes?.markets?.[row.marketId]?.derived !== true;
 
   function toggleSlip(row: RankedRow): void {
     if (!match) return;
@@ -166,6 +174,7 @@
       void removeFromBuilder(match.matchId, row.selection);
       return;
     }
+    if (!hasQuote(row)) return;
     void addToBuilder({
       sportId: match.sportId ?? '',
       dayKey: match.dayKey || '',
@@ -175,7 +184,7 @@
       league: match.league,
       marketTitle: row.marketTitle,
       selection: row.selection,
-      odds: row.odds ?? 1.01,
+      odds: row.odds!,
       publishedPct: row.pct,
       kickoff: match.startTime
     });
@@ -185,7 +194,7 @@
   const settledRows = $derived(ranked.filter((r) => gradeOf(r) !== null).length);
 </script>
 
-{#if insight || ranked.length > 0}
+{#if insight || ranked.length > 0 || fullPicks.length > 0}
   <div class="verdict-panel" style={`--accent:${accent}`}>
     <div class="panel-head">
       <span class="head-title"><ShieldCheck size={16} stroke-width={2.2} /> Agent Verdict</span>
@@ -204,6 +213,7 @@
       <p class="sub">{insight.crossCheckAnalysis}</p>
     {/if}
 
+    <MarketDirectionBoard picks={fullPicks} scope={(match?.scopes as ScopeState) ?? null} sportId={match?.sportId??''} />
     <!-- ── Research & Analysis Summary — the single ranked interface ── -->
     {#if ranked.length > 0}
       <div class="chart-block">
@@ -232,6 +242,7 @@
                   {/if}
                 </div>
                 <span class="market">{row.marketTitle || 'Market'}{#if row.odds !== null && row.odds > 1} · @ {row.odds.toFixed(2)}{/if}</span>
+                <p class="reason">{row.marketId ? adviceFor({marketId:row.marketId,marketTitle:row.marketTitle,label:row.selection,probability:row.pct,odds:row.odds??0},decisions) : 'Agent estimate · direction not verified against quoted market'}</p>
                 {#if row.reason}<p class="reason">{row.reason}</p>{/if}
                 <div class="track" aria-hidden="true">
                   <div class="bar" style={`width:${Math.min(100, row.pct)}%;`}></div>
@@ -245,8 +256,9 @@
                     class="slip-btn"
                     class:in-slip={inSlip(row)}
                     type="button"
+                    disabled={!inSlip(row) && !hasQuote(row)}
                     aria-label={inSlip(row) ? `Remove ${row.selection} from bet slip` : `Add ${row.selection} to bet slip`}
-                    title={inSlip(row) ? 'Remove from bet slip' : 'Add to bet slip'}
+                    title={inSlip(row) ? 'Remove from bet slip' : hasQuote(row) ? 'Add to bet slip' : 'A verified quoted price is required'}
                     onclick={(e) => {
                       e.stopPropagation();
                       toggleSlip(row);

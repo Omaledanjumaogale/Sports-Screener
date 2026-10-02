@@ -1,3 +1,4 @@
+import { marketContext, gradeEvidence } from '../src/lib/marketEvidence';
 // ── Pure post-match grading ───────────────────────────────────────────────────
 // The market classifier + selection grader used by BOTH the P&L settlement
 // (scores.ts) and the persisted accuracy/calibration snapshot
@@ -44,59 +45,13 @@ export function gradeSelection(
   selection: string,
   market: string,
   finalScore?: string | null,
-  opts?: { homeTeam?: string; awayTeam?: string }
+  opts?: { homeTeam?: string; awayTeam?: string; marketId?: string; sportId?:string; periodScores?:Record<string,{home:number;away:number}> }
 ): SelectionGrade {
-  const score = parseScore(finalScore);
-  if (!score) return null;
-
-  const lower = String(market || '').toLowerCase();
-  const sel = String(selection || '');
-
-  if (isTotalMarket(lower)) {
-    const side = /home/.test(lower) ? score.home : /away/.test(lower) ? score.away : score.home + score.away;
-    const threshold = extractThreshold(sel);
-    if (threshold == null) return null;
-    if (/(^|\s)over[\s\S]*/i.test(sel)) {
-      if (side > threshold) return 'win';
-      if (side === threshold) return 'push';
-      return 'loss';
-    }
-    if (side < threshold) return 'win';
-    if (side === threshold) return 'push';
-    return 'loss';
-  }
-
-  if (isWinnerMarket(lower)) {
-    const lowerSel = sel.toLowerCase();
-    const home = opts?.homeTeam?.toLowerCase();
-    const away = opts?.awayTeam?.toLowerCase();
-    if (/(^|\s)draw/i.test(lowerSel)) {
-      return score.home === score.away ? 'win' : 'loss';
-    }
-    const isHome = home ? lowerSel.includes(home) : /home|^\d\s|\bteam\s*a\b|^1\b/i.test(lowerSel);
-    const isAway = isHome ? false : away ? lowerSel.includes(away) : /away|team\s*b|^2\b/i.test(lowerSel);
-    if (isHome) return score.home > score.away ? 'win' : 'loss';
-    if (isAway) return score.away > score.home ? 'win' : 'loss';
-    return null;
-  }
-
-  if (isSpreadMarket(lower)) {
-    const threshold = extractThreshold(sel);
-    if (threshold == null) return null;
-    const lowerSel = sel.toLowerCase();
-    const home = opts?.homeTeam?.toLowerCase();
-    const away = opts?.awayTeam?.toLowerCase();
-    const isHome = home ? lowerSel.includes(home) : /home|^1\b/.test(lowerSel);
-    const isAway = home ? lowerSel.includes(away ?? '') : /away|^2\b/.test(lowerSel);
-    const base = isAway ? score.away : score.home;
-    const other = isAway ? score.home : score.away;
-    const adjusted = base + threshold;
-    if (adjusted > other) return 'win';
-    if (adjusted === other) return 'push';
-    return 'loss';
-  }
-
-  return null;
+  const pick={marketId:opts?.marketId??market,marketTitle:market,label:selection,probability:50,odds:0};
+  const context=marketContext(pick);
+  if(!['total','handicap','winner'].includes(context.family))return null;
+  const grade=gradeEvidence(pick,{sportId:opts?.sportId??'unknown',dayKey:'',matchId:'',homeTeam:opts?.homeTeam,awayTeam:opts?.awayTeam,finalScore:finalScore??undefined,periodScores:opts?.periodScores});
+  return grade==='partial'?null:grade;
 }
 
 export function marketFilterOf(market: string): MarketFilter {

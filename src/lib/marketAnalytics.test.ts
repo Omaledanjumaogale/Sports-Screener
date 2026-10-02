@@ -1,0 +1,11 @@
+import {it,expect,vi,beforeEach} from 'vitest';
+vi.mock('../../convex/access',()=>({requireAdmin:vi.fn()}));
+import {requireAdmin} from '../../convex/access';
+import {report} from '../../convex/marketAnalytics';
+const invoke=(ctx:any,args:any)=>(report as any)._handler(ctx,args);
+const args={sport:'basketball',from:'2026-09-01',to:'2026-10-02',mode:'preferred'};
+beforeEach(()=>{vi.mocked(requireAdmin).mockReset();});
+it('rejects non-administrators before reading prediction evidence',async()=>{vi.mocked(requireAdmin).mockImplementation(async()=>{throw new Error('Administrator access required');});const query=vi.fn();let rejected=false;try{await invoke({db:{query}},args);}catch(reason){rejected=String(reason).includes('Administrator');}expect(rejected).toBe(true);expect(query).not.toHaveBeenCalled();});
+it('rejects invalid, reversed and excessive date ranges',async()=>{for(const range of [{from:'2026-02-30'},{from:'2027-01-01'},{from:'2020-01-01'}])await expect(invoke({}, {...args,...range})).rejects.toThrow('date range');});
+it('reports unavailable automated coverage without inventing sport records',async()=>{const result=await invoke({}, {...args,sport:'volleyball'});expect(result.automatedCoverage).toBe(false);expect(result.fixtures).toBe(0);expect(result.isDone).toBe(true);});
+it('uses a bounded cursor page and excludes raw provider payloads',async()=>{const paginate=vi.fn().mockResolvedValue({page:[{sportId:'basketball',dayKey:'2026-10-01',matchId:'one',capturedAt:1,startTime:2,odds:{private:'large payload'},report:{top3Selections:[]}}],isDone:false,continueCursor:'next'});const chain:any={withIndex:vi.fn(()=>chain),order:vi.fn(()=>chain),paginate};const result=await invoke({db:{query:()=>chain}}, {...args,cursor:'prior'});expect(paginate).toHaveBeenCalledWith({numItems:100,cursor:'prior'});expect(result.cursor).toBe('next');expect(result.rows[0].odds).toBeUndefined();expect(result.truncated).toBe(true);});

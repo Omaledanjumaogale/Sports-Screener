@@ -1,3 +1,4 @@
+import { basketballPeriods } from './basketballPeriods';
 // Verified sports-data API clients used by the Fixture and Odds agents.
 //
 // Verified live (see project notes) — only these providers return real data:
@@ -931,23 +932,29 @@ export interface ApiMatchScore {
   away: string;
   finalScore: string;
   status: 'upcoming' | 'inplay' | 'finished';
+  periodScores?: Record<string,{home:number;away:number}>;
 }
 
 export async function fetchScoresForDate(sportId: string, date: string): Promise<ApiMatchScore[]> {
   const scores: ApiMatchScore[] = [];
   const seen = new Set<string>();
 
-  const pushScore = (home: string, away: string, hs: any, as: any, statusStr?: string) => {
+  const pushScore = (home: string, away: string, hs: any, as: any, statusStr?: string, periodScores?: Record<string,{home:number;away:number}>) => {
     const hk = normalizeTeam(home);
     const ak = normalizeTeam(away);
     if (!hk || !ak) return;
     const key = `${hk}|${ak}`;
-    if (seen.has(key)) return;
+    if (seen.has(key)) {
+      const prior=scores.find(x=>normalizeTeam(x.home)===hk&&normalizeTeam(x.away)===ak);
+      if(prior && prior.finalScore===`${hs} - ${as}` && prior.status==='finished' && /final|finished|completed/i.test(statusStr??'') && periodScores && Object.keys(periodScores).length)prior.periodScores=periodScores;
+      return;
+    }
 
     let status: 'upcoming' | 'inplay' | 'finished' = 'upcoming';
     const s = String(statusStr || '').toLowerCase();
 
-    if (/finish|ft|aot|end|final|postp|closed|completed/i.test(s)) {
+    if (/postpon|cancel|abandon|suspend/.test(s)) return;
+    if (/finish|ft|aot|end|final|closed|completed/i.test(s)) {
       status = 'finished';
     } else if (/in play|live|ht|1h|2h|quarter|period|set|progress|playing/i.test(s)) {
       status = 'inplay';
@@ -970,7 +977,7 @@ export async function fetchScoresForDate(sportId: string, date: string): Promise
 
     if (finalScore || status !== 'upcoming') {
       seen.add(key);
-      scores.push({ home, away, finalScore, status });
+      scores.push({ home, away, finalScore, status, ...(status==='finished' && periodScores && Object.keys(periodScores).length ? {periodScores} : {}) });
     }
   };
 
@@ -998,7 +1005,7 @@ export async function fetchScoresForDate(sportId: string, date: string): Promise
       for (const g of bdlGames ?? []) {
         const home = g?.home_team?.full_name;
         const away = g?.visitor_team?.full_name;
-        if (home && away) pushScore(String(home), String(away), g?.home_team_score, g?.visitor_team_score, g?.status);
+        if (home && away) pushScore(String(home), String(away), g?.home_team_score, g?.visitor_team_score, g?.status_state??g?.status, basketballPeriods(g));
       }
     } catch {}
 

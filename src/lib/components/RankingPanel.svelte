@@ -1,16 +1,22 @@
 <script lang="ts">
-  import type { Pick } from '../engine';
+  import type { Pick, ScopeState } from '../engine';
+  import { decideMarkets, adviceFor } from '$lib/marketDecision';
 
   let {
     picks = [] as Pick[],
+    decisionPicks = [] as Pick[],
+    scope = null as ScopeState | null,
     limit = 12,
     accent = '#22d3ee'
   }: {
     picks?: Pick[];
+    decisionPicks?: Pick[];
+    scope?: ScopeState | null;
     limit?: number;
     accent?: string;
   } = $props();
 
+  const decisions = $derived(decideMarkets(decisionPicks.length ? decisionPicks : picks,scope));
   const medalColors = [
     { bg: 'linear-gradient(135deg,#ffd700,#f59e0b)', shadow: 'rgba(245,158,11,0.5)' },
     { bg: 'linear-gradient(135deg,#e2e8f0,#94a3b8)', shadow: 'rgba(148,163,184,0.4)' },
@@ -50,6 +56,7 @@
 
           <!-- Info -->
           <div class="rank-info">
+            <small class="direction-advice">{adviceFor(pick, decisions)}</small>
             <div class="rank-title-row">
               <b class="rank-label">{pick.label}</b>
               {#if pick.confluenceTier}
@@ -91,6 +98,7 @@
 {/if}
 
 <style>
+  .direction-advice{display:block;font-size:.7rem;color:var(--c-muted);margin-bottom:5px;overflow-wrap:anywhere}
   .ranking {
     padding: 18px;
     border-radius: 18px;

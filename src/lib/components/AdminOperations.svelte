@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import AdminMarketPerformance from './AdminMarketPerformance.svelte';
   import { queryConvex, callConvex, subscribeConvexQuery, convexErrorMessage } from '$lib/convexClient';
   import type { PredictorStatsSnapshot } from '$lib/predictorTypes';
   let { history = [] }: { history: PredictorStatsSnapshot[] } = $props();
@@ -35,7 +36,7 @@
 </script>
 <section class="ops" aria-label="Enterprise operations dashboard">
   <header><div><p class="eyebrow">Operations workspace</p><h2>Performance, access and service health</h2></div><button onclick={download} disabled={!data}>Export report</button></header>
-  <nav aria-label="Operations views">{#each ['Performance','Services','Accounts','Evidence','Migrations'] as name}<button aria-pressed={tab===name} onclick={()=>{tab=name;if(name==='Accounts'&&!accounts.length)void loadAccounts(true);}}>{name}</button>{/each}</nav>
+  <nav aria-label="Operations views">{#each ['Performance','Markets','Services','Accounts','Evidence','Migrations'] as name}<button aria-pressed={tab===name} onclick={()=>{tab=name;if(name==='Accounts'&&!accounts.length)void loadAccounts(true);}}>{name}</button>{/each}</nav>
   {#if error}<p role="alert" class="error">{error}</p>{/if}
   {#if !data && !error}<p role="status">Connecting to operational metrics…</p>{/if}
   {#if tab==='Performance'}
@@ -43,6 +44,8 @@
     {#if series.length}<svg viewBox="0 0 600 210" role="img" aria-label="Observed daily win rate from zero to one hundred percent"><title>Observed daily win rate</title><line x1="20" y1="100" x2="580" y2="100" stroke="currentColor" opacity="0.2" /><polyline {points} fill="none" stroke="var(--brand)" stroke-width="3" /><text x="22" y="205" fill="currentColor">{series[0].dayKey}</text><text x="470" y="205" fill="currentColor">{series.at(-1)?.dayKey}</text></svg>{:else}<p>No performance snapshots yet.</p>{/if}
     <div class="scroll"><table><caption>Daily performance source data</caption><thead><tr><th>Date</th><th>Graded picks</th><th>Win rate</th><th>Units proxy</th></tr></thead><tbody>{#each series as row}<tr><td>{row.dayKey}</td><td>{row.gradedPicks}</td><td>{row.data?.overall?.winRatePct ?? '—'}%</td><td>{row.data?.overall?.unitsPnl ?? '—'}</td></tr>{/each}</tbody></table></div>
     <p class="note">Retrospective results and fixed-return units proxies do not establish future profitability. Compare confidence with observed outcomes, sample size and data provenance.</p>
+  {:else if tab==='Markets'}
+    <AdminMarketPerformance />
   {:else if tab==='Services' && data}
     <div class="cards"><article><h3>Payment configuration</h3><strong>{data.services.paymentsConfigured?'Configured':'Missing configuration'}</strong><p>{data.payments.successful} successful in latest {data.payments.sample} transactions{data.payments.truncated?' (sample capped)':''}. ₦{data.payments.settledNgn.toLocaleString()} settled in this sample.</p></article><article><h3>Password recovery</h3><strong>{data.services.recoveryConfigured?'Provider key configured':'Unavailable'}</strong><p>Configuration does not confirm sender-domain delivery.</p></article><article><h3>Push delivery</h3><strong>Unavailable</strong><p>Notifications remain disabled until delivery is verified.</p></article></div>
     <h3>Feature state controls</h3><div class="controls">{#each ['predictor','payments','maintenance'] as key}{@const flag=data.flags.find((f:any)=>f.key===key)}{@const enabled=flag?.enabled??(key!=='maintenance')}<button disabled={busy} onclick={()=>void toggle(key,!enabled)}>{key}: {enabled?'enabled':'disabled'}</button>{/each}</div>

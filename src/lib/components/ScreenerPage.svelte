@@ -8,6 +8,7 @@
   import MetricStrip from './MetricStrip.svelte';
   import ProfileCard from './ProfileCard.svelte';
   import RankingPanel from './RankingPanel.svelte';
+  import MarketDirectionBoard from './MarketDirectionBoard.svelte';
   import MarketAccordion from './MarketAccordion.svelte';
   import LineRowOu from './LineRowOu.svelte';
   import LineRowHandicap from './LineRowHandicap.svelte';
@@ -406,7 +407,8 @@
 
       <div class="spacer"></div>
 
-      <RankingPanel picks={analysis.masterRankings ?? analysis.picks} limit={12} {accent} />
+      <MarketDirectionBoard picks={analysis.picks} {scope} {sportId} />
+      <RankingPanel picks={analysis.masterRankings ?? analysis.picks} decisionPicks={analysis.picks} {scope} limit={12} {accent} />
 
       <div class="spacer"></div>
 
@@ -418,6 +420,7 @@
         {#each Object.values(scope.markets) as m (m.id)}
           {#if !(sportId === 'basketball' && (m.id === 'correctScore' || m.id === 'tiebreak'))}
               <MarketAccordion title={m.title} primary={!!m.primary} open={false} {accent}>
+                <MarketDirectionBoard picks={analysis.picks} {scope} {sportId} marketId={m.id} />
                 {#if m.kind === 'ou' && m.pairs}
                   <div class="line-list">
                     {#each m.pairs as pair, index (index)}

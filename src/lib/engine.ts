@@ -70,6 +70,7 @@ export interface ScopeState {
 }
 
 export interface Pick {
+  priceVerified?: boolean;
   marketId: string;
   marketTitle: string;
   label: string;

@@ -38,7 +38,8 @@ export const updateScoresBatch = internalMutation({
         dayKey: v.string(),
         matchId: v.string(),
         finalScore: v.string(),
-        status: v.union(v.literal('upcoming'), v.literal('inplay'), v.literal('finished'))
+        status: v.union(v.literal('upcoming'), v.literal('inplay'), v.literal('finished')),
+        periodScores: v.optional(v.record(v.string(),v.object({home:v.number(),away:v.number()})))
       })
     )
   },
@@ -56,12 +57,16 @@ export const updateScoresBatch = internalMutation({
         // or a basketball score applied to a football match).
         if (u.finalScore) {
           const p = parseScore(u.finalScore);
-          if (p && !scoreIsPlausible(match.sportId, p.home, p.away)) continue;
+          if (!p || !scoreIsPlausible(match.sportId, p.home, p.away)) continue;
         }
-        if (match.finalScore !== u.finalScore || match.status !== u.status) {
+        const final=parseScore(u.finalScore);
+        const valid=final&&u.status==='finished'?Object.fromEntries(Object.entries(u.periodScores??{}).filter(([key,s])=>['h1','h2','q1','q2','q3','q4','rt'].includes(key)&&Number.isInteger(s.home)&&Number.isInteger(s.away)&&s.home>=0&&s.away>=0&&s.home<=final.home&&s.away<=final.away)):{};
+        const periods=Object.keys(valid).length?valid:undefined;
+        if (match.finalScore !== u.finalScore || match.status !== u.status || (periods&&JSON.stringify(match.periodScores)!==JSON.stringify(periods))) {
           await ctx.db.patch(match._id, {
             finalScore: u.finalScore,
             status: u.status,
+            ...(periods ? {periodScores:periods} : {}),
             oddsSnapshot: {
               ...(match.oddsSnapshot ?? {}),
               finalScore: u.finalScore,
@@ -72,7 +77,13 @@ export const updateScoresBatch = internalMutation({
         }
         if (u.status === 'finished' && parseScore(u.finalScore)) {
           const evidence = await ctx.db.query('predictionEvidence').withIndex('by_match', q => q.eq('sportId', match.sportId).eq('dayKey', u.dayKey).eq('matchId', u.matchId)).first();
-          if (evidence && !evidence.finalScore) await ctx.db.patch(evidence._id, { finalScore: u.finalScore, settledAt: Date.now() });
+          if (evidence) {
+            // Fill missing result fields only; conflicting final scores cannot enrich an archive.
+            if(!evidence.finalScore || evidence.finalScore===u.finalScore) {
+              const retained={...valid,...(evidence.periodScores??{})};
+              await ctx.db.patch(evidence._id,{...(!evidence.finalScore?{finalScore:u.finalScore,settledAt:Date.now()}:{}),...(Object.keys(retained).length?{periodScores:retained}:{})});
+            }
+          }
         }
       }
     }
@@ -114,6 +125,7 @@ export const syncScoresAction = internalAction({
           matchId: string;
           finalScore: string;
           status: 'upcoming' | 'inplay' | 'finished';
+          periodScores?:Record<string,{home:number;away:number}>;
         }[] = [];
 
         const unmatched: { matchId: string; home: string; away: string; dayKey: string }[] = [];
@@ -133,7 +145,8 @@ export const syncScoresAction = internalAction({
               dayKey: targetDay,
               matchId: m.matchId,
               finalScore: found.finalScore,
-              status: found.status
+              status: found.status,
+              ...(found.periodScores ? {periodScores:found.periodScores} : {})
             });
           } else if (
             (m.status !== 'finished' || !m.finalScore) &&
@@ -318,7 +331,7 @@ export const settleDayPnl = internalAction({
           for (const t of topN) {
             const selection = String(t?.selection || '');
             const marketTitle = String(t?.marketTitle || 'Core Market');
-            const grade = gradeSelection(selection, marketTitle, m.finalScore, { homeTeam: m.homeTeam, awayTeam: m.awayTeam });
+            const grade = gradeSelection(selection, marketTitle, m.finalScore, { homeTeam: m.homeTeam, awayTeam: m.awayTeam, sportId:m.sportId,periodScores:m.periodScores });
             if (!grade) continue;
             const filter = marketFilterOf(marketTitle);
             const all = buckets.ALL;

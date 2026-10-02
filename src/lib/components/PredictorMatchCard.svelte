@@ -82,7 +82,9 @@
     return gradeSelection(selection, marketLabel, score, {
       homeTeam: match.homeTeam,
       awayTeam: match.awayTeam,
-      marketId: marketLabel
+      marketId: marketLabel,
+      sportId:match.sportId,
+      periodScores:match.periodScores
     });
   };
   const topGrade = $derived(top ? gradeOf(top.label, top.marketTitle) : null);

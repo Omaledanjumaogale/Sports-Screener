@@ -299,6 +299,7 @@ export default defineSchema({
     sportPinned: v.optional(v.boolean()),
     oddsSnapshot: v.optional(v.any()),
     finalScore: v.optional(v.string()),
+    periodScores:v.optional(v.record(v.string(),v.object({home:v.number(),away:v.number()}))),
     status: v.optional(
       v.union(v.literal('upcoming'), v.literal('inplay'), v.literal('finished'))
     ),
@@ -313,8 +314,11 @@ export default defineSchema({
       dayKey: v.string(), sportId: PREDICTOR_SPORT_IDS, matchId: v.string(),
       capturedAt: v.number(), startTime: v.number(), modelVersion: v.string(),
       source: v.string(), dataQuality: v.optional(v.string()), odds: v.any(), report: v.any(),
+      publishedPicks: v.optional(v.array(v.object({marketId:v.string(),marketTitle:v.string(),label:v.string(),probability:v.number(),odds:v.number(),priceVerified:v.optional(v.boolean()),margin:v.optional(v.number()),ev:v.optional(v.number()),confluenceTier:v.optional(v.string())}))),
+      decisions: v.optional(v.any()), rulesVersion: v.optional(v.string()),
+      periodScores: v.optional(v.record(v.string(),v.object({home:v.number(),away:v.number()}))),
       homeTeam: v.optional(v.string()), awayTeam: v.optional(v.string()), finalScore: v.optional(v.string()), settledAt: v.optional(v.number())
-    }).index('by_match', ['sportId', 'dayKey', 'matchId']).index('by_captured', ['capturedAt']),
+    }).index('by_match', ['sportId', 'dayKey', 'matchId']).index('by_captured', ['capturedAt']).index('by_sport_day', ['sportId','dayKey']),
 
     predictorVerdicts: defineTable({
     dayKey: v.string(),

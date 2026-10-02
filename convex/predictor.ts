@@ -11,6 +11,8 @@ import { repairBasketballLeague } from './scrapers/normalize';
 import { enforceRateLimit } from './rateLimit';
 import { requireMasterPass, requireAdmin } from './access';
 import { logAuditEvent } from './auditLog';
+import { analyzeScope, type ScopeState } from '../src/lib/engine';
+import { decideMarkets, metDecision, DECISION_VERSION } from '../src/lib/marketDecision';
 
 // The AI Predictor covers the sports whose sources deliver fixtures DAILY.
 // Rally (table tennis), rugby, cricket, mma and volleyball were removed —
@@ -962,6 +964,7 @@ export const replaceMatches = internalMutation({
         sportPinned: m.sportPinned ?? old?.sportPinned,
         status: old?.status ?? 'upcoming',
         finalScore: old?.finalScore,
+        periodScores:old?.periodScores,
         oddsSnapshot: old?.oddsSnapshot,
         createdAt: now
       });
@@ -1031,12 +1034,18 @@ export const insertVerdicts = internalMutation({
       const match = await ctx.db.query('predictorMatches').withIndex('by_day_match', q => q.eq('dayKey', args.dayKey).eq('matchId', vv.matchId)).first();
       if (match && match.sportId === args.sportId && match.startTime > now && !match.finalScore) {
         const evidence = await ctx.db.query('predictionEvidence').withIndex('by_match', q => q.eq('sportId', args.sportId).eq('dayKey', args.dayKey).eq('matchId', vv.matchId)).first();
-        if (!evidence) await ctx.db.insert('predictionEvidence', {
+        if (!evidence) {
+          const scope = match.scopes as ScopeState;
+          let publishedPicks: ReturnType<typeof analyzeScope>['picks'] = [];
+          try { publishedPicks = analyzeScope(args.sportId,scope).picks.filter(p=>Number.isFinite(p.probability)&&Number.isFinite(p.odds)).map(p=>({...p,priceVerified:(scope as any)?._meta?.oddsIsReal!==false && (scope.markets?.[p.marketId] as any)?.derived!==true})); } catch { /* Invalid source data remains visibly unscored. */ }
+          await ctx.db.insert('predictionEvidence', {
           dayKey: args.dayKey, sportId: args.sportId, matchId: vv.matchId,
-          capturedAt: now, startTime: match.startTime, modelVersion: `${vv.llmProvider || 'deterministic'}:archive-v1`,
+          capturedAt: now, startTime: match.startTime, modelVersion: `${vv.llmProvider || 'deterministic'}:archive-v2`,
+          publishedPicks, decisions: {version:DECISION_VERSION,markets:decideMarkets(publishedPicks,scope),met:args.sportId==='basketball'?metDecision(scope):null}, rulesVersion:DECISION_VERSION,
           source: match.source, dataQuality: match.dataQuality, odds: match.oddsSnapshot ?? match.scopes, report: aiReport,
           homeTeam: match.homeTeam, awayTeam: match.awayTeam
         });
+        }
       }
       if (existing) {
         await ctx.db.patch(existing._id, { ...patch, agentsRun: vv.agentsRun, citations: vv.citations });

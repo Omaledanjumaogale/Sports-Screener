@@ -1,3 +1,4 @@
+import { marketContext, gradeEvidence } from './marketEvidence';
 import type { AiAnalysisResult } from './cloudflareAi';
 
 // The AI Predictor covers the sports whose sources deliver fixtures DAILY.
@@ -87,6 +88,7 @@ export interface PredictorMatch {
   scopes: any;
   oddsSnapshot?: any;
   finalScore?: string;
+  periodScores?:Record<string,{home:number;away:number}>;
   status?: 'upcoming' | 'inplay' | 'finished';
   createdAt: number;
 }
@@ -436,75 +438,11 @@ export function gradeSelection(
   selection: string,
   market: string,
   finalScore?: string | null,
-  opts?: { homeTeam?: string; awayTeam?: string; marketId?: string }
+  opts?: { homeTeam?: string; awayTeam?: string; marketId?: string; sportId?:string; periodScores?:Record<string,{home:number;away:number}> }
 ): SelectionGrade {
-  const score = parseFinScore(finalScore);
-  if (!score) return null;
-
-  const mkt = market || opts?.marketId || '';
-  const lower = mkt.toLowerCase();
-  const sel = String(selection || '');
-
-  // Total / over-under markets (main, team, set, player totals).
-  if (isTotalMarket(lower)) {
-    const side = /home/.test(lower) ? score.home : /away/.test(lower) ? score.away : score.home + score.away;
-    const threshold = extractThreshold(sel);
-    if (threshold == null) return null;
-    const over = /(^|\s)over[\s\S]*/i.test(sel);
-    if (over) {
-      if (side > threshold) return 'win';
-      if (side === threshold) return 'push';
-      return 'loss';
-    }
-    // assume under
-    if (side < threshold) return 'win';
-    if (side === threshold) return 'push';
-    return 'loss';
-  }
-
-  // Winner / moneyline.
-  if (isWinnerMarket(lower)) {
-    const lowerSel = sel.toLowerCase();
-    const home = opts?.homeTeam?.toLowerCase();
-    const away = opts?.awayTeam?.toLowerCase();
-    const isDraw = /(^|\s)draw/i.test(lowerSel);
-    if (isDraw) {
-      if (score.home === score.away) return 'win';
-      return 'loss';
-    }
-    // Team names take priority, but selections phrased generically ("Home Win",
-    // "1", "Team A") must still resolve even when the actual team names are
-    // known — otherwise finished matches never get a winner verdict.
-    const isHome = home
-      ? lowerSel.includes(home) || /(^|\s)home($|\s)|^1\b|\bteam\s*a\b/i.test(lowerSel)
-      : /home|^\d\s|\bteam\s*a\b|^1\b/i.test(lowerSel);
-    const isAway = isHome
-      ? false
-      : away
-        ? lowerSel.includes(away) || /(^|\s)away($|\s)|^2\b|\bteam\s*b\b/i.test(lowerSel)
-        : /away|team\s*b|^2\b/i.test(lowerSel);
-    if (isHome) return score.home > score.away ? 'win' : 'loss';
-    if (isAway) return score.away > score.home ? 'win' : 'loss';
-    return null;
-  }
-
-  // Spread / handicap.
-  if (isSpreadMarket(lower)) {
-    const threshold = extractThreshold(sel);
-    if (threshold == null) return null;
-    const lowerSel = sel.toLowerCase();
-    const home = opts?.homeTeam?.toLowerCase();
-    const away = opts?.awayTeam?.toLowerCase();
-    const isHome = home ? lowerSel.includes(home) : /home|match|1\b/.test(lowerSel);
-    const isAway = home ? lowerSel.includes(away ?? '') : /away|2\b/.test(lowerSel);
-    const base = isAway ? score.away : score.home;
-    const other = isAway ? score.home : score.away;
-    const adjusted = base + threshold;
-    if (adjusted > other) return 'win';
-    if (adjusted === other) return 'push';
-    return 'loss';
-  }
-
-  // Unknown market — best-effort numeric line try (push-aware).
-  return null;
+  const pick={marketId:opts?.marketId??market,marketTitle:market,label:selection,probability:50,odds:0};
+  const context=marketContext(pick);
+  if(!['total','handicap','winner'].includes(context.family))return null;
+  const grade=gradeEvidence(pick,{sportId:opts?.sportId??'unknown',dayKey:'',matchId:'',homeTeam:opts?.homeTeam,awayTeam:opts?.awayTeam,finalScore:finalScore??undefined,periodScores:opts?.periodScores});
+  return grade==='partial'?null:grade;
 }
