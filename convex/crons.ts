@@ -65,6 +65,11 @@ crons.interval('betslip-grading', { minutes: 60 }, internal.betSlips.gradeSlipIt
 // stays accurate and the table never accumulates stale sessions.
 crons.interval('presence-sweep', { minutes: 10 }, internal.presence.sweepStalePresence, {});
 
+// ── Anonymous usage sweep — daily ────────────────────────────────────────────
+// Drops ANONYMOUS usage rows after 90 days (signed-in rows are retained so the
+// admin console keeps its per-user time-in-app history).
+crons.interval('usage-sweep', { minutes: 1440 }, internal.usage.sweepStale, {});
+
 // ── Finished-match retention — daily + every 6 hours (was hourly) ─────────────
 // PREDICTOR_RETENTION_DAYS is the primary knob; the 6-hourly pass guarantees
 // sub-day catch-up for any rows aged out between the daily job.

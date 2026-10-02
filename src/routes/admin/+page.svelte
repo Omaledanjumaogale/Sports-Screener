@@ -26,9 +26,18 @@
   } from '$lib/predictorTypes';
 
   // Admin user-management payload (tester codes + subscribers + counters).
+  /** Graded pick record backing the per-user "strike rate" column. */
+  interface StrikeRow {
+    legs: number;
+    wins: number;
+    losses: number;
+    pushes: number;
+    strikePct: number | null;
+  }
+  type Presence = 'online' | 'offline' | 'expired';
   interface TesterRow {
     code: string;
-    status: 'issued' | 'claimed' | 'revoked';
+    status: 'issued' | 'claimed' | 'suspended' | 'revoked';
     label: string | null;
     batch: string | null;
     createdBy: string;
@@ -53,6 +62,27 @@
     lastSeenAt: number | null;
     revokedAt: number | null;
     notes: string | null;
+    /** Green = online now · amber = offline · red = expired / revoked / suspended. */
+    presence: Presence;
+    online: boolean;
+    /** Total foreground time on the app (ms). */
+    usageMs: number;
+    strike: StrikeRow;
+    suspended: boolean;
+    suspendedAt: number | null;
+    suspendReason: string | null;
+    reactivatedAt: number | null;
+    reopenCount: number;
+    needsReview: boolean;
+    approvedAt: number | null;
+    approvedBy: string | null;
+    previousRegistration: {
+      fullName?: string;
+      actualEmail?: string;
+      mobile?: string;
+      stateOfResidence?: string;
+      registeredAt?: number;
+    } | null;
   }
   interface SubscriberRow {
     email: string;
@@ -65,16 +95,26 @@
     subscriptionExpiresAt: number | null;
     daysRemaining: number | null;
     updatedAt: number;
+    lastSeenAt: number | null;
+    online: boolean;
+    presence: Presence;
+    usageMs: number;
+    logins: number;
+    strike: StrikeRow;
   }
   interface TesterOverview {
     generatedAt: number;
     trialDays: number;
     testers: TesterRow[];
     subscribers: SubscriberRow[];
+    platform: StrikeRow;
     counts: {
       codesIssued: number;
       codesAwaitingRegistration: number;
       claimable: number;
+      suspended: number;
+      needsReview: number;
+      reopened: number;
       revoked: number;
       registered: number;
       deviceBound: number;
@@ -82,6 +122,8 @@
       expiredTrials: number;
       expiringSoon: number;
       onlineNow: number;
+      onlineTesters: number;
+      onlineSubscribers: number;
     };
   }
 
@@ -151,8 +193,39 @@
     if (hrs < 24) return `${hrs}h ago`;
     return `${Math.floor(hrs / 24)}d ago`;
   };
+  /** Human-friendly "time spent in the app" label. */
+  const fmtDuration = (ms?: number | null) => {
+    const total = Math.max(0, Math.floor((ms ?? 0) / 1000));
+    if (total < 60) return `${total}s`;
+    const mins = Math.floor(total / 60);
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    if (hours < 24) return remMins ? `${hours}h ${remMins}m` : `${hours}h`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ${hours % 24}h`;
+  };
+
+  /** Strike-rate label for a graded pick record. */
+  const strikeLabel = (s?: StrikeRow | null) =>
+    s && s.strikePct !== null && s.strikePct !== undefined ? `${s.strikePct}%` : '—';
+  const strikeTitle = (s?: StrikeRow | null) =>
+    s
+      ? `${s.wins ?? 0}W · ${s.losses ?? 0}L${s.pushes ? ` · ${s.pushes} push` : ''} over ${s.legs ?? 0} settled pick${s.legs === 1 ? '' : 's'}`
+      : 'No settled picks yet';
+  const strikeClass = (s?: StrikeRow | null) =>
+    s?.strikePct === null || s?.strikePct === undefined
+      ? 'cold'
+      : s.strikePct >= 60
+        ? 'hot'
+        : 'warn';
+
+  /** Short, human label for a tester's online state. */
+  const presenceLabel = (p: Presence) =>
+    p === 'online' ? 'Online now' : p === 'expired' ? 'Expired / blocked' : 'Offline';
+
   const trialTone = (t: TesterRow) => {
-    if (t.status === 'revoked' || t.status === 'issued') return 'cold';
+    if (t.status === 'revoked' || t.status === 'suspended' || t.status === 'issued') return 'cold';
     if (!t.trialExpiresAt) return 'cold';
     if ((t.daysRemaining ?? 0) <= 0) return 'cold';
     if ((t.daysRemaining ?? 0) <= 7) return 'warn';
@@ -262,10 +335,16 @@
   let generatedCodes = $state<string[]>([]);
   let copiedCode = $state('');
   let revealed = $state<Record<string, string>>({});
-  let testerFilter = $state<'all' | 'issued' | 'claimed' | 'revoked'>('all');
+  let testerFilter = $state<'all' | 'issued' | 'claimed' | 'suspended' | 'review' | 'revoked'>('all');
 
   const testerRows = $derived(
-    (testerData?.testers ?? []).filter((t) => testerFilter === 'all' || t.status === testerFilter)
+    (testerData?.testers ?? []).filter((t) =>
+      testerFilter === 'all'
+        ? true
+        : testerFilter === 'review'
+          ? t.needsReview
+          : t.status === testerFilter
+    )
   );
 
   async function copyText(value: string) {
@@ -301,6 +380,53 @@
 
   const restoreCode = (code: string) =>
     run('restore:' + code, () => callConvex(api.testerCodes.restore, { code }), `Code ${code} restored.`);
+
+  const suspendCode = (code: string) => {
+    const reason = window.prompt(`Reason for suspending ${code} (optional):`) ?? '';
+    return run(
+      'suspend:' + code,
+      () => callConvex(api.testerCodes.suspend, { code, reason: reason.trim() || undefined }),
+      `Code ${code} suspended — the tester can no longer sign in until it is unsuspended.`
+    );
+  };
+
+  const unsuspendCode = (code: string) =>
+    run(
+      'unsuspend:' + code,
+      () => callConvex(api.testerCodes.unsuspend, { code }),
+      `Code ${code} unsuspended — access is restored on the tester's bound device.`
+    );
+
+  /**
+   * Release a claim that never got into the app. The tester keeps the SAME real
+   * email and submitted details, and can register again with them — this is the
+   * fix for a code stuck in "claimed" behind a failed login.
+   */
+  const reactivateCode = (code: string) => {
+    const ok = window.confirm(
+      `Re-activate ${code}?\n\nThis releases the current claim and its device binding so the SAME tester can register again with their real email and submitted details. Their trial clock has not started, so it is not affected.`
+    );
+    if (!ok) return;
+    return run(
+      'reactivate:' + code,
+      () => callConvex(api.testerCodes.reactivate, { code, reason: 'Re-activated: claimed but never accessed the app.' }),
+      `Code ${code} re-opened — the tester can now re-register with their existing details.`
+    );
+  };
+
+  const approveCode = (code: string) =>
+    run(
+      'approve:' + code,
+      () => callConvex(api.testerCodes.approve, { code, approved: true }),
+      `Registration on ${code} approved.`
+    );
+
+  const rejectCode = (code: string) =>
+    run(
+      'reject:' + code,
+      () => callConvex(api.testerCodes.approve, { code, approved: false, reason: 'Re-registration rejected by admin.' }),
+      `Registration on ${code} rejected — the code stays usable.`
+    );
 
   const extendCode = (code: string) =>
     run(
@@ -568,13 +694,23 @@
         <span class="kpi-ic"><Users size={15} stroke-width={2.2} /></span>
         <span class="kpi-val">{testerData?.counts.onlineNow ?? 0}</span>
         <span class="kpi-lbl">Active users now</span>
-        <span class="kpi-sub">live heartbeat window</span>
+        <span class="kpi-sub">
+          {testerData?.counts.onlineTesters ?? 0} testers · {testerData?.counts.onlineSubscribers ?? 0} subscribers
+        </span>
       </div>
       <div class="kpi">
         <span class="kpi-ic"><KeyRound size={15} stroke-width={2.2} /></span>
         <span class="kpi-val">{testerData?.counts.codesIssued ?? 0}</span>
         <span class="kpi-lbl">Codes issued</span>
-        <span class="kpi-sub">{testerData?.counts.claimable ?? 0} in use · {testerData?.counts.revoked ?? 0} revoked</span>
+        <span class="kpi-sub">
+          {testerData?.counts.claimable ?? 0} in use · {testerData?.counts.suspended ?? 0} suspended · {testerData?.counts.revoked ?? 0} revoked
+        </span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-ic"><Trophy size={15} stroke-width={2.2} /></span>
+        <span class="kpi-val">{strikeLabel(testerData?.platform)}</span>
+        <span class="kpi-lbl">Winning-pick strike rate</span>
+        <span class="kpi-sub">{strikeTitle(testerData?.platform)}</span>
       </div>
       <div class="kpi">
         <span class="kpi-ic"><Activity size={15} stroke-width={2.2} /></span>
@@ -592,7 +728,9 @@
         <span class="kpi-ic"><ShieldOff size={15} stroke-width={2.2} /></span>
         <span class="kpi-val">{testerData?.counts.codesAwaitingRegistration ?? 0}</span>
         <span class="kpi-lbl">Awaiting registration</span>
-        <span class="kpi-sub">{testerData?.counts.expiredTrials ?? 0} trials finished</span>
+        <span class="kpi-sub">
+          {testerData?.counts.expiredTrials ?? 0} trials finished · {testerData?.counts.reopened ?? 0} re-opened · {testerData?.counts.needsReview ?? 0} to review
+        </span>
       </div>
       <div class="kpi">
         <span class="kpi-ic"><RefreshCw size={15} stroke-width={2.2} /></span>
@@ -606,16 +744,21 @@
     <section class="panel" aria-label="Tester users">
       <h2>
         Tester Users
-        <span class="tag">registration · login details · code · device · trial</span>
+        <span class="tag">registration · login details · code · device · trial · usage · strike rate</span>
       </h2>
+      <p class="panel-copy">
+        <strong>Green</strong> = online now · <strong>amber</strong> = offline · <strong>red</strong> = trial
+        expired, revoked or suspended. "Time in app" is foreground time measured from heartbeats, and the
+        strike rate is that user's graded pick record (wins / settled picks).
+      </p>
       <div class="filter-row">
-        {#each [['all', 'All'], ['issued', 'Awaiting registration'], ['claimed', 'Registered'], ['revoked', 'Revoked']] as [key, label] (key)}
+        {#each [['all', 'All'], ['issued', 'Awaiting registration'], ['claimed', 'Registered'], ['review', 'Needs review'], ['suspended', 'Suspended'], ['revoked', 'Revoked']] as [key, label] (key)}
           <button
             class="filter-chip"
             class:on={testerFilter === key}
             type="button"
             onclick={() => (testerFilter = key as typeof testerFilter)}
-          >{label}</button>
+          >{label}{key === 'review' && (testerData?.counts.needsReview ?? 0) > 0 ? ` (${testerData?.counts.needsReview})` : ''}</button>
         {/each}
       </div>
 
@@ -630,23 +773,32 @@
               <tr>
                 <th>Code</th><th>Tester</th><th>NIN</th><th>Login email</th>
                 <th>Mobile · State</th><th>Status</th><th>Device</th>
-                <th>Trial ends</th><th>Days</th><th>Last login</th><th>Actions</th>
+                <th>Trial ends</th><th>Days</th><th>Logins</th><th>In app</th><th>Strike rate</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {#each testerRows as t (t.code)}
-                <tr class:row-dead={t.status === 'revoked'}>
+                <tr class:row-dead={t.status === 'revoked' || t.suspended}>
                   <td>
                     <button class="code-inline" type="button" onclick={() => copyText(t.code)} title="Copy code">
                       {t.code}
                       {#if copiedCode === t.code}<Check size={11} stroke-width={3} />{:else}<Copy size={11} />{/if}
                     </button>
                     {#if t.label}<span class="sub-note">{t.label}</span>{/if}
+                    {#if t.reopenCount > 0}<span class="sub-note">re-opened ×{t.reopenCount}</span>{/if}
                   </td>
                   <td>
                     {#if t.fullName}
-                      <strong>{t.fullName}</strong>
+                      <strong class="who">
+                        <span
+                          class="presence-dot {t.presence}"
+                          title={presenceLabel(t.presence)}
+                          aria-hidden="true"
+                        ></span>
+                        {t.fullName}
+                      </strong>
                       {#if t.hasPreferredPassword}<span class="sub-note">preferred password set</span>{/if}
+                      {#if t.needsReview}<span class="sub-note warn">re-registered — needs review</span>{/if}
                     {:else}
                       <span class="dash">not registered</span>
                     {/if}
@@ -671,7 +823,11 @@
                   </td>
                   <td>
                     <span class="status-pill {t.status}">{t.status}</span>
-                    {#if t.sessionActive}<span class="live-dot" title="Session active in the last 30 minutes"></span>{/if}
+                    <span
+                      class="presence-dot {t.presence}"
+                      title={presenceLabel(t.presence)}
+                      aria-hidden="true"
+                    ></span>
                   </td>
                   <td>
                     {#if t.deviceLabel}
@@ -686,12 +842,43 @@
                     {:else}<span class="dash">—</span>{/if}
                   </td>
                   <td>
-                    <span class="sub-note">{agoLabel(t.lastLoginAt)}</span>
                     <span class="mono tiny">{t.loginCount} login{t.loginCount === 1 ? '' : 's'}</span>
+                    <span class="sub-note">{agoLabel(t.lastLoginAt)}</span>
+                  </td>
+                  <td>
+                    <span class="mono small">{fmtDuration(t.usageMs)}</span>
+                    <span class="sub-note">{agoLabel(t.lastSeenAt)}</span>
+                  </td>
+                  <td>
+                    <span class="streak {strikeClass(t.strike)}" title={strikeTitle(t.strike)}>
+                      {strikeLabel(t.strike)}
+                    </span>
+                    <span class="sub-note">{t.strike?.wins ?? 0}W · {t.strike?.losses ?? 0}L</span>
                   </td>
                   <td>
                     <div class="row-actions">
-                      {#if t.status !== 'revoked'}
+                      {#if t.status === 'revoked'}
+                        <button class="mini-btn" type="button" disabled={!!busy} onclick={() => restoreCode(t.code)} title="Restore this code">
+                          <RotateCcw size={11} /> restore
+                        </button>
+                      {:else}
+                        {#if t.needsReview}
+                          <button class="mini-btn ok" type="button" disabled={!!busy} onclick={() => approveCode(t.code)} title="Approve the re-registration">
+                            <Check size={11} /> approve
+                          </button>
+                          <button class="mini-btn" type="button" disabled={!!busy} onclick={() => rejectCode(t.code)} title="Reject the re-registration (the code stays usable)">
+                            reject
+                          </button>
+                        {/if}
+                        {#if t.status === 'suspended'}
+                          <button class="mini-btn ok" type="button" disabled={!!busy} onclick={() => unsuspendCode(t.code)} title="Lift the suspension and restore access">
+                            <RotateCcw size={11} /> unsuspend
+                          </button>
+                        {:else}
+                          <button class="mini-btn" type="button" disabled={!!busy} onclick={() => suspendCode(t.code)} title="Suspend this code — reversible, keeps the trial clock">
+                            <ShieldOff size={11} /> suspend
+                          </button>
+                        {/if}
                         <button class="mini-btn" type="button" disabled={!!busy} onclick={() => extendCode(t.code)} title="Add 30 trial days">
                           <CalendarPlus size={11} /> +30d
                         </button>
@@ -700,12 +887,13 @@
                             <Smartphone size={11} /> unlock
                           </button>
                         {/if}
+                        {#if t.status === 'claimed'}
+                          <button class="mini-btn ok" type="button" disabled={!!busy} onclick={() => reactivateCode(t.code)} title="Re-open this claim: releases the code so the same tester can register again with their real email and details">
+                            <RefreshCw size={11} /> re-activate
+                          </button>
+                        {/if}
                         <button class="mini-btn danger" type="button" disabled={!!busy} onclick={() => revokeCode(t.code)} title="Revoke this code">
                           <ShieldOff size={11} /> revoke
-                        </button>
-                      {:else}
-                        <button class="mini-btn" type="button" disabled={!!busy} onclick={() => restoreCode(t.code)} title="Restore this code">
-                          <RotateCcw size={11} /> restore
                         </button>
                       {/if}
                     </div>
@@ -727,12 +915,17 @@
         <div class="tbl-scroll">
           <table class="tbl">
             <thead>
-              <tr><th>Name</th><th>Email</th><th>Mobile</th><th>State</th><th>Role</th><th>Tier</th><th>Expires</th><th>Days</th></tr>
+              <tr><th>Name</th><th>Email</th><th>Mobile</th><th>State</th><th>Role</th><th>Tier</th><th>Expires</th><th>Days</th><th>Logins</th><th>In app</th><th>Strike rate</th></tr>
             </thead>
             <tbody>
               {#each testerData?.subscribers ?? [] as s (s.email)}
-                <tr>
-                  <td><strong>{s.fullName || '—'}</strong></td>
+                <tr class:row-dead={s.presence === 'expired'}>
+                  <td>
+                    <strong class="who">
+                      <span class="presence-dot {s.presence}" title={presenceLabel(s.presence)} aria-hidden="true"></span>
+                      {s.fullName || '—'}
+                    </strong>
+                  </td>
                   <td><span class="mono small">{s.email}</span></td>
                   <td><span class="mono small">{s.mobile ?? '—'}</span></td>
                   <td>{s.stateOfResidence ?? '—'}</td>
@@ -743,6 +936,17 @@
                     {#if s.daysRemaining !== null}
                       <span class="streak {s.daysRemaining <= 7 ? 'warn' : 'hot'}">{s.daysRemaining}d</span>
                     {:else}<span class="dash">—</span>{/if}
+                  </td>
+                  <td><span class="mono tiny">{s.logins}</span></td>
+                  <td>
+                    <span class="mono small">{fmtDuration(s.usageMs)}</span>
+                    <span class="sub-note">{agoLabel(s.lastSeenAt)}</span>
+                  </td>
+                  <td>
+                    <span class="streak {strikeClass(s.strike)}" title={strikeTitle(s.strike)}>
+                      {strikeLabel(s.strike)}
+                    </span>
+                    <span class="sub-note">{s.strike?.wins ?? 0}W · {s.strike?.losses ?? 0}L</span>
                   </td>
                 </tr>
               {/each}
@@ -1459,6 +1663,7 @@
   .status-pill.issued { color: #fbbf24; background: color-mix(in srgb, #f59e0b 16%, transparent); border-color: color-mix(in srgb, #f59e0b 40%, transparent); }
   .status-pill.claimed { color: var(--c-success); background: color-mix(in srgb, var(--c-success) 16%, transparent); border-color: color-mix(in srgb, var(--c-success) 40%, transparent); }
   .status-pill.revoked { color: #f87171; background: color-mix(in srgb, #ef4444 16%, transparent); border-color: color-mix(in srgb, #ef4444 40%, transparent); }
+  .status-pill.suspended { color: #fbbf24; background: color-mix(in srgb, #f59e0b 18%, transparent); border-color: color-mix(in srgb, #f59e0b 45%, transparent); }
   .status-pill.user { color: var(--c-text-dim); background: color-mix(in srgb, var(--c-border) 40%, transparent); }
   .status-pill.tester { color: #22d3ee; background: color-mix(in srgb, #22d3ee 16%, transparent); }
   .status-pill.admin { color: #07120a; background: var(--brand, #a3e635); }
@@ -1474,6 +1679,34 @@
     animation: pulse 2s ease-in-out infinite;
   }
   @keyframes pulse { 50% { opacity: 0.35; } }
+
+  /* Green = online now · amber = offline · red = expired / revoked / suspended. */
+  .presence-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    background: #fbbf24;
+    box-shadow: 0 0 0 2px color-mix(in srgb, #fbbf24 30%, transparent);
+  }
+  .presence-dot.online {
+    background: #34d399;
+    box-shadow: 0 0 0 2px color-mix(in srgb, #34d399 32%, transparent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .presence-dot.offline {
+    background: #fbbf24;
+    box-shadow: 0 0 0 2px color-mix(in srgb, #fbbf24 28%, transparent);
+    animation: none;
+  }
+  .presence-dot.expired {
+    background: #ef4444;
+    box-shadow: 0 0 0 2px color-mix(in srgb, #ef4444 30%, transparent);
+    animation: none;
+  }
+  .who { display: inline-flex; align-items: center; gap: 6px; }
+  .sub-note.warn { color: #fbbf24; font-weight: 700; }
 
   .row-actions { display: flex; flex-wrap: wrap; gap: 5px; }
   .mini-btn {
@@ -1493,6 +1726,8 @@
   }
   .mini-btn:hover:not(:disabled) { color: var(--c-text); border-color: var(--brand, #a3e635); }
   .mini-btn.danger:hover:not(:disabled) { color: #f87171; border-color: #f87171; }
+  .mini-btn.ok { color: #34d399; border-color: color-mix(in srgb, #34d399 35%, transparent); }
+  .mini-btn.ok:hover:not(:disabled) { color: #34d399; border-color: #34d399; }
   .mini-btn:disabled { opacity: 0.5; cursor: progress; }
 
   .streak.warn { color: #fbbf24; }

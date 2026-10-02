@@ -11,6 +11,7 @@
   import { notify } from '$lib/notificationStore';
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
+  import { api, callConvex, getSessionId } from '$lib/convexClient';
   import NotificationToast from '$lib/components/NotificationToast.svelte';
 
   // Svelte 5: accept children snippet for rendering child pages
@@ -18,6 +19,43 @@
 
   onMount(() => {
     initAuth();
+  });
+
+  // ── Usage heartbeat (admin console: logins, time spent, online state) ──────
+  // One beat on mount, then every 60s while the tab is open. `usage.beat`
+  // accumulates FOREGROUND time per identity (idle gaps are discarded server
+  // side) and resolves the account + tester code from the auth token, which is
+  // what lets the admin console show "who is online" and "how long they used
+  // the app" — neither of which was being recorded before.
+  //
+  // Tester sessions additionally ping `touchSession`, which keeps their
+  // `lastSeenAt` fresh so the console's green dot is accurate.
+  $effect(() => {
+    if (!browser) return;
+    // Track the reactive inputs so a login/logout restarts the heartbeat.
+    const signedIn = authState.isAuthenticated;
+    const isTester = !!authState.user && isTesterEmail(authState.user.email);
+    let stopped = false;
+    const beat = async () => {
+      if (stopped) return;
+      try {
+        await callConvex(api.usage.beat, { sessionId: getSessionId() });
+      } catch (_) {
+        /* best-effort — never block the UI on telemetry */
+      }
+      if (!signedIn || !isTester) return;
+      try {
+        await callConvex(api.testerCodes.touchSession, {});
+      } catch (_) {
+        /* best-effort */
+      }
+    };
+    void beat();
+    const timer = setInterval(() => void beat(), 60_000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
   });
 
   // ── Tester trial enforcement ────────────────────────────────────────────
@@ -37,15 +75,19 @@
       if (stopped || !session || session.active) return;
       stopped = true;
       setUnauthenticated();
+      const suspended = session.reason === 'suspended';
       notify(
         session.reason === 'expired'
           ? 'Your 3-month free tester trial has ended. Subscribe to keep using the AI Predictor and screeners.'
-          : 'Your tester access has been ended. Please contact the administrator or subscribe.',
+          : suspended
+            ? 'Your tester access code is suspended. Please contact the administrator — it can be re-activated.'
+            : 'Your tester access has been ended. Please contact the administrator or subscribe.',
         'warning',
-        session.reason === 'expired' ? 'Free Trial Ended' : 'Tester Access Ended',
+        session.reason === 'expired' ? 'Free Trial Ended' : suspended ? 'Tester Access Suspended' : 'Tester Access Ended',
         10000
       );
-      void goto('/checkout');
+      // An expired trial is a payment prompt; a suspension is an admin matter.
+      if (!suspended) void goto('/checkout');
     };
 
     void check();

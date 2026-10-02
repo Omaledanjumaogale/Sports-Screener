@@ -24,11 +24,21 @@ const slipItem = v.object({
   grade: v.optional(v.union(v.literal('win'), v.literal('loss'), v.literal('push'), v.literal('void')))
 });
 
-async function resolveOwner(ctx: any): Promise<{ owner: string; userName: string | undefined } | null> {
+async function resolveOwner(
+  ctx: any
+): Promise<{ owner: string; userName: string | undefined; email: string | undefined } | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
   const userName = (identity.name as string) || (identity.givenName as string) || undefined;
-  return { owner: identity.subject, userName };
+  // Resolve the account email so the admin console can attribute a graded slip
+  // record (and therefore a strike rate) to a named user.
+  let email: string | undefined = (identity.email as string)?.trim().toLowerCase() || undefined;
+  if (!email) {
+    const userId = String(identity.subject ?? '').split('|')[0];
+    const userDoc: any = userId ? await ctx.db.get(userId as any) : null;
+    email = String(userDoc?.email || '').trim().toLowerCase() || undefined;
+  }
+  return { owner: identity.subject, userName, email };
 }
 
 // ── Create a new named slip ──────────────────────────────────────────────────
@@ -49,6 +59,7 @@ export const createSlip = mutation({
       owner,
       sessionId: args.sessionId,
       userId: session?.owner ?? undefined,
+      email: session?.email,
       userName,
       title,
       stake: args.stake ?? 0,

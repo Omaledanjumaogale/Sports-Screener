@@ -436,10 +436,19 @@ export const api = {
     revealNin: 'testerCodes:revealNin',
     register: 'testerCodes:register',
     checkCode: 'testerCodes:checkCode',
+    testerIdentity: 'testerCodes:testerIdentity',
     activateSession: 'testerCodes:activateSession',
     mySession: 'testerCodes:mySession',
     touchSession: 'testerCodes:touchSession',
+    suspend: 'testerCodes:suspend',
+    unsuspend: 'testerCodes:unsuspend',
+    reactivate: 'testerCodes:reactivate',
+    approve: 'testerCodes:approve',
     overview: 'testerCodes:overview'
+  },
+  usage: {
+    beat: 'usage:beat',
+    online: 'usage:online'
   },
   predictor: {
     getDay: 'predictor:getDay',
@@ -484,8 +493,11 @@ export const api = {
     getPredictorTotals: 'scores:getPredictorTotals'
   },
   presence: {
-    update: 'presence:updatePresence',
-    list: 'presence:listPresence'
+    // NOTE: the Convex function names are `update` / `list` — the previous
+    // `presence:updatePresence` / `presence:listPresence` paths did not exist,
+    // so every presence call silently failed against "function not found".
+    update: 'presence:update',
+    list: 'presence:list'
   },
   audit: {
     log: 'auditLog:logAudit'

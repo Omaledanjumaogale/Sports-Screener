@@ -52,7 +52,7 @@ export interface UserSession {
   /** The tester access code bound to this session (tester accounts only). */
   testerCode?: string;
   /** Server verdict on why a tester session does/doesn't hold Master Pass. */
-  testerReason?: 'active' | 'no-session' | 'not-registered' | 'revoked' | 'expired';
+  testerReason?: 'active' | 'no-session' | 'not-registered' | 'revoked' | 'suspended' | 'expired';
   txRef?: string;
 }
 

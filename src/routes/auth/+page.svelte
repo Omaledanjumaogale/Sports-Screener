@@ -1,11 +1,26 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { ShieldAlert, LogIn, UserPlus, Eye, EyeOff, ArrowLeft, Crown, KeyRound, Smartphone } from '@lucide/svelte';
   import { setAuthenticated, isSuperAdminEmail, isTesterEmail, setUnauthenticated } from '$lib/authStore.svelte';
   import { notify } from '$lib/notificationStore';
-  import { getConvexClient, api, convexSignIn, convexSignOut, convexErrorMessage } from '$lib/convexClient';
+  import { getConvexClient, api, convexSignIn, convexSignOut, convexErrorMessage, queryConvex } from '$lib/convexClient';
   import { getDeviceId, getDeviceLabel } from '$lib/deviceId';
+
+  // The tester email is ISSUED server-side. Fetching it means a tester never has
+  // to remember (or mistype) the shared account address — the single most common
+  // reason a valid access code failed at the login step.
+  let issuedTesterEmail = $state('');
+  onMount(() => {
+    void queryConvex<{ configured: boolean; testerEmail: string | null }>(api.testerCodes.testerIdentity, {})
+      .then((info) => {
+        if (info?.testerEmail) issuedTesterEmail = info.testerEmail;
+      })
+      .catch(() => {
+        /* optional convenience — login still works when typed by hand */
+      });
+  });
 
   let isSignUp = $derived($page.url.searchParams.get('mode') === 'signup');
   let redirectTarget = $derived($page.url.searchParams.get('redirect') || '');
@@ -171,6 +186,9 @@
 
       const isSubscribed = !!(access.isAdmin || access.isTester || access.isSubscribed);
       const testerExpired = access.isTester && !access.isSubscribed;
+      // A SUSPENDED code is an admin matter, not a lapsed payment — the tester is
+      // told to contact the administrator instead of being pushed to checkout.
+      const testerSuspended = access.isTester && access.testerReason === 'suspended';
 
       // Server truth wins: syncAccess is authoritative for privileged access,
       // so an env-casing mismatch on the client can never demote a real admin
@@ -219,6 +237,16 @@
           8000
         );
         void goto('/predictor');
+      } else if (testerSuspended) {
+        await convexSignOut();
+        setUnauthenticated();
+        notify(
+          'Your tester access code is suspended. Please contact the administrator — it can be re-activated for you.',
+          'warning',
+          'Tester Access Suspended',
+          10000
+        );
+        error = 'Tester access suspended. Contact the administrator.';
       } else if (testerExpired) {
         await convexSignOut();
         setUnauthenticated();
@@ -373,6 +401,19 @@
             your 3-month free trial on the first device you use.
             <a href="/tester">Register your details first</a>
           </span>
+          {#if issuedTesterEmail}
+            <button
+              class="use-tester-btn"
+              type="button"
+              disabled={loading}
+              onclick={() => (email = issuedTesterEmail)}
+            >
+              <KeyRound size={13} /> Use the issued tester account ({issuedTesterEmail})
+            </button>
+            <span class="field-hint">
+              Sign in with that tester email + the tester password issued to you + this code.
+            </span>
+          {/if}
         </div>
       {/if}
 
@@ -677,6 +718,27 @@
     white-space: nowrap;
   }
   .field-hint a:hover { text-decoration: underline; }
+
+  .use-tester-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--c-orange) 40%, transparent);
+    background: color-mix(in srgb, var(--c-orange) 10%, transparent);
+    color: var(--c-orange);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--t-base);
+  }
+  .use-tester-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--c-orange) 18%, transparent);
+    border-color: var(--c-orange);
+  }
+  .use-tester-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .tester-cta {
     margin-top: 14px;

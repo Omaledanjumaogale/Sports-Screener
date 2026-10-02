@@ -6,6 +6,10 @@ import {
   matchesQuery,
   searchPriorityCompare,
   sortMatches,
+  chronoCompare,
+  chronoSegments,
+  kickoffOf,
+  sortChronologically,
   groupByLeague,
   measureFilter,
   FILTER_BUDGET_MS,
@@ -177,6 +181,81 @@ describe('groupByLeague', () => {
   it('falls back to Other for empty leagues', () => {
     const groups = groupByLeague([match({ matchId: 'x', league: '' })], (raw) => raw);
     expect(groups['Other']).toBeDefined();
+  });
+});
+
+describe('chronological schedule ordering', () => {
+  const at = (h: number, min = 0, league = 'Premier League') =>
+    match({
+      matchId: `${league}-${h}:${min}`,
+      league,
+      startTime: Date.UTC(2026, 7, 11, h, min),
+      homeTeam: `${league} ${h}`
+    });
+
+  it('treats a missing kickoff as LAST, never first', () => {
+    const known = at(10);
+    const unknown = match({ matchId: 'tbd', startTime: 0 });
+    expect(kickoffOf(unknown)).toBe(Number.POSITIVE_INFINITY);
+    expect(sortChronologically([unknown, known]).map((m) => m.matchId)).toEqual([
+      known.matchId,
+      'tbd'
+    ]);
+  });
+
+  it('sorts strictly soonest-first by kickoff time', () => {
+    const list = [at(20), at(9, 30), at(13), at(9)];
+    expect(sortChronologically(list).map((m) => kickoffOf(m))).toEqual([
+      Date.UTC(2026, 7, 11, 9, 0),
+      Date.UTC(2026, 7, 11, 9, 30),
+      Date.UTC(2026, 7, 11, 13, 0),
+      Date.UTC(2026, 7, 11, 20, 0)
+    ]);
+  });
+
+  it('"Latest" reverses the schedule', () => {
+    const list = [at(9), at(20), at(13)];
+    expect(sortChronologically(list, 'desc').map((m) => kickoffOf(m))).toEqual([
+      Date.UTC(2026, 7, 11, 20, 0),
+      Date.UTC(2026, 7, 11, 13, 0),
+      Date.UTC(2026, 7, 11, 9, 0)
+    ]);
+  });
+
+  it('breaks kickoff ties deterministically (league, then teams)', () => {
+    const a = match({ matchId: 'a', league: 'La Liga', homeTeam: 'B', startTime: NOW });
+    const b = match({ matchId: 'b', league: 'Bundesliga', homeTeam: 'Z', startTime: NOW });
+    expect(chronoCompare(a, b)).toBeGreaterThan(0);
+    expect(sortChronologically([a, b]).map((m) => m.matchId)).toEqual(['b', 'a']);
+  });
+
+  it('never pulls a league out of schedule order to keep its fixtures together', () => {
+    // Spain plays at 14:00 and 22:00; France plays at 15:00.
+    const list = [
+      match({ matchId: 'es-late', league: 'Spain', startTime: Date.UTC(2026, 7, 11, 22) }),
+      match({ matchId: 'fr', league: 'France', startTime: Date.UTC(2026, 7, 11, 15) }),
+      match({ matchId: 'es-early', league: 'Spain', startTime: Date.UTC(2026, 7, 11, 14) })
+    ];
+    const segments = chronoSegments(list, (raw) => raw);
+    // Strictly chronological: Spain 14:00 → France 15:00 → Spain 22:00.
+    expect(segments.map((s) => s.league)).toEqual(['Spain', 'France', 'Spain']);
+    expect(segments.map((s) => s.matches[0].matchId)).toEqual(['es-early', 'fr', 'es-late']);
+  });
+
+  it('merges consecutive same-league fixtures into one segment', () => {
+    const list = [at(9, 0, 'Serie A'), at(9, 30, 'Serie A'), at(10, 0, 'Serie A'), at(11, 0, 'Ligue 1')];
+    const segments = chronoSegments(list, (raw) => raw);
+    expect(segments).toHaveLength(2);
+    expect(segments[0].league).toBe('Serie A');
+    expect(segments[0].matches).toHaveLength(3);
+    expect(segments[1].league).toBe('Ligue 1');
+  });
+
+  it('keeps unknown-kickoff fixtures at the very bottom of a day', () => {
+    const list = [match({ matchId: 'tbd', league: 'TBD Cup', startTime: 0 }), at(9), at(14)];
+    const segments = chronoSegments(list, (raw) => raw);
+    expect(segments[segments.length - 1].league).toBe('TBD Cup');
+    expect(segments[segments.length - 1].matches[0].matchId).toBe('tbd');
   });
 });
 

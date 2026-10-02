@@ -36,6 +36,7 @@ export type TesterReason =
   | 'no-session'
   | 'not-registered'
   | 'revoked'
+  | 'suspended'
   | 'expired';
 
 export type AccessStatus = {
@@ -101,6 +102,7 @@ async function resolveTesterSession(
     .first();
   if (!row) return { active: false, reason: 'no-session' };
   if (row.status === 'revoked') return { active: false, reason: 'revoked', code: row.code };
+  if (row.status === 'suspended') return { active: false, reason: 'suspended', code: row.code };
   if (row.status !== 'claimed') return { active: false, reason: 'not-registered', code: row.code };
   if (!row.trialExpiresAt) return { active: false, reason: 'not-registered', code: row.code };
   if (row.trialExpiresAt <= now) {

@@ -6,16 +6,34 @@
     CheckCircle2, Copy, Check, Loader2, Lock
   } from '@lucide/svelte';
   import { notify } from '$lib/notificationStore';
+  import { onMount } from 'svelte';
   import { queryConvex, callConvex, api, convexErrorMessage } from '$lib/convexClient';
 
-  const TESTER_EMAIL = import.meta.env.VITE_TESTER_EMAIL || '';
+  // The tester email is ISSUED server-side, not chosen by the tester. Reading it
+  // from the backend (rather than from a build-time env var, which may be empty)
+  // removes the most common registration failure: a tester guessing an address
+  // that the server then rejects.
+  let issuedTesterEmail = $state(import.meta.env.VITE_TESTER_EMAIL || '');
+  const TESTER_EMAIL = $derived(issuedTesterEmail);
+
+  onMount(() => {
+    void queryConvex<{ configured: boolean; testerEmail: string | null }>(api.testerCodes.testerIdentity, {})
+      .then((info) => {
+        if (info?.testerEmail) {
+          issuedTesterEmail = info.testerEmail;
+          testerEmail = info.testerEmail;
+        }
+      })
+      .catch(() => {
+        /* keep whatever env provided — the mutation still validates it */
+      });
+  });
 
   // The code can be pre-filled from a shared link (?code=PDT-XXXX-XXXX).
   let code = $state($page.url.searchParams.get('code')?.toUpperCase() ?? '');
   let fullName = $state('');
   let nin = $state('');
-  let testerEmail = $state(TESTER_EMAIL);
-  let testerPassword = $state('');
+  let testerEmail = $state(import.meta.env.VITE_TESTER_EMAIL || '');
   let actualEmail = $state('');
   let preferredPassword = $state('');
   let confirmPassword = $state('');
@@ -23,14 +41,15 @@
   let stateOfResidence = $state('');
   let consentAccepted = $state(false);
 
-  let showTesterPw = $state(false);
   let showPreferredPw = $state(false);
   let loading = $state(false);
   let error = $state<string | null>(null);
   let done = $state<{ code: string; fullName: string } | null>(null);
 
   // Live code validation so a wrong code is caught before the form is filled in.
-  let codeState = $state<'idle' | 'checking' | 'valid' | 'taken' | 'revoked' | 'unknown'>('idle');
+  let codeState = $state<
+    'idle' | 'checking' | 'valid' | 'reopened' | 'taken' | 'suspended' | 'revoked' | 'unknown'
+  >('idle');
   let codeTimer: ReturnType<typeof setTimeout> | null = null;
 
   const NIGERIAN_STATES = [
@@ -56,6 +75,10 @@
       const res = await queryConvex<any>(api.testerCodes.checkCode, { code: candidate });
       if (!res?.found) codeState = 'unknown';
       else if (res.status === 'revoked') codeState = 'revoked';
+      else if (res.status === 'suspended') codeState = 'suspended';
+      // A code the admin has RE-OPENED (a previous claim was released) is free
+      // to be registered again by the same person — never "already taken".
+      else if (res.reopened) codeState = 'reopened';
       else if (res.claimed || res.registered) codeState = 'taken';
       else codeState = 'valid';
     } catch {
@@ -81,6 +104,12 @@
     }
     if (!consentAccepted) {
       error = 'Please accept the terms to continue.';
+      return;
+    }
+
+    if (!testerEmail.trim()) {
+      error =
+        'The tester email address could not be resolved. Please reload the page, or contact the administrator for the exact tester email.';
       return;
     }
 
@@ -122,15 +151,25 @@
   const codeHint = $derived(
     codeState === 'valid'
       ? { tone: 'ok' as const, text: 'Access code recognised — finish the form to claim it.' }
-      : codeState === 'taken'
-        ? { tone: 'bad' as const, text: 'This code has already been registered to another tester.' }
-        : codeState === 'revoked'
-          ? { tone: 'bad' as const, text: 'This code has been revoked. Contact the administrator.' }
-          : codeState === 'unknown'
-            ? { tone: 'bad' as const, text: 'Code not recognised. Check it with whoever issued it.' }
-            : codeState === 'checking'
-              ? { tone: 'idle' as const, text: 'Checking code…' }
-              : null
+      : codeState === 'reopened'
+        ? {
+            tone: 'ok' as const,
+            text: 'This code was re-opened by the administrator — register again with your details to continue.'
+          }
+        : codeState === 'taken'
+          ? {
+              tone: 'bad' as const,
+              text: 'This code has already been registered to another tester. If that was you and the login failed, ask the administrator to re-activate the code.'
+            }
+          : codeState === 'suspended'
+            ? { tone: 'bad' as const, text: 'This code is suspended. Contact the administrator to have it re-activated.' }
+            : codeState === 'revoked'
+              ? { tone: 'bad' as const, text: 'This code has been revoked. Contact the administrator.' }
+              : codeState === 'unknown'
+                ? { tone: 'bad' as const, text: 'Code not recognised. Check it with whoever issued it.' }
+                : codeState === 'checking'
+                  ? { tone: 'idle' as const, text: 'Checking code…' }
+                  : null
   );
 </script>
 
@@ -205,27 +244,21 @@
           <span class="hint">11 digits. Shown to the administrator masked — only the last 4 are visible.</span>
         </div>
 
-        <div class="row">
-          <div class="form-group">
-            <label for="testerEmail">Tester Email (issued to you) <span class="req">*</span></label>
-            <input id="testerEmail" type="email" bind:value={testerEmail} placeholder="tester@example.com"
-              required disabled={loading || !!TESTER_EMAIL} autocomplete="off" />
-            {#if TESTER_EMAIL}
-              <span class="hint"><Lock size={11} /> Fixed — pre-filled with the issued tester account.</span>
-            {/if}
-          </div>
-          <div class="form-group">
-            <label for="testerPassword">Tester Password (issued to you) <span class="req">*</span></label>
-            <div class="password-wrapper">
-              <input id="testerPassword" type={showTesterPw ? 'text' : 'password'} bind:value={testerPassword}
-                placeholder="••••••••" required disabled={loading} autocomplete="off" />
-              <button type="button" class="eye-btn" tabindex="-1"
-                aria-label={showTesterPw ? 'Hide password' : 'Show password'}
-                onclick={() => (showTesterPw = !showTesterPw)}>
-                {#if showTesterPw}<EyeOff size={18} />{:else}<Eye size={18} />{/if}
-              </button>
-            </div>
-          </div>
+        <div class="form-group">
+          <label for="testerEmail">Tester Login Email (issued to you) <span class="req">*</span></label>
+          <input id="testerEmail" type="email" bind:value={testerEmail} placeholder="tester@example.com"
+            required readonly={!!TESTER_EMAIL} disabled={loading} autocomplete="off" />
+          {#if TESTER_EMAIL}
+            <span class="hint"><Lock size={11} /> Issued by PulseOdds — this is the account you will sign in with.</span>
+          {:else}
+            <span class="hint">
+              <Lock size={11} /> Enter the tester email exactly as it was issued to you.
+            </span>
+          {/if}
+          <span class="hint">
+            The matching <strong>tester password</strong> is issued with your access code — use both, plus this code,
+            to sign in.
+          </span>
         </div>
 
         <div class="form-group">

@@ -36,11 +36,12 @@
     matchesQuery,
     searchPriorityCompare,
     sortMatches,
-    groupByLeague,
+    chronoSegments,
     statusOfMatch,
     measureFilter,
     FILTER_BUDGET_MS,
     type GameTab,
+    type LeagueSegment,
     type SortOrder,
     type TimeBand
   } from '$lib/predictorFiltering';
@@ -222,6 +223,23 @@
     searchActive ? [...filteredMatches].sort((a, b) => searchPriorityCompare(a, b, now)) : []
   );
 
+  // ── Strict chronological schedule ────────────────────────────────────────────
+  // Each day's fixtures are ordered by schedule DATE + KICKOFF TIME (soonest at
+  // the top, latest at the bottom). A league header is emitted whenever the
+  // league changes, so a league is never pulled out of schedule order just to
+  // keep its fixtures together.
+  const daySegments = $derived.by(() => {
+    const out: Record<string, LeagueSegment[]> = {};
+    for (const [dk, list] of Object.entries(byDay)) {
+      out[dk] = chronoSegments(list, displayLeague, sortOrder);
+    }
+    return out;
+  });
+
+  const searchSegments = $derived.by(() =>
+    searchActive ? chronoSegments(searchResults, displayLeague, sortOrder) : []
+  );
+
   const dayMatchCount = $derived.by(() => {
     const map: Record<string, number> = {};
     for (const m of matches) map[m.dayKey || today] = (map[m.dayKey || today] ?? 0) + 1;
@@ -256,6 +274,8 @@
       void tabFilteredMatches;
       void sortedTabMatches;
       void byDay;
+      void daySegments;
+      void searchSegments;
       void searchResults;
     });
     filterMs = Math.round(metrics.elapsedMs);
@@ -765,14 +785,14 @@ $effect(() => {
             </h2>
 
             {#if searchResults.length > 0}
-              {#each Object.entries(groupByLeague(searchResults, displayLeague)) as [league, group]}
+              {#each searchSegments as seg (seg.league + ':' + (seg.matches[0]?.matchId ?? ''))}
                 <div class="league-group">
                   <div class="league-accordion static" role="heading" aria-level="3">
-                    <span class="league-name">{displayLeague(league)}</span>
-                    <span class="league-count">{group.length}</span>
+                    <span class="league-name">{seg.league}</span>
+                    <span class="league-count">{seg.matches.length}</span>
                   </div>
                   <div class="match-list">
-                    {#each group as match (match.matchId)}
+                    {#each seg.matches as match (match.matchId)}
                       {@const res = analyzeMatch(match)}
                       <PredictorMatchCard
                         match={match}
@@ -822,14 +842,14 @@ $effect(() => {
               </h2>
 
               {#if dayMatches.length > 0}
-                {#each Object.entries(groupByLeague(dayMatches, displayLeague)) as [league, group] (dk + ':' + league)}
+                {#each daySegments[dk] ?? [] as seg (`${dk}:${seg.league}:${seg.matches[0]?.matchId ?? ''}`)}
                   <div class="league-group">
                     <div class="league-accordion static" role="heading" aria-level="3">
-                      <span class="league-name">{displayLeague(league)}</span>
-                      <span class="league-count">{group.length}</span>
+                      <span class="league-name">{seg.league}</span>
+                      <span class="league-count">{seg.matches.length}</span>
                     </div>
                     <div class="match-list">
-                      {#each group as match (match.matchId)}
+                      {#each seg.matches as match (match.matchId)}
                         {@const res = analyzeMatch(match)}
                         <PredictorMatchCard
                           match={match}

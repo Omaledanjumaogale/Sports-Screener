@@ -116,7 +116,16 @@ export default defineSchema({
   // first login (which is also when the trial clock starts).
   testerCodes: defineTable({
     code: v.string(),
-    status: v.union(v.literal('issued'), v.literal('claimed'), v.literal('revoked')),
+    // issued   · code handed out, not yet registered
+    // claimed  · tester registered their details (may still be awaiting a first login)
+    // suspended· temporarily blocked by the admin (keeps the registration + trial clock)
+    // revoked  · permanently killed by the admin
+    status: v.union(
+      v.literal('issued'),
+      v.literal('claimed'),
+      v.literal('suspended'),
+      v.literal('revoked')
+    ),
     label: v.optional(v.string()),
     batch: v.optional(v.string()),
     createdBy: v.string(),
@@ -142,7 +151,38 @@ export default defineSchema({
     loginCount: v.optional(v.number()),
     revokedAt: v.optional(v.number()),
     revokedBy: v.optional(v.string()),
-    notes: v.optional(v.string())
+    notes: v.optional(v.string()),
+    // ── Admin lifecycle (suspend / re-open a failed claim / approve) ──────────
+    /** Set when the code is suspended; the trial clock is untouched. */
+    suspendedAt: v.optional(v.number()),
+    suspendedBy: v.optional(v.string()),
+    suspendReason: v.optional(v.string()),
+    /** Last time the admin released a claim so the SAME person could re-register. */
+    reactivatedAt: v.optional(v.number()),
+    reactivatedBy: v.optional(v.string()),
+    /** How many times this code has been re-opened after a failed claim. */
+    reopenCount: v.optional(v.number()),
+    /**
+     * True on a re-opened code once the tester re-submits their details: the
+     * admin console flags it for a final approve/reject review. Never blocks
+     * login — a re-opened code works the moment it is re-registered.
+     */
+    needsReview: v.optional(v.boolean()),
+    /** Set when the admin confirms the (re-)registration. */
+    approvedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.string()),
+    /** Snapshot of the claim that was released, kept for the admin's reference. */
+    previousRegistration: v.optional(
+      v.object({
+        fullName: v.optional(v.string()),
+        actualEmail: v.optional(v.string()),
+        mobile: v.optional(v.string()),
+        stateOfResidence: v.optional(v.string()),
+        registeredAt: v.optional(v.number())
+      })
+    ),
+    /** Accumulated in-app time (ms) across every heartbeat of this code. */
+    usageMs: v.optional(v.number())
   })
     .index('by_code', ['code'])
     .index('by_status', ['status'])
@@ -161,10 +201,36 @@ export default defineSchema({
     deviceLabel: v.optional(v.string()),
     createdAt: v.number(),
     lastSeenAt: v.number(),
-    revoked: v.optional(v.boolean())
+    revoked: v.optional(v.boolean()),
+    /** Accumulated foreground time (ms) for this session's heartbeats. */
+    sessionMs: v.optional(v.number()),
+    /** Previous heartbeat timestamp — used to measure the delta. */
+    lastBeatAt: v.optional(v.number())
   })
     .index('by_subject', ['subject'])
     .index('by_code', ['code']),
+
+  // Per-identity usage heartbeat: how long each tester / subscriber / anonymous
+  // visitor has actually had the app open. One row per owner (JWT subject, or
+  // the anonymous session id) — flat and swept by the retention cron.
+  usage: defineTable({
+    owner: v.string(),
+    /** Resolved account email, when the caller is authenticated. */
+    email: v.optional(v.string()),
+    /** Tester access code, when this identity is behind a tester session. */
+    code: v.optional(v.string()),
+    role: v.optional(v.union(v.literal('admin'), v.literal('tester'), v.literal('user'), v.literal('anon'))),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+    /** Accumulated foreground time in ms (idle gaps are not counted). */
+    usageMs: v.number(),
+    /** How many sessions/heartbeat runs this owner has opened. */
+    sessions: v.number()
+  })
+    .index('by_owner', ['owner'])
+    .index('by_code', ['code'])
+    .index('by_email', ['email'])
+    .index('by_lastSeen', ['lastSeenAt']),
 
   predictorDays: defineTable({
     dayKey: v.string(),
@@ -417,6 +483,9 @@ export default defineSchema({
     owner: v.string(), // userId or sessionId
     sessionId: v.string(),
     userId: v.optional(v.string()),
+    /** Account email of the owner — lets the admin console attribute a slip's
+     *  graded record (and therefore a strike rate) to a named user. */
+    email: v.optional(v.string()),
     userName: v.optional(v.string()), // registered full name for the slip header
     title: v.optional(v.string()), // unique per slip
     stake: v.optional(v.number()), // stake amount
@@ -444,5 +513,6 @@ export default defineSchema({
     updatedAt: v.number()
   })
     .index('by_owner', ['owner'])
+    .index('by_email', ['email'])
     .index('by_owner_updated', ['owner', 'updatedAt'])
 });

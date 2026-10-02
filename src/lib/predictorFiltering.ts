@@ -48,6 +48,35 @@ export const STATUS_PRIORITY: Record<GameTab, number> = {
 };
 
 /**
+ * Effective kickoff used for EVERY ordering decision.
+ *
+ * A fixture with no parseable schedule time (startTime <= 0 / NaN) sorts LAST
+ * rather than first: an unknown time must never occupy the top of a schedule
+ * that is ranked by kickoff.
+ */
+export function kickoffOf(m: Pick<PredictorMatch, 'startTime'>): number {
+  const t = Number(m?.startTime);
+  return Number.isFinite(t) && t > 0 ? t : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * Strict chronological comparison: soonest kickoff first, then league name and
+ * home team so two fixtures at the same minute never swap places between
+ * renders (a stable, deterministic schedule).
+ */
+export function chronoCompare(a: PredictorMatch, b: PredictorMatch): number {
+  const ta = kickoffOf(a);
+  const tb = kickoffOf(b);
+  if (ta !== tb) return ta - tb;
+  const la = String(a.league || '');
+  const lb = String(b.league || '');
+  if (la !== lb) return la.localeCompare(lb);
+  const ha = `${a.homeTeam} ${a.awayTeam}`;
+  const hb = `${b.homeTeam} ${b.awayTeam}`;
+  return ha.localeCompare(hb);
+}
+
+/**
  * Filter a list to a schedule time band (WAT hours). 'all' passes everything.
  */
 export function filterByTimeBand(list: PredictorMatch[], band: TimeBand): PredictorMatch[] {
@@ -144,6 +173,53 @@ export function sortMatches(list: PredictorMatch[], order: SortOrder, now: numbe
     // so 'asc' still surfaces the most recent result at the top.
     return sa === 'finished' ? t * -dir : t * dir;
   });
+}
+
+/**
+ * Order a single day's fixtures STRICTLY by schedule date + kickoff time.
+ *
+ * The day view used to be rendered as league blocks taken in "order of first
+ * appearance", which interleaved the schedule: a league whose earliest fixture
+ * was at 14:00 had its 22:00 fixture printed above a 15:00 fixture belonging to
+ * another league. This comparator removes that entirely — the caller walks the
+ * result top-to-bottom and sees 09:00, 09:30, 10:00 … in order, with the league
+ * label attached to each fixture.
+ */
+export function sortChronologically(list: PredictorMatch[], order: SortOrder = 'asc'): PredictorMatch[] {
+  const sorted = [...list].sort(chronoCompare);
+  return order === 'desc' ? sorted.reverse() : sorted;
+}
+
+export interface LeagueSegment {
+  /** Display league name (already run through `displayLeague`). */
+  league: string;
+  /** That league's fixtures, contiguous in kickoff order. */
+  matches: PredictorMatch[];
+}
+
+/**
+ * Turn one day's fixtures into STRICTLY chronological league segments.
+ *
+ * Returns an ordered list of `{ league, matches }` where the whole list reads
+ * top-to-bottom in kickoff order. A league only gets one segment while its
+ * fixtures are contiguous in time; if it reappears later in the day a second
+ * segment with the same name is emitted (a real schedule header), so nothing is
+ * ever re-ordered to keep a league together.
+ */
+export function chronoSegments(
+  list: PredictorMatch[],
+  displayLeague: (raw: string) => string,
+  order: SortOrder = 'asc'
+): LeagueSegment[] {
+  const ordered = sortChronologically(list, order);
+  const segments: LeagueSegment[] = [];
+  for (const m of ordered) {
+    const league = m.league ? displayLeague(m.league) : 'Other';
+    const last = segments[segments.length - 1];
+    if (last && last.league === league) last.matches.push(m);
+    else segments.push({ league, matches: [m] });
+  }
+  return segments;
 }
 
 /** Group matches by their league display key, preserving input order. */

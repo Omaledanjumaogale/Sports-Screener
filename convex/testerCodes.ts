@@ -34,6 +34,12 @@ export const TESTER_TRIAL_MS = TESTER_TRIAL_DAYS * 24 * 60 * 60 * 1000;
 /** Presence window used for the "active now" counters (matches presence.ts). */
 const PRESENCE_WINDOW_MS = 90_000;
 
+/** Longest heartbeat gap that still counts as continuous foreground time. */
+const MAX_BEAT_GAP_MS = 5 * 60_000;
+
+/** A tester is ONLINE while their session heartbeat is younger than this. */
+const ONLINE_WINDOW_MS = 5 * 60_000;
+
 // Unambiguous alphabet: no 0/O/1/I/L, so a code can be read aloud or retyped
 // from a screenshot without transcription errors.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -206,7 +212,10 @@ export const restore = mutation({
     await ctx.db.patch(row._id, {
       status: row.registeredAt ? 'claimed' : 'issued',
       revokedAt: undefined,
-      revokedBy: undefined
+      revokedBy: undefined,
+      suspendedAt: undefined,
+      suspendedBy: undefined,
+      suspendReason: undefined
     });
     const sessions = await ctx.db
       .query('testerSessions')
@@ -215,6 +224,180 @@ export const restore = mutation({
     for (const s of sessions) await ctx.db.patch(s._id, { revoked: false });
     await logAuditEvent(ctx, admin.email, 'tester.code.restored', code);
     return { ok: true, code };
+  }
+});
+
+/**
+ * Suspend a code without killing it.
+ *
+ * Suspension is the reversible middle ground between "fine" and "revoked": the
+ * registration, device binding and trial clock are all preserved, but the code
+ * loses Master Pass everywhere and cannot be activated or re-registered until
+ * `unsuspend` runs. Sessions are left intact so un-suspending restores access to
+ * the tester still sitting on their bound device.
+ */
+export const suspend = mutation({
+  args: { code: v.string(), reason: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const admin = await requireAdmin(ctx);
+    const code = normalizeCode(args.code);
+    const row = await ctx.db
+      .query('testerCodes')
+      .withIndex('by_code', (q) => q.eq('code', code))
+      .first();
+    if (!row) throw new ConvexError(`No tester code "${code}" found.`);
+    if (row.status === 'revoked') {
+      throw new ConvexError('That code is revoked — restore it first, then suspend.');
+    }
+    const now = Date.now();
+    await ctx.db.patch(row._id, {
+      status: 'suspended',
+      suspendedAt: now,
+      suspendedBy: admin.email,
+      suspendReason: args.reason?.trim() || undefined
+    });
+    await logAuditEvent(ctx, admin.email, 'tester.code.suspended', code, {
+      reason: args.reason ?? null
+    });
+    return { ok: true, code };
+  }
+});
+
+/** Lift a suspension: the code returns to the state it was suspended in. */
+export const unsuspend = mutation({
+  args: { code: v.string() },
+  handler: async (ctx, args) => {
+    const admin = await requireAdmin(ctx);
+    const code = normalizeCode(args.code);
+    const row = await ctx.db
+      .query('testerCodes')
+      .withIndex('by_code', (q) => q.eq('code', code))
+      .first();
+    if (!row) throw new ConvexError(`No tester code "${code}" found.`);
+    if (row.status !== 'suspended') {
+      throw new ConvexError(`Code "${code}" is not suspended.`);
+    }
+    await ctx.db.patch(row._id, {
+      status: row.registeredAt ? 'claimed' : 'issued',
+      suspendedAt: undefined,
+      suspendedBy: undefined,
+      suspendReason: undefined
+    });
+    const sessions = await ctx.db
+      .query('testerSessions')
+      .withIndex('by_code', (q) => q.eq('code', code))
+      .collect();
+    for (const s of sessions) {
+      if (s.revoked) await ctx.db.patch(s._id, { revoked: false });
+    }
+    await logAuditEvent(ctx, admin.email, 'tester.code.unsuspended', code);
+    return { ok: true, code };
+  }
+});
+
+/**
+ * RE-ACTIVATE a claimed code that never got into the app.
+ *
+ * Real-world failure this exists for: a tester registers, then their login fails
+ * (or they never complete it) and the code sits in `claimed`, permanently
+ * blocking the registration form with "already registered to another tester".
+ *
+ * Re-activating releases the claim so the SAME person can re-apply using their
+ * real email and the details they already submitted:
+ *   • their submitted details are snapshotted into `previousRegistration` and
+ *     kept on the row so the admin can still read and compare them
+ *   • the device binding and any live tester sessions are released
+ *   • the trial clock is left untouched (it never started if they never got in)
+ * A re-opened code is `issued` again, so the registration form accepts it.
+ */
+export const reactivate = mutation({
+  args: { code: v.string(), reason: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const admin = await requireAdmin(ctx);
+    const code = normalizeCode(args.code);
+    const row = await ctx.db
+      .query('testerCodes')
+      .withIndex('by_code', (q) => q.eq('code', code))
+      .first();
+    if (!row) throw new ConvexError(`No tester code "${code}" found.`);
+    if (row.status === 'revoked') {
+      throw new ConvexError('That code is revoked — use restore, or issue a fresh code.');
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(row._id, {
+      status: 'issued',
+      deviceId: undefined,
+      deviceLabel: undefined,
+      trialStartsAt: undefined,
+      trialExpiresAt: undefined,
+      reactivatedAt: now,
+      reactivatedBy: admin.email,
+      reopenCount: (row.reopenCount ?? 0) + 1,
+      needsReview: false,
+      suspendedAt: undefined,
+      suspendedBy: undefined,
+      suspendReason: undefined,
+      previousRegistration: {
+        fullName: row.fullName ?? undefined,
+        actualEmail: row.actualEmail ?? undefined,
+        mobile: row.mobile ?? undefined,
+        stateOfResidence: row.stateOfResidence ?? undefined,
+        registeredAt: row.registeredAt ?? undefined
+      },
+      notes: args.reason?.trim() || row.notes
+    });
+
+    // Release any live session so the tester is forced back through the code
+    // activation step (which is what re-binds the device + starts the clock).
+    const sessions = await ctx.db
+      .query('testerSessions')
+      .withIndex('by_code', (q) => q.eq('code', code))
+      .collect();
+    for (const s of sessions) await ctx.db.patch(s._id, { revoked: true });
+
+    await logAuditEvent(ctx, admin.email, 'tester.code.reactivated', code, {
+      reason: args.reason ?? null,
+      previousEmail: row.actualEmail ?? null,
+      reopenCount: (row.reopenCount ?? 0) + 1
+    });
+    return { ok: true, code, previousEmail: row.actualEmail ?? null };
+  }
+});
+
+/**
+ * Approve a (re-)registration. A re-opened code that is re-submitted is flagged
+ * `needsReview`; approving clears the flag and records who signed it off. It is
+ * a confirmation step only — it never blocks login.
+ */
+export const approve = mutation({
+  args: { code: v.string(), approved: v.optional(v.boolean()), reason: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const admin = await requireAdmin(ctx);
+    const code = normalizeCode(args.code);
+    const row = await ctx.db
+      .query('testerCodes')
+      .withIndex('by_code', (q) => q.eq('code', code))
+      .first();
+    if (!row) throw new ConvexError(`No tester code "${code}" found.`);
+    const approved = args.approved !== false;
+    if (approved && !row.registeredAt) {
+      throw new ConvexError('There is no registration on that code yet.');
+    }
+    await ctx.db.patch(row._id, {
+      needsReview: false,
+      approvedAt: approved ? Date.now() : undefined,
+      approvedBy: approved ? admin.email : undefined,
+      notes: args.reason?.trim() || row.notes
+    });
+    await logAuditEvent(
+      ctx,
+      admin.email,
+      approved ? 'tester.code.approved' : 'tester.code.rejected',
+      code,
+      { reason: args.reason ?? null }
+    );
+    return { ok: true, code, approved };
   }
 });
 
@@ -317,8 +500,15 @@ export const register = mutation({
     if (row.status === 'revoked') {
       throw new ConvexError('That access code has been revoked. Please contact the administrator.');
     }
+    if (row.status === 'suspended') {
+      throw new ConvexError(
+        'That access code is currently suspended. Please contact the administrator — it can be re-activated for you.'
+      );
+    }
     if (row.status === 'claimed') {
-      throw new ConvexError('That access code has already been registered to another tester.');
+      throw new ConvexError(
+        'That access code has already been registered to another tester. If that was you and the login failed, ask the administrator to re-activate the code so you can register again with your details.'
+      );
     }
 
     // The tester email is ISSUED, not chosen — reject anything else so a code
@@ -377,6 +567,9 @@ export const register = mutation({
       `${code}:${actualEmail}`
     );
 
+    // A RE-OPENED code (previously claimed, then released by the admin) keeps a
+    // snapshot of the old submission so the console can flag it for a final
+    // approve/reject review without ever blocking the tester's login.
     await ctx.db.patch(row._id, {
       status: 'claimed',
       fullName,
@@ -388,7 +581,10 @@ export const register = mutation({
       mobile,
       stateOfResidence: args.stateOfResidence.trim(),
       consentAccepted: true,
-      registeredAt: now
+      registeredAt: now,
+      needsReview: !!row.previousRegistration,
+      approvedAt: undefined,
+      approvedBy: undefined
     });
 
     await logAuditEvent(ctx, suppliedTesterEmail || 'tester', 'tester.registered', code, {
@@ -424,7 +620,31 @@ export const checkCode = query({
       // A code is only usable while issued (not yet registered) or claimed.
       status: row.status,
       claimed: row.status === 'claimed',
+      suspended: row.status === 'suspended',
       registered: !!row.registeredAt,
+      // Re-opened by the admin: a previous claim was released so this person can
+      // register again. The form must NOT treat it as "already taken".
+      reopened: (row.reopenCount ?? 0) > 0 && row.status === 'issued',
+      trialDays: TESTER_TRIAL_DAYS
+    };
+  }
+});
+
+/**
+ * The SHARED tester login identity, for the registration + login forms.
+ *
+ * The tester email is not chosen by the tester — it is provisioned server-side —
+ * so requiring them to type it from memory was a guaranteed source of failed
+ * registrations. Publishing the email (never the password) lets both forms
+ * prefill the exact account and shows "how to sign in" guidance in one place.
+ */
+export const testerIdentity = query({
+  args: {},
+  handler: async () => {
+    const email = testerLoginEmail();
+    return {
+      configured: !!email,
+      testerEmail: email || null,
       trialDays: TESTER_TRIAL_DAYS
     };
   }
@@ -466,6 +686,11 @@ export const activateSession = mutation({
     }
     if (row.status === 'revoked') {
       throw new ConvexError('That access code has been revoked. Please contact the administrator.');
+    }
+    if (row.status === 'suspended') {
+      throw new ConvexError(
+        'That access code is currently suspended. Please contact the administrator to have it re-activated.'
+      );
     }
     if (row.status !== 'claimed') {
       throw new ConvexError(
@@ -566,7 +791,8 @@ export const mySession = query({
 
     const now = Date.now();
     const expired = !!code.trialExpiresAt && code.trialExpiresAt <= now;
-    const active = !session.revoked && code.status !== 'revoked' && !expired;
+    const suspended = code.status === 'suspended';
+    const active = !session.revoked && code.status !== 'revoked' && !suspended && !expired;
 
     return {
       active,
@@ -574,9 +800,11 @@ export const mySession = query({
         ? ('revoked' as const)
         : code.status === 'revoked'
           ? ('revoked' as const)
-          : expired
-            ? ('expired' as const)
-            : ('active' as const),
+          : suspended
+            ? ('suspended' as const)
+            : expired
+              ? ('expired' as const)
+              : ('active' as const),
       code: code.code,
       fullName: code.fullName ?? null,
       deviceId: session.deviceId,
@@ -601,8 +829,23 @@ export const touchSession = mutation({
       .withIndex('by_subject', (q) => q.eq('subject', identity.subject ?? ''))
       .first();
     if (!session) return { ok: false };
-    await ctx.db.patch(session._id, { lastSeenAt: Date.now() });
-    return { ok: true };
+    const now = Date.now();
+    // Measure foreground time: the delta since the previous beat is added only
+    // when it is short enough to be continuous (an idle tab is not "time spent").
+    const previous = session.lastBeatAt ?? session.lastSeenAt;
+    const gap = now - previous;
+    const added = gap > 0 && gap <= MAX_BEAT_GAP_MS ? gap : 0;
+    await ctx.db.patch(session._id, {
+      lastSeenAt: now,
+      lastBeatAt: now,
+      sessionMs: (session.sessionMs ?? 0) + added
+    });
+    const row = await ctx.db
+      .query('testerCodes')
+      .withIndex('by_code', (q) => q.eq('code', session.code))
+      .first();
+    if (row) await ctx.db.patch(row._id, { usageMs: (row.usageMs ?? 0) + added });
+    return { ok: true, usageMs: (row?.usageMs ?? 0) + added };
   }
 });
 
@@ -635,19 +878,94 @@ export const overview = query({
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, limit);
 
+    // ── Sessions: per-code liveness + foreground time ────────────────────────
     const sessions = await ctx.db.query('testerSessions').collect();
-    const sessionsByCode = new Map<string, { live: boolean; lastSeenAt: number }>();
+    const sessionsByCode = new Map<string, { live: boolean; lastSeenAt: number; sessionMs: number }>();
+    /** JWT subject → tester code, so a bet slip's owner can be attributed. */
+    const codeBySubject = new Map<string, string>();
     for (const s of sessions) {
       const prev = sessionsByCode.get(s.code);
-      const live = !!s.deviceId && now - s.lastSeenAt < 30 * 60_000 && !s.revoked;
-      if (!prev || s.lastSeenAt > prev.lastSeenAt) {
-        sessionsByCode.set(s.code, { live: live || !!prev?.live, lastSeenAt: s.lastSeenAt });
+      const live = !s.revoked && now - s.lastSeenAt < ONLINE_WINDOW_MS;
+      sessionsByCode.set(s.code, {
+        live: live || !!prev?.live,
+        lastSeenAt: Math.max(prev?.lastSeenAt ?? 0, s.lastSeenAt),
+        sessionMs: (prev?.sessionMs ?? 0) + (s.sessionMs ?? 0)
+      });
+      if (s.subject) codeBySubject.set(s.subject, s.code);
+    }
+
+    // ── Usage heartbeats: who is actually in the app, and for how long ───────
+    const usageRows = await ctx.db.query('usage').take(4000);
+    const usageByCode = new Map<string, { usageMs: number; lastSeenAt: number; sessions: number }>();
+    const usageByEmail = new Map<string, { usageMs: number; lastSeenAt: number; sessions: number }>();
+    const usageByOwner = new Map<string, { usageMs: number; lastSeenAt: number; sessions: number }>();
+    let onlineNow = 0;
+    for (const u of usageRows) {
+      if (now - u.lastSeenAt < PRESENCE_WINDOW_MS) onlineNow += 1;
+      usageByOwner.set(u.owner, {
+        usageMs: u.usageMs ?? 0,
+        lastSeenAt: u.lastSeenAt,
+        sessions: u.sessions ?? 1
+      });
+      if (u.code) {
+        const prev = usageByCode.get(u.code);
+        usageByCode.set(u.code, {
+          usageMs: (prev?.usageMs ?? 0) + (u.usageMs ?? 0),
+          lastSeenAt: Math.max(prev?.lastSeenAt ?? 0, u.lastSeenAt),
+          sessions: (prev?.sessions ?? 0) + (u.sessions ?? 1)
+        });
+      }
+      if (u.email) {
+        const prev = usageByEmail.get(u.email);
+        usageByEmail.set(u.email, {
+          usageMs: (prev?.usageMs ?? 0) + (u.usageMs ?? 0),
+          lastSeenAt: Math.max(prev?.lastSeenAt ?? 0, u.lastSeenAt),
+          sessions: (prev?.sessions ?? 0) + (u.sessions ?? 1)
+        });
       }
     }
 
+    // ── Graded pick record per owner (bet-slip legs) → strike rate ───────────
+    type Strike = { legs: number; wins: number; losses: number; pushes: number; strikePct: number | null };
+    const emptyStrike = (): Strike => ({ legs: 0, wins: 0, losses: 0, pushes: 0, strikePct: null });
+    const strikeByCode = new Map<string, Strike>();
+    const strikeByEmail = new Map<string, Strike>();
+    for (const owner of new Set(codeBySubject.keys())) strikeByCode.set(codeBySubject.get(owner)!, emptyStrike());
+    const slips = await ctx.db.query('betSlips').take(3000);
+    const platform = emptyStrike();
+    for (const slip of slips) {
+      const ownerKey = slip.owner;
+      const code = codeBySubject.get(ownerKey);
+      const email = (slip as any).email as string | undefined;
+      for (const item of slip.items ?? []) {
+        const grade = item?.grade;
+        if (grade !== 'win' && grade !== 'loss' && grade !== 'push') continue;
+        const targets: Strike[] = [platform];
+        if (code) targets.push(strikeByCode.get(code) ?? emptyStrike());
+        if (email) targets.push(strikeByEmail.get(email) ?? emptyStrike());
+        for (const t of targets) {
+          t.legs += 1;
+          if (grade === 'win') t.wins += 1;
+          else if (grade === 'loss') t.losses += 1;
+          else t.pushes += 1;
+        }
+        if (code) strikeByCode.set(code, targets[1]);
+        if (email) strikeByEmail.set(email, targets[targets.length - 1]);
+      }
+    }
+    const finishStrike = (s: Strike): Strike => ({
+      ...s,
+      strikePct: s.wins + s.losses > 0 ? Math.round((s.wins / (s.wins + s.losses)) * 1000) / 10 : null
+    });
+
     const testers = codes.map((c) => {
       const session = sessionsByCode.get(c.code);
+      const usage = usageByCode.get(c.code);
       const expired = !!c.trialExpiresAt && c.trialExpiresAt <= now;
+      const suspended = c.status === 'suspended';
+      const dead = c.status === 'revoked' || suspended || expired;
+      const lastSeenAt = Math.max(session?.lastSeenAt ?? 0, usage?.lastSeenAt ?? 0) || null;
+      const online = !dead && !!lastSeenAt && now - (lastSeenAt as number) < ONLINE_WINDOW_MS;
       const days = daysLeft(c.trialExpiresAt);
       return {
         code: c.code,
@@ -673,7 +991,22 @@ export const overview = query({
         loginCount: c.loginCount ?? 0,
         lastLoginAt: c.lastLoginAt ?? null,
         sessionActive: !!session?.live,
-        lastSeenAt: session?.lastSeenAt ?? null,
+        lastSeenAt,
+        // Green = online now · amber = offline · red = expired/revoked/suspended.
+        presence: online ? ('online' as const) : dead ? ('expired' as const) : ('offline' as const),
+        online,
+        /** Total foreground time on the app (ms) — heartbeats, idle dropped. */
+        usageMs: Math.max(c.usageMs ?? 0, usage?.usageMs ?? 0),
+        strike: finishStrike(strikeByCode.get(c.code) ?? emptyStrike()),
+        suspended: suspended,
+        suspendedAt: c.suspendedAt ?? null,
+        suspendReason: c.suspendReason ?? null,
+        reactivatedAt: c.reactivatedAt ?? null,
+        reopenCount: c.reopenCount ?? 0,
+        needsReview: !!c.needsReview,
+        approvedAt: c.approvedAt ?? null,
+        approvedBy: c.approvedBy ?? null,
+        previousRegistration: c.previousRegistration ?? null,
         revokedAt: c.revokedAt ?? null,
         notes: c.notes ?? null
       };
@@ -681,36 +1014,49 @@ export const overview = query({
 
     const profiles = await ctx.db.query('userProfiles').collect();
     const subscribers = profiles
-      .filter((p) => p.isSubscribed || (p.subscriptionExpiresAt ?? 0) > now)
-      .map((p) => ({
-        email: p.email,
-        fullName: p.fullName,
-        mobile: p.mobile ?? null,
-        stateOfResidence: p.stateOfResidence ?? null,
-        role: p.role ?? 'user',
-        tier: p.subscriptionTier ?? null,
-        isSubscribed: !!p.isSubscribed,
-        subscriptionExpiresAt: p.subscriptionExpiresAt ?? null,
-        daysRemaining: daysLeft(p.subscriptionExpiresAt),
-        updatedAt: p.updatedAt
-      }))
+      .filter((p) => p.isSubscribed || (p.subscriptionExpiresAt ?? 0) > now || (p.role ?? '') === 'admin')
+      .map((p) => {
+        const usage = usageByEmail.get(p.email);
+        const ownerUsage = p.userId ? usageByOwner.get(p.userId) : undefined;
+        const lastSeenAt = Math.max(usage?.lastSeenAt ?? 0, ownerUsage?.lastSeenAt ?? 0) || null;
+        const expired = !!p.subscriptionExpiresAt && p.subscriptionExpiresAt <= now;
+        const isAdminRow = (p.role ?? '') === 'admin';
+        const online = !expired && !!lastSeenAt && now - (lastSeenAt as number) < ONLINE_WINDOW_MS;
+        return {
+          email: p.email,
+          fullName: p.fullName,
+          mobile: p.mobile ?? null,
+          stateOfResidence: p.stateOfResidence ?? null,
+          role: p.role ?? 'user',
+          tier: p.subscriptionTier ?? null,
+          isSubscribed: !!p.isSubscribed,
+          subscriptionExpiresAt: p.subscriptionExpiresAt ?? null,
+          daysRemaining: daysLeft(p.subscriptionExpiresAt),
+          updatedAt: p.updatedAt,
+          lastSeenAt,
+          online,
+          presence: isAdminRow ? ('online' as const) : online ? ('online' as const) : expired ? ('expired' as const) : ('offline' as const),
+          usageMs: Math.max(usage?.usageMs ?? 0, ownerUsage?.usageMs ?? 0),
+          logins: Math.max(usage?.sessions ?? 0, ownerUsage?.sessions ?? 0),
+          strike: finishStrike(strikeByEmail.get(p.email) ?? emptyStrike())
+        };
+      })
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, limit);
-
-    const presenceRows = await ctx.db
-      .query('presence')
-      .withIndex('by_lastSeen', (q) => q.gt('lastSeen', now - PRESENCE_WINDOW_MS))
-      .collect();
 
     return {
       generatedAt: now,
       trialDays: TESTER_TRIAL_DAYS,
       testers,
       subscribers,
+      platform: finishStrike(platform),
       counts: {
         codesIssued: testers.length,
         codesAwaitingRegistration: testers.filter((t) => t.status === 'issued').length,
         claimable: testers.filter((t) => t.status === 'claimed').length,
+        suspended: testers.filter((t) => t.suspended).length,
+        needsReview: testers.filter((t) => t.needsReview).length,
+        reopened: testers.filter((t) => t.reopenCount > 0).length,
         revoked: testers.filter((t) => t.status === 'revoked').length,
         registered: testers.filter((t) => !!t.registeredAt).length,
         deviceBound: testers.filter((t) => !!t.deviceId).length,
@@ -722,7 +1068,9 @@ export const overview = query({
           (t) =>
             t.trialExpiresAt && t.trialExpiresAt > now && t.trialExpiresAt - now <= 7 * 24 * 60 * 60 * 1000
         ).length,
-        onlineNow: presenceRows.length
+        onlineNow,
+        onlineTesters: testers.filter((t) => t.online).length,
+        onlineSubscribers: subscribers.filter((s) => s.online).length
       }
     };
   }
