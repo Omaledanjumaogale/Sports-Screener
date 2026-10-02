@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { buildAccuracyReport, bandOf } from './predictorAccuracy';
 import { normalizeMatches } from '../../convex/scrapers/normalize';
 import type { PredictorMatch } from './predictorTypes';
+import * as greatMinds from './greatMindsEngine';
+
+afterEach(() => vi.restoreAllMocks());
 
 function matchFrom(
   id: string,
@@ -44,6 +47,25 @@ function matchFrom(
 }
 
 describe('predictorAccuracy', () => {
+  it('compares predicted and observed rates over the same non-push sample', () => {
+    const match = matchFrom('push', 'football', 'h2h=1.50,4.00,6.50 totals=2:1.80/2.00', '2-0');
+    vi.spyOn(greatMinds, 'generateGreatMindsDebate').mockReturnValue({
+      consensusPicks: {
+        winner: { selection: 'Home', realWinChancePct: 80 },
+        spread: null,
+        total: { selection: 'Over 2', realWinChancePct: 20 }
+      },
+      resolvedVerdict: { pickVerdicts: [
+        { selection: 'Home', grade: 'win' },
+        { selection: 'Over 2', grade: 'push' }
+      ] }
+    } as any);
+    const report = buildAccuracyReport([match]);
+    expect(report.overall.pushes).toBeGreaterThan(0);
+    expect(report.overall.avgPredictedPct).toBe(80);
+    expect(report.overall.winRatePct).toBe(100);
+    expect(report.overall.calibrationGapPct).toBe(-20);
+  });
   it('buckets resolved picks by band, market and sport', () => {
     // Home-favoured 1X2 (Arsenal 1.50) + real totals → the winner pick is a
     // strong favourite and every pick resolves against the 2-0 final score.

@@ -17,6 +17,8 @@
   import { ArrowLeft, Activity, RefreshCw, Database, ShieldAlert, Trash2, Radio, Check, Trophy, Gauge, LineChart, Users, KeyRound, Copy, ShieldOff, RotateCcw, CalendarPlus, Smartphone, Eye } from '@lucide/svelte';
   import { api, queryConvex, callConvex, subscribeConvexQuery, convexErrorMessage } from '$lib/convexClient';
   import { authState } from '$lib/authStore.svelte';
+  import AdminOperations from '$lib/components/AdminOperations.svelte';
+  import { winningStreaks } from '$lib/winningStreaks';
   import { todayKey, dayKeyFor } from '$lib/predictorClient';
   import type {
     PredictorStatsSnapshot,
@@ -144,7 +146,7 @@
   );
   const selectedSnapshot = $derived(history.find((s) => s.dayKey === selectedDay) ?? null);
   const scopeData = $derived<StatsSnapshotData | null>(
-    (selectedDay === 'lifetime' ? lifetime?.data : selectedSnapshot?.data) ?? lifetime?.data ?? null
+    (selectedDay === 'lifetime' ? lifetime?.data : selectedSnapshot?.data) ?? null
   );
   const scopeLabel = $derived(selectedDay === 'lifetime' ? 'Lifetime (45-day window)' : dayLabel(selectedDay));
 
@@ -238,24 +240,8 @@
   // current streak is the run ending today; the max is the best run in the
   // retained window. This is the "highest winning streak" read the control room
   // exists to surface.
-  function computeStreaks(key: 'byMarket' | 'bySport'): Map<string, { cur: number; max: number; days: number }> {
-    const streaks = new Map<string, { cur: number; max: number; days: number }>();
-    const sorted = [...history].sort((a, b) => a.dayKey.localeCompare(b.dayKey));
-    for (const snap of sorted) {
-      for (const r of ((snap.data?.[key] ?? []) as StatsAccuracyRow[])) {
-        if (!r || r.picks === 0) continue;
-        const s = streaks.get(r.group) ?? { cur: 0, max: 0, days: 0 };
-        s.days += 1;
-        if (r.wins > r.losses) {
-          s.cur += 1;
-          s.max = Math.max(s.max, s.cur);
-        } else if (r.wins < r.losses) {
-          s.cur = 0;
-        }
-        streaks.set(r.group, s);
-      }
-    }
-    return streaks;
+  function computeStreaks(key: 'byMarket' | 'bySport') {
+    return winningStreaks(history.map(snapshot => ({ dayKey: snapshot.dayKey, rows: (snapshot.data?.[key] ?? []) as StatsAccuracyRow[] })));
   }
 
   const marketStreaks = $derived(computeStreaks('byMarket'));
@@ -534,13 +520,15 @@
         <h1>AI Performance Data Bank</h1>
         <p class="sub">
           Every settled prediction, stored: accuracy, calibration and verdict rankings measured
-          against real final scores across all 11 sports.
+          against stored final scores. Coverage and sample size are shown with each report.
         </p>
       </div>
       <span class="live-chip" title="Snapshots stream live from Convex">
         <Radio size={13} stroke-width={2.4} /> Live
       </span>
     </header>
+
+    <AdminOperations {history} />
 
     {#if error}
       <p class="alert error" role="alert">{error}</p>

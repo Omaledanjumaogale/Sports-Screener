@@ -60,7 +60,7 @@ function addToBucket(
   predictedPct: number
 ): void {
   b.picks += 1;
-  b.predictedSum += predictedPct;
+  if (grade !== 'push') b.predictedSum += predictedPct;
   if (grade === 'win') b.wins += 1;
   else if (grade === 'loss') b.losses += 1;
   else b.pushes += 1;
@@ -69,7 +69,7 @@ function addToBucket(
 function toRow(group: string, b: { picks: number; wins: number; losses: number; pushes: number; predictedSum: number }): AccuracyRow {
   const resolved = b.wins + b.losses;
   const winRatePct = resolved > 0 ? Math.round((b.wins / resolved) * 100) : 0;
-  const avgPredictedPct = b.picks > 0 ? Math.round(b.predictedSum / b.picks) : 0;
+  const avgPredictedPct = resolved > 0 ? Math.round(b.predictedSum / resolved) : 0;
   return {
     group,
     picks: b.picks,
@@ -78,7 +78,7 @@ function toRow(group: string, b: { picks: number; wins: number; losses: number; 
     pushes: b.pushes,
     winRatePct,
     avgPredictedPct,
-    calibrationGapPct: b.picks > 0 ? Number((avgPredictedPct - winRatePct).toFixed(1)) : 0
+    calibrationGapPct: resolved > 0 ? Number((avgPredictedPct - winRatePct).toFixed(1)) : 0
   };
 }
 

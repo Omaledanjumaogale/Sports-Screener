@@ -98,7 +98,7 @@ describe('buildSnapshot — bucketing, win rate and calibration', () => {
   });
 
   it('reports the calibration gap as published % − realised win rate', () => {
-    const meanPublished = Math.round((80 * 6 + 55 + 60 + 30) / 9);
+    const meanPublished = Math.round((80 * 6 + 55 + 30) / 8);
     expect(snap.overall.avgPredictedPct).toBe(meanPublished);
     expect(snap.overall.calibrationGapPct).toBe(meanPublished - snap.overall.winRatePct);
   });

@@ -112,8 +112,8 @@ export interface GreatMindsModelDef {
 export const GREAT_MINDS_MODELS: GreatMindsModelDef[] = [
   {
     id: 'claude-opus',
-    name: 'Claude Opus 4.0',
-    shortName: 'Claude 4.0',
+    name: 'Consensus synthesis',
+    shortName: 'Consensus model',
     version: '4.0',
     role: 'The Moderator (Synthesis & Resolution)',
     iconBg: '#fbbf24',
@@ -122,8 +122,8 @@ export const GREAT_MINDS_MODELS: GreatMindsModelDef[] = [
   },
   {
     id: 'chatgpt-pro',
-    name: 'ChatGPT 3.2 Pro',
-    shortName: 'ChatGPT Pro',
+    name: 'Probability model',
+    shortName: 'Probability model',
     version: '3.2 Pro',
     role: 'The Data Scientist (EV & Probability)',
     iconBg: '#10b981',
@@ -132,8 +132,8 @@ export const GREAT_MINDS_MODELS: GreatMindsModelDef[] = [
   },
   {
     id: 'kimi',
-    name: 'Kimi K2.5',
-    shortName: 'Kimi K2.5',
+    name: 'Tempo model',
+    shortName: 'Tempo model',
     version: 'K2.5',
     role: 'The Analyst (Historical Trends & Tempo)',
     iconBg: '#3b82f6',
@@ -142,8 +142,8 @@ export const GREAT_MINDS_MODELS: GreatMindsModelDef[] = [
   },
   {
     id: 'qwen',
-    name: 'Qwen 3.5',
-    shortName: 'Qwen 3.5',
+    name: 'Market efficiency model',
+    shortName: 'Market efficiency model',
     version: '3.5',
     role: 'The Technician (Line Efficiency & Odds Resistance)',
     iconBg: '#8b5cf6',
@@ -152,8 +152,8 @@ export const GREAT_MINDS_MODELS: GreatMindsModelDef[] = [
   },
   {
     id: 'grok',
-    name: 'Grok 4.2',
-    shortName: 'Grok 4.2',
+    name: 'Risk challenge model',
+    shortName: 'Risk challenge model',
     version: '4.2',
     role: 'The Contrarian (Spread & Stale Line Dissent)',
     iconBg: '#ef4444',
@@ -508,4 +508,3 @@ export function gradeSelection(
   // Unknown market — best-effort numeric line try (push-aware).
   return null;
 }
-

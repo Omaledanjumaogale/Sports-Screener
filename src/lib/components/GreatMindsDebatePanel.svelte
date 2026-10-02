@@ -49,10 +49,11 @@
         <header class="gm-head">
       <div class="gm-title-badge">
         <Trophy size={18} class="trophy-ic" />
-        <h2>THE GREAT AI MINDS RECOMMEND</h2>
+        <h2>SCENARIO MODEL CONSENSUS</h2>
       </div>
       <span class="rounds-count">After 5 rounds</span>
     </header>
+    <p class="model-note">These deterministic scenario models share odds inputs. Their agreement is not independent confirmation or a guaranteed win rate. Provider-backed analysis is identified separately.</p>
 
     {#if (debate.realWinChancePct ?? 0) > 0}
       <div class="cross-verified-strip">
