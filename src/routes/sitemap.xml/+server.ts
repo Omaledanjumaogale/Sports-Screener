@@ -5,6 +5,8 @@
 
 import type { RequestHandler } from '@sveltejs/kit';
 
+export const prerender = true;
+
 const SITE_URL = 'https://pulseodds.ewinproject.org';
 
 interface SitemapEntry {
