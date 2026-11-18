@@ -20,7 +20,9 @@
     "icons": "node scripts/build-icons.mjs",
     "deploy:convex": "convex deploy",
     "deploy:pages": "npm run build && wrangler pages deploy dist",
-    "deploy:pwa": "npm run build && npm run wrangler:deploy && npm run audit:pwa"
+    "deploy:pwa": "npm run build && npm run wrangler:deploy && npm run audit:pwa",
+    "ewin:validate": "node scripts/validate-ewin-v31.mjs",
+    "pretest": "node scripts/validate-ewin-v31.mjs"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.10",
